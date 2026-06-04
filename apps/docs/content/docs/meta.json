@@ -1,0 +1,33 @@
+{
+  "title": "AuthKit",
+  "pages": [
+    "---Getting Started---",
+    "index",
+    "getting-started",
+    "starter",
+    "---Core Concepts---",
+    "topologies",
+    "account-store",
+    "host-kit",
+    "client",
+    "resolvers",
+    "---Features---",
+    "personal-access-tokens",
+    "impersonation",
+    "mfa",
+    "webauthn",
+    "refresh-tokens",
+    "back-channel-logout",
+    "account-linking",
+    "dynamic-registration",
+    "admin-console",
+    "i18n",
+    "---Frontend---",
+    "react",
+    "---Operations---",
+    "security",
+    "account-lockout",
+    "observability",
+    "reference"
+  ]
+}

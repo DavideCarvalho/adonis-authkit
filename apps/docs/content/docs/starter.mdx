@@ -1,0 +1,216 @@
+---
+title: Quickstart
+description: A minimal standalone IdP and a client app, from zero.
+---
+
+This walks through the smallest end-to-end setup: a **standalone Authorization Server** and
+a separate **client app** that authenticates against it. Every snippet uses real exported
+APIs. For deeper dives, follow the links to the feature pages.
+
+## 1. The IdP
+
+### Install & configure
+
+```bash
+npm install @dudousxd/adonis-authkit-server
+node ace configure @dudousxd/adonis-authkit-server
+```
+
+`configure` publishes `config/authkit_server.ts`, wires the provider, and registers the
+bundled ace commands (including `authkit:eject`). AuthKit needs a SQL connection
+(`@adonisjs/lucid`) for its adapter and stores.
+
+### The account model
+
+Compose an `AuthUser` from the mixins so the Lucid store has the columns it needs:
+
+```ts title="app/models/auth_user.ts"
+import { BaseModel } from '@adonisjs/lucid/orm'
+import { compose } from '@adonisjs/core/helpers'
+import { withAuthUser, withCredentials } from '@dudousxd/adonis-authkit-server'
+
+export default class AuthUser extends compose(
+  BaseModel,
+  withAuthUser(),
+  withCredentials()
+) {}
+```
+
+### config/authkit_server.ts
+
+```ts title="config/authkit_server.ts"
+import env from '#start/env'
+import AuthUser from '#models/auth_user'
+import {
+  defineConfig,
+  adapters,
+  lucidAccountStore,
+  inertiaRenderer,
+} from '@dudousxd/adonis-authkit-server'
+
+const authServerConfig = defineConfig({
+  issuer: env.get('AUTHKIT_ISSUER'), // e.g. http://localhost:3333/oidc
+  adapter: adapters.database({ connection: 'auth' }),
+  jwks: { source: 'managed', algorithm: 'RS256' },
+  ttl: { accessToken: '15m', refreshToken: '30d' },
+  clients: [
+    {
+      clientId: 'my-app',
+      clientSecret: env.get('MY_APP_CLIENT_SECRET'),
+      redirectUris: [env.get('MY_APP_REDIRECT_URI')],
+      grants: ['authorization_code', 'refresh_token'],
+    },
+  ],
+  accountStore: lucidAccountStore(AuthUser),
+  mountPath: '/oidc',
+  render: inertiaRenderer({ prefix: 'authkit' }),
+})
+
+export default authServerConfig
+```
+
+<Callout type="warn">
+  `issuer` is the public provider URL and **must end with `mountPath`** — here
+  `…/oidc` for `mountPath: '/oidc'`.
+</Callout>
+
+### Mount the host
+
+```ts title="start/routes.ts"
+import router from '@adonisjs/core/services/router'
+import { registerAuthHost } from '@dudousxd/adonis-authkit-server'
+
+registerAuthHost(router, {
+  mountPath: '/oidc',
+})
+```
+
+One call mounts the provider, the login / consent / signup interaction, password reset,
+email verification, and the account console. That's the whole IdP. See
+[Host Kit](/docs/host-kit) for the render seam, branding, and ejecting.
+
+## 2. The client app
+
+### Install & configure
+
+```bash
+npm install @dudousxd/adonis-authkit-client
+node ace configure @dudousxd/adonis-authkit-client
+```
+
+### config/authkit_client.ts
+
+```ts title="config/authkit_client.ts"
+import env from '#start/env'
+import { defineConfig, resolvers } from '@dudousxd/adonis-authkit-client'
+import type { Identity } from '@dudousxd/adonis-authkit-client'
+import AppUser from '#models/app_user'
+
+const authkitClientConfig = defineConfig({
+  issuer: env.get('AUTHKIT_ISSUER'),       // same issuer as the IdP
+  clientId: env.get('AUTHKIT_CLIENT_ID'),  // 'my-app'
+  clientSecret: env.get('AUTHKIT_CLIENT_SECRET'),
+  redirectUri: env.get('AUTHKIT_REDIRECT_URI'),
+  resolver: resolvers.jwt({ tokenSource: 'session' }),
+
+  resolveUser: async (identity: Identity) => {
+    return AppUser.updateOrCreate(
+      { id: identity.userId },
+      { id: identity.userId, email: identity.email, fullName: identity.profile?.name ?? null }
+    )
+  },
+})
+
+export default authkitClientConfig
+```
+
+### Middleware
+
+```ts title="start/kernel.ts"
+router.use([
+  // ...
+  () => import('@dudousxd/adonis-authkit-client/authkit_middleware'),
+])
+```
+
+The middleware proactively refreshes the token set (see
+[Refresh Tokens](/docs/refresh-tokens)) and attaches an authenticator to `ctx.auth`.
+
+### The login / callback / logout flow
+
+```ts title="start/routes.ts (client)"
+import router from '@adonisjs/core/services/router'
+import {
+  generatePkce,
+  buildAuthorizeUrl,
+  exchangeCode,
+  buildEndSessionUrl,
+} from '@dudousxd/adonis-authkit-client'
+
+const cfg = {
+  issuer: process.env.AUTHKIT_ISSUER!,
+  clientId: process.env.AUTHKIT_CLIENT_ID!,
+  clientSecret: process.env.AUTHKIT_CLIENT_SECRET!,
+  redirectUri: process.env.AUTHKIT_REDIRECT_URI!,
+}
+
+router.get('/login', async ({ session, response }) => {
+  const { verifier, challenge } = await generatePkce()
+  const state = crypto.randomUUID()
+  session.put('pkce', { verifier, state })
+  return response.redirect(
+    buildAuthorizeUrl({
+      ...cfg,
+      scopes: ['openid', 'profile', 'email', 'offline_access'],
+      state,
+      codeChallenge: challenge,
+    })
+  )
+})
+
+router.get('/auth/callback', async ({ request, session, response }) => {
+  const stash = session.get('pkce') as { verifier: string; state: string }
+  const tokens = await exchangeCode({
+    ...cfg,
+    code: request.input('code'),
+    codeVerifier: stash.verifier,
+  })
+  session.put('authkit', tokens) // the resolver reads the token set here
+  return response.redirect('/')
+})
+
+router.get('/logout', async ({ session, response }) => {
+  const tokens = session.get('authkit') as { idToken?: string } | undefined
+  session.clear()
+  return response.redirect(
+    buildEndSessionUrl({
+      issuer: cfg.issuer,
+      idToken: tokens?.idToken,
+      postLogoutRedirectUri: 'http://localhost:3000/',
+    })
+  )
+})
+```
+
+## 3. Environment
+
+```dotenv title=".env (IdP)"
+AUTHKIT_ISSUER=http://localhost:3333/oidc
+MY_APP_CLIENT_SECRET=super-secret
+MY_APP_REDIRECT_URI=http://localhost:3000/auth/callback
+```
+
+```dotenv title=".env (client)"
+AUTHKIT_ISSUER=http://localhost:3333/oidc
+AUTHKIT_CLIENT_ID=my-app
+AUTHKIT_CLIENT_SECRET=super-secret
+AUTHKIT_REDIRECT_URI=http://localhost:3000/auth/callback
+```
+
+## Where to go next
+
+- [Topologies](/docs/topologies) — standalone vs embedded (host-is-its-own-client).
+- [Resolvers](/docs/resolvers) — `jwt` / `pat` / `opaque`.
+- [Security](/docs/security) — rate-limiting, lockout, audit, logout.
+- [React](/docs/react) — frontend `useAuth()` and gating.
+- [Observability](/docs/observability) — metrics + a Grafana dashboard.

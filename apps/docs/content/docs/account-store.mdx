@@ -1,0 +1,128 @@
+---
+title: Account Store
+description: The AccountStore contract, the Lucid default, and the model mixins.
+---
+
+The **`AccountStore`** is AuthKit's primary identity contract. `defineConfig` derives
+`findAccount` and `verifyCredentials` from it, and the host-kit controllers use it for
+signup, password reset, email verification, and MFA. AuthKit never sees your Lucid model
+directly — only the `AuthAccount` DTO the store returns.
+
+## The contract
+
+As of **v0.3.0** the store is decomposed into a mandatory **core** plus three **optional
+capabilities**. The `AccountStore` type used by the config is the core intersected with a
+`Partial<>` of every capability, so existing configs that reference `AccountStore` keep
+compiling unchanged.
+
+```ts
+interface AuthAccount {
+  id: string
+  email: string
+  globalRoles?: string[]
+  name?: string
+  avatarUrl?: string
+}
+
+// Always present. Identity, signup, password reset, email verification, and admin.
+interface CoreAccountStore {
+  // Provider-facing
+  findById(id: string): Promise<AuthAccount | null>
+  verifyCredentials(email: string, password: string): Promise<AuthAccount | null>
+  // Signup / social
+  findByEmail(email: string): Promise<AuthAccount | null>
+  create(input: CreateAccountInput): Promise<AuthAccount>
+  // Password reset
+  issuePasswordResetToken(email: string): Promise<{ token: string; account: AuthAccount } | null>
+  consumePasswordResetToken(token: string, newPassword: string): Promise<boolean>
+  // Email verification
+  issueEmailVerificationToken(email: string): Promise<{ token: string; account: AuthAccount } | null>
+  consumeEmailVerificationToken(token: string): Promise<boolean>
+  // Admin console (B6)
+  listAccounts(params: ListAccountsParams): Promise<Paginated<AuthAccount>>
+  setGlobalRoles(accountId: string, roles: string[]): Promise<void>
+}
+
+// Optional capabilities — implement the whole interface, or omit it entirely.
+interface MfaCapability { /* getMfaState, startTotpEnrollment, confirmTotpEnrollment, … */ }
+interface WebauthnCapability { /* generatePasskeyRegistrationOptions, listPasskeys, … */ }
+interface ProviderIdentityCapability { /* findByProviderIdentity, linkProviderIdentity */ }
+
+// What the config consumes.
+type AccountStore = CoreAccountStore &
+  Partial<MfaCapability & WebauthnCapability & ProviderIdentityCapability>
+```
+
+A capability is **all-or-nothing**: a store either implements every method of
+`MfaCapability` or omits the capability completely — there are no half-present methods that
+throw. Narrow at runtime with the exported type guards:
+
+```ts
+import { supportsMfa, supportsPasskeys, supportsProviderIdentity } from '@dudousxd/adonis-authkit-server'
+
+if (supportsMfa(store)) {
+  await store.getMfaState(accountId) // typed as MfaCapability here
+}
+```
+
+- `supportsMfa(store)` → `store is AccountStore & MfaCapability` (checks `getMfaState`)
+- `supportsPasskeys(store)` → `store is AccountStore & WebauthnCapability` (checks `listPasskeys`)
+- `supportsProviderIdentity(store)` → `store is AccountStore & ProviderIdentityCapability` (checks `findByProviderIdentity`)
+
+A store that omits MFA simply has it disabled (the interaction flow treats the absent
+capability as "no MFA"). The UI hides the passkeys section when `supportsPasskeys` is false.
+See [MFA](/docs/mfa) and [WebAuthn](/docs/webauthn).
+
+## The Lucid default
+
+`lucidAccountStore(Model, options?)` implements the whole contract against a Lucid model:
+
+```ts
+import AuthUser from '#models/auth_user'
+import { lucidAccountStore } from '@dudousxd/adonis-authkit-server'
+
+accountStore: lucidAccountStore(AuthUser, { mfaIssuer: 'educ(a)ção' })
+```
+
+The `mfaIssuer` option is the label shown in authenticator apps; the store uses it to
+build the TOTP `otpauth` URI / QR keyuri.
+
+`lucidAccountStore` assembles the store from per-capability builders
+(`accounts/lucid_store/`): the core is always present, and the MFA, WebAuthn, and
+provider-identity capabilities are **only spread onto the returned object when their
+options/columns are configured**. If you don't enable a capability, its methods are
+genuinely absent (not present-but-throwing), so the `supports*` type guards report the
+real shape of the store.
+
+## The model mixins
+
+Compose your `AuthUser` model from AuthKit's mixins so it has the columns and methods the
+store expects:
+
+- **`withAuthUser`** — base identity columns (id, email, globalRoles, profile).
+- **`withCredentials`** — password hash + `verifyCredentials` plumbing.
+- **`withPersonalAccessToken`** — relation/helpers for [PAT](/docs/personal-access-tokens).
+- **`withMfa`** — TOTP secret, `mfaEnabledAt`, and recovery codes for [MFA](/docs/mfa).
+- **`withAuditLog`** — typed `AuditEventType` columns for an audit-log model.
+
+```ts title="app/models/auth_user.ts"
+import { BaseModel } from '@adonisjs/lucid/orm'
+import { compose } from '@adonisjs/core/helpers'
+import { withAuthUser, withCredentials, withMfa } from '@dudousxd/adonis-authkit-server'
+
+export default class AuthUser extends compose(
+  BaseModel,
+  withAuthUser(),
+  withCredentials(),
+  withMfa()
+) {}
+```
+
+## Bringing your own store
+
+If your users don't live in a Lucid model — or you need custom logic — implement
+`CoreAccountStore` yourself and pass it to `accountStore`. As long as the core methods
+fulfil the contract above, every host-kit flow keeps working. To add a capability, spread
+its full interface onto the same object; to keep it off, simply omit those methods — don't
+stub them with throwing placeholders, since the `supports*` guards (and the UI) rely on
+method presence to detect the capability.

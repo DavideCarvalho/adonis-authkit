@@ -1,0 +1,172 @@
+---
+title: Client
+description: Wire a relying party with @dudousxd/adonis-authkit-client.
+---
+
+The client kit makes an AdonisJS app a relying party of an AuthKit IdP: it resolves an
+`Identity` per request, maps it to your app's user, and gives you the login / callback /
+logout helpers.
+
+## Install & configure
+
+```bash
+npm install @dudousxd/adonis-authkit-client
+node ace configure @dudousxd/adonis-authkit-client
+```
+
+```ts title="config/authkit_client.ts"
+import env from '#start/env'
+import { defineConfig, resolvers } from '@dudousxd/adonis-authkit-client'
+import type { Identity } from '@dudousxd/adonis-authkit-client'
+import AppUser from '#models/app_user'
+import UserRole from '#models/user_role'
+
+const authkitClientConfig = defineConfig({
+  issuer: env.get('AUTHKIT_ISSUER'),
+  clientId: env.get('AUTHKIT_CLIENT_ID'),
+  clientSecret: env.get('AUTHKIT_CLIENT_SECRET'),
+  redirectUri: env.get('AUTHKIT_REDIRECT_URI'),
+  resolver: resolvers.jwt({ tokenSource: 'session' }),
+
+  resolveUser: async (identity: Identity) => {
+    const user = await AppUser.updateOrCreate(
+      { id: identity.userId },
+      { id: identity.userId, email: identity.email, fullName: identity.profile?.name ?? null }
+    )
+    await user.load('roles')
+    return user
+  },
+
+  resolveAppRoles: async (identity: Identity) => {
+    const rows = await UserRole.query().where('userId', identity.userId)
+    return rows.map((r) => r.role)
+  },
+})
+
+export default authkitClientConfig
+```
+
+## Resolvers: jwt, pat, opaque
+
+The `resolver` decides how an incoming request is turned into an `Identity`. There are
+three factories — see [Resolvers](/docs/resolvers) for the full option tables.
+
+- **`resolvers.jwt({ tokenSource?, jwksUri? })`** — for browser/user sessions. Validates
+  the OIDC token **locally** against the IdP's JWKS (`${issuer}/jwks` by default),
+  checking `issuer` and `audience` (your `clientId`). `tokenSource` is `'session'` by
+  default (the token from the login flow); `'bearer'` reads it from the request header.
+- **`resolvers.pat({ introspectionUrl, introspectionSecret })`** — for machine-to-machine
+  callers presenting a Personal Access Token. Validates by calling the IdP's introspection
+  endpoint with the shared secret. See [PAT](/docs/personal-access-tokens).
+- **`resolvers.opaque({ tokenSource?, cacheTtlMs? })`** — introspects an opaque access
+  token at the IdP **per request**, so a revocation drops the session immediately. Requires
+  a confidential client. See [Resolvers](/docs/resolvers#resolversopaque).
+
+```ts
+// Browser sessions (local JWKS validation, no network per request)
+resolver: resolvers.jwt({ tokenSource: 'session' })
+
+// Machine-to-machine (introspection)
+resolver: resolvers.pat({
+  introspectionUrl: `${env.get('AUTHKIT_ISSUER')}/authkit/pat/introspect`,
+  introspectionSecret: env.get('PAT_INTROSPECTION_SECRET'),
+})
+
+// Opaque access token, introspected per request (immediate revocation)
+resolver: resolvers.opaque({ tokenSource: 'session' })
+```
+
+## The Identity
+
+Every resolver yields the same shape (claims only — no app domain):
+
+```ts
+interface Identity {
+  userId: string          // sub
+  email: string
+  globalRoles: string[]   // from the configured claim, default 'roles'
+  profile?: { name?: string; avatarUrl?: string } // avatarUrl from 'picture'
+  sessionId?: string      // sid
+  issuedAt: number        // iat (ms)
+  expiresAt: number       // exp (ms)
+  raw: Record<string, unknown>
+}
+```
+
+Since **v0.3.0** all three resolvers (`jwt`, `pat`, `opaque`) populate `profile.avatarUrl`
+(from `picture`) and `sessionId` (from `sid`) — the `pat`/`opaque` paths now match `jwt`,
+so these fields are available regardless of token model. See [Resolvers](/docs/resolvers).
+
+## resolveUser & resolveAppRoles
+
+- **`resolveUser(identity, ctx)`** — map the identity to *your* user record (create on
+  first login, hydrate relations). Whatever you return becomes the authenticated user.
+- **`resolveAppRoles(identity)`** — app-local roles (distinct from the IdP's
+  `globalRoles`), e.g. for your authorization policies.
+
+## Middleware
+
+Register `authkit_middleware` so each request gets an authenticator on `ctx.auth`:
+
+```ts title="start/kernel.ts"
+router.use([
+  // ...
+  () => import('@dudousxd/adonis-authkit-client/authkit_middleware'),
+])
+```
+
+The middleware resolves the `authkit.client` manager, **proactively refreshes** the token
+set (`maybeRefresh` — see [Refresh Tokens](/docs/refresh-tokens)), and attaches
+`ctx.auth = await manager.createAuthenticator(ctx)`.
+
+## Refresh & back-channel logout
+
+- **Refresh token rotation** is handled for you: `authkit_middleware` refreshes the session
+  before it expires and persists the rotated refresh token. See
+  [Refresh Tokens](/docs/refresh-tokens).
+- **Back-channel logout** lets the IdP terminate the RP's sessions out-of-band. Configure a
+  `sessionIndex` + `onBackchannelLogout` and route the IdP's POST to
+  `manager.handleBackchannelLogout(ctx)`. See
+  [Back-Channel Logout](/docs/back-channel-logout).
+
+## The login / callback / logout flow
+
+The flow is OIDC authorization-code + PKCE. The exported helpers do the heavy lifting:
+
+```ts
+import {
+  generatePkce,
+  buildAuthorizeUrl,
+  exchangeCode,
+  buildEndSessionUrl,
+} from '@dudousxd/adonis-authkit-client'
+
+// 1. Login: generate PKCE + state, stash in session, redirect to the IdP
+const { verifier, challenge } = await generatePkce()
+const url = buildAuthorizeUrl({
+  issuer, clientId, redirectUri,
+  scopes: ['openid', 'profile', 'email', 'offline_access'],
+  state, codeChallenge: challenge,
+})
+return response.redirect(url)
+
+// 2. Callback: exchange the code for tokens, store the session
+const tokens = await exchangeCode({
+  issuer, clientId, clientSecret, redirectUri,
+  code: request.input('code'),
+  codeVerifier: verifier,
+})
+
+// 3. Logout (RP-initiated): end the IdP session, bounce back
+return response.redirect(
+  buildEndSessionUrl({
+    issuer,
+    idToken: tokens.idToken,
+    postLogoutRedirectUri: 'https://my-app.example.com/',
+  })
+)
+```
+
+`buildEndSessionUrl` targets `${issuer}/session/end`. Passing `idToken` as the
+`id_token_hint` lets the IdP skip its confirmation page; the `postLogoutRedirectUri` must
+be registered on the client. See [Security](/docs/security) for the logout details.

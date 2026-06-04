@@ -1,0 +1,89 @@
+---
+title: Host Kit
+description: registerAuthHost, the render seam, branding, bundled pages, and ejecting.
+---
+
+The **host kit** is the batteries-included front of the Authorization Server: the routes,
+the controllers, and the login / consent / signup / account pages. One call wires it all
+up.
+
+## registerAuthHost
+
+```ts title="start/routes.ts"
+import router from '@adonisjs/core/services/router'
+import { registerAuthHost } from '@dudousxd/adonis-authkit-server'
+
+registerAuthHost(router, {
+  mountPath: '/oidc',
+  social: { providers: ['google'] }, // opt-in
+  rateLimit: { enabled: true },        // opt-in
+})
+```
+
+`AuthHostOptions`:
+
+| Option | Type | Notes |
+| --- | --- | --- |
+| `mountPath` | `string` | Where the OIDC provider is mounted; must match the issuer tail. |
+| `social` | `{ providers: string[] }` | Opt-in; mounts the social redirect/callback routes (uses `ctx.ally`). |
+| `rateLimit` | `RateLimitConfigInput` | Opt-in; throttles login/signup/forgot/reset + PAT introspection. |
+
+It mounts (among others): the provider wildcard at `mountPath`, the multi-step
+interaction at `/auth/interaction/:uid` (`identifier` → `login` → optional `mfa` →
+`consent`), signup, `/auth/forgot-password` + `/auth/reset-password`,
+`/auth/verify-email`, the optional social routes, PAT introspection at
+`/authkit/pat/introspect`, and the account console under `/account/*` (login, tokens, MFA).
+
+<Callout type="warn">
+  `social` and `rateLimit` are passed *here* as well as in `defineConfig` because route
+  mounting is decided at registration time, before the lazy config resolves. Mirror them.
+</Callout>
+
+## The render seam
+
+The host pages are rendered through a `render` function (`AuthHostRenderer`) you set in
+`defineConfig`. Three modes:
+
+- **`inertiaRenderer({ prefix })`** — render the bundled pages through Inertia/React. The
+  `prefix` namespaces the page components (e.g. `'authkit'`).
+- **`edgeRenderer()`** — render through Edge templates instead.
+- **Headless** — omit `render` and drive the flows via the JSON contracts yourself.
+
+```ts
+import { inertiaRenderer } from '@dudousxd/adonis-authkit-server'
+
+render: inertiaRenderer({ prefix: 'authkit' })
+```
+
+## Branding
+
+`branding` themes the pages per client (the `clientId` in the authorize request selects
+the brand). `firstParty` marks clients whose consent screen is skipped.
+
+```ts
+branding: {
+  company: 'educ(a)ção',
+  clients: {
+    'entre-textos': { appName: 'Entre Textos', accent: '#1d4ed8', accentSoft: '#3b82f6', tagline: 'Orientação acadêmica' },
+    eduliberta: { appName: 'EduLiberta', accent: '#047857', accentSoft: '#10b981', tagline: 'Educação livre' },
+  },
+  default: { appName: 'Sua conta', accent: '#111827', accentSoft: '#374151', tagline: 'Acesso unificado' },
+  firstParty: ['entre-textos', 'eduliberta'],
+  audienceLabels: { advisor: 'Orientador', advisee: 'Pesquisador' },
+}
+```
+
+The `brandFor(clientId)` and `isFirstParty(clientId)` helpers are exported if you need
+the resolved brand in your own code.
+
+## Ejecting
+
+When you need to customise a controller or page beyond what config allows, eject the
+bundled source into your app:
+
+```bash
+node ace authkit:eject
+```
+
+This copies the host-kit controllers/pages into your project so you own them, while the
+provider, config surface, and stores stay in the package.

@@ -1,0 +1,158 @@
+---
+title: Observability
+description: Metrics, the OTel recorder, the JSON/dashboard routes, and a Grafana board.
+---
+
+AuthKit emits a canonical set of metrics from both the server (IdP) and the client kit,
+through a small `MetricsRecorder` seam that wires to OpenTelemetry when available — and
+always keeps an in-memory snapshot for the built-in JSON / dashboard routes.
+
+## Enabling metrics (server)
+
+Metrics are off until you turn them on in `observability`:
+
+```ts title="config/authkit_server.ts"
+defineConfig({
+  // ...
+  observability: {
+    metrics: true,     // create the recorder and wire provider events
+    jsonRoutes: true,  // GET /authkit/metrics  → snapshot JSON
+    dashboard: true,   // GET /authkit/dashboard → tiny HTML table (auto-refresh)
+  },
+})
+```
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `metrics` | `boolean?` | `false` | Builds the `OtelRecorder` and binds `authkit.metrics`; without it the recorder is a `NoopRecorder`. |
+| `jsonRoutes` | `boolean?` | `false` | Mounts `GET /authkit/metrics` returning the in-memory snapshot. |
+| `dashboard` | `boolean?` | `false` | Mounts `GET /authkit/dashboard`, a minimal auto-refreshing HTML table. |
+
+## The metric names
+
+The canonical names live in `AUTHKIT_METRICS` (from `@dudousxd/adonis-authkit-core`).
+
+### Server (IdP)
+
+Wired from real `oidc-provider` v9 events:
+
+| Constant | Name | Kind | Meaning |
+| --- | --- | --- | --- |
+| `loginSuccess` | `authkit.login.success` | counter | A grant succeeded (`grant.success`). |
+| `loginFailure` | `authkit.login.failure` | counter | A provider error occurred (`server_error`). |
+| `tokenIssued` | `authkit.token.issued` | counter | An access token was issued/saved (`access_token.issued` / `.saved`). |
+| `refreshRotated` | `authkit.refresh.rotated` | counter | A refresh token was saved/rotated (`refresh_token.saved`). |
+| `grantRevoked` | `authkit.grant.revoked` | counter | A grant was revoked (`grant.revoked`). |
+
+### Client (RP)
+
+Recorded by the `Authenticator` while resolving an identity:
+
+| Constant | Name | Kind | Meaning |
+| --- | --- | --- | --- |
+| `resolveDuration` | `authkit.resolve.duration` | histogram | Wall-clock (ms) to resolve an identity — includes opaque-resolver introspection latency. |
+| `resolveErrors` | `authkit.resolve.errors` | counter | The resolver threw while resolving. |
+
+### Reserved names
+
+These names are part of the contract for future use (no emit site yet): `sessionsActive`
+(`authkit.sessions.active`), `passwordHashDuration` (`authkit.password.hash.duration`),
+`jwksRefresh` (`authkit.jwks.refresh`), `tokenRefresh` (`authkit.token.refresh`).
+
+## The MetricsRecorder seam
+
+A recorder is just two methods plus a snapshot:
+
+```ts
+interface MetricsRecorder {
+  increment(name: AuthkitMetricName, attributes?: Record<string, string | number>): void
+  record(name: AuthkitMetricName, value: number, attributes?: Record<string, string | number>): void
+  snapshot(): MetricsSnapshot
+}
+```
+
+- **`OtelRecorder`** (server and client) best-effort imports `@opentelemetry/api`. If it's
+  installed, counters/histograms are emitted to your configured OTel meter; if not, it
+  silently stays in-memory-only. It **always** aggregates into an `InMemorySnapshot`.
+- **`NoopRecorder`** is used when `metrics` is off.
+
+`InMemorySnapshot` and `NoopRecorder` are exported from `@dudousxd/adonis-authkit-core`, so
+you can build a custom recorder over the same contract. The snapshot shape:
+
+```ts
+interface MetricsSnapshot {
+  counters: Record<string, number>
+  histograms: Record<string, { count: number; sum: number; min: number; max: number }>
+  updatedAt: number
+}
+```
+
+<Callout type="info">
+  To actually export to a backend (Prometheus/OTLP), install `@opentelemetry/api` plus an
+  OTel SDK and meter provider in your app. AuthKit only calls the API surface; the SDK
+  wiring (readers, exporters) is yours.
+</Callout>
+
+## Sample Grafana dashboard
+
+The board below wires the key metrics to a Prometheus datasource (metric names are shown in
+their Prometheus form — dots become underscores and counters gain `_total`). Import it from
+[`/grafana-dashboard.json`](/grafana-dashboard.json) or paste the JSON:
+
+```json
+{
+  "title": "AuthKit — Auth Overview",
+  "uid": "authkit-overview",
+  "tags": ["authkit", "oidc", "auth"],
+  "templating": {
+    "list": [
+      { "name": "DS_PROMETHEUS", "label": "Prometheus", "query": "prometheus", "type": "datasource" }
+    ]
+  },
+  "panels": [
+    {
+      "title": "Login success vs failure rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "sum(rate(authkit_login_success_total[5m]))", "legendFormat": "login success/s" },
+        { "expr": "sum(rate(authkit_login_failure_total[5m]))", "legendFormat": "login failure/s" }
+      ]
+    },
+    {
+      "title": "Login failure ratio",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        { "expr": "sum(rate(authkit_login_failure_total[5m])) / clamp_min(sum(rate(authkit_login_success_total[5m])) + sum(rate(authkit_login_failure_total[5m])), 1)" }
+      ]
+    },
+    {
+      "title": "Identity resolve duration (incl. introspection latency)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(authkit_resolve_duration_bucket[5m])) by (le))", "legendFormat": "resolve p95" },
+        { "expr": "histogram_quantile(0.50, sum(rate(authkit_resolve_duration_bucket[5m])) by (le))", "legendFormat": "resolve p50" }
+      ]
+    },
+    {
+      "title": "Tokens, rotation, revocation & resolve errors",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        { "expr": "sum(rate(authkit_token_issued_total[5m]))", "legendFormat": "tokens issued/s" },
+        { "expr": "sum(rate(authkit_refresh_rotated_total[5m]))", "legendFormat": "refresh rotated/s" },
+        { "expr": "sum(rate(authkit_grant_revoked_total[5m]))", "legendFormat": "grants revoked/s" },
+        { "expr": "sum(rate(authkit_resolve_errors_total[5m]))", "legendFormat": "resolve errors/s" }
+      ]
+    }
+  ]
+}
+```
+
+<Callout type="warn">
+  The exact Prometheus metric names depend on your OTel → Prometheus exporter's naming
+  conventions (unit suffixes, `_total`). Adjust the PromQL `expr` to match what your
+  exporter actually publishes for the `authkit.*` instruments.
+</Callout>

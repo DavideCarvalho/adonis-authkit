@@ -1,0 +1,97 @@
+---
+title: Getting Started
+description: Install the server package, configure it, and mount the host.
+---
+
+This guide stands up a minimal Authorization Server. For a relying party, see
+[Client](/docs/client).
+
+## Install
+
+```bash
+npm install @dudousxd/adonis-authkit-server
+node ace configure @dudousxd/adonis-authkit-server
+```
+
+`node ace configure` runs the package's configure hook: it publishes
+`config/authkit_server.ts`, wires the provider into your app, and registers the bundled
+ace commands (including `authkit:eject`).
+
+<Callout type="info">
+  AuthKit needs a SQL connection for its adapter and stores. The `database` adapter and
+  `lucidAccountStore` use Lucid, so `@adonisjs/lucid` must be installed and configured.
+</Callout>
+
+## Configure
+
+A minimal `config/authkit_server.ts`:
+
+```ts title="config/authkit_server.ts"
+import env from '#start/env'
+import AuthUser from '#models/auth_user'
+import {
+  defineConfig,
+  adapters,
+  lucidAccountStore,
+  inertiaRenderer,
+} from '@dudousxd/adonis-authkit-server'
+
+const authServerConfig = defineConfig({
+  issuer: env.get('AUTHKIT_ISSUER'),
+  adapter: adapters.database({ connection: 'auth' }),
+  jwks: { source: 'managed', algorithm: 'RS256' },
+  ttl: { accessToken: '15m', refreshToken: '30d' },
+  clients: [
+    {
+      clientId: 'my-app',
+      clientSecret: env.get('MY_APP_CLIENT_SECRET'),
+      redirectUris: [env.get('MY_APP_REDIRECT_URI')],
+      grants: ['authorization_code', 'refresh_token'],
+    },
+  ],
+  accountStore: lucidAccountStore(AuthUser),
+  mountPath: '/oidc',
+  render: inertiaRenderer({ prefix: 'authkit' }),
+})
+
+export default authServerConfig
+```
+
+The `issuer` is the public URL of the provider and **must end with `mountPath`** — e.g.
+`https://auth.example.com/oidc` for `mountPath: '/oidc'`.
+
+## Mount the host
+
+`registerAuthHost` mounts everything in one call — the OIDC provider wildcard, the login /
+consent / signup interaction pages, password reset, the account console, and (opt-in)
+social, PAT introspection, and rate-limit middleware.
+
+```ts title="start/routes.ts"
+import router from '@adonisjs/core/services/router'
+import { registerAuthHost } from '@dudousxd/adonis-authkit-server'
+
+registerAuthHost(router, {
+  mountPath: '/oidc',
+  // social: { providers: ['google'] }, // opt-in
+  // rateLimit: { enabled: true },       // opt-in
+})
+```
+
+<Callout type="warn">
+  Pass the **same** `mountPath` to both `defineConfig` and `registerAuthHost`. A few
+  switches — `social` and `rateLimit` — must also be mirrored here because route mounting
+  happens before the (lazy) config resolves.
+</Callout>
+
+## Environment variables
+
+The config above reads (validate them in `start/env.ts`):
+
+```dotenv
+AUTHKIT_ISSUER=http://localhost:3333/oidc
+MY_APP_CLIENT_SECRET=...
+MY_APP_REDIRECT_URI=http://localhost:3000/auth/callback
+```
+
+That's the whole server. Continue with [Topologies](/docs/topologies) to decide how to
+deploy it, or [Account Store](/docs/account-store) to point AuthKit at your user table.

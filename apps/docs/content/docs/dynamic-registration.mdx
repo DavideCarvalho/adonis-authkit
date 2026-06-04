@@ -1,0 +1,61 @@
+---
+title: Dynamic Client Registration
+description: RFC 7591/7592 — register OIDC clients at runtime.
+---
+
+By default AuthKit's clients are the static list in `defineConfig`. With **Dynamic Client
+Registration** (RFC 7591) enabled, the provider also exposes a registration endpoint, and
+clients created there are **persisted by the same adapter** used for the other OIDC
+artifacts — so dynamic clients coexist with the static ones.
+
+## Enabling it
+
+```ts title="config/authkit_server.ts"
+defineConfig({
+  // ...
+  dynamicRegistration: {
+    enabled: true,
+    initialAccessToken: env.get('AUTHKIT_REGISTRATION_IAT'), // strongly recommended
+    management: true, // RFC 7592 read/update/delete
+  },
+})
+```
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `enabled` | `boolean` | `false` | Exposes the registration endpoint (`oidc-provider`'s `registration` feature). |
+| `initialAccessToken` | `string?` | — | Requires this Initial Access Token (IAT) as a bearer to register (RFC 7591 §3). When absent, registration is **open**. |
+| `management` | `boolean` | `false` | Enables Registration Management (RFC 7592): read/update/delete a registered client via its `registration_access_token`. |
+
+<Callout type="warn">
+  Without an `initialAccessToken`, registration is **open** — anyone can register a client.
+  That is rarely desirable in production; always set an IAT unless you have another gate in
+  front of the endpoint.
+</Callout>
+
+## Registering a client
+
+Post the client metadata to the provider's registration endpoint (mounted under the
+issuer, e.g. `${issuer}/reg`), carrying the IAT as a bearer when configured:
+
+```bash
+curl -X POST "$AUTHKIT_ISSUER/reg" \
+  -H "Authorization: Bearer $AUTHKIT_REGISTRATION_IAT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_name": "My Integration",
+    "redirect_uris": ["https://app.example.com/auth/callback"],
+    "grant_types": ["authorization_code", "refresh_token"],
+    "token_endpoint_auth_method": "client_secret_basic"
+  }'
+```
+
+The response includes the issued `client_id`/`client_secret` and, when `management` is on,
+a `registration_access_token` and `registration_client_uri` to manage the client later.
+
+## Persistence & the admin console
+
+Dynamically-registered clients are stored through the **same** OIDC adapter as the rest of
+the provider state, so they survive restarts. They do **not** appear in the
+[admin console](/docs/admin-console)'s client list (which reflects the static config); when
+dynamic registration is on, the admin clients page surfaces a notice to that effect.

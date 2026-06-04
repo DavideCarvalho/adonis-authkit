@@ -1,0 +1,135 @@
+---
+title: Security
+description: Rate-limiting, audit logging, RP-initiated logout, and mail hooks.
+---
+
+AuthKit bundles the security plumbing an Authorization Server needs — most of it opt-in.
+
+## Rate-limiting
+
+Anti-brute-force throttles on the sensitive routes (login/signup/forgot/reset + PAT
+introspection), backed by `@adonisjs/limiter`. Off by default; mirror the switch in both
+`defineConfig` and `registerAuthHost`.
+
+```ts title="config/authkit_server.ts"
+rateLimit: {
+  enabled: true,
+  login: { points: 10, duration: '1 min' },        // default
+  introspection: { points: 60, duration: '1 min' }, // default
+  // store: 'redis', // optional, a store from config/limiter.ts
+}
+```
+
+```ts title="start/routes.ts"
+registerAuthHost(router, { mountPath: '/oidc', rateLimit: { enabled: true } })
+```
+
+The `login` bucket is keyed by IP and guards the interactive auth routes; the
+`introspection` bucket guards `/authkit/pat/introspect`. The host must have
+`@adonisjs/limiter` configured (`config/limiter.ts`).
+
+## Account lockout
+
+Complementary to the IP-keyed rate-limit, **account lockout** throttles by *email*: after
+repeated password failures an account is locked for a progressively-backing-off duration.
+On by default (no-op without the limiter), it emits an `account.locked` audit event while
+locked. See [Account Lockout](/docs/account-lockout) for the config (`maxAttempts`,
+`windowSec`, `baseLockoutSec`, `maxLockoutSec`).
+
+## Audit logging
+
+Provide an `AuditSink` to capture security-relevant events. It is best-effort — `record`
+must never throw into the request path. `lucidAuditSink(Model)` persists to a Lucid model
+(compose it with `withAuditLog`).
+
+```ts title="config/authkit_server.ts"
+import AuditLog from '#models/audit_log'
+import { lucidAuditSink } from '@dudousxd/adonis-authkit-server'
+
+audit: lucidAuditSink(AuditLog),
+```
+
+Emitted `AuditEventType`s:
+
+`login.success`, `login.failure`, `signup`, `password_reset.issued`,
+`password_reset.consumed`, `pat.issued`, `pat.revoked`, `pat.used`, `impersonation`,
+`mfa.enabled`, `mfa.disabled`, `account.locked`, `passkey.registered`, `passkey.removed`,
+`email_verification.issued`, `email_verification.consumed`.
+
+Each `AuditEvent` carries `accountId`, `email`, `clientId`, `actorId` (impersonation),
+`ip`, and free-form `metadata`. The timestamp is set by the sink.
+
+## RP-initiated logout
+
+Use `buildEndSessionUrl` from the client to end the IdP SSO session and bounce the browser
+to a registered `post_logout_redirect_uri`:
+
+```ts
+import { buildEndSessionUrl } from '@dudousxd/adonis-authkit-client'
+
+response.redirect(
+  buildEndSessionUrl({
+    issuer,                              // e.g. http://localhost:3333/oidc
+    idToken: tokens.idToken,             // id_token_hint — skips the confirm page
+    postLogoutRedirectUri: 'https://my-app.example.com/',
+    clientId,                            // some IdPs require it without id_token_hint
+    state,                               // optional; echoed back
+  })
+)
+```
+
+It targets `${issuer}/session/end`. Without `id_token_hint`, the provider renders a
+confirmation page. Register the `postLogoutRedirectUris` on the client (see the example
+configs in [Topologies](/docs/topologies)).
+
+For server-to-server session termination — where the IdP notifies the RP out-of-band — use
+[Back-Channel Logout](/docs/back-channel-logout) (declare a `backchannelLogoutUri` on the
+client and validate the `logout_token`).
+
+## Dynamic registration auth
+
+When [Dynamic Client Registration](/docs/dynamic-registration) is enabled, gate the
+registration endpoint with an `initialAccessToken` (RFC 7591 §3). Without it, registration
+is **open** — anyone can register a client, which is rarely desirable in production.
+
+The RFC 7592 **management** endpoints (`dynamicRegistration.management`) require dynamic
+registration itself to be `enabled` — turning on management while registration is off is a
+**resolve-time error** (the config refuses to construct), so you can't accidentally expose
+client management without the registration flow that backs it.
+
+## Admin console hardening
+
+The `/admin/*` console is off by default. When `admin.enabled` is `false`, the
+`adminGuard` responds with **404 Not Found** rather than a redirect or 403 — a disabled
+console is indistinguishable from one that was never mounted, so its existence isn't
+leaked. See [Admin Console](/docs/admin-console).
+
+## Mail hooks
+
+Password reset and email verification are wired through optional hooks, so AuthKit stays
+transport-agnostic. When absent, it falls back to dev logging (no email sent); the real
+send is up to the host (e.g. `@adonisjs/mail`).
+
+```ts title="config/authkit_server.ts"
+import mail from '@adonisjs/mail/services/main'
+
+mail: {
+  onPasswordReset: async ({ email, resetUrl }) => {
+    await mail.send((m) =>
+      m.from(env.get('EMAIL_FROM')).to(email)
+        .subject('Redefinição de senha')
+        .text(`Para redefinir sua senha, acesse: ${resetUrl}`)
+    )
+  },
+  onEmailVerification: async ({ email, verifyUrl }) => {
+    await mail.send((m) =>
+      m.from(env.get('EMAIL_FROM')).to(email)
+        .subject('Verifique seu e-mail')
+        .text(`Para confirmar seu e-mail, acesse: ${verifyUrl}`)
+    )
+  },
+}
+```
+
+Each hook receives the destination `email`, the fully-built URL (`resetUrl` / `verifyUrl`),
+and the raw `token`.

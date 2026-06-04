@@ -1,0 +1,44 @@
+---
+title: Introduction
+description: An OIDC Authorization Server and client kit for AdonisJS.
+---
+
+AuthKit turns an AdonisJS app into a full **OpenID Connect Authorization Server** — and
+gives you a matching **client kit** so your other apps can authenticate against it. It is
+built on top of [`oidc-provider`](https://github.com/panva/node-oidc-provider) and the
+AdonisJS HTTP layer, but you only ever touch a typed `defineConfig` surface and a handful
+of registration helpers.
+
+## The three packages
+
+<Cards>
+  <Card title="@dudousxd/adonis-authkit-server" description="The Authorization Server: OIDC provider, host-kit routes/pages, account store, PAT, MFA, audit, rate-limit." />
+  <Card title="@dudousxd/adonis-authkit-client" description="The relying-party kit: defineConfig, JWT/PAT resolvers, login/callback/logout flow, per-request Identity middleware." />
+  <Card title="@dudousxd/adonis-authkit-core" description="Shared, transport-agnostic types (Identity, ClientConfig, TtlConfig, JwksConfig) and the metrics contracts." />
+</Cards>
+
+## Key features
+
+- **OIDC provider** — authorization code + PKCE, refresh tokens, ID tokens, JWKS, and a
+  discovery document, all mounted under a single `mountPath`.
+- **Personal Access Tokens (PAT)** — issue / list / revoke long-lived tokens for
+  machine-to-machine access, validated by a server-to-server introspection endpoint.
+- **Impersonation** — RFC 8693 token-exchange so an admin can act *as* another user,
+  recorded in the `act` claim.
+- **MFA / TOTP** — opt-in authenticator enrollment (QR), a login-time challenge, and
+  single-use recovery codes.
+- **Audit logging** — a pluggable `AuditSink` receives security-relevant events
+  (`login.success`, `pat.issued`, `impersonation`, `mfa.enabled`, …).
+- **Rate-limiting** — opt-in anti-brute-force throttles on the sensitive routes, backed
+  by `@adonisjs/limiter`.
+- **RP-initiated logout** — `buildEndSessionUrl` ends the SSO session and bounces the
+  browser back to a registered `post_logout_redirect_uri`.
+- **Deployment-topology-agnostic** — run a dedicated IdP app, or embed the provider
+  inside an existing app where the host is also one of its own clients.
+
+## Where to go next
+
+- [Getting started](/docs/getting-started) — install, configure, and mount the host.
+- [Topologies](/docs/topologies) — standalone vs embedded deployments.
+- [Client](/docs/client) — wire up a relying party.
+- [Reference](/docs/reference) — the full `defineConfig` option tables.

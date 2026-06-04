@@ -1,0 +1,94 @@
+---
+title: Admin Console
+description: The opt-in IdP admin console — users, roles, clients, audit.
+---
+
+AuthKit ships an opt-in **admin console** mounted under `/admin/*`: a dashboard, user/role
+management, the OAuth client list, and the audit log. It is **off by default** — existing
+hosts don't change behaviour.
+
+## Enabling it
+
+The console must be turned on in **both** places — `defineConfig` (the guard) and
+`registerAuthHost` (route mounting happens before the lazy config resolves):
+
+```ts title="config/authkit_server.ts"
+defineConfig({
+  // ...
+  admin: {
+    enabled: true,
+    roles: ['ADMIN'], // global roles allowed into /admin; default ['ADMIN']
+  },
+})
+```
+
+```ts title="start/routes.ts"
+registerAuthHost(router, {
+  mountPath: '/oidc',
+  admin: true, // mirror admin.enabled here
+})
+```
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `enabled` | `boolean` | `false` | Mounts the `/admin/*` group behind the admin guard. |
+| `roles` | `string[]` | `['ADMIN']` | Global roles that grant access to the console. |
+
+## The guard
+
+The `adminGuard` (also exported) protects the group. It requires:
+
+1. `admin.enabled: true` — when the console is **disabled**, the guard responds with **404
+   Not Found** (the routes simply don't exist as far as a caller can tell);
+2. an active **account session** (otherwise redirect to `/account/login`);
+3. the signed-in account having at least one of `admin.roles` in its global roles
+   (otherwise redirect to `/account/tokens`, so the existence of `/admin` isn't leaked).
+
+The allowed roles are resolved at runtime from the `authkit.server` config. See
+[Security](/docs/security) for how the disabled-console 404 fits the broader hardening.
+
+## Routes
+
+| Route | Action |
+| --- | --- |
+| `GET /admin` | Dashboard (counts + recent audit events) |
+| `GET /admin/users` | List/search users |
+| `POST /admin/users/:id/roles` | Replace a user's global roles (`AccountStore.setGlobalRoles`) |
+| `GET /admin/clients` | List OAuth clients (static config + adapter-stored) |
+| `POST /admin/clients` | Create a dynamic client |
+| `POST /admin/clients/:id` | Edit a dynamic client (redirect/post-logout URIs, grants, auth method) |
+| `POST /admin/clients/:id/regenerate-secret` | Regenerate a confidential client's secret |
+| `POST /admin/clients/:id/delete` | Delete a dynamic client |
+| `GET /admin/audit` | Browse the audit log (when the sink supports `list`) |
+
+The console reads through the same contracts as the rest of the host kit:
+`AccountStore.listAccounts` / `setGlobalRoles` for users, the OIDC adapter + static
+`clients` for the client list, and `AuditSink.list` for audit. A write-only audit sink
+degrades gracefully — the audit page shows "query not supported".
+
+## Client CRUD
+
+The clients page lists **both** the statically-configured `clients` (read-only) and the
+**dynamically-registered** ones stored in the OIDC adapter (see
+[Dynamic Registration](/docs/dynamic-registration)). Adapter-stored clients are fully
+manageable from the console via `AdminClientsService`:
+
+- **Create** — generates a `client_id` when omitted; for confidential clients
+  (`tokenEndpointAuthMethod !== 'none'`) it generates a `client_secret` and shows it **once**
+  (it isn't recoverable afterwards). Public clients get no secret.
+- **Edit** — updates the editable metadata (redirect URIs, post-logout redirect URIs,
+  grants, token-endpoint auth method) while **preserving** the existing secret.
+- **Regenerate secret** — issues a fresh `client_secret` for a confidential client (shown
+  once); rejected for public clients.
+- **Delete** — removes the client from the adapter.
+
+Every write builds the payload in the exact snake_case shape the underlying oidc-provider
+persists (matching what RFC 7591 dynamic registration writes) and then **evicts the
+provider's dynamic-client cache** so the change takes effect immediately. Each operation
+emits an audit event: `client.created`, `client.updated`, `client.deleted`.
+
+Enumeration relies on the adapter's **optional** `listClients?()` capability. When the
+adapter doesn't implement it, the service's `canList` is `false` and the page **degrades
+gracefully** — static clients still render and the create form still works, but the
+adapter-stored list is hidden with a notice rather than erroring. Statically-configured
+clients are always read-only (they live in your config, not the adapter).

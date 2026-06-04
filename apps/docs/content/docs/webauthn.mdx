@@ -1,0 +1,90 @@
+---
+title: WebAuthn / Passkeys
+description: Passkeys as a second factor — registration and the login challenge.
+---
+
+AuthKit supports **WebAuthn passkeys** as a second factor, alternative to
+[TOTP](/docs/mfa): biometrics, a device PIN, or a security key, with nothing to type. Like
+TOTP, it's opt-in and driven by optional `AccountStore` methods — a store without passkey
+support simply hides the section.
+
+## Configuration
+
+The Relying Party (RP) parameters are derived from `issuer` when omitted: `rpId` =
+issuer hostname (no port), `origin` = issuer origin, `rpName` = the branding / `mfaIssuer`
+name. Override them with `webauthn`:
+
+```ts title="config/authkit_server.ts"
+defineConfig({
+  issuer: env.get('AUTHKIT_ISSUER'),
+  // ...
+  webauthn: {
+    rpName: 'educ(a)ção',
+    rpId: 'auth.example.com',
+    origin: 'https://auth.example.com',
+  },
+})
+```
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `rpName` | `string?` | branding / `mfaIssuer` | RP name shown by the authenticator. |
+| `rpId` | `string?` | issuer hostname | RP ID (hostname, no port). |
+| `origin` | `string \| string[]?` | issuer origin | Expected origin(s) in verification. |
+
+## The model mixin
+
+Add the `withWebauthnCredential` mixin so the store has somewhere to persist credentials
+(id, public key, counter, transports):
+
+```ts title="app/models/auth_user.ts"
+import { compose } from '@adonisjs/core/helpers'
+import { BaseModel } from '@adonisjs/lucid/orm'
+import {
+  withAuthUser,
+  withCredentials,
+  withMfa,
+  withWebauthnCredential,
+} from '@dudousxd/adonis-authkit-server'
+
+export default class AuthUser extends compose(
+  BaseModel,
+  withAuthUser(),
+  withCredentials(),
+  withMfa(),
+  withWebauthnCredential()
+) {}
+```
+
+## Registration (account console)
+
+The account console (mounted by `registerAuthHost`) manages passkeys on the MFA page:
+
+| Route | Action |
+| --- | --- |
+| `POST /account/mfa/passkeys/options` | Begin registration — returns `generateRegistrationOptions` + a `challenge` |
+| `POST /account/mfa/passkeys/verify` | Finish — `verifyRegistrationResponse` against the stored challenge; on success persists the credential and enables MFA |
+| `POST /account/mfa/passkeys/:id/remove` | Remove a passkey |
+
+The store exposes the begin/finish pair as `generatePasskeyRegistrationOptions` /
+`verifyPasskeyRegistration`, plus `listPasskeys` (a `PasskeySummary` — never the public key
+or counter) and `removePasskey`.
+
+<Callout type="info">
+  The `challenge` returned by a *begin* call must be stored by the controller (in the
+  session) and passed back as `expectedChallenge` to the matching *finish* call — the store
+  keeps no challenge state between calls.
+</Callout>
+
+## The login challenge
+
+When an account has a passkey enrolled, the login interaction offers it as an alternative
+to the TOTP code:
+
+| Route | Action |
+| --- | --- |
+| `POST /auth/interaction/:uid/passkey/options` | Begin authentication — `generatePasskeyAuthenticationOptions` |
+| `POST /auth/interaction/:uid/passkey/verify` | Finish — `verifyPasskeyAuthentication`; updates the stored signature counter |
+
+Registering and removing a passkey emit the `passkey.registered` / `passkey.removed`
+[audit events](/docs/security).

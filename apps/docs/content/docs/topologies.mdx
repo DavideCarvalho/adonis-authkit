@@ -1,0 +1,85 @@
+---
+title: Deployment Topologies
+description: Run a dedicated IdP, or embed the provider inside an existing app.
+---
+
+AuthKit is topology-agnostic: the same server config works whether the Authorization
+Server is its own deployment or lives inside one of your product apps.
+
+## Standalone
+
+A dedicated identity provider app — nothing but AuthKit. Product apps are all relying
+parties pointing at it. This is the `auth-service` example.
+
+```ts title="config/authkit_server.ts (standalone IdP)"
+const authServerConfig = defineConfig({
+  issuer: env.get('AUTH_SERVICE_ISSUER'), // https://auth.example.com/oidc
+  adapter: adapters.database({ connection: 'auth' }),
+  jwks: { source: 'managed', algorithm: 'RS256' },
+  clients: [
+    {
+      clientId: 'entre-textos',
+      clientSecret: env.get('ENTRE_TEXTOS_CLIENT_SECRET'),
+      redirectUris: [env.get('ENTRE_TEXTOS_REDIRECT_URI')],
+      postLogoutRedirectUris: [entreTextosPostLogout],
+      grants: ['authorization_code', 'refresh_token'],
+    },
+    {
+      clientId: 'eduliberta',
+      clientSecret: env.get('EDULIBERTA_CLIENT_SECRET'),
+      redirectUris: [env.get('EDULIBERTA_REDIRECT_URI')],
+      postLogoutRedirectUris: [eduLibertaPostLogout],
+      grants: ['authorization_code', 'refresh_token'],
+    },
+  ],
+  accountStore: lucidAccountStore(AuthUser),
+  mountPath: '/oidc',
+  render: inertiaRenderer({ prefix: 'authkit' }),
+})
+```
+
+The IdP owns the user identities; each product app gets its own `clientId`/`clientSecret`
+and registered redirect URIs.
+
+## Embedded
+
+The provider runs **inside** an existing product app, and that app is also one of its own
+clients (host-is-its-own-client). This is the `entre-textos` example: the same process
+serves the product *and* the OIDC endpoints.
+
+The server config is essentially identical — the host app simply lists itself in
+`clients` alongside the other relying parties:
+
+```ts title="config/authkit_server.ts (embedded)"
+const authServerConfig = defineConfig({
+  issuer: env.get('AUTHKIT_ISSUER'),
+  adapter: adapters.database({ connection: 'auth' }),
+  jwks: { source: 'managed', algorithm: 'RS256' },
+  clients: [
+    { clientId: 'entre-textos', /* the host itself */ ... },
+    { clientId: 'eduliberta', ... },
+  ],
+  accountStore: lucidAccountStore(AuthUser),
+  mountPath: '/oidc',
+  render: inertiaRenderer({ prefix: 'authkit' }),
+})
+```
+
+Alongside it, the host adds a `config/authkit_client.ts` pointing at its own issuer (it
+authenticates against itself). See [Client](/docs/client).
+
+## mountPath, issuer & cookies
+
+- **`mountPath`** (default `/oidc`) is where the provider's wildcard routes are mounted.
+  It must match the tail of `issuer`.
+- **`issuer`** is the public, externally-reachable URL — `scheme://host[:port]/mountPath`.
+  Relying parties derive `/auth`, `/token`, `/jwks`, and `/session/end` from it.
+- **Cookies** — the provider sets its SSO session cookies on the issuer's host. In the
+  embedded topology the provider and the host app share an origin, so the IdP session and
+  the app session coexist on the same host (two separate cookies). Provide signing keys
+  via `cookieKeys` if you want stable cookie signatures across restarts.
+
+<Callout type="info">
+  Switching topologies later is mostly an infrastructure change — split the app out, keep
+  the same `issuer` URL, and the relying parties don't need to change.
+</Callout>

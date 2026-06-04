@@ -1,0 +1,63 @@
+---
+title: MFA / TOTP
+description: Authenticator enrollment, the login challenge, and recovery codes.
+---
+
+AuthKit ships opt-in **TOTP** multi-factor authentication: time-based one-time passwords
+from an authenticator app (Google Authenticator, 1Password, …), plus single-use recovery
+codes. A second option, **WebAuthn passkeys**, is available as an alternative factor — see
+[WebAuthn / Passkeys](/docs/webauthn).
+
+## Enabling MFA
+
+MFA is driven by the optional MFA methods on the `AccountStore`. With `lucidAccountStore`,
+compose the model with the `withMfa` mixin and set an `mfaIssuer`:
+
+```ts title="config/authkit_server.ts"
+accountStore: lucidAccountStore(AuthUser, { mfaIssuer: 'educ(a)ção' }),
+mfaIssuer: 'educ(a)ção',
+```
+
+```ts title="app/models/auth_user.ts"
+import { withMfa } from '@dudousxd/adonis-authkit-server'
+
+export default class AuthUser extends compose(BaseModel, withAuthUser(), withCredentials(), withMfa()) {}
+```
+
+`mfaIssuer` is the label shown in the authenticator app. If a store omits the MFA methods,
+MFA is simply off.
+
+## Enrollment (QR)
+
+The account console (mounted by `registerAuthHost`) exposes enrollment under
+`/account/mfa`:
+
+| Route | Action |
+| --- | --- |
+| `GET /account/mfa` | Show MFA status |
+| `POST /account/mfa/enroll` | Start enrollment — returns a TOTP secret + `otpauth` URI to render as a QR code |
+| `POST /account/mfa/confirm` | Confirm with a code from the app; on success MFA is activated and recovery codes are returned **once** |
+| `POST /account/mfa/disable` | Turn MFA off (clears secret + recovery codes) |
+
+Under the hood these call `startTotpEnrollment` (generates a *pending* secret + keyuri
+without activating), then `confirmTotpEnrollment` (verifies the code, activates MFA, and
+generates the recovery codes).
+
+## The login challenge
+
+When an account has MFA enabled, the interaction flow inserts a challenge step:
+
+```
+identifier → login (password) → mfa (TOTP code) → consent
+```
+
+The host posts the code to `/auth/interaction/:uid/mfa`, which calls `verifyTotp`. A user
+who has lost their device can submit a **recovery code** instead — `consumeRecoveryCode`
+validates and removes it (single-use). If the account has a passkey enrolled, the same step
+also offers a [passkey](/docs/webauthn) challenge as an alternative to typing a code.
+
+## Recovery codes
+
+`confirmTotpEnrollment` returns N recovery codes in plaintext exactly once, at activation
+time. Persisted hashed, each is single-use via `consumeRecoveryCode`. Enabling and
+disabling MFA emit the `mfa.enabled` / `mfa.disabled` [audit events](/docs/security).

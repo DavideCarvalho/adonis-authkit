@@ -1,0 +1,102 @@
+---
+title: Reference
+description: The full defineConfig option tables for server and client.
+---
+
+## Server — `defineConfig` (`@dudousxd/adonis-authkit-server`)
+
+`AuthServerConfigInput`:
+
+| Option | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `issuer` | `string` | — | Public provider URL; must end with `mountPath`. |
+| `adapter` | `AdapterFactory` | — | Storage adapter, e.g. `adapters.database({ connection })`. |
+| `clients` | `ClientConfig[]` | — | Registered OIDC clients (see below). |
+| `jwks` | `JwksConfig` | — | `{ source: 'managed' \| 'jwks', algorithm?, rotationDays?, keys? }`. |
+| `ttl` | `TtlConfig` | see below | Token/session lifetimes; accepts `'15m'`, `'30d'`, or seconds. |
+| `globalRolesClaim` | `string` | `'roles'` | Claim name where global roles are emitted. |
+| `cookieKeys` | `string[]` | `[]` | Cookie signing keys. |
+| `observability` | `ObservabilityConfig` | `{}` | `{ metrics?, jsonRoutes?, dashboard? }`. |
+| `accountStore` | `AccountStore` | — | Primary identity contract; derives `findAccount`/`verifyCredentials`. `AccountStore = CoreAccountStore & Partial<Mfa/Webauthn/ProviderIdentity capabilities>`; narrow with `supportsMfa`/`supportsPasskeys`/`supportsProviderIdentity`. See [Account Store](/docs/account-store). |
+| `patStore` | `PatStore` | — | Optional; required only for PAT flows. |
+| `mountPath` | `string` | `'/oidc'` | Where the host kit mounts the OIDC routes. |
+| `render` | `AuthHostRenderer` | — | `inertiaRenderer` / `edgeRenderer`, or omit for headless. |
+| `branding` | `BrandingConfig` | — | Per-client theming + first-party list. |
+| `social` | `AuthSocialConfig` | — | `{ providers: string[] }`; opt-in social login. |
+| `patIntrospectionSecret` | `string` | — | Shared secret authenticating PAT introspection. |
+| `rateLimit` | `RateLimitConfigInput` | disabled | Opt-in anti-brute-force throttles. |
+| `lockout` | `LockoutConfigInput` | enabled | Progressive per-email lockout. See [Account Lockout](/docs/account-lockout). |
+| `mail` | `MailHooks` | — | `onPasswordReset` / `onEmailVerification` hooks. |
+| `audit` | `AuditSink` | no-op | Best-effort audit sink. |
+| `mfaIssuer` | `string` | `'AuthKit'` | TOTP issuer label shown in authenticator apps. |
+| `webauthn` | `WebauthnConfigInput` | derived from `issuer` | Passkey RP params. See [WebAuthn](/docs/webauthn). |
+| `i18n` | `I18nConfig` | pt-BR | Host-kit screen translations. See [Internationalization](/docs/i18n). |
+| `dynamicRegistration` | `DynamicRegistrationConfigInput` | disabled | RFC 7591/7592. See [Dynamic Registration](/docs/dynamic-registration). |
+| `admin` | `AdminConfigInput` | disabled | The `/admin` console. See [Admin Console](/docs/admin-console). |
+
+### `ttl` defaults
+
+| Field | Default |
+| --- | --- |
+| `accessToken` | `900` (15m) |
+| `refreshToken` | `2592000` (30d) |
+| `idToken` | `900` (15m) |
+| `session` | `604800` (7d) |
+
+### `ClientConfig`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `clientId` | `string` | — |
+| `clientSecret` | `string?` | Omit for public clients. |
+| `redirectUris` | `string[]` | Allowed authorization redirect URIs. |
+| `postLogoutRedirectUris` | `string[]?` | For RP-initiated logout. |
+| `grants` | `string[]?` | e.g. `authorization_code`, `refresh_token`, `urn:ietf:params:oauth:grant-type:token-exchange`. |
+| `tokenEndpointAuthMethod` | `'client_secret_basic' \| 'client_secret_post' \| 'none'` | `'none'` for public/SPA + PKCE. |
+
+### `RateLimitConfigInput`
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `enabled` | `boolean` | `false` |
+| `login` | `{ points, duration }` | `{ points: 10, duration: '1 min' }` |
+| `introspection` | `{ points, duration }` | `{ points: 60, duration: '1 min' }` |
+| `store` | `string?` | host default store |
+
+## Client — `defineConfig` (`@dudousxd/adonis-authkit-client`)
+
+`ClientConfigInput`:
+
+| Option | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `issuer` | `string` | — | IdP issuer URL. |
+| `clientId` | `string` | — | This client's id. |
+| `clientSecret` | `string?` | — | For confidential clients. |
+| `redirectUri` | `string` | — | This client's callback URI. |
+| `resolver` | `ResolverFactory` | — | `resolvers.jwt(...)` or `resolvers.pat(...)`. |
+| `resolveUser` | `(identity, ctx) => Promise<unknown>` | — | Map identity to your user. |
+| `resolveAppRoles` | `(identity) => Promise<string[]>` | — | App-local roles. |
+| `sessionKey` | `string` | `'authkit'` | Session key for the token set. |
+| `scopes` | `string[]` | `['openid','profile','email','offline_access']` | Requested scopes. |
+| `globalRolesClaim` | `string` | `'roles'` | Claim to read global roles from. |
+| `onBackchannelLogout` | `BackchannelLogoutCallback` | — | Invoked with `{ sid, sub }` on a valid logout token. See [Back-Channel Logout](/docs/back-channel-logout). |
+| `sessionIndex` | `SessionIndex` | — | Maps OP `sid`/`sub` to local session ids for back-channel logout. |
+
+### Resolver factories
+
+| Factory | Config | Notes |
+| --- | --- | --- |
+| `resolvers.jwt` | `{ tokenSource?, jwksUri? }` | Local JWKS validation; `tokenSource` defaults to `'session'`, `jwksUri` to `${issuer}/jwks`. |
+| `resolvers.pat` | `{ introspectionUrl, introspectionSecret }` | Validates PATs via the IdP introspection endpoint. |
+| `resolvers.opaque` | `{ tokenSource?, introspectionUrl?, cacheTtlMs? }` | Per-request introspection of opaque access tokens (immediate revocation). Requires a confidential client. |
+
+### Login helpers
+
+| Export | Purpose |
+| --- | --- |
+| `generatePkce()` | Build a PKCE `{ verifier, challenge, method: 'S256' }`. |
+| `buildAuthorizeUrl(params)` | `${issuer}/auth` authorization URL. |
+| `exchangeCode(params)` | Swap an authorization code for a `TokenSet`. |
+| `refreshTokens(params)` | `grant_type=refresh_token` refresh (handles rotation). See [Refresh Tokens](/docs/refresh-tokens). |
+| `exchangeToken(params)` | RFC 8693 token-exchange (impersonation). |
+| `buildEndSessionUrl(params)` | `${issuer}/session/end` RP-initiated logout URL. |

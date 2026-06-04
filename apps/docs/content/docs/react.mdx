@@ -1,0 +1,128 @@
+---
+title: React (Frontend)
+description: useAuth, gating components, and role helpers for Inertia + React.
+---
+
+`@dudousxd/adonis-authkit-react` is frontend ergonomics over AuthKit for **AdonisJS +
+Inertia + React** apps: a typed `useAuth()`, role helpers, and gating components.
+
+It does **not** authenticate — it consumes the auth state the AdonisJS host already
+resolved (via [`@dudousxd/adonis-authkit-client`](/docs/client)) and shared as an Inertia
+shared-prop.
+
+## Install
+
+```bash
+pnpm add @dudousxd/adonis-authkit-react
+```
+
+`react`, `react-dom`, and `@inertiajs/react` are peer dependencies (the app provides them).
+
+## 1. Share the `authkit` prop (host)
+
+Populate the shared-prop (`AuthSharedProps`) from your `Authenticator`, typically in
+`config/inertia.ts`:
+
+```ts title="config/inertia.ts"
+import { defineConfig } from '@adonisjs/inertia'
+
+export default defineConfig({
+  sharedData: {
+    authkit: async (ctx) => {
+      const auth = ctx.auth // the Authenticator from authkit_middleware
+      const user = await auth.getUser()
+      return {
+        user: user ?? null,
+        globalRoles: auth.identity?.globalRoles ?? [],
+        // appRoles?: optional, if the host resolves app roles
+      }
+    },
+  },
+})
+```
+
+The `user` object must match `AuthUser`:
+`{ id, email, name?, avatarUrl?, globalRoles, appRoles? }` — the output of the client's
+`identityToUser` / `resolveUser`.
+
+## 2. useAuth()
+
+```tsx
+import { useAuth } from '@dudousxd/adonis-authkit-react'
+
+function Header() {
+  const { user, isAuthenticated, hasGlobalRole } = useAuth()
+
+  if (!isAuthenticated) return <a href="/login">Sign in</a>
+
+  return (
+    <div>
+      Hi, {user!.name ?? user!.email}
+      {hasGlobalRole('ADMIN') && <a href="/admin">Admin</a>}
+    </div>
+  )
+}
+```
+
+`useAuth()` never throws when the prop is missing — it returns an unauthenticated state
+(`user: null`, empty role lists).
+
+## 3. Gating components
+
+```tsx
+import { Authenticated, Guest, Can } from '@dudousxd/adonis-authkit-react'
+
+<Authenticated fallback={<LoginButton />}>
+  <Dashboard />
+</Authenticated>
+
+<Guest>
+  <MarketingBanner />
+</Guest>
+
+{/* single global role */}
+<Can role="ADMIN">
+  <AdminPanel />
+</Can>
+
+{/* require all roles */}
+<Can roles={['ADMIN', 'BILLING']} mode="all" fallback={<NoAccess />}>
+  <BillingSettings />
+</Can>
+
+{/* an app-specific role */}
+<Can role="EDITOR" appRole>
+  <EditButton />
+</Can>
+```
+
+## 4. AuthProvider (optional)
+
+Outside Inertia (tests, Storybook), inject the value manually. The context takes precedence
+over the page props when present:
+
+```tsx
+import { AuthProvider } from '@dudousxd/adonis-authkit-react'
+
+<AuthProvider value={{ user, globalRoles: user.globalRoles }}>
+  <App />
+</AuthProvider>
+```
+
+## Pure helpers
+
+For use outside components, the role functions are exported and React-free:
+
+```ts
+import {
+  hasGlobalRole,
+  hasAnyGlobalRole,
+  hasAllGlobalRoles,
+  hasAppRole,
+  hasAnyAppRole,
+  hasAllAppRoles,
+} from '@dudousxd/adonis-authkit-react'
+
+hasGlobalRole(user, 'ADMIN')
+hasAnyGlobalRole(user, ['ADMIN', 'TEACHER'])
+```

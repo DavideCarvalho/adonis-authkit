@@ -1,0 +1,82 @@
+name: Deploy AuthKit Docs
+
+# Builds the Fumadocs (Next.js) site and deploys it to GitHub Pages on every
+# push to main that touches the docs. Uses Next.js static export (`output: 'export'`,
+# gated by DOCS_STATIC_EXPORT) so the site is fully static — no server needed.
+# Deploys with the built-in GITHUB_TOKEN; no extra secret required.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/docs/**'
+      - '.github/workflows/docs.yml'
+  # Allow manual runs from the Actions tab.
+  workflow_dispatch:
+
+# Least-privilege token: Pages deploy needs pages:write + id-token:write; read code.
+permissions:
+  pages: write
+  id-token: write
+  contents: read
+
+# One in-flight deploy at a time; let a newer push finish.
+concurrency:
+  group: 'pages'
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.4.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          # pnpm 11.4 requires Node >= 22.13.
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build (static export)
+        env:
+          # Emit the static `out/` and resolve assets under the project Pages
+          # sub-path (https://<user>.github.io/adonis-authkit/).
+          DOCS_STATIC_EXPORT: 'true'
+          DOCS_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+        run: pnpm --filter authkit-docs build
+
+      - name: Disable Jekyll (serve _next/ assets)
+        run: touch apps/docs/out/.nojekyll
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/docs/out
+
+  deploy:
+    name: Deploy to Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

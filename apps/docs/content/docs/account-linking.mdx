@@ -1,0 +1,73 @@
+---
+title: Account Linking
+description: Link OAuth provider identities (Google, GitHub) to one account.
+---
+
+A single account can authenticate through multiple providers — password, Google, GitHub —
+all resolving to the same user. AuthKit links them by the **provider identity**
+`(provider, providerUserId)`, the stable key from the OAuth provider that does not depend
+on the email (which can change or be absent).
+
+## The AccountStore methods
+
+The `AccountStore` contract carries two linking methods (implemented by `lucidAccountStore`):
+
+```ts
+interface AccountStore {
+  /** Find the account linked to a provider identity; null if unknown. */
+  findByProviderIdentity(provider: string, providerUserId: string): Promise<AuthAccount | null>
+  /** Link (idempotent upsert on the unique key) a provider identity to an account. */
+  linkProviderIdentity(data: LinkProviderIdentityInput): Promise<void>
+}
+
+interface LinkProviderIdentityInput {
+  accountId: string
+  provider: string
+  providerUserId: string
+  email?: string
+}
+```
+
+## The model mixin
+
+Compose your account model with `withProviderIdentity` so the store has the join table /
+relation to read and write:
+
+```ts title="app/models/auth_user.ts"
+import { BaseModel } from '@adonisjs/lucid/orm'
+import { compose } from '@adonisjs/core/helpers'
+import {
+  withAuthUser,
+  withCredentials,
+  withProviderIdentity,
+} from '@dudousxd/adonis-authkit-server'
+
+export default class AuthUser extends compose(
+  BaseModel,
+  withAuthUser(),
+  withCredentials(),
+  withProviderIdentity()
+) {}
+```
+
+Stores without provider-identity support (no provider-identity model) throw on these
+methods — link only the accounts whose models declare the mixin.
+
+## Social login precedence
+
+When social login is enabled (see [Host Kit](/docs/host-kit)), the social callback resolves
+the account in this order:
+
+1. **`findByProviderIdentity(provider, profile.id)`** — already-linked identity wins.
+2. Otherwise **`findByEmail(email)`** — an existing account with the same email is *linked*
+   to the new provider identity via `linkProviderIdentity`.
+3. Otherwise a new account is created (`create`) and then linked.
+
+This means a user who first signed up with a password and later "Sign in with Google" on
+the same email lands on the same account, with the Google identity attached for next time.
+
+<Callout type="info">
+  Linking by provider id (not email) is what keeps the mapping stable: if the user later
+  changes their email at Google, the `(provider, providerUserId)` key still resolves to the
+  same AuthKit account.
+</Callout>

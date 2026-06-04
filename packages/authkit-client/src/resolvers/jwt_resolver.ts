@@ -1,6 +1,7 @@
-import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose'
+import { createRemoteJWKSet, jwtVerify } from 'jose'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { Identity, SessionResolver } from '@dudousxd/adonis-authkit-core'
+import { buildIdentityFromClaims } from './identity.js'
 
 export interface JwtResolverConfig {
   issuer: string
@@ -32,7 +33,7 @@ export class JwtResolver implements SessionResolver {
       })
       // uma identidade válida exige um subject (`sub`)
       if (!payload.sub) return null
-      return this.#toIdentity(payload)
+      return buildIdentityFromClaims(payload as Record<string, unknown>, this.config.globalRolesClaim)
     } catch {
       return null
     }
@@ -42,22 +43,5 @@ export class JwtResolver implements SessionResolver {
     const token = this.config.getToken?.(ctx) ?? null
     if (!token) return null
     return this.resolveToken(token)
-  }
-
-  #toIdentity(payload: JWTPayload): Identity {
-    const roles = payload[this.config.globalRolesClaim]
-    return {
-      userId: String(payload.sub),
-      email: typeof payload.email === 'string' ? payload.email : '',
-      globalRoles: Array.isArray(roles) ? (roles as string[]) : [],
-      profile: {
-        name: typeof payload.name === 'string' ? payload.name : undefined,
-        avatarUrl: typeof payload.picture === 'string' ? payload.picture : undefined,
-      },
-      sessionId: typeof payload.sid === 'string' ? payload.sid : undefined,
-      issuedAt: (payload.iat ?? 0) * 1000,
-      expiresAt: (payload.exp ?? 0) * 1000,
-      raw: payload as Record<string, unknown>,
-    }
   }
 }

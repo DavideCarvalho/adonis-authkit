@@ -68,6 +68,40 @@ export function buildEndSessionUrl(p: EndSessionParams): string {
   return url.toString()
 }
 
+/** Resposta padrão do token endpoint (RFC 6749 §5.1). */
+interface TokenEndpointResponse {
+  id_token?: string
+  access_token: string
+  refresh_token?: string
+  expires_in?: number
+}
+
+/**
+ * POST genérico ao token endpoint (`<issuer>/token`) compartilhado pelos fluxos
+ * authorization_code, refresh_token e token-exchange. Mapeia a resposta para um
+ * TokenSet padronizado e lança se o endpoint não responder 2xx.
+ */
+async function tokenEndpoint(
+  issuer: string,
+  body: URLSearchParams,
+  fetchImpl: typeof fetch = fetch
+): Promise<TokenSet> {
+  const res = await fetchImpl(`${issuer}/token`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  })
+  if (!res.ok) throw new Error(`Token endpoint retornou ${res.status}`)
+
+  const json = (await res.json()) as TokenEndpointResponse
+  return {
+    idToken: json.id_token ?? '',
+    accessToken: json.access_token,
+    refreshToken: json.refresh_token,
+    expiresAt: json.expires_in ? Date.now() + json.expires_in * 1000 : undefined,
+  }
+}
+
 export interface ExchangeParams {
   issuer: string
   clientId: string
@@ -75,6 +109,7 @@ export interface ExchangeParams {
   redirectUri: string
   code: string
   codeVerifier: string
+  fetchImpl?: typeof fetch
 }
 
 export async function exchangeCode(p: ExchangeParams): Promise<TokenSet> {
@@ -87,25 +122,7 @@ export async function exchangeCode(p: ExchangeParams): Promise<TokenSet> {
   })
   if (p.clientSecret) body.set('client_secret', p.clientSecret)
 
-  const res = await fetch(`${p.issuer}/token`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body,
-  })
-  if (!res.ok) throw new Error(`Token endpoint retornou ${res.status}`)
-
-  const json = (await res.json()) as {
-    id_token: string
-    access_token: string
-    refresh_token?: string
-    expires_in?: number
-  }
-  return {
-    idToken: json.id_token,
-    accessToken: json.access_token,
-    refreshToken: json.refresh_token,
-    expiresAt: json.expires_in ? Date.now() + json.expires_in * 1000 : undefined,
-  }
+  return tokenEndpoint(p.issuer, body, p.fetchImpl)
 }
 
 export interface RefreshParams {
@@ -135,26 +152,7 @@ export async function refreshTokens(p: RefreshParams): Promise<TokenSet> {
   if (p.scope) body.set('scope', p.scope)
   if (p.clientSecret) body.set('client_secret', p.clientSecret)
 
-  const doFetch = p.fetchImpl ?? fetch
-  const res = await doFetch(`${p.issuer}/token`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
-  })
-  if (!res.ok) throw new Error(`Token endpoint retornou ${res.status}`)
-
-  const json = (await res.json()) as {
-    id_token?: string
-    access_token: string
-    refresh_token?: string
-    expires_in?: number
-  }
-  return {
-    idToken: json.id_token ?? '',
-    accessToken: json.access_token,
-    refreshToken: json.refresh_token,
-    expiresAt: json.expires_in ? Date.now() + json.expires_in * 1000 : undefined,
-  }
+  return tokenEndpoint(p.issuer, body, p.fetchImpl)
 }
 
 export interface ExchangeTokenParams {
@@ -181,24 +179,5 @@ export async function exchangeToken(p: ExchangeTokenParams): Promise<TokenSet> {
   if (p.scope) body.set('scope', p.scope)
   if (p.clientSecret) body.set('client_secret', p.clientSecret)
 
-  const doFetch = p.fetchImpl ?? fetch
-  const res = await doFetch(`${p.issuer}/token`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
-  })
-  if (!res.ok) throw new Error(`Token endpoint retornou ${res.status}`)
-
-  const json = (await res.json()) as {
-    id_token?: string
-    access_token: string
-    refresh_token?: string
-    expires_in?: number
-  }
-  return {
-    idToken: json.id_token ?? '',
-    accessToken: json.access_token,
-    refreshToken: json.refresh_token,
-    expiresAt: json.expires_in ? Date.now() + json.expires_in * 1000 : undefined,
-  }
+  return tokenEndpoint(p.issuer, body, p.fetchImpl)
 }

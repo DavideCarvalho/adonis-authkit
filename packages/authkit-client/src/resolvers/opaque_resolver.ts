@@ -1,6 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import type { Identity, SessionResolver } from '@dudousxd/adonis-authkit-core'
 import { getTokenFromSource, type TokenSource } from '../token_source.js'
+import { buildIdentityFromClaims, introspectToken } from './identity.js'
 
 type FetchImpl = (url: string, init: any) => Promise<{ ok: boolean; json: () => Promise<any> }>
 
@@ -66,35 +67,21 @@ export class OpaqueResolver implements SessionResolver {
       if (hit && this.#now() - hit.storedAt < ttl) return hit.identity
     }
 
-    const doFetch = this.config.fetchImpl ?? (fetch as unknown as FetchImpl)
     const basic = Buffer.from(`${this.config.clientId}:${this.config.clientSecret}`).toString(
       'base64'
     )
-    const res = await doFetch(this.config.introspectionUrl, {
-      method: 'POST',
-      headers: {
-        authorization: `Basic ${basic}`,
-        'content-type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({ token, token_type_hint: 'access_token' }).toString(),
-    })
-    if (!res.ok) return null
-    const data = await res.json()
-    if (!data?.active) {
+    const data = await introspectToken(
+      this.config.introspectionUrl,
+      token,
+      { type: 'basic', value: basic },
+      { tokenTypeHint: 'access_token', fetchImpl: this.config.fetchImpl }
+    )
+    if (!data) {
       this.#cache.delete(token)
       return null
     }
 
-    const rolesClaim = data[this.config.globalRolesClaim]
-    const identity: Identity = {
-      userId: String(data.sub),
-      email: typeof data.email === 'string' ? data.email : '',
-      globalRoles: Array.isArray(rolesClaim) ? rolesClaim : [],
-      profile: { name: typeof data.name === 'string' ? data.name : undefined },
-      issuedAt: typeof data.iat === 'number' ? data.iat * 1000 : 0,
-      expiresAt: typeof data.exp === 'number' ? data.exp * 1000 : 0,
-      raw: data,
-    }
+    const identity = buildIdentityFromClaims(data, this.config.globalRolesClaim)
 
     if (ttl > 0) this.#cache.set(token, { identity, storedAt: this.#now() })
     return identity

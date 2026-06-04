@@ -29,7 +29,14 @@ export function useAuth(): AuthState {
   const contextValue = useContext(AuthContext)
   // `usePage` é seguro de chamar sempre (hooks não podem ser condicionais).
   const pageProps = usePage<AuthSharedProps>().props
-  const authkit = contextValue ?? pageProps?.authkit ?? UNAUTHENTICATED
+  const resolved = contextValue ?? pageProps?.authkit
+  if (!resolved && typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[authkit] useAuth(): nenhum <AuthProvider> nem shared-prop `authkit` encontrado — retornando estado não-autenticado.'
+    )
+  }
+  const authkit = resolved ?? UNAUTHENTICATED
 
   return useMemo<AuthState>(() => {
     const user = authkit.user ?? null

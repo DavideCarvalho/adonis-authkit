@@ -35,7 +35,7 @@ test.group('PatResolver', () => {
         capturedHeaders = init.headers ?? {}
         return {
           ok: true,
-          json: async () => ({ active: true, sub: 'u1', email: 'a@b.com', name: 'A', roles: ['ADMIN'], scopes: ['read'], exp: 0 }),
+          json: async () => ({ active: true, sub: 'u1', email: 'a@b.com', name: 'A', picture: 'http://img/u1.png', sid: 'sess-1', roles: ['ADMIN'], scopes: ['read'], exp: 0 }),
         } as any
       },
     })
@@ -44,6 +44,10 @@ test.group('PatResolver', () => {
     assert.equal(id!.userId, 'u1')
     assert.equal(id!.email, 'a@b.com')
     assert.deepEqual(id!.globalRoles, ['ADMIN'])
+    // Alinhamento com o jwt resolver: picture→avatarUrl, sid→sessionId.
+    assert.equal(id!.profile?.name, 'A')
+    assert.equal(id!.profile?.avatarUrl, 'http://img/u1.png')
+    assert.equal(id!.sessionId, 'sess-1')
     assert.equal(capturedHeaders['authorization'], 'Bearer super-secret')
   })
 

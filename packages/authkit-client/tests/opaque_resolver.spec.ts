@@ -64,6 +64,8 @@ test.group('OpaqueResolver', () => {
             sub: 'u1',
             email: 'a@b.com',
             name: 'A',
+            picture: 'http://img/u1.png',
+            sid: 'sess-1',
             roles: ['ADMIN'],
             exp: 0,
           }),
@@ -75,6 +77,9 @@ test.group('OpaqueResolver', () => {
     assert.equal(id!.userId, 'u1')
     assert.equal(id!.email, 'a@b.com')
     assert.deepEqual(id!.globalRoles, ['ADMIN'])
+    // Alinhamento com o jwt resolver: picture→avatarUrl, sid→sessionId.
+    assert.equal(id!.profile?.avatarUrl, 'http://img/u1.png')
+    assert.equal(id!.sessionId, 'sess-1')
     const expectedBasic = 'Basic ' + Buffer.from('app1:s').toString('base64')
     assert.equal(capturedHeaders['authorization'], expectedBasic)
     assert.include(capturedBody, 'token_type_hint=access_token')

@@ -131,10 +131,26 @@ export default class AuthInteractionController {
 
     const acc = result.account
 
-    // MFA gate: se a conta tem TOTP ativo, NÃO finaliza a interaction agora —
-    // guarda o accountId pendente na sessão e renderiza o desafio do 2º fator.
+    // Step-up auth (acr_values): o client pode EXIGIR MFA nesta requisição
+    // solicitando o `mfaAcr` em acr_values, mesmo que a conta tenha MFA opcional.
+    const mfaRequired = this.acrRequiresMfa(cfg, details)
+
+    // MFA gate: força o 2º fator se a conta tem TOTP ativo OU se o client exige MFA
+    // via acr. Não finaliza a interaction agora — guarda o accountId pendente.
     const mfa = (await cfg.accountStore.getMfaState?.(acc.id)) ?? { enabled: false }
-    if (mfa.enabled) {
+    if (mfa.enabled || mfaRequired) {
+      if (mfaRequired && !mfa.enabled) {
+        // Client exige MFA mas a conta não tem MFA enrolado: bloqueia este login
+        // com a instrução de configurar MFA no console (não há 2º fator a desafiar).
+        return render(ctx, 'mfa-challenge', {
+          uid: ctx.request.param('uid'),
+          csrfToken: ctx.request.csrfToken,
+          brand,
+          passkeyAvailable: false,
+          error: translate(cfg.messages, 'mfa_challenge.required_no_enrollment'),
+          noEnrollment: true,
+        })
+      }
       ctx.session.put(MFA_PENDING_KEY, acc.id)
       // Passkey disponível como alternativa ao TOTP se o store suporta E a conta
       // tem ao menos uma credencial registrada.
@@ -215,7 +231,39 @@ export default class AuthInteractionController {
       clientId,
       metadata: { mfa: usedRecovery ? 'recovery' : 'totp' },
     })
-    await service.interactions.completeLogin(ctx, accountId)
+    // Step-up: um 2º fator foi de fato verificado — carimba acr/amr no id_token
+    // se o client solicitou o mfaAcr nesta requisição.
+    await service.interactions.completeLogin(
+      ctx,
+      accountId,
+      this.stepUpExtra(cfg, details, usedRecovery ? 'recovery' : 'totp')
+    )
+  }
+
+  /**
+   * true se o authorize request exige MFA via acr_values (contém o mfaAcr da
+   * config de step-up). `acr_values` é a string separada por espaços padrão OIDC.
+   */
+  private acrRequiresMfa(cfg: any, details: any): boolean {
+    const mfaAcr = cfg.stepUp?.mfaAcr as string | undefined
+    if (!mfaAcr) return false
+    const raw = details?.params?.acr_values
+    if (typeof raw !== 'string' || !raw) return false
+    return raw.split(/\s+/).includes(mfaAcr)
+  }
+
+  /**
+   * Monta o acr/amr do step-up quando o client solicitou o mfaAcr e um 2º fator
+   * foi verificado. `method` é o método do segundo fator (totp/recovery/webauthn).
+   * Retorna `undefined` quando não há step-up — completeLogin usa o default.
+   */
+  private stepUpExtra(
+    cfg: any,
+    details: any,
+    method: string
+  ): { acr: string; amr: string[] } | undefined {
+    if (!this.acrRequiresMfa(cfg, details)) return undefined
+    return { acr: cfg.stepUp.mfaAcr, amr: ['mfa', method] }
   }
 
   /** true se o store suporta passkeys E a conta tem ao menos uma registrada. */
@@ -310,7 +358,11 @@ export default class AuthInteractionController {
       clientId,
       metadata: { mfa: 'webauthn' },
     })
-    await service.interactions.completeLogin(ctx, accountId)
+    await service.interactions.completeLogin(
+      ctx,
+      accountId,
+      this.stepUpExtra(cfg, details, 'webauthn')
+    )
   }
 
   /**

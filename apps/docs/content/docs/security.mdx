@@ -156,3 +156,83 @@ mail: {
 
 Each hook receives the destination `email`, the fully-built URL (`resetUrl` / `verifyUrl`),
 and the raw `token`.
+
+## DPoP
+
+**DPoP** (Demonstrating Proof of Possession, RFC 9449) binds access/refresh tokens to a
+client-held key pair, so a stolen bearer token is useless without the matching private key.
+Off by default; enable it in `defineConfig`:
+
+```ts title="config/authkit_server.ts"
+dpop: { enabled: true },
+```
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `enabled` | `boolean` | `false` | Turns on `oidc-provider`'s `dPoP` feature. |
+
+When enabled, the discovery document advertises `dpop_signing_alg_values_supported`. A token
+request carrying a valid `DPoP` proof header yields a sender-constrained token
+(`token_type: DPoP`) whose confirmation key (`cnf.jkt`) is surfaced via introspection.
+Requests without a DPoP proof keep working unchanged.
+
+<Callout type="info">
+  **Client side:** the AuthKit client resolvers accept these tokens regardless — the `cnf`
+  binding travels in the introspection result. Generating DPoP proofs in the client
+  (per-request signed headers) is **not implemented** and is documented as future work; for
+  now, enable DPoP on the server and validate via introspection.
+</Callout>
+
+## PAR
+
+**Pushed Authorization Requests** (PAR, RFC 9126) let a client POST its authorization
+parameters to the IdP first and receive an opaque `request_uri` to use at `/auth`, keeping
+parameters off the front channel. Off by default:
+
+```ts title="config/authkit_server.ts"
+par: {
+  enabled: true,
+  requirePushedAuthorizationRequests: false, // set true to force every authorize via PAR
+},
+```
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `enabled` | `boolean` | `false` | Exposes `pushed_authorization_request_endpoint` (`${issuer}/request`). |
+| `requirePushedAuthorizationRequests` | `boolean` | `false` | Rejects inline authorize params; every request must come via a `request_uri`. |
+
+```bash
+# 1. Push the request
+curl -u app:secret -d 'client_id=app&response_type=code&redirect_uri=...&scope=openid&code_challenge=...&code_challenge_method=S256' \
+  ${ISSUER}/request
+# -> 201 { "request_uri": "urn:ietf:params:oauth:request_uri:…", "expires_in": 60 }
+
+# 2. Authorize with the request_uri
+${ISSUER}/auth?client_id=app&request_uri=urn:ietf:params:oauth:request_uri:…
+```
+
+## Step-up authentication
+
+**Step-up auth** lets a client require MFA *for a specific request* via `acr_values`, even if
+the account has MFA configured as optional. This is a pragmatic MVP built on the existing MFA
+interaction.
+
+```ts title="config/authkit_server.ts"
+stepUp: {
+  acrValues: ['urn:authkit:mfa'], // advertised in acr_values_supported
+  mfaAcr: 'urn:authkit:mfa',       // the acr that forces MFA (default)
+},
+```
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `acrValues` | `string[]` | `[]` (+ `mfaAcr`) | acr values advertised as supported in discovery. The `mfaAcr` is always included. |
+| `mfaAcr` | `string` | `'urn:authkit:mfa'` | When a request's `acr_values` contains this, MFA is required. |
+
+Behaviour when a client requests the `mfaAcr` in `acr_values`:
+
+- **Account has MFA enrolled** → the second factor is required for that login. On success the
+  id_token carries the real `acr` (`mfaAcr`) and `amr` (`['mfa', <method>]`, e.g. `totp`,
+  `recovery`, `webauthn`).
+- **Account has no MFA enrolled** → the login is **blocked** for that request, with a message
+  to configure MFA in the account console (there is no second factor to challenge).

@@ -49,6 +49,24 @@ test.group('createInteractionActions', () => {
     assert.deepEqual(provider.calls.finished, { consent: { grantId: 'grant-1' } })
   })
 
+  test('completeLogin com extra step-up propaga acr/amr para o interactionFinished', async ({
+    assert,
+  }) => {
+    const provider = fakeProvider()
+    const actions = createInteractionActions(provider, {})
+    await actions.completeLogin(ctx, 'u1', { acr: 'urn:authkit:mfa', amr: ['mfa', 'totp'] })
+    assert.deepEqual(provider.calls.finished, {
+      login: { accountId: 'u1', acr: 'urn:authkit:mfa', amr: ['mfa', 'totp'] },
+    })
+  })
+
+  test('completeLogin sem extra NÃO inclui acr/amr (default)', async ({ assert }) => {
+    const provider = fakeProvider()
+    const actions = createInteractionActions(provider, {})
+    await actions.completeLogin(ctx, 'u1', { amr: [] })
+    assert.deepEqual(provider.calls.finished, { login: { accountId: 'u1' } })
+  })
+
   test('details devolve o interactionDetails', async ({ assert }) => {
     const provider = fakeProvider()
     const actions = createInteractionActions(provider, {})

@@ -33,6 +33,10 @@ description: The full defineConfig option tables for server and client.
 | `i18n` | `I18nConfig` | pt-BR | Host-kit screen translations. See [Internationalization](/docs/i18n). |
 | `dynamicRegistration` | `DynamicRegistrationConfigInput` | disabled | RFC 7591/7592. See [Dynamic Registration](/docs/dynamic-registration). |
 | `admin` | `AdminConfigInput` | disabled | The `/admin` console. See [Admin Console](/docs/admin-console). |
+| `deviceFlow` | `{ enabled: boolean }` | disabled | Device Authorization Grant (RFC 8628). See [Device Flow](/docs/device-flow). |
+| `dpop` | `{ enabled: boolean }` | disabled | DPoP sender-constrained tokens (RFC 9449). See [Security](/docs/security#dpop). |
+| `par` | `{ enabled: boolean; requirePushedAuthorizationRequests?: boolean }` | disabled | Pushed Authorization Requests (RFC 9126). See [Security](/docs/security#par). |
+| `stepUp` | `{ acrValues?: string[]; mfaAcr?: string }` | `mfaAcr: 'urn:authkit:mfa'` | Step-up auth via `acr_values`. See [Security](/docs/security#step-up-authentication). |
 
 ### `ttl` defaults
 

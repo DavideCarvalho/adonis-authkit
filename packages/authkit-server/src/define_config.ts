@@ -206,6 +206,98 @@ export function resolveDynamicRegistration(
 }
 
 /**
+ * Device Authorization Grant (RFC 8628). Quando habilitado, o oidc-provider expõe
+ * o `device_authorization_endpoint` (`/device/auth`) e a tela de verificação de
+ * user-code (`/device`). O grant `urn:ietf:params:oauth:grant-type:device_code`
+ * deve ser concedido ao client (lista `grants`) para o fluxo funcionar.
+ */
+export interface DeviceFlowConfigInput {
+  /** Liga o Device Authorization Grant. Default: false. */
+  enabled: boolean
+}
+
+export interface ResolvedDeviceFlowConfig {
+  enabled: boolean
+}
+
+export function resolveDeviceFlow(input?: DeviceFlowConfigInput): ResolvedDeviceFlowConfig {
+  return { enabled: input?.enabled ?? false }
+}
+
+/**
+ * DPoP — Demonstrating Proof of Possession (RFC 9449). Quando habilitado, o
+ * oidc-provider aceita DPoP proofs e emite tokens sender-constrained
+ * (`token_type: DPoP`, com `cnf.jkt`). A discovery passa a anunciar
+ * `dpop_signing_alg_values_supported`. Os resolvers do authkit-client aceitam o
+ * token via introspecção (a cnf viaja no resultado) — a geração de provas DPoP no
+ * client está fora de escopo (documentado como trabalho futuro).
+ */
+export interface DpopConfigInput {
+  /** Liga o DPoP. Default: false. */
+  enabled: boolean
+}
+
+export interface ResolvedDpopConfig {
+  enabled: boolean
+}
+
+export function resolveDpop(input?: DpopConfigInput): ResolvedDpopConfig {
+  return { enabled: input?.enabled ?? false }
+}
+
+/**
+ * PAR — Pushed Authorization Requests (RFC 9126). Quando habilitado, o
+ * oidc-provider expõe o `pushed_authorization_request_endpoint` (`/request`): o
+ * client POSTa os parâmetros de authorize e recebe um `request_uri` opaco para
+ * usar no `/auth`. Com `requirePushedAuthorizationRequests`, o `/auth` SÓ aceita
+ * requests via `request_uri` (parâmetros inline são rejeitados).
+ */
+export interface ParConfigInput {
+  /** Liga o PAR. Default: false. */
+  enabled: boolean
+  /** Exige que TODO authorize venha via request_uri do PAR. Default: false. */
+  requirePushedAuthorizationRequests?: boolean
+}
+
+export interface ResolvedParConfig {
+  enabled: boolean
+  requirePushedAuthorizationRequests: boolean
+}
+
+export function resolvePar(input?: ParConfigInput): ResolvedParConfig {
+  return {
+    enabled: input?.enabled ?? false,
+    requirePushedAuthorizationRequests: input?.requirePushedAuthorizationRequests ?? false,
+  }
+}
+
+/**
+ * Step-up authentication via `acr_values` (MVP pragmático de MFA por requisição).
+ * Quando o client solicita `acr_values` contendo `mfaAcr`, o login EXIGE o 2º
+ * fator: contas com MFA enrolado passam pelo desafio (o `acr` do id_token vira
+ * `mfaAcr` e `amr` recebe `['mfa', método]`); contas SEM MFA enrolado têm o login
+ * bloqueado naquela requisição com a instrução de configurar MFA no console.
+ */
+export interface StepUpConfigInput {
+  /** Lista de acr_values anunciados como suportados (discovery). */
+  acrValues?: string[]
+  /** O acr que dispara a exigência de MFA. Default: 'urn:authkit:mfa'. */
+  mfaAcr?: string
+}
+
+export interface ResolvedStepUpConfig {
+  acrValues: string[]
+  mfaAcr: string
+}
+
+export function resolveStepUp(input?: StepUpConfigInput): ResolvedStepUpConfig {
+  const mfaAcr = input?.mfaAcr ?? 'urn:authkit:mfa'
+  // Garante que o mfaAcr esteja sempre na lista anunciada como suportada.
+  const acrValues = Array.from(new Set([...(input?.acrValues ?? []), mfaAcr]))
+  return { acrValues, mfaAcr }
+}
+
+/**
  * Console admin opt-in do IdP (B6). Quando habilitado, monta o grupo `/admin/*`
  * (dashboard, usuários/papéis, clients, audit) atrás de um guard que exige sessão
  * de conta E que a conta tenha pelo menos um dos `roles` nas suas roles globais.
@@ -327,6 +419,14 @@ export interface AuthServerConfigInput {
    * os clients registrados são persistidos pelo mesmo adapter OIDC.
    */
   dynamicRegistration?: DynamicRegistrationConfigInput
+  /** Device Authorization Grant (RFC 8628). Default: desligado. */
+  deviceFlow?: DeviceFlowConfigInput
+  /** DPoP — sender-constrained tokens (RFC 9449). Default: desligado. */
+  dpop?: DpopConfigInput
+  /** Pushed Authorization Requests (RFC 9126). Default: desligado. */
+  par?: ParConfigInput
+  /** Step-up auth via acr_values (MFA por requisição). Default: vazio (só o mfaAcr derivado). */
+  stepUp?: StepUpConfigInput
   /**
    * Console admin do IdP (B6). Default: desligado. Quando ligado, o host também
    * deve passar `admin: true` em {@link AuthHostOptions} no registro de rotas
@@ -364,6 +464,14 @@ export interface ResolvedServerConfig {
   /** RP de WebAuthn resolvido (sempre presente; derivado do issuer por default). */
   webauthn: ResolvedWebauthnConfig
   dynamicRegistration: ResolvedDynamicRegistrationConfig
+  /** Device Authorization Grant resolvido (default desligado). */
+  deviceFlow: ResolvedDeviceFlowConfig
+  /** DPoP resolvido (default desligado). */
+  dpop: ResolvedDpopConfig
+  /** PAR resolvido (default desligado). */
+  par: ResolvedParConfig
+  /** Step-up auth resolvido (mfaAcr sempre presente). */
+  stepUp: ResolvedStepUpConfig
   /** Console admin resolvido (sempre presente; default desligado). */
   admin: ResolvedAdminConfig
   /** Catálogo de mensagens ativo (locale resolvido), pronto para os renderers. */
@@ -425,6 +533,10 @@ export function defineConfig(config: AuthServerConfigInput) {
       mfaIssuer: config.mfaIssuer ?? 'AuthKit',
       webauthn: resolveWebauthn(config.issuer, config.mfaIssuer ?? 'AuthKit', config.webauthn),
       dynamicRegistration: resolveDynamicRegistration(config.dynamicRegistration),
+      deviceFlow: resolveDeviceFlow(config.deviceFlow),
+      dpop: resolveDpop(config.dpop),
+      par: resolvePar(config.par),
+      stepUp: resolveStepUp(config.stepUp),
       admin: resolveAdmin(config.admin),
       messages: resolveMessages(config.i18n),
       locale: config.i18n?.locale ?? 'pt-BR',

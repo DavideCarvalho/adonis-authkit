@@ -1,5 +1,6 @@
 import * as oidc from 'oidc-provider'
 import type { ResolvedServerConfig } from '../define_config.js'
+import { createDeviceSources } from './device_sources.js'
 
 export interface BuildProviderOptions {
   /** APP_KEY do consumidor; usado p/ derivar cookies.keys se não houver. */
@@ -23,6 +24,25 @@ export function buildProvider(config: ResolvedServerConfig, options: BuildProvid
           initialAccessToken: dynReg.initialAccessToken ?? false,
         },
         ...(dynReg.management ? { registrationManagement: { enabled: true } } : {}),
+      }
+    : {}
+
+  // Device Authorization Grant (RFC 8628). Quando ligado, montamos a feature com
+  // as três sources de UI i18n-izadas (entrada/confirmação/sucesso do user-code).
+  const deviceFlowFeatures = config.deviceFlow.enabled
+    ? { deviceFlow: { enabled: true, ...createDeviceSources(config.messages) } }
+    : {}
+
+  // DPoP (RFC 9449). A chave EXATA do oidc-provider v9 é `dPoP`.
+  const dpopFeatures = config.dpop.enabled ? { dPoP: { enabled: true } } : {}
+
+  // PAR (RFC 9126).
+  const parFeatures = config.par.enabled
+    ? {
+        pushedAuthorizationRequests: {
+          enabled: true,
+          requirePushedAuthorizationRequests: config.par.requirePushedAuthorizationRequests,
+        },
       }
     : {}
 
@@ -90,7 +110,13 @@ export function buildProvider(config: ResolvedServerConfig, options: BuildProvid
       revocation: { enabled: true },
       introspection: { enabled: true },
       ...registrationFeatures,
+      ...deviceFlowFeatures,
+      ...dpopFeatures,
+      ...parFeatures,
     },
+    // Step-up auth (acr_values): anuncia os acr suportados para que clients possam
+    // solicitá-los. A exigência efetiva do 2º fator acontece na interaction de login.
+    acrValues: config.stepUp.acrValues,
     ttl: {
       AccessToken: config.ttl.accessToken,
       RefreshToken: config.ttl.refreshToken,

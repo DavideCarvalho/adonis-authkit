@@ -291,6 +291,25 @@ export const DEFAULT_MESSAGES = {
   'admin.pagination.prev': 'Anterior',
   'admin.pagination.next': 'Próxima',
 
+  // Device Authorization Grant (RFC 8628) — telas servidas pelo oidc-provider.
+  'device.input.title': 'Entrar no dispositivo',
+  'device.input.intro': 'Digite o código exibido no seu dispositivo.',
+  'device.input.submit': 'Continuar',
+  'device.input.error_invalid': 'O código informado está incorreto. Tente novamente.',
+  'device.input.error_aborted': 'A solicitação de login foi interrompida.',
+  'device.input.error_generic': 'Ocorreu um erro ao processar sua solicitação.',
+  'device.confirm.title': 'Confirmar dispositivo',
+  'device.confirm.body':
+    'O código abaixo deve estar sendo exibido no seu dispositivo. Confirme apenas se reconhecê-lo.',
+  'device.confirm.submit': 'Continuar',
+  'device.confirm.abort': 'Cancelar',
+  'device.success.title': 'Login concluído',
+  'device.success.body': 'Login realizado com sucesso. Você já pode voltar ao dispositivo.',
+
+  // Step-up auth (acr_values): cliente exige MFA mas a conta não tem MFA enrolado.
+  'mfa_challenge.required_no_enrollment':
+    'Este cliente exige verificação em duas etapas. Configure o MFA no console da sua conta para continuar.',
+
   // Mensagens de erro/flash produzidas pelos controllers.
   'errors.invalid_credentials': 'Credenciais inválidas',
   'errors.invalid_code': 'Código inválido',

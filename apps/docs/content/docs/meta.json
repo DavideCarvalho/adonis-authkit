@@ -20,6 +20,7 @@
     "back-channel-logout",
     "account-linking",
     "dynamic-registration",
+    "device-flow",
     "admin-console",
     "i18n",
     "---Frontend---",

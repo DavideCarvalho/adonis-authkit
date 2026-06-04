@@ -1,6 +1,6 @@
 {
   "name": "@dudousxd/adonis-authkit-client",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "AdonisJS OIDC/OAuth2 relying-party (client) toolkit: session-based authentication against an OpenID Connect identity provider, with JWT/PAT user resolvers and OpenTelemetry metrics.",
   "license": "MIT",
   "author": "dudousxd",

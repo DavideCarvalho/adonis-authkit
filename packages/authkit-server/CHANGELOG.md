@@ -1,5 +1,17 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.3.0
+
+### Minor Changes
+
+- Console admin (B6): CRUD de clients OIDC armazenados no adapter (DB-backed).
+  `/admin/clients` agora cria/edita/deleta clients dinâmicos (client_id/secret
+  gerados, secret exibido uma única vez, regenerate-secret, redirect/grants/auth
+  method editáveis), além de listar os estáticos do config (read-only). Adapter
+  ganha `listClients?()` opcional (implementado no database e redis via SCAN; UI
+  degrada graciosamente quando não suportado). Cache de clients do oidc-provider
+  invalidado a cada escrita. Novos audit events `client.created/updated/deleted`.
+
 ## 0.2.0
 
 ### Minor Changes

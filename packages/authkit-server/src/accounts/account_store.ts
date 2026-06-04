@@ -53,74 +53,101 @@ export interface PasskeySummary {
   createdAt: string
 }
 
-export interface AccountStore {
+/**
+ * Núcleo SEMPRE presente do store de contas: identidade (findById/verifyCredentials),
+ * cadastro, reset de senha, verificação de e-mail e administração (listagem/roles).
+ *
+ * As demais funcionalidades (MFA, passkeys/WebAuthn, account linking por provider)
+ * são CAPACIDADES separadas e opcionais — um store pode implementá-las ou não. Veja
+ * {@link MfaCapability}, {@link WebauthnCapability}, {@link ProviderIdentityCapability}.
+ * O tipo composto usado pela config é {@link AccountStore}.
+ */
+export interface CoreAccountStore extends AdminCapability {
   // Provider-facing
   findById(id: string): Promise<AuthAccount | null>
   verifyCredentials(email: string, password: string): Promise<AuthAccount | null>
   // Cadastro / social
   findByEmail(email: string): Promise<AuthAccount | null>
   create(input: CreateAccountInput): Promise<AuthAccount>
-  // Account linking por identidade de provider (Google, GitHub, …).
-  // `(provider, providerUserId)` é a chave estável vinda do provider OAuth — não
-  // depende do e-mail (que pode mudar / não estar presente). Uma conta pode ter
-  // várias identidades. Stores sem suporte (sem `providerIdentityModel`) lançam.
-  /** Acha a conta ligada a uma identidade de provider; null se desconhecida. */
-  findByProviderIdentity(provider: string, providerUserId: string): Promise<AuthAccount | null>
-  /** Liga (upsert idempotente na chave única) uma identidade de provider a uma conta. */
-  linkProviderIdentity(data: LinkProviderIdentityInput): Promise<void>
   // Reset de senha
   issuePasswordResetToken(email: string): Promise<{ token: string; account: AuthAccount } | null>
   consumePasswordResetToken(token: string, newPassword: string): Promise<boolean>
   // Verificação de e-mail
   issueEmailVerificationToken(email: string): Promise<{ token: string; account: AuthAccount } | null>
   consumeEmailVerificationToken(token: string): Promise<boolean>
+}
 
-  // Administração (console admin opt-in — B6).
+/**
+ * Administração (console admin opt-in — B6). Hoje faz parte do núcleo (os stores
+ * default sempre a implementam e os controllers admin a chamam direto), mas é
+ * modelada como capacidade própria para clareza e futura granularidade.
+ */
+export interface AdminCapability {
   /** Lista contas paginadas, opcionalmente filtrando por e-mail. */
   listAccounts(params: ListAccountsParams): Promise<Paginated<AuthAccount>>
   /** Substitui as roles globais de uma conta. */
   setGlobalRoles(accountId: string, roles: string[]): Promise<void>
+}
 
-  // MFA / TOTP (todos os métodos são opcionais — stores sem suporte a MFA podem
-  // omiti-los; o interaction flow trata `undefined` como "MFA desligado").
+/**
+ * Account linking por identidade de provider (Google, GitHub, …).
+ * `(provider, providerUserId)` é a chave estável vinda do provider OAuth — não
+ * depende do e-mail (que pode mudar / não estar presente). Uma conta pode ter
+ * várias identidades. Stores sem suporte simplesmente NÃO expõem estes métodos
+ * (a capacidade fica ausente) — não há fallback que lança.
+ */
+export interface ProviderIdentityCapability {
+  /** Acha a conta ligada a uma identidade de provider; null se desconhecida. */
+  findByProviderIdentity(provider: string, providerUserId: string): Promise<AuthAccount | null>
+  /** Liga (upsert idempotente na chave única) uma identidade de provider a uma conta. */
+  linkProviderIdentity(data: LinkProviderIdentityInput): Promise<void>
+}
+
+/**
+ * MFA / TOTP. Stores sem suporte a MFA omitem a capacidade inteira; o interaction
+ * flow trata a ausência como "MFA desligado".
+ */
+export interface MfaCapability {
   /** Estado do MFA da conta (se o desafio TOTP deve ser exigido no login). */
-  getMfaState?(accountId: string): Promise<{ enabled: boolean }>
+  getMfaState(accountId: string): Promise<{ enabled: boolean }>
   /**
    * Inicia o enrollment TOTP: gera um segredo PENDENTE (mfaEnabledAt continua
    * null) e devolve o segredo + otpauth URI (keyuri). Não ativa o MFA ainda.
    */
-  startTotpEnrollment?(
-    accountId: string
-  ): Promise<{ secret: string; otpauthUri: string } | null>
+  startTotpEnrollment(accountId: string): Promise<{ secret: string; otpauthUri: string } | null>
   /**
    * Confirma o enrollment: verifica o código contra o segredo pendente; em caso
    * de sucesso ativa o MFA, gera N recovery codes e devolve os códigos em claro
    * (uma única vez).
    */
-  confirmTotpEnrollment?(
+  confirmTotpEnrollment(
     accountId: string,
     code: string
   ): Promise<{ ok: boolean; recoveryCodes?: string[] }>
   /** Verifica um código TOTP contra o segredo ativo. */
-  verifyTotp?(accountId: string, code: string): Promise<boolean>
+  verifyTotp(accountId: string, code: string): Promise<boolean>
   /** Consome (single-use) um recovery code; true se casou e foi removido. */
-  consumeRecoveryCode?(accountId: string, code: string): Promise<boolean>
+  consumeRecoveryCode(accountId: string, code: string): Promise<boolean>
   /** Desliga o MFA: limpa segredo + mfaEnabledAt + recovery codes. */
-  disableMfa?(accountId: string): Promise<void>
+  disableMfa(accountId: string): Promise<void>
+}
 
-  // MFA / WebAuthn (passkeys) — 2º fator alternativo ao TOTP. Como o TOTP, todos
-  // os métodos são OPCIONAIS: stores sem suporte (sem `webauthnCredentialModel`)
-  // os omitem e a UI esconde a seção de passkeys. O `expectedChallenge` é gerado
-  // no begin (generate*Options) e DEVE ser guardado pelo controller (na sessão)
-  // para ser passado de volta no finish (verify*) — o store não mantém estado de
-  // desafio entre as chamadas.
+/**
+ * MFA / WebAuthn (passkeys) — 2º fator alternativo ao TOTP. Como o TOTP, é uma
+ * capacidade INTEIRA opcional: stores sem suporte a passkeys não a expõem e a UI
+ * esconde a seção de passkeys. O `expectedChallenge` é gerado no begin
+ * (generate*Options) e DEVE ser guardado pelo controller (na sessão) para ser
+ * passado de volta no finish (verify*) — o store não mantém estado de desafio
+ * entre as chamadas.
+ */
+export interface WebauthnCapability {
   /**
    * Inicia o registro de uma passkey: gera as opções de criação
    * (`generateRegistrationOptions`) escopadas à conta (e excluindo credenciais já
    * registradas). Devolve as opções JSON (o controller serializa pro browser) e o
    * `challenge` (base64url) para guardar na sessão. null = conta inexistente.
    */
-  generatePasskeyRegistrationOptions?(
+  generatePasskeyRegistrationOptions(
     accountId: string
   ): Promise<{ options: Record<string, unknown>; challenge: string } | null>
   /**
@@ -129,7 +156,7 @@ export interface AccountStore {
    * de sucesso persiste a credencial (id, publicKey, counter, transports) e
    * habilita o MFA. Retorna true se registrou.
    */
-  verifyPasskeyRegistration?(
+  verifyPasskeyRegistration(
     accountId: string,
     response: unknown,
     expectedChallenge: string
@@ -139,7 +166,7 @@ export interface AccountStore {
    * (`generateAuthenticationOptions`) restritas às credenciais da conta. Devolve
    * as opções JSON + o `challenge` para guardar na sessão. null = conta sem passkeys.
    */
-  generatePasskeyAuthenticationOptions?(
+  generatePasskeyAuthenticationOptions(
     accountId: string
   ): Promise<{ options: Record<string, unknown>; challenge: string } | null>
   /**
@@ -147,13 +174,42 @@ export interface AccountStore {
    * (`verifyAuthenticationResponse`) contra o `expectedChallenge` guardado. Em
    * caso de sucesso atualiza o signature counter armazenado. Retorna true se válido.
    */
-  verifyPasskeyAuthentication?(
+  verifyPasskeyAuthentication(
     accountId: string,
     response: unknown,
     expectedChallenge: string
   ): Promise<boolean>
   /** Lista as passkeys da conta (sem expor chave pública / counter). */
-  listPasskeys?(accountId: string): Promise<PasskeySummary[]>
+  listPasskeys(accountId: string): Promise<PasskeySummary[]>
   /** Remove uma passkey (por credential id) da conta. */
-  removePasskey?(accountId: string, credentialId: string): Promise<void>
+  removePasskey(accountId: string, credentialId: string): Promise<void>
+}
+
+/**
+ * Store de contas usado pela config. É o núcleo SEMPRE presente
+ * ({@link CoreAccountStore}) + as capacidades opcionais (MFA, WebAuthn, account
+ * linking por provider) marcadas como `Partial` — assim configs/hosts existentes
+ * (que referenciam `AccountStore`) compilam sem mudança, e stores que NÃO
+ * implementam uma capacidade simplesmente omitem os métodos (em vez de tê-los
+ * presentes-mas-lançando). Use os type guards {@link supportsMfa},
+ * {@link supportsPasskeys}, {@link supportsProviderIdentity} para estreitar.
+ */
+export type AccountStore = CoreAccountStore &
+  Partial<MfaCapability & WebauthnCapability & ProviderIdentityCapability>
+
+/** Type guard: o store implementa a capacidade de MFA / TOTP. */
+export function supportsMfa(store: AccountStore): store is AccountStore & MfaCapability {
+  return typeof store.getMfaState === 'function'
+}
+
+/** Type guard: o store implementa a capacidade de passkeys / WebAuthn. */
+export function supportsPasskeys(store: AccountStore): store is AccountStore & WebauthnCapability {
+  return typeof store.listPasskeys === 'function'
+}
+
+/** Type guard: o store implementa account linking por identidade de provider. */
+export function supportsProviderIdentity(
+  store: AccountStore
+): store is AccountStore & ProviderIdentityCapability {
+  return typeof store.findByProviderIdentity === 'function'
 }

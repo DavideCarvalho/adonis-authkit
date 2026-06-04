@@ -2,7 +2,7 @@ import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
 import { translate } from '../i18n.js'
-import { createAccountLockout } from '../account_lockout.js'
+import { attemptPasswordLogin } from '../login_attempt.js'
 
 export default class AccountSessionController {
   async show(ctx: HttpContext) {
@@ -23,29 +23,21 @@ export default class AccountSessionController {
 
     const { email, password } = ctx.request.only(['email', 'password'])
     const ip = ctx.request.ip?.() ?? null
-    const lockout = createAccountLockout(cfg.lockout)
 
-    // Bloqueio progressivo: se a conta está travada, nem verifica a senha.
-    const lock = await lockout.isLocked(email)
-    if (lock.locked) {
+    // Verificação + lockout + auditoria de falha centralizados (sem clientId no console).
+    const result = await attemptPasswordLogin(cfg, { email, password, ip })
+    if (!result.ok) {
       return render(ctx, 'account/login', {
         csrfToken: ctx.request.csrfToken,
-        error: translate(cfg.messages, 'errors.account_locked', {
-          seconds: lock.retryAfterSec ?? 0,
-        }),
+        error: result.locked
+          ? translate(cfg.messages, 'errors.account_locked', {
+              seconds: result.retryAfterSec ?? 0,
+            })
+          : translate(cfg.messages, 'errors.invalid_credentials'),
       })
     }
 
-    const acc = await cfg.accountStore.verifyCredentials(email, password)
-    if (!acc) {
-      await cfg.audit?.record({ type: 'login.failure', email, ip })
-      await lockout.recordFailure(email, { sink: cfg.audit, ip })
-      return render(ctx, 'account/login', {
-        csrfToken: ctx.request.csrfToken,
-        error: translate(cfg.messages, 'errors.invalid_credentials'),
-      })
-    }
-    await lockout.clearFailures(email)
+    const acc = result.account
     ctx.session.put(ACCOUNT_SESSION_KEY, acc.id)
     await cfg.audit?.record({ type: 'login.success', accountId: acc.id, email, ip })
     return ctx.response.redirect('/account/tokens')

@@ -1,6 +1,7 @@
 import { BaseModel, column } from '@adonisjs/lucid/orm'
 import type { NormalizeConstructor } from '@adonisjs/core/types/helpers'
 import { DateTime } from 'luxon'
+import { jsonColumn } from './json_column.js'
 
 /**
  * Instância composta pelo mixin {@link withMfa}.
@@ -42,13 +43,10 @@ export function withMfa() {
       @column.dateTime()
       declare mfaEnabledAt: DateTime | null
 
+      // null quando vazio; aceita valor já desserializado (passthrough) na leitura.
       @column({
         serializeAs: null,
-        prepare: (value: string[] | null) => (value ? JSON.stringify(value) : null),
-        consume: (value: string | string[] | null) => {
-          if (value === null || value === undefined) return null
-          return Array.isArray(value) ? value : JSON.parse(value)
-        },
+        ...jsonColumn<string[] | null>({ fallback: null, passthroughParsed: true }),
       })
       declare recoveryCodes: string[] | null
 

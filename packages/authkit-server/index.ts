@@ -13,7 +13,7 @@ export type {
   AdminConfigInput,
   ResolvedAdminConfig,
 } from './src/define_config.js'
-export { resolveAdmin, resolveWebauthn } from './src/define_config.js'
+export { resolveAdmin, resolveWebauthn, resolveDynamicRegistration } from './src/define_config.js'
 export type { WebauthnConfigInput, ResolvedWebauthnConfig } from './src/define_config.js'
 export { lucidAccountStore } from './src/accounts/lucid_account_store.js'
 export type {
@@ -22,12 +22,22 @@ export type {
 } from './src/accounts/lucid_account_store.js'
 export type {
   AccountStore,
+  CoreAccountStore,
+  AdminCapability,
+  MfaCapability,
+  WebauthnCapability,
+  ProviderIdentityCapability,
   AuthAccount,
   CreateAccountInput,
   LinkProviderIdentityInput,
   ListAccountsParams,
   Paginated,
   PasskeySummary,
+} from './src/accounts/account_store.js'
+export {
+  supportsMfa,
+  supportsPasskeys,
+  supportsProviderIdentity,
 } from './src/accounts/account_store.js'
 export { withProviderIdentity } from './src/mixins/with_provider_identity.js'
 export type {

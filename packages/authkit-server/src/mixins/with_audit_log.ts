@@ -2,6 +2,7 @@ import { BaseModel, column } from '@adonisjs/lucid/orm'
 import type { NormalizeConstructor } from '@adonisjs/core/types/helpers'
 import { DateTime } from 'luxon'
 import type { AuditEventType } from '../audit/audit_sink.js'
+import { jsonColumn } from './json_column.js'
 
 /** Instância composta pelo mixin {@link withAuditLog}. */
 export interface AuditLogRow {
@@ -42,11 +43,8 @@ export function withAuditLog() {
       @column()
       declare ip: string | null
 
-      @column({
-        prepare: (value: Record<string, unknown> | null) =>
-          value ? JSON.stringify(value) : null,
-        consume: (value: string | null) => (value ? JSON.parse(value) : null),
-      })
+      // null quando ausente (objeto sempre serializado quando presente).
+      @column(jsonColumn<Record<string, unknown> | null>({ fallback: null }))
       declare metadata: Record<string, unknown> | null
 
       @column.dateTime({ autoCreate: true })

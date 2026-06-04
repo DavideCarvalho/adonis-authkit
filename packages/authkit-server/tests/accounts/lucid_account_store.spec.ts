@@ -12,6 +12,10 @@ import { withProviderIdentity } from '../../src/mixins/with_provider_identity.js
 import { withWebauthnCredential } from '../../src/mixins/with_webauthn_credential.js'
 import { lucidAccountStore } from '../../src/accounts/lucid_account_store.js'
 import type { WebauthnCeremonies } from '../../src/accounts/lucid_account_store.js'
+import {
+  supportsPasskeys,
+  supportsProviderIdentity,
+} from '../../src/accounts/account_store.js'
 
 class TestAccount extends compose(BaseModel, withAuthUser(), withCredentials(), withMfa()) {
   static table = 'users'
@@ -444,15 +448,24 @@ test.group('lucidAccountStore', (group) => {
     assert.equal((await store.findByProviderIdentity('github', 'gh-1'))!.id, acc.id)
   })
 
-  test('findByProviderIdentity/linkProviderIdentity lançam sem providerIdentityModel', async ({
+  test('capacidade de provider-identity AUSENTE sem providerIdentityModel', async ({
     assert,
   }) => {
+    // Sem o model, a capacidade inteira não é montada: os métodos não existem
+    // (em vez de presentes-mas-lançando).
     const store = lucidAccountStore(TestAccount)
-    await assert.rejects(() => store.findByProviderIdentity('google', 'x'), /providerIdentityModel/)
-    await assert.rejects(
-      () => store.linkProviderIdentity({ accountId: 'a', provider: 'google', providerUserId: 'x' }),
-      /providerIdentityModel/
-    )
+    assert.isFalse('findByProviderIdentity' in store)
+    assert.isFalse('linkProviderIdentity' in store)
+    assert.isFalse(supportsProviderIdentity(store))
+  })
+
+  test('capacidade de provider-identity PRESENTE com providerIdentityModel', async ({
+    assert,
+  }) => {
+    const store = lucidAccountStore(TestAccount, { providerIdentityModel: TestProviderIdentity })
+    assert.isTrue('findByProviderIdentity' in store)
+    assert.isTrue('linkProviderIdentity' in store)
+    assert.isTrue(supportsProviderIdentity(store))
   })
 
   // ----- Administração (console admin — B6) -----
@@ -635,12 +648,30 @@ test.group('lucidAccountStore', (group) => {
     assert.isFalse(ok)
   })
 
-  test('métodos de passkey lançam sem webauthnCredentialModel', async ({ assert }) => {
+  test('capacidade de passkey AUSENTE sem webauthnCredentialModel', async ({ assert }) => {
+    // Sem o model, a capacidade WebAuthn inteira não é montada: os métodos não
+    // existem no store (em vez de presentes-mas-lançando).
     const store = lucidAccountStore(TestAccount)
-    await assert.rejects(
-      () => store.generatePasskeyRegistrationOptions!('a'),
-      /webauthnCredentialModel/
-    )
-    await assert.rejects(() => store.listPasskeys!('a'), /webauthnCredentialModel/)
+    assert.isFalse('generatePasskeyRegistrationOptions' in store)
+    assert.isFalse('verifyPasskeyRegistration' in store)
+    assert.isFalse('generatePasskeyAuthenticationOptions' in store)
+    assert.isFalse('verifyPasskeyAuthentication' in store)
+    assert.isFalse('listPasskeys' in store)
+    assert.isFalse('removePasskey' in store)
+    assert.isFalse(supportsPasskeys(store))
+  })
+
+  test('capacidade de passkey PRESENTE com webauthnCredentialModel', async ({ assert }) => {
+    const store = webauthnStore()
+    assert.isTrue('generatePasskeyRegistrationOptions' in store)
+    assert.isTrue('listPasskeys' in store)
+    assert.isTrue(supportsPasskeys(store))
+  })
+
+  // MFA é capacidade SEMPRE presente (não depende de model opcional).
+  test('capacidade de MFA sempre presente', async ({ assert }) => {
+    const store = lucidAccountStore(TestAccount)
+    assert.isTrue('getMfaState' in store)
+    assert.isTrue('verifyTotp' in store)
   })
 })

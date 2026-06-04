@@ -2,7 +2,8 @@ import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import { brandFor, isFirstParty } from '../branding.js'
 import { translate } from '../i18n.js'
-import { createAccountLockout } from '../account_lockout.js'
+import { attemptPasswordLogin } from '../login_attempt.js'
+import { supportsPasskeys } from '../../accounts/account_store.js'
 
 const SESSION_KEY = 'authkit_login_email'
 /** accountId aguardando o 2º fator depois da senha verificada. */
@@ -100,56 +101,34 @@ export default class AuthInteractionController {
     const { password } = ctx.request.only(['password'])
     const ip = ctx.request.ip?.() ?? null
     const clientId = (details.params.client_id as string | undefined) ?? null
-    const lockout = createAccountLockout(cfg.lockout)
-
-    // Bloqueio progressivo (keyed por email da sessão): se travada, não verifica a senha.
-    const lock = await lockout.isLocked(email)
-    if (lock.locked) {
-      const found = await cfg.accountStore.findByEmail(email)
-      const account = found
-        ? { fullName: found.name ?? null, globalRoles: found.globalRoles ?? [] }
-        : null
-      return render(ctx, 'login', {
-        uid: ctx.request.param('uid'),
-        csrfToken: ctx.request.csrfToken,
-        step: 'password',
-        email,
-        account,
-        error: translate(cfg.messages, 'errors.account_locked', {
-          seconds: lock.retryAfterSec ?? 0,
-        }),
-        brand,
-      })
-    }
 
     // Verificamos as credenciais ANTES de finalizar a interaction, porque com MFA
     // ligado precisamos exigir o 2º fator e NÃO podemos chamar interactionFinished
-    // ainda. (`service.interactions.login` verifica E finaliza num passo só — por
-    // isso fazemos a verificação aqui via accountStore e finalizamos depois.)
-    const acc = await cfg.accountStore.verifyCredentials(email, password)
+    // ainda. A sequência verificação + lockout + auditoria de falha é centralizada
+    // em attemptPasswordLogin; a renderização (lookup p/ personalização) fica aqui.
+    const result = await attemptPasswordLogin(cfg, { email, password, ip, clientId })
 
-    if (!acc) {
-      await cfg.audit?.record({ type: 'login.failure', email, ip, clientId })
-      await lockout.recordFailure(email, { sink: cfg.audit, ip })
-      // Re-render password step with error (keep email in session)
+    if (!result.ok) {
       const found = await cfg.accountStore.findByEmail(email)
       const account = found
         ? { fullName: found.name ?? null, globalRoles: found.globalRoles ?? [] }
         : null
-
       return render(ctx, 'login', {
         uid: ctx.request.param('uid'),
         csrfToken: ctx.request.csrfToken,
         step: 'password',
         email,
         account,
-        error: translate(cfg.messages, 'errors.invalid_credentials'),
+        error: result.locked
+          ? translate(cfg.messages, 'errors.account_locked', {
+              seconds: result.retryAfterSec ?? 0,
+            })
+          : translate(cfg.messages, 'errors.invalid_credentials'),
         brand,
       })
     }
 
-    // Senha correta: limpa o contador de falhas (o lockout protege a etapa de senha).
-    await lockout.clearFailures(email)
+    const acc = result.account
 
     // MFA gate: se a conta tem TOTP ativo, NÃO finaliza a interaction agora —
     // guarda o accountId pendente na sessão e renderiza o desafio do 2º fator.
@@ -241,7 +220,7 @@ export default class AuthInteractionController {
 
   /** true se o store suporta passkeys E a conta tem ao menos uma registrada. */
   private async hasPasskeys(cfg: any, accountId: string): Promise<boolean> {
-    if (typeof cfg.accountStore.listPasskeys !== 'function') return false
+    if (!supportsPasskeys(cfg.accountStore)) return false
     const list = await cfg.accountStore.listPasskeys(accountId)
     return Array.isArray(list) && list.length > 0
   }

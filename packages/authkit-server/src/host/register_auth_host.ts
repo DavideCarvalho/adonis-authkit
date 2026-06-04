@@ -20,18 +20,25 @@ const accountGuard = async (ctx: any, next: () => Promise<void>) => {
 /**
  * Guard do console admin (B6). Como o `accountGuard`, é uma closure inline (forma
  * confiável do `.use()` num grupo). Exige:
+ *   0. `config.admin.enabled` ligado (senão → 404; ver nota de flag-drift abaixo);
  *   1. sessão de conta ativa (senão → /account/login);
  *   2. a conta logada com pelo menos UMA das `config.admin.roles` nas roles globais
  *      (senão → /account/tokens, evitando vazar a existência do /admin).
  * As roles permitidas são resolvidas em runtime do `authkit.server` (config lazy).
  */
 export const adminGuard = async (ctx: any, next: () => Promise<void>) => {
+  const service = await ctx.containerResolver.make('authkit.server')
+  const cfg = service.config
+  // Defesa contra flag-drift: as rotas são montadas com `admin: true` em tempo de
+  // registro, ANTES de o config resolver. Se o config tiver `admin.enabled: false`,
+  // as rotas existem mas o console deve estar desligado — 404 (não vaza a existência).
+  if (!cfg.admin.enabled) {
+    return ctx.response.notFound()
+  }
   const accountId = ctx.session?.get(ACCOUNT_SESSION_KEY) as string | undefined
   if (!accountId) {
     return ctx.response.redirect('/account/login')
   }
-  const service = await ctx.containerResolver.make('authkit.server')
-  const cfg = service.config
   const allowed = cfg.admin.roles as string[]
   const account = await cfg.accountStore.findById(accountId)
   const roles = account?.globalRoles ?? []
@@ -42,6 +49,18 @@ export const adminGuard = async (ctx: any, next: () => Promise<void>) => {
   return next()
 }
 
+/**
+ * Opções de montagem das rotas do host-kit.
+ *
+ * NOTA (flag-drift): vários campos aqui (`social`, `rateLimit`, `admin`) ESPELHAM
+ * o config (`config/authkit.ts`) porque a decisão de MONTAR as rotas acontece em
+ * tempo de registro, antes de o config (lazy) resolver. Eles controlam apenas se
+ * as rotas existem; a fonte de verdade do COMPORTAMENTO continua sendo o config
+ * resolvido. Se um flag aqui divergir do config (ex.: `admin: true` aqui com
+ * `admin.enabled: false` no config), os guards das rotas são a rede de segurança
+ * (o `adminGuard` 404a quando `config.admin.enabled` é false). Mantenha-os em
+ * sincronia; os guards garantem que a divergência não vire um bypass.
+ */
 export interface AuthHostOptions {
   /** Onde o provider OIDC é montado (default '/oidc'). Deve casar com o final do issuer. */
   mountPath: string

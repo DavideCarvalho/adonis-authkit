@@ -1,6 +1,7 @@
 import { BaseModel, column } from '@adonisjs/lucid/orm'
 import type { NormalizeConstructor } from '@adonisjs/core/types/helpers'
 import { DateTime } from 'luxon'
+import { jsonColumn } from './json_column.js'
 
 /**
  * Instância composta pelo mixin {@link withWebauthnCredential}. Representa uma
@@ -51,13 +52,14 @@ export function withWebauthnCredential() {
       @column()
       declare counter: number
 
-      @column({
-        prepare: (value: string[] | null) => (value && value.length ? JSON.stringify(value) : null),
-        consume: (value: string | string[] | null) => {
-          if (value === null || value === undefined) return null
-          return Array.isArray(value) ? value : JSON.parse(value)
-        },
-      })
+      // Array vazio também grava null; aceita valor já desserializado na leitura.
+      @column(
+        jsonColumn<string[] | null>({
+          fallback: null,
+          treatEmptyArrayAsEmpty: true,
+          passthroughParsed: true,
+        })
+      )
       declare transports: string[] | null
 
       @column()

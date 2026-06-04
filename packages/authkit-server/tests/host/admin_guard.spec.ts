@@ -10,15 +10,22 @@ function fakeCtx(opts: {
   sessionUserId?: string
   account?: { id: string; email: string; globalRoles?: string[] } | null
   adminRoles?: string[]
+  adminEnabled?: boolean
 }) {
   const redirects: string[] = []
+  let notFoundCalled = false
   const ctx = {
     session: { get: (_k: string) => opts.sessionUserId },
-    response: { redirect: (to: string) => redirects.push(to) },
+    response: {
+      redirect: (to: string) => redirects.push(to),
+      notFound: () => {
+        notFoundCalled = true
+      },
+    },
     containerResolver: {
       make: async () => ({
         config: {
-          admin: { enabled: true, roles: opts.adminRoles ?? ['ADMIN'] },
+          admin: { enabled: opts.adminEnabled ?? true, roles: opts.adminRoles ?? ['ADMIN'] },
           accountStore: {
             findById: async (_id: string) => opts.account ?? null,
           },
@@ -26,7 +33,7 @@ function fakeCtx(opts: {
       }),
     },
   } as any
-  return { ctx, redirects }
+  return { ctx, redirects, notFound: () => notFoundCalled }
 }
 
 test.group('adminGuard', () => {
@@ -77,6 +84,23 @@ test.group('adminGuard', () => {
       nextCalled = true
     })
     assert.isTrue(nextCalled)
+    assert.lengthOf(redirects, 0)
+  })
+
+  test('admin.enabled:false → 404 mesmo com sessão admin (flag-drift safety net)', async ({
+    assert,
+  }) => {
+    const { ctx, redirects, notFound } = fakeCtx({
+      adminEnabled: false,
+      sessionUserId: 'u1',
+      account: { id: 'u1', email: 'a@x.com', globalRoles: ['ADMIN'] },
+    })
+    let nextCalled = false
+    await adminGuard(ctx, async () => {
+      nextCalled = true
+    })
+    assert.isFalse(nextCalled)
+    assert.isTrue(notFound())
     assert.lengthOf(redirects, 0)
   })
 

@@ -157,6 +157,30 @@ export interface ResolvedDynamicRegistrationConfig {
 }
 
 /**
+ * Resolve a config de registro dinâmico e VALIDA invariantes em tempo de resolução.
+ * O Registration Management (RFC 7592) só faz sentido com o registro habilitado
+ * (RFC 7591) — `management: true` com `enabled: false` é um erro de configuração.
+ */
+export function resolveDynamicRegistration(
+  input?: DynamicRegistrationConfigInput
+): ResolvedDynamicRegistrationConfig {
+  const enabled = input?.enabled ?? false
+  const management = input?.management ?? false
+  if (management && !enabled) {
+    throw new Error(
+      'authkit: dynamicRegistration.management (RFC 7592) requer ' +
+        'dynamicRegistration.enabled: true (RFC 7591). Habilite o registro dinâmico ' +
+        'ou desligue o management.'
+    )
+  }
+  return {
+    enabled,
+    initialAccessToken: input?.initialAccessToken,
+    management,
+  }
+}
+
+/**
  * Console admin opt-in do IdP (B6). Quando habilitado, monta o grupo `/admin/*`
  * (dashboard, usuários/papéis, clients, audit) atrás de um guard que exige sessão
  * de conta E que a conta tenha pelo menos um dos `roles` nas suas roles globais.
@@ -370,11 +394,7 @@ export function defineConfig(config: AuthServerConfigInput) {
       audit: config.audit,
       mfaIssuer: config.mfaIssuer ?? 'AuthKit',
       webauthn: resolveWebauthn(config.issuer, config.mfaIssuer ?? 'AuthKit', config.webauthn),
-      dynamicRegistration: {
-        enabled: config.dynamicRegistration?.enabled ?? false,
-        initialAccessToken: config.dynamicRegistration?.initialAccessToken,
-        management: config.dynamicRegistration?.management ?? false,
-      },
+      dynamicRegistration: resolveDynamicRegistration(config.dynamicRegistration),
       admin: resolveAdmin(config.admin),
       messages: resolveMessages(config.i18n),
       locale: config.i18n?.locale ?? 'pt-BR',

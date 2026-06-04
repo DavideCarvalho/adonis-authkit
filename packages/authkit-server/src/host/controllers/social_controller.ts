@@ -2,6 +2,7 @@ import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { AllyDriverContract } from '@adonisjs/ally/types'
 import { randomUUID } from 'node:crypto'
+import { supportsProviderIdentity } from '../../accounts/account_store.js'
 
 const UID_SESSION_KEY = 'authkit_social_uid'
 
@@ -46,6 +47,13 @@ export default class AuthSocialController {
     const cfg = service.config
     const store = cfg.accountStore
     const email = profile.email ?? undefined
+
+    // Account linking exige a capacidade de provider-identity (model wired no store).
+    // Ausente → não há como ligar a identidade; volta ao login em vez de quebrar.
+    if (!supportsProviderIdentity(store)) {
+      ctx.session.forget(UID_SESSION_KEY)
+      return ctx.response.redirect(backToLogin)
+    }
 
     // Precedência do account linking:
     //  1. Identidade de provider já ligada → loga essa conta.

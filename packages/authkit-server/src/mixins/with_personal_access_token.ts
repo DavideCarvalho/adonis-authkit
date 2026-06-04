@@ -1,6 +1,7 @@
 import { BaseModel, column } from '@adonisjs/lucid/orm'
 import type { NormalizeConstructor } from '@adonisjs/core/types/helpers'
 import { DateTime } from 'luxon'
+import { jsonColumn } from './json_column.js'
 
 /** Instância composta pelo mixin {@link withPersonalAccessToken}. */
 export interface PersonalAccessTokenRow {
@@ -32,10 +33,8 @@ export function withPersonalAccessToken() {
       @column({ serializeAs: null })
       declare tokenHash: string
 
-      @column({
-        prepare: (value: string[] | null) => (value ? JSON.stringify(value) : null),
-        consume: (value: string | null) => (value ? JSON.parse(value) : []),
-      })
+      // null quando vazio na escrita; fallback de leitura → [].
+      @column(jsonColumn<string[]>({ fallback: [] }))
       declare scopes: string[]
 
       @column()

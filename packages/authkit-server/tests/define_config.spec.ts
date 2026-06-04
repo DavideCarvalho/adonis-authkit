@@ -257,4 +257,46 @@ test.group('defineConfig (server)', () => {
     const resolved = await configProvider.resolve(fakeApp, provider)
     assert.equal(resolved.mountPath, '/oidc')
   })
+
+  test('resolveDynamicRegistration: management sem enabled lança erro de config', async ({
+    assert,
+  }) => {
+    const { resolveDynamicRegistration } = await import('../src/define_config.js')
+    assert.throws(
+      () => resolveDynamicRegistration({ enabled: false, management: true }),
+      /management.*requer.*enabled|enabled.*true/
+    )
+  })
+
+  test('resolveDynamicRegistration: management com enabled resolve normalmente', async ({
+    assert,
+  }) => {
+    const { resolveDynamicRegistration } = await import('../src/define_config.js')
+    const r = resolveDynamicRegistration({ enabled: true, management: true })
+    assert.isTrue(r.enabled)
+    assert.isTrue(r.management)
+  })
+
+  test('resolveDynamicRegistration: defaults desligados', async ({ assert }) => {
+    const { resolveDynamicRegistration } = await import('../src/define_config.js')
+    const r = resolveDynamicRegistration()
+    assert.isFalse(r.enabled)
+    assert.isFalse(r.management)
+  })
+
+  test('defineConfig lança em resolve quando management sem enabled', async ({ assert }) => {
+    const RedisMock = (await import('ioredis-mock')).default
+    const { configProvider } = await import('@adonisjs/core')
+    const { fakeAccountStore } = await import('./bootstrap.js')
+    const fakeApp = { container: { make: async () => ({ connection: () => new RedisMock() }) } } as any
+    const provider = defineConfig({
+      issuer: 'https://auth.test',
+      adapter: adapters.redis({ connection: 'main' }),
+      jwks: { source: 'managed' },
+      clients: [{ clientId: 'app1', redirectUris: ['https://app1/cb'] }],
+      accountStore: fakeAccountStore(),
+      dynamicRegistration: { enabled: false, management: true },
+    })
+    await assert.rejects(() => configProvider.resolve(fakeApp, provider))
+  })
 })

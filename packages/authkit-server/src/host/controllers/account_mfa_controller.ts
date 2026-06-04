@@ -3,6 +3,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import QRCode from 'qrcode'
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
 import { translate } from '../i18n.js'
+import { supportsPasskeys } from '../../accounts/account_store.js'
 
 /** Desafio WebAuthn pendente (registro) guardado na sessão entre begin/finish. */
 const PASSKEY_REG_CHALLENGE_KEY = 'authkit_passkey_reg_challenge'
@@ -23,8 +24,8 @@ export default class AccountMfaController {
     const recoveryCodes = ctx.session.flashMessages.get('recoveryCodes') as string[] | undefined
 
     // Passkeys disponíveis quando o store as suporta (model de credenciais wired).
-    const passkeysSupported = typeof cfg.accountStore.listPasskeys === 'function'
-    const passkeys = passkeysSupported ? await cfg.accountStore.listPasskeys!(userId) : []
+    const passkeysSupported = supportsPasskeys(cfg.accountStore)
+    const passkeys = passkeysSupported ? await cfg.accountStore.listPasskeys(userId) : []
 
     return render(ctx, 'account/mfa', {
       csrfToken: ctx.request.csrfToken,

@@ -1,6 +1,7 @@
 import { BaseModel, column, beforeSave } from '@adonisjs/lucid/orm'
 import type { NormalizeConstructor } from '@adonisjs/core/types/helpers'
 import { Scrypt } from '@adonisjs/core/hash/drivers/scrypt'
+import { jsonColumn } from './json_column.js'
 
 const hasher = new Scrypt({})
 
@@ -32,10 +33,8 @@ export function withAuthUser() {
       @column({ serializeAs: null })
       declare password: string
 
-      @column({
-        prepare: (value: string[] | null) => JSON.stringify(value ?? []),
-        consume: (value: string | null) => (value ? JSON.parse(value) : []),
-      })
+      // Sempre serializa (array vazio → "[]"); fallback de leitura → [].
+      @column(jsonColumn<string[]>({ fallback: [], emptyOnWrite: 'serialize' }))
       declare globalRoles: string[]
 
       @beforeSave()

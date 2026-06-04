@@ -8,10 +8,13 @@
         <div class="text-xs font-semibold uppercase tracking-widest text-gray-400">{{ t('common.brand_eyebrow') }}</div>
         <h1 class="text-xl font-semibold text-gray-900">{{ t('account.tokens.title') }}</h1>
       </div>
-      <form method="POST" action="/account/logout">
-        <input type="hidden" name="_csrf" value="{{ csrfToken }}">
-        <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('account.tokens.logout') }}</button>
-      </form>
+      <div class="flex items-center gap-4">
+        <a href="/account/security" class="text-sm text-gray-500 hover:underline">{{ t('account.tokens.security') }}</a>
+        <form method="POST" action="/account/logout">
+          <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+          <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('account.tokens.logout') }}</button>
+        </form>
+      </div>
     </div>
 
     @if(createdToken)

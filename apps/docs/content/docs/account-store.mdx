@@ -47,10 +47,11 @@ interface CoreAccountStore {
 interface MfaCapability { /* getMfaState, startTotpEnrollment, confirmTotpEnrollment, … */ }
 interface WebauthnCapability { /* generatePasskeyRegistrationOptions, listPasskeys, … */ }
 interface ProviderIdentityCapability { /* findByProviderIdentity, linkProviderIdentity */ }
+interface AccountSecurityCapability { /* changePassword, requestEmailChange, confirmEmailChange */ }
 
 // What the config consumes.
 type AccountStore = CoreAccountStore &
-  Partial<MfaCapability & WebauthnCapability & ProviderIdentityCapability>
+  Partial<MfaCapability & WebauthnCapability & ProviderIdentityCapability & AccountSecurityCapability>
 ```
 
 A capability is **all-or-nothing**: a store either implements every method of
@@ -58,7 +59,7 @@ A capability is **all-or-nothing**: a store either implements every method of
 throw. Narrow at runtime with the exported type guards:
 
 ```ts
-import { supportsMfa, supportsPasskeys, supportsProviderIdentity } from '@dudousxd/adonis-authkit-server'
+import { supportsMfa, supportsPasskeys, supportsProviderIdentity, supportsAccountSecurity } from '@dudousxd/adonis-authkit-server'
 
 if (supportsMfa(store)) {
   await store.getMfaState(accountId) // typed as MfaCapability here
@@ -68,6 +69,7 @@ if (supportsMfa(store)) {
 - `supportsMfa(store)` → `store is AccountStore & MfaCapability` (checks `getMfaState`)
 - `supportsPasskeys(store)` → `store is AccountStore & WebauthnCapability` (checks `listPasskeys`)
 - `supportsProviderIdentity(store)` → `store is AccountStore & ProviderIdentityCapability` (checks `findByProviderIdentity`)
+- `supportsAccountSecurity(store)` → `store is AccountStore & AccountSecurityCapability` (checks `changePassword`); powers the `/account/security` page (change password / email)
 
 A store that omits MFA simply has it disabled (the interaction flow treats the absent
 capability as "no MFA"). The UI hides the passkeys section when `supportsPasskeys` is false.

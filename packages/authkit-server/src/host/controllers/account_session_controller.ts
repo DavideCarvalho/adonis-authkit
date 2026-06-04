@@ -3,6 +3,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
 import { translate } from '../i18n.js'
 import { attemptPasswordLogin } from '../login_attempt.js'
+import { notifyLoginSuccess } from '../login_notify.js'
 
 export default class AccountSessionController {
   async show(ctx: HttpContext) {
@@ -39,7 +40,7 @@ export default class AccountSessionController {
 
     const acc = result.account
     ctx.session.put(ACCOUNT_SESSION_KEY, acc.id)
-    await cfg.audit?.record({ type: 'login.success', accountId: acc.id, email, ip })
+    await notifyLoginSuccess(ctx, cfg, { accountId: acc.id, email, ip })
     return ctx.response.redirect('/account/tokens')
   }
 

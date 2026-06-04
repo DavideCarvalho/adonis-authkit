@@ -1,5 +1,10 @@
 import type { Database } from '@adonisjs/lucid/database'
-import type { EnumeratedClient, OidcAdapter, OidcPayload } from './adapter_contract.js'
+import type {
+  EnumeratedArtifact,
+  EnumeratedClient,
+  OidcAdapter,
+  OidcPayload,
+} from './adapter_contract.js'
 
 const TABLE = 'authkit_oidc_payloads'
 
@@ -70,19 +75,27 @@ export class DatabaseAdapter implements OidcAdapter {
   }
 
   /**
-   * Enumera os clients persistidos (registro dinâmico ou CRUD do console admin).
-   * Filtra por `model_name = this.name` (sempre 'Client' aqui) e descarta linhas
-   * expiradas — clients são persistidos sem TTL (`expires_at` NULL), então isso
-   * só é uma rede de segurança caso algum dia algo grave o model com expiração.
+   * Enumeração genérica dos artefatos do model deste adapter (id + payload).
+   * Filtra por `model_name = this.name` e descarta linhas expiradas. Usada pelo
+   * console admin para listar `Client` (CRUD) e `Session`/`Grant`/tokens.
    */
-  async listClients(): Promise<EnumeratedClient[]> {
+  async list(): Promise<EnumeratedArtifact[]> {
     const rows = await this.#query().orderBy('id', 'asc')
     const now = Date.now()
-    const result: EnumeratedClient[] = []
+    const result: EnumeratedArtifact[] = []
     for (const row of rows) {
       if (row.expires_at && new Date(row.expires_at).getTime() <= now) continue
-      result.push({ clientId: row.id, payload: JSON.parse(row.payload) as Record<string, unknown> })
+      result.push({ id: row.id, payload: JSON.parse(row.payload) as Record<string, unknown> })
     }
     return result
+  }
+
+  /**
+   * Compat: enumera os clients persistidos. Delega para {@link list} (o adapter é
+   * instanciado com `model_name = 'Client'`), reprojetando `id` → `clientId`.
+   */
+  async listClients(): Promise<EnumeratedClient[]> {
+    const rows = await this.list()
+    return rows.map((r) => ({ clientId: r.id, payload: r.payload }))
   }
 }

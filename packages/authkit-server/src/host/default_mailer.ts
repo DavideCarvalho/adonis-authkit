@@ -146,6 +146,75 @@ export async function sendPasswordResetEmail(
 }
 
 /**
+ * Envia o e-mail de confirmação de TROCA de e-mail para o NOVO endereço.
+ * Best-effort: no fallback (sem mail) loga o link; nunca lança.
+ */
+export async function sendEmailChangeConfirmationEmail(
+  ctx: HttpContext,
+  data: { email: string; confirmUrl: string }
+): Promise<void> {
+  try {
+    const brand = resolveBrand(ctx)
+    const content = renderTransactionalEmail({
+      brand,
+      subject: 'Confirme seu novo e-mail',
+      heading: 'Confirme seu novo e-mail',
+      intro: `Recebemos um pedido para alterar o e-mail da sua conta em ${brand.appName} para este endereço. Clique no botão abaixo para confirmar a alteração. Se não foi você, ignore este e-mail — nada será alterado.`,
+      ctaLabel: 'Confirmar novo e-mail',
+      ctaUrl: data.confirmUrl,
+      footnote: 'Por segurança, este link expira em breve e só pode ser usado uma vez.',
+    })
+    const sent = await sendEmail(ctx, data.email, content)
+    if (!sent) {
+      ctx.logger.info(
+        { confirmUrl: data.confirmUrl, email: data.email },
+        'authkit: link de confirmação de troca de e-mail (dev — @adonisjs/mail ausente)'
+      )
+    }
+  } catch (error) {
+    ctx.logger.error(
+      { err: error, email: data.email },
+      'authkit: falha ao enviar confirmação de troca de e-mail'
+    )
+  }
+}
+
+/**
+ * Envia o e-mail de alerta de NOVO acesso à conta (login de um IP novo).
+ * Best-effort: no fallback (sem mail) loga o evento; nunca lança.
+ */
+export async function sendNewLoginEmail(
+  ctx: HttpContext,
+  data: { email: string; ip: string; when: string }
+): Promise<void> {
+  try {
+    const brand = resolveBrand(ctx)
+    const origin = `${ctx.request.protocol()}://${ctx.request.host()}`
+    const content = renderTransactionalEmail({
+      brand,
+      subject: 'Novo acesso à sua conta',
+      heading: 'Novo acesso à sua conta',
+      intro: `Detectamos um novo acesso à sua conta em ${brand.appName} a partir do IP ${data.ip} em ${data.when}. Se foi você, nenhuma ação é necessária. Se não reconhece este acesso, altere sua senha imediatamente.`,
+      ctaLabel: 'Acessar minha conta',
+      ctaUrl: `${origin}/account/security`,
+      footnote: 'Você está recebendo este alerta porque um login foi feito de um endereço de IP não visto antes.',
+    })
+    const sent = await sendEmail(ctx, data.email, content)
+    if (!sent) {
+      ctx.logger.info(
+        { ip: data.ip, email: data.email },
+        'authkit: alerta de novo acesso (dev — @adonisjs/mail ausente)'
+      )
+    }
+  } catch (error) {
+    ctx.logger.error(
+      { err: error, email: data.email },
+      'authkit: falha ao enviar alerta de novo acesso'
+    )
+  }
+}
+
+/**
  * Envia o e-mail de verificação pelo mailer default do host.
  * Best-effort: no fallback (sem mail) loga o link; nunca lança.
  */

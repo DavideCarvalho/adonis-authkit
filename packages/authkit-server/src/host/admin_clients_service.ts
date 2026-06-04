@@ -59,14 +59,22 @@ export class AdminClientsService {
 
   /** Indica se o adapter suporta enumeração (capacidade opcional). */
   get canList(): boolean {
-    return typeof this.#adapter.listClients === 'function'
+    return typeof this.#adapter.list === 'function' || typeof this.#adapter.listClients === 'function'
   }
 
   /** Lista os clients persistidos (vazio quando o adapter não enumera; cheque canList). */
   async list(): Promise<AdminClient[]> {
-    if (!this.#adapter.listClients) return []
-    const rows = await this.#adapter.listClients()
-    return rows.map((r) => this.#present(r))
+    // Prefere a enumeração genérica `list`; cai no `listClients` legado se for o
+    // único disponível (adapters customizados antigos).
+    if (this.#adapter.list) {
+      const rows = await this.#adapter.list()
+      return rows.map((r) => this.#present({ clientId: r.id, payload: r.payload }))
+    }
+    if (this.#adapter.listClients) {
+      const rows = await this.#adapter.listClients()
+      return rows.map((r) => this.#present(r))
+    }
+    return []
   }
 
   /** Lê um client persistido pelo client_id (undefined quando não existe). */

@@ -21,6 +21,11 @@ export type AuditEventType =
   | 'client.created'
   | 'client.updated'
   | 'client.deleted'
+  | 'session.revoked_all'
+  | 'password.changed'
+  | 'email.change_requested'
+  | 'email.changed'
+  | 'login.new_ip_notified'
 
 /**
  * Evento de auditoria a registrar. O timestamp é definido pelo sink (não aqui).

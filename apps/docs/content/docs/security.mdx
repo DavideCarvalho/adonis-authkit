@@ -36,6 +36,27 @@ On by default (no-op without the limiter), it emits an `account.locked` audit ev
 locked. See [Account Lockout](/docs/account-lockout) for the config (`maxAttempts`,
 `windowSec`, `baseLockoutSec`, `maxLockoutSec`).
 
+## New-login email
+
+On a successful login, the host kit can send a **"new access to your account"** email when
+the login comes from an **IP never seen before** for that account. The check queries the
+audit sink for prior `login.success` events of the same subject — so it requires an
+`AuditSink` that implements `list`; with a write-only sink (or no sink) it **degrades to a
+no-op**. The email includes the IP and timestamp and is sent through the default mailer.
+
+It is **on by default** and opt-out via config:
+
+```ts title="config/authkit.ts"
+defineConfig({
+  // …
+  notifications: { newLoginEmail: false }, // default: true
+})
+```
+
+The notification is **fail-safe**: it runs fire-and-forget *after* the login completes and
+never blocks or throws into the login path. When it fires, it emits a
+`login.new_ip_notified` audit event (alongside the usual `login.success`).
+
 ## Audit logging
 
 Provide an `AuditSink` to capture security-relevant events. It is best-effort — `record`
@@ -54,7 +75,9 @@ Emitted `AuditEventType`s:
 `login.success`, `login.failure`, `signup`, `password_reset.issued`,
 `password_reset.consumed`, `pat.issued`, `pat.revoked`, `pat.used`, `impersonation`,
 `mfa.enabled`, `mfa.disabled`, `account.locked`, `passkey.registered`, `passkey.removed`,
-`email_verification.issued`, `email_verification.consumed`.
+`email_verification.issued`, `email_verification.consumed`, `client.created`,
+`client.updated`, `client.deleted`, `session.revoked_all`, `password.changed`,
+`email.change_requested`, `email.changed`, `login.new_ip_notified`.
 
 Each `AuditEvent` carries `accountId`, `email`, `clientId`, `actorId` (impersonation),
 `ip`, and free-form `metadata`. The timestamp is set by the sink.

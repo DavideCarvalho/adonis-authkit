@@ -13,6 +13,12 @@ export interface EnumeratedClient {
   payload: Record<string, unknown>
 }
 
+/** Um artefato OIDC enumerado de um model qualquer (id + payload persistido). */
+export interface EnumeratedArtifact {
+  id: string
+  payload: Record<string, unknown>
+}
+
 /** Contrato que o oidc-provider espera de um adapter (um por model). */
 export interface OidcAdapter {
   upsert(id: string, payload: OidcPayload, expiresIn: number): Promise<void>
@@ -27,6 +33,18 @@ export interface OidcAdapter {
    * pelo console admin, para listar clients persistidos (registro dinâmico/CRUD).
    * Capacidade OPCIONAL (estilo `AuditSink.list`): adapters que não conseguem
    * enumerar de forma barata omitem o método e a UI degrada graciosamente.
+   *
+   * @deprecated Use {@link list} (genérico). Mantido por compat: quando presente,
+   * delega para `list()` (o adapter é sempre instanciado com `model = 'Client'`).
    */
   listClients?(): Promise<EnumeratedClient[]>
+  /**
+   * Enumeração GENÉRICA dos artefatos do model deste adapter (id + payload). Usada
+   * pelo console admin para listar `Client` (CRUD) e `Session`/`Grant`/tokens
+   * (sessões ativas + revogação). Capacidade OPCIONAL (estilo `AuditSink.list`):
+   * adapters que não conseguem enumerar de forma barata omitem o método e a UI
+   * degrada graciosamente. O adapter já é escopado a UM model na construção
+   * (`new AdapterClass(model)`), então não recebe parâmetro.
+   */
+  list?(): Promise<EnumeratedArtifact[]>
 }

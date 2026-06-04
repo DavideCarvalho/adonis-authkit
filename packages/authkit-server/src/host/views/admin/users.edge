@@ -42,6 +42,7 @@
                   <p class="text-xs text-gray-500">{{ user.name }}</p>
                 @end
               </div>
+              <a href="/admin/users/{{ user.id }}/sessions" class="text-sm text-gray-500 hover:underline">{{ t('admin.users.sessions') }}</a>
             </div>
             <form method="POST" action="/admin/users/{{ user.id }}/roles" class="mt-3 flex gap-2">
               <input type="hidden" name="_csrf" value="{{ csrfToken }}">

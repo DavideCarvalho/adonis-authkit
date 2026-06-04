@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="pt-br"><head><meta charset="utf-8"><title>{{ t('account.email_confirmed.page_title') }}</title>
+<script src="https://cdn.tailwindcss.com"></script></head>
+<body class="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+  <div class="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-xl ring-1 ring-black/5">
+    <div class="text-xs font-semibold uppercase tracking-widest text-gray-400">{{ t('common.brand_eyebrow') }}</div>
+    @if(ok)
+      <h1 class="mt-2 text-xl font-semibold text-emerald-700">{{ t('account.email_confirmed.ok_title') }}</h1>
+      <p class="mt-2 text-sm text-gray-600">{{ t('account.email_confirmed.ok_body') }}</p>
+    @else
+      <h1 class="mt-2 text-xl font-semibold text-red-700">{{ t('account.email_confirmed.invalid_title') }}</h1>
+      <p class="mt-2 text-sm text-gray-600">{{ t('account.email_confirmed.invalid_body') }}</p>
+    @end
+  </div>
+</body></html>

@@ -32,12 +32,38 @@ It mounts (among others): the provider wildcard at `mountPath`, the multi-step
 interaction at `/auth/interaction/:uid` (`identifier` → `login` → optional `mfa` →
 `consent`), signup, `/auth/forgot-password` + `/auth/reset-password`,
 `/auth/verify-email`, the optional social routes, PAT introspection at
-`/authkit/pat/introspect`, and the account console under `/account/*` (login, tokens, MFA).
+`/authkit/pat/introspect`, and the account console under `/account/*` (login, tokens,
+security, MFA).
 
 <Callout type="warn">
   `social` and `rateLimit` are passed *here* as well as in `defineConfig` because route
   mounting is decided at registration time, before the lazy config resolves. Mirror them.
 </Callout>
+
+## Account console
+
+The signed-in account console lives under `/account/*` (behind a session guard) and lets
+users self-serve:
+
+| Route | Purpose |
+| --- | --- |
+| `GET /account/tokens` | List / create / revoke Personal Access Tokens |
+| `GET /account/security` | Change password and request an email change |
+| `POST /account/security/password` | Change password — requires the **current** password (verified via `verifyCredentials`) and a new one (min 8 chars, same rule as signup). Emits `password.changed`. |
+| `POST /account/security/email` | Request an email change — requires the current password; sends a confirmation link to the **new** address. Emits `email.change_requested`. |
+| `GET /account/email/confirm?token=…` | Consume the confirmation token and apply the new email (standalone, no session required — openable on another device). Emits `email.changed`. |
+| `GET /account/mfa` | Enroll / disable TOTP and manage passkeys |
+
+The change-password and change-email flows are backed by the optional
+`AccountSecurityCapability` of the `AccountStore` (`changePassword`, `requestEmailChange`,
+`confirmEmailChange`). The bundled `lucidAccountStore` implements them with **no extra
+migration**: the email-change confirmation token reuses the existing
+`emailVerificationToken` column, encoding the pending address in an `ec:<email>:<token>`
+payload. The tradeoff is that a signup-verification token and an email-change token can't
+coexist for the same account (one column) — in practice these are distinct flows in time.
+The confirmation email is sent through the same default mailer (and is overridable via the
+`mail.onEmailVerification` hook). Stores that don't implement the capability simply hide the
+security page (`supportsAccountSecurity` guards it).
 
 ## The render seam
 

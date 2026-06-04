@@ -3,6 +3,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import { brandFor, isFirstParty } from '../branding.js'
 import { translate } from '../i18n.js'
 import { attemptPasswordLogin } from '../login_attempt.js'
+import { notifyLoginSuccess } from '../login_notify.js'
 import { supportsPasskeys } from '../../accounts/account_store.js'
 
 const SESSION_KEY = 'authkit_login_email'
@@ -148,7 +149,7 @@ export default class AuthInteractionController {
 
     // Sem MFA: finaliza a interaction (escreve o 303 de volta para o client).
     await service.interactions.completeLogin(ctx, acc.id)
-    await cfg.audit?.record({ type: 'login.success', accountId: acc.id, email, ip, clientId })
+    await notifyLoginSuccess(ctx, cfg, { accountId: acc.id, email, ip, clientId })
     // Clean up the session key after a successful login.
     ctx.session.forget(SESSION_KEY)
   }
@@ -208,8 +209,7 @@ export default class AuthInteractionController {
     // Sucesso no 2º fator: finaliza a interaction para o accountId pendente.
     ctx.session.forget(MFA_PENDING_KEY)
     ctx.session.forget(SESSION_KEY)
-    await cfg.audit?.record({
-      type: 'login.success',
+    await notifyLoginSuccess(ctx, cfg, {
       accountId,
       ip,
       clientId,
@@ -304,8 +304,7 @@ export default class AuthInteractionController {
 
     ctx.session.forget(MFA_PENDING_KEY)
     ctx.session.forget(SESSION_KEY)
-    await cfg.audit?.record({
-      type: 'login.success',
+    await notifyLoginSuccess(ctx, cfg, {
       accountId,
       ip,
       clientId,

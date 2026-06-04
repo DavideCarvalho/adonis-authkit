@@ -1,5 +1,10 @@
 import type { Redis } from 'ioredis'
-import type { EnumeratedClient, OidcAdapter, OidcPayload } from './adapter_contract.js'
+import type {
+  EnumeratedArtifact,
+  EnumeratedClient,
+  OidcAdapter,
+  OidcPayload,
+} from './adapter_contract.js'
 
 const grantable = new Set([
   'AccessToken',
@@ -94,14 +99,15 @@ export class RedisAdapter implements OidcAdapter {
   }
 
   /**
-   * Enumera os clients persistidos via SCAN sobre o prefixo de chave do model
-   * (`<prefix>:Client:*`). É limpo porque cada artefato é uma chave única já
-   * namespaceada por `prefix` + `name`; SCAN é não-bloqueante (cursor) ao
-   * contrário de KEYS. Usado apenas pelo console admin (model 'Client').
+   * Enumeração genérica dos artefatos do model deste adapter via SCAN sobre o
+   * prefixo de chave do model (`<prefix>:<name>:*`). É limpo porque cada artefato
+   * é uma chave única já namespaceada por `prefix` + `name`; SCAN é não-bloqueante
+   * (cursor) ao contrário de KEYS. Usado pelo console admin (`Client`, `Session`,
+   * `Grant`, tokens).
    */
-  async listClients(): Promise<EnumeratedClient[]> {
+  async list(): Promise<EnumeratedArtifact[]> {
     const prefix = `${this.prefix}:${this.name}:`
-    const result: EnumeratedClient[] = []
+    const result: EnumeratedArtifact[] = []
     let cursor = '0'
     do {
       const [next, keys] = await this.redis.scan(cursor, 'MATCH', `${prefix}*`, 'COUNT', 100)
@@ -110,12 +116,21 @@ export class RedisAdapter implements OidcAdapter {
         const data = await this.redis.get(key)
         if (!data) continue
         result.push({
-          clientId: key.slice(prefix.length),
+          id: key.slice(prefix.length),
           payload: JSON.parse(data) as Record<string, unknown>,
         })
       }
     } while (cursor !== '0')
-    result.sort((a, b) => a.clientId.localeCompare(b.clientId))
+    result.sort((a, b) => a.id.localeCompare(b.id))
     return result
+  }
+
+  /**
+   * Compat: enumera os clients persistidos. Delega para {@link list} (o adapter é
+   * instanciado com `name = 'Client'`), reprojetando `id` → `clientId`.
+   */
+  async listClients(): Promise<EnumeratedClient[]> {
+    const rows = await this.list()
+    return rows.map((r) => ({ clientId: r.id, payload: r.payload }))
   }
 }

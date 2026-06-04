@@ -216,6 +216,69 @@ test.group('lucidAccountStore', (group) => {
     assert.isFalse(await store.consumeEmailVerificationToken(''))
   })
 
+  // ----- Self-service de segurança (senha / e-mail) -----
+
+  test('changePassword: senha errada falha em verifyCredentials; nova passa', async ({
+    assert,
+  }) => {
+    const store = lucidAccountStore(TestAccount)
+    const acc = await store.create({ email: 'sec1@x.com', password: 'oldpass123' })
+    // Senha atual errada não autentica.
+    assert.isNull(await store.verifyCredentials('sec1@x.com', 'wrongpass'))
+    // Troca de senha e verifica que a nova passa e a antiga não.
+    assert.isTrue(await store.changePassword!(acc.id, 'newpass123'))
+    assert.isNotNull(await store.verifyCredentials('sec1@x.com', 'newpass123'))
+    assert.isNull(await store.verifyCredentials('sec1@x.com', 'oldpass123'))
+  })
+
+  test('changePassword retorna false para conta inexistente', async ({ assert }) => {
+    const store = lucidAccountStore(TestAccount)
+    assert.isFalse(await store.changePassword!('nope', 'whatever123'))
+  })
+
+  test('troca de e-mail: request → confirm aplica o novo e-mail (roundtrip)', async ({
+    assert,
+  }) => {
+    const store = lucidAccountStore(TestAccount)
+    const acc = await store.create({ email: 'old@x.com', password: 'pass123456' })
+    const issued = await store.requestEmailChange!(acc.id, 'new@x.com')
+    assert.isNotNull(issued)
+    assert.equal(issued!.newEmail, 'new@x.com')
+    // O e-mail ainda NÃO mudou antes de confirmar.
+    assert.equal((await store.findById(acc.id))!.email, 'old@x.com')
+
+    const confirmed = await store.confirmEmailChange!(issued!.token)
+    assert.isTrue(confirmed.ok)
+    if (confirmed.ok) assert.equal(confirmed.newEmail, 'new@x.com')
+    assert.equal((await store.findById(acc.id))!.email, 'new@x.com')
+    const row = await TestAccount.find(acc.id)
+    assert.isTrue(row!.isEmailVerified)
+    // Token consumido → reuso falha.
+    assert.isFalse((await store.confirmEmailChange!(issued!.token)).ok)
+  })
+
+  test('confirmEmailChange falha com token bogus / verificação normal não consome ec:', async ({
+    assert,
+  }) => {
+    const store = lucidAccountStore(TestAccount)
+    const acc = await store.create({ email: 'sec2@x.com', password: 'pass123456' })
+    assert.isFalse((await store.confirmEmailChange!('bogus')).ok)
+    assert.isFalse((await store.confirmEmailChange!('ec:bad')).ok)
+
+    // Um token de troca de e-mail NÃO pode ser consumido como verificação de cadastro.
+    const issued = await store.requestEmailChange!(acc.id, 'sec2new@x.com')
+    assert.isFalse(await store.consumeEmailVerificationToken(issued!.token))
+  })
+
+  test('requestEmailChange retorna null quando o novo e-mail já pertence a outra conta', async ({
+    assert,
+  }) => {
+    const store = lucidAccountStore(TestAccount)
+    await store.create({ email: 'taken@x.com', password: 'pass123456' })
+    const acc = await store.create({ email: 'me@x.com', password: 'pass123456' })
+    assert.isNull(await store.requestEmailChange!(acc.id, 'taken@x.com'))
+  })
+
   // ----- MFA / TOTP -----
 
   test('startTotpEnrollment retorna secret + otpauthUri e deixa o MFA pendente', async ({

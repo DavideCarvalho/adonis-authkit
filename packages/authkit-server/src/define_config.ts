@@ -127,6 +127,31 @@ export function resolveLockout(input?: LockoutConfigInput): ResolvedLockoutConfi
 }
 
 /**
+ * Notificações de segurança por e-mail (best-effort, fire-and-forget). Hoje cobre
+ * o alerta de NOVO acesso (login de um IP nunca visto antes para a conta).
+ */
+export interface NotificationsConfigInput {
+  /**
+   * Envia um e-mail "novo acesso à sua conta" quando um login bem-sucedido vem de
+   * um IP sem `login.success` anterior para a conta. Default: true. A checagem do
+   * histórico usa o `audit.list` (degrada para no-op se o sink não consulta).
+   */
+  newLoginEmail?: boolean
+}
+
+export interface ResolvedNotificationsConfig {
+  newLoginEmail: boolean
+}
+
+export function resolveNotifications(
+  input?: NotificationsConfigInput
+): ResolvedNotificationsConfig {
+  return {
+    newLoginEmail: input?.newLoginEmail ?? true,
+  }
+}
+
+/**
  * Registro dinâmico de clients (OIDC Dynamic Client Registration — RFC 7591).
  *
  * Quando habilitado, o oidc-provider expõe o endpoint de registro (`/reg`) e os
@@ -280,6 +305,8 @@ export interface AuthServerConfigInput {
   rateLimit?: RateLimitConfigInput
   /** Bloqueio progressivo de conta por email em falhas repetidas. Default: ligado (no-op sem limiter). */
   lockout?: LockoutConfigInput
+  /** Notificações de segurança por e-mail (alerta de novo acesso). Default: ligado. */
+  notifications?: NotificationsConfigInput
   /** Hooks de e-mail (reset de senha / verificação). Opcional — fallback de log em dev. */
   mail?: MailHooks
   /** Sink de auditoria (best-effort). Opcional — quando ausente, auditoria é no-op. */
@@ -329,6 +356,8 @@ export interface ResolvedServerConfig {
   rateLimit: ResolvedRateLimitConfig
   /** Bloqueio progressivo de conta resolvido (sempre presente; default ligado). */
   lockout: ResolvedLockoutConfig
+  /** Notificações de segurança resolvidas (sempre presente; default ligado). */
+  notifications: ResolvedNotificationsConfig
   mail?: MailHooks
   audit?: AuditSink
   mfaIssuer: string
@@ -390,6 +419,7 @@ export function defineConfig(config: AuthServerConfigInput) {
       patIntrospectionSecret: config.patIntrospectionSecret,
       rateLimit: resolveRateLimit(config.rateLimit),
       lockout: resolveLockout(config.lockout),
+      notifications: resolveNotifications(config.notifications),
       mail: config.mail,
       audit: config.audit,
       mfaIssuer: config.mfaIssuer ?? 'AuthKit',

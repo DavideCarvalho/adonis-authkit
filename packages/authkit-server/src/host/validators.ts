@@ -20,3 +20,23 @@ export const resetPasswordValidator = vine.compile(
     password: vine.string().minLength(8).maxLength(255),
   })
 )
+
+/**
+ * Troca de senha no console de conta. A regra da nova senha espelha o
+ * signupValidator (min 8, max 255); a senha atual é confirmada à parte via
+ * verifyCredentials.
+ */
+export const changePasswordValidator = vine.compile(
+  vine.object({
+    currentPassword: vine.string().minLength(1),
+    newPassword: vine.string().minLength(8).maxLength(255),
+  })
+)
+
+/** Troca de e-mail no console de conta: senha atual + o novo e-mail. */
+export const changeEmailValidator = vine.compile(
+  vine.object({
+    currentPassword: vine.string().minLength(1),
+    newEmail: vine.string().trim().email().normalizeEmail(),
+  })
+)

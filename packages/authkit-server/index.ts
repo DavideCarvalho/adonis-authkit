@@ -27,6 +27,7 @@ export type {
   MfaCapability,
   WebauthnCapability,
   ProviderIdentityCapability,
+  AccountSecurityCapability,
   AuthAccount,
   CreateAccountInput,
   LinkProviderIdentityInput,
@@ -38,6 +39,7 @@ export {
   supportsMfa,
   supportsPasskeys,
   supportsProviderIdentity,
+  supportsAccountSecurity,
 } from './src/accounts/account_store.js'
 export { withProviderIdentity } from './src/mixins/with_provider_identity.js'
 export type {
@@ -71,7 +73,11 @@ export type { I18nConfig, AuthMessages } from './src/host/i18n.js'
 export type { AuthHostRenderer, AuthSocialConfig } from './src/define_config.js'
 export { registerAuthHost } from './src/host/register_auth_host.js'
 export type { AuthHostOptions } from './src/host/register_auth_host.js'
-export { resolveRateLimit } from './src/define_config.js'
+export { resolveRateLimit, resolveNotifications } from './src/define_config.js'
+export type {
+  NotificationsConfigInput,
+  ResolvedNotificationsConfig,
+} from './src/define_config.js'
 export type {
   RateLimitConfigInput,
   RateLimitBucket,

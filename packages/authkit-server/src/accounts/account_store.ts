@@ -90,6 +90,45 @@ export interface AdminCapability {
 }
 
 /**
+ * Self-service de segurança da conta (console de conta): trocar a senha e o
+ * e-mail (com confirmação no NOVO endereço). É uma CAPACIDADE opcional — stores
+ * sem suporte omitem os métodos e a UI esconde a seção correspondente.
+ *
+ * A troca de e-mail usa um token de confirmação que viaja para o NOVO endereço
+ * ({@link requestEmailChange}) e é consumido por {@link confirmEmailChange}. O
+ * store default (Lucid) reaproveita a coluna `emailVerificationToken` codificando
+ * um payload `ec:<email>:<token>` — assim NÃO exige migração nova (ver
+ * `lucid_store/core.ts`). O tradeoff é que um token de verificação de cadastro e
+ * um de troca de e-mail não coexistem (mesma coluna); na prática são fluxos
+ * distintos no tempo.
+ */
+export interface AccountSecurityCapability {
+  /**
+   * Define uma nova senha para a conta (após o controller confirmar a senha ATUAL
+   * via {@link CoreAccountStore.verifyCredentials}). Retorna false se a conta não
+   * existe.
+   */
+  changePassword(accountId: string, newPassword: string): Promise<boolean>
+  /**
+   * Inicia a troca de e-mail: gera um token de confirmação para o `newEmail` e o
+   * persiste. Retorna o token + a conta, ou null se a conta não existe OU se o
+   * `newEmail` já pertence a outra conta.
+   */
+  requestEmailChange(
+    accountId: string,
+    newEmail: string
+  ): Promise<{ token: string; account: AuthAccount; newEmail: string } | null>
+  /**
+   * Confirma a troca de e-mail consumindo o token (single-use). Em caso de
+   * sucesso aplica o novo e-mail, marca-o como verificado e limpa o token.
+   * Retorna `{ ok: true, account, newEmail }` ou `{ ok: false }`.
+   */
+  confirmEmailChange(
+    token: string
+  ): Promise<{ ok: true; account: AuthAccount; newEmail: string } | { ok: false }>
+}
+
+/**
  * Account linking por identidade de provider (Google, GitHub, …).
  * `(provider, providerUserId)` é a chave estável vinda do provider OAuth — não
  * depende do e-mail (que pode mudar / não estar presente). Uma conta pode ter
@@ -195,7 +234,9 @@ export interface WebauthnCapability {
  * {@link supportsPasskeys}, {@link supportsProviderIdentity} para estreitar.
  */
 export type AccountStore = CoreAccountStore &
-  Partial<MfaCapability & WebauthnCapability & ProviderIdentityCapability>
+  Partial<
+    MfaCapability & WebauthnCapability & ProviderIdentityCapability & AccountSecurityCapability
+  >
 
 /** Type guard: o store implementa a capacidade de MFA / TOTP. */
 export function supportsMfa(store: AccountStore): store is AccountStore & MfaCapability {
@@ -212,4 +253,11 @@ export function supportsProviderIdentity(
   store: AccountStore
 ): store is AccountStore & ProviderIdentityCapability {
   return typeof store.findByProviderIdentity === 'function'
+}
+
+/** Type guard: o store implementa o self-service de segurança (senha/e-mail). */
+export function supportsAccountSecurity(
+  store: AccountStore
+): store is AccountStore & AccountSecurityCapability {
+  return typeof store.changePassword === 'function'
 }

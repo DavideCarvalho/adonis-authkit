@@ -78,6 +78,17 @@ test.group('edge views (lib-owned)', () => {
     assert.include(content, '@each(token in tokens)')
     assert.include(content, '/account/tokens/{{ token.id }}/revoke')
   })
+
+  test('account/security.edge expõe os forms de senha e e-mail com CSRF', ({ assert }) => {
+    const content = read('account/security.edge')
+    assert.include(content, 'action="/account/security/password"')
+    assert.include(content, 'action="/account/security/email"')
+    assert.include(content, 'name="currentPassword"')
+    assert.include(content, 'name="newPassword"')
+    assert.include(content, 'name="newEmail"')
+    assert.include(content, 'name="_csrf"')
+    assert.include(content, '@if(!supported)')
+  })
 })
 
 test.group('admin views (B6)', () => {
@@ -116,6 +127,79 @@ test.group('admin views (B6)', () => {
     assert.include(content, '/admin/clients/{{ client.clientId }}/edit')
     assert.include(content, '/admin/clients/{{ client.clientId }}/regenerate-secret')
     assert.include(content, '/admin/clients/{{ client.clientId }}/delete')
+  })
+
+  test('sessions.edge existe, degrada e expõe a rota de revogação', ({ assert }) => {
+    assert.isTrue(existsSync(dir + 'admin/sessions.edge'))
+    const content = read('admin/sessions.edge')
+    assert.include(content, '@if(!supported)')
+    assert.include(content, '/admin/users/{{ accountId }}/revoke-sessions')
+    assert.include(content, 'name="_csrf"')
+  })
+
+  test('users.edge linka a página de sessões da conta', ({ assert }) => {
+    assert.include(read('admin/users.edge'), '/admin/users/{{ user.id }}/sessions')
+  })
+})
+
+test.group('account console views render real (edge.js)', () => {
+  test('sessions.edge renderiza sessões + grants e o banner de revogação', async ({ assert }) => {
+    const edge = makeEdge()
+    const html = await edge.render('authkit::admin/sessions', {
+      csrfToken: 'csrf',
+      supported: true,
+      accountId: 'acc-1',
+      email: 'u@x.com',
+      revoked: { sessions: 1, grants: 2, accessTokens: 3, refreshTokens: 1 },
+      sessions: [{ id: 'sess1', loginTs: '2024-01-01T00:00:00Z', amr: 'pwd' }],
+      grants: [{ id: 'grant-1', clientId: 'c1', accessTokens: 2, refreshTokens: 1 }],
+    })
+    assert.include(html, 'sess1')
+    assert.include(html, 'grant-1')
+    assert.include(html, '/admin/users/acc-1/revoke-sessions')
+    assert.include(html, 'csrf')
+  })
+
+  test('sessions.edge degrada quando o adapter não enumera', async ({ assert }) => {
+    const edge = makeEdge()
+    const html = await edge.render('authkit::admin/sessions', {
+      csrfToken: 't',
+      supported: false,
+      accountId: 'acc-1',
+      email: 'u@x.com',
+      revoked: null,
+      sessions: [],
+      grants: [],
+    })
+    assert.include(html, translate({ ...DEFAULT_MESSAGES }, 'admin.sessions.not_supported'))
+    assert.notInclude(html, '/revoke-sessions')
+  })
+
+  test('account/security.edge renderiza os dois formulários', async ({ assert }) => {
+    const edge = makeEdge()
+    const html = await edge.render('authkit::account/security', {
+      csrfToken: 'csrf',
+      supported: true,
+      email: 'u@x.com',
+      passwordChanged: null,
+      emailChangeRequested: null,
+      emailChanged: null,
+      error: null,
+    })
+    assert.include(html, 'action="/account/security/password"')
+    assert.include(html, 'action="/account/security/email"')
+    assert.include(html, 'csrf')
+  })
+
+  test('account/email-confirmed.edge mostra sucesso/falha conforme `ok`', async ({ assert }) => {
+    const edge = makeEdge()
+    const okHtml = await edge.render('authkit::account/email-confirmed', { ok: true })
+    assert.include(okHtml, translate({ ...DEFAULT_MESSAGES }, 'account.email_confirmed.ok_title'))
+    const failHtml = await edge.render('authkit::account/email-confirmed', { ok: false })
+    assert.include(
+      failHtml,
+      translate({ ...DEFAULT_MESSAGES }, 'account.email_confirmed.invalid_title')
+    )
   })
 })
 

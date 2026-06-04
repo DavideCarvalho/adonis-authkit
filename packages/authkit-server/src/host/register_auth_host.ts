@@ -95,9 +95,11 @@ const C = {
   patIntrospection: () => import('./controllers/pat_introspection_controller.js'),
   accountSession: () => import('./controllers/account_session_controller.js'),
   accountTokens: () => import('./controllers/account_tokens_controller.js'),
+  accountSecurity: () => import('./controllers/account_security_controller.js'),
   accountMfa: () => import('./controllers/account_mfa_controller.js'),
   adminDashboard: () => import('./controllers/admin/admin_dashboard_controller.js'),
   adminUsers: () => import('./controllers/admin/admin_users_controller.js'),
+  adminSessions: () => import('./controllers/admin/admin_sessions_controller.js'),
   adminClients: () => import('./controllers/admin/admin_clients_controller.js'),
   adminAudit: () => import('./controllers/admin/admin_audit_controller.js'),
 }
@@ -159,12 +161,21 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
   router.post('/account/login', [C.accountSession, 'login'])
   router.post('/account/logout', [C.accountSession, 'logout'])
 
+  // Confirmação de troca de e-mail (standalone, GET-only — consome o token do link;
+  // pode ser aberta em outro dispositivo, então NÃO exige sessão).
+  router.get('/account/email/confirm', [C.accountSecurity, 'confirmEmail'])
+
   // Rotas de tokens protegidas por AccountAuthMiddleware (redireciona para /account/login se não autenticado).
   router
     .group(() => {
       router.get('/account/tokens', [C.accountTokens, 'index'])
       router.post('/account/tokens', [C.accountTokens, 'store'])
       router.post('/account/tokens/:id/revoke', [C.accountTokens, 'destroy'])
+
+      // Segurança da conta: trocar senha + solicitar troca de e-mail.
+      router.get('/account/security', [C.accountSecurity, 'index'])
+      router.post('/account/security/password', [C.accountSecurity, 'changePassword'])
+      router.post('/account/security/email', [C.accountSecurity, 'changeEmail'])
 
       // MFA / TOTP (enrollment, confirmação, disable).
       router.get('/account/mfa', [C.accountMfa, 'index'])
@@ -186,6 +197,9 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
         router.get('/admin', [C.adminDashboard, 'index'])
         router.get('/admin/users', [C.adminUsers, 'index'])
         router.post('/admin/users/:id/roles', [C.adminUsers, 'updateRoles'])
+        // Sessões/grants ativos da conta + revogação em massa.
+        router.get('/admin/users/:id/sessions', [C.adminSessions, 'index'])
+        router.post('/admin/users/:id/revoke-sessions', [C.adminSessions, 'revoke'])
         router.get('/admin/clients', [C.adminClients, 'index'])
         // CRUD de clients OIDC (adapter-backed). `/new` ANTES de `:id` p/ não casar
         // "new" como id; todas as escritas são POST (com _csrf na view).

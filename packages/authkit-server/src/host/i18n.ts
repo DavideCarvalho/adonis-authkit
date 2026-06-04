@@ -115,6 +115,7 @@ export const DEFAULT_MESSAGES = {
   'account.tokens.page_title': 'Tokens de acesso',
   'account.tokens.title': 'Tokens de acesso',
   'account.tokens.logout': 'Sair',
+  'account.tokens.security': 'Segurança',
   'account.tokens.created_notice': 'Token criado — copie agora, não será mostrado de novo:',
   'account.tokens.name_placeholder': 'Nome do token (ex.: CI deploy)',
   'account.tokens.create': 'Criar',
@@ -125,6 +126,36 @@ export const DEFAULT_MESSAGES = {
   'account.tokens.scopes': 'Escopos: {scopes}',
   'account.tokens.audience': 'Audiência: {audience}',
   'account.tokens.revoke': 'Revogar',
+
+  // Console de conta — segurança (account/security): senha + e-mail.
+  'account.security.page_title': 'Segurança da conta',
+  'account.security.title': 'Segurança da conta',
+  'account.security.logout': 'Sair',
+  'account.security.current_email': 'E-mail atual: {email}',
+  'account.security.not_supported':
+    'A troca de senha e e-mail não está disponível nesta instalação.',
+  'account.security.password_section': 'Trocar senha',
+  'account.security.current_password_label': 'Senha atual',
+  'account.security.new_password_label': 'Nova senha',
+  'account.security.change_password_submit': 'Trocar senha',
+  'account.security.password_changed': 'Senha alterada com sucesso.',
+  'account.security.email_section': 'Trocar e-mail',
+  'account.security.email_intro':
+    'Enviaremos um link de confirmação para o novo endereço. A troca só é aplicada após a confirmação.',
+  'account.security.new_email_label': 'Novo e-mail',
+  'account.security.email_password_label': 'Senha atual',
+  'account.security.change_email_submit': 'Solicitar troca de e-mail',
+  'account.security.email_change_requested':
+    'Enviamos um link de confirmação para {email}. Clique nele para concluir a troca.',
+  'account.security.email_changed': 'E-mail alterado com sucesso.',
+
+  // Confirmação de troca de e-mail (account/email-confirmed).
+  'account.email_confirmed.page_title': 'Confirmação de e-mail',
+  'account.email_confirmed.ok_title': 'E-mail alterado',
+  'account.email_confirmed.ok_body': 'Seu novo e-mail foi confirmado e já está ativo.',
+  'account.email_confirmed.invalid_title': 'Link inválido',
+  'account.email_confirmed.invalid_body':
+    'O link de confirmação é inválido ou já foi utilizado.',
 
   // Console de conta — MFA (account/mfa).
   'account.mfa.page_title': 'Verificação em duas etapas',
@@ -180,6 +211,28 @@ export const DEFAULT_MESSAGES = {
   'admin.users.empty': 'Nenhum usuário encontrado.',
   'admin.users.roles_placeholder': 'Papéis (separados por vírgula)',
   'admin.users.save_roles': 'Salvar papéis',
+  'admin.users.sessions': 'Sessões',
+
+  // Console admin — sessões/grants ativos de uma conta.
+  'admin.sessions.page_title': 'Sessões ativas',
+  'admin.sessions.title': 'Sessões ativas',
+  'admin.sessions.account': 'Conta: {email}',
+  'admin.sessions.back': 'Voltar para usuários',
+  'admin.sessions.not_supported':
+    'O adapter OIDC configurado não suporta enumeração — a inspeção de sessões fica indisponível.',
+  'admin.sessions.revoked_notice':
+    'Revogado: {sessions} sessão(ões), {grants} grant(s), {accessTokens} access token(s), {refreshTokens} refresh token(s).',
+  'admin.sessions.sessions_section': 'Sessões (login no IdP)',
+  'admin.sessions.sessions_empty': 'Nenhuma sessão ativa.',
+  'admin.sessions.session_login_ts': 'Login: {date}',
+  'admin.sessions.session_amr': 'Métodos: {amr}',
+  'admin.sessions.grants_section': 'Grants (autorizações por client)',
+  'admin.sessions.grants_empty': 'Nenhum grant ativo.',
+  'admin.sessions.grant_client': 'Client: {clientId}',
+  'admin.sessions.grant_tokens': '{accessTokens} access · {refreshTokens} refresh',
+  'admin.sessions.revoke_all': 'Revogar todas as sessões e grants',
+  'admin.sessions.revoke_confirm':
+    'Revogar todas as sessões e grants desta conta? O usuário precisará entrar novamente e os tokens emitidos deixarão de funcionar.',
 
   // Console admin — clients.
   'admin.clients.page_title': 'Clients OAuth',

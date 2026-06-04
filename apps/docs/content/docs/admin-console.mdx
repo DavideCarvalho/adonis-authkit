@@ -54,6 +54,8 @@ The allowed roles are resolved at runtime from the `authkit.server` config. See
 | `GET /admin` | Dashboard (counts + recent audit events) |
 | `GET /admin/users` | List/search users |
 | `POST /admin/users/:id/roles` | Replace a user's global roles (`AccountStore.setGlobalRoles`) |
+| `GET /admin/users/:id/sessions` | List the account's active sessions + grants |
+| `POST /admin/users/:id/revoke-sessions` | Revoke all of the account's sessions + grants |
 | `GET /admin/clients` | List OAuth clients (static config + adapter-stored) |
 | `POST /admin/clients` | Create a dynamic client |
 | `POST /admin/clients/:id` | Edit a dynamic client (redirect/post-logout URIs, grants, auth method) |
@@ -65,6 +67,26 @@ The console reads through the same contracts as the rest of the host kit:
 `AccountStore.listAccounts` / `setGlobalRoles` for users, the OIDC adapter + static
 `clients` for the client list, and `AuditSink.list` for audit. A write-only audit sink
 degrades gracefully — the audit page shows "query not supported".
+
+## Sessions & revocation
+
+Each user row links to **`/admin/users/:id/sessions`**, which lists the account's active
+**sessions** (IdP logins) and **grants** (per-client authorizations), with a live count of
+access / refresh tokens per grant. A single **"Revoke all sessions and grants"** button
+destroys them via `AdminSessionsService`.
+
+Revocation works by destroying the account's `Session` and `Grant` artifacts directly
+through the OIDC adapter. Destroying a grant **cascades** to its tokens: oidc-provider
+validates every access/refresh token against `Grant.find(token.grantId)` and rejects it
+with `invalid_token` when the grant is gone. As a belt-and-braces measure the service also
+destroys the access/refresh token rows that reference the revoked grants (when the adapter
+can enumerate them). The operation emits a `session.revoked_all` audit event with the
+counts in `metadata`.
+
+Like the client list, enumeration relies on the adapter's **optional** `list?()` capability
+(the database and Redis adapters both implement it). When the adapter can't enumerate, the
+page **degrades gracefully** with a notice instead of erroring. Both the database adapter's
+table query and the Redis adapter's `SCAN` are scoped per model, so the lookup is cheap.
 
 ## Client CRUD
 
@@ -87,8 +109,9 @@ persists (matching what RFC 7591 dynamic registration writes) and then **evicts 
 provider's dynamic-client cache** so the change takes effect immediately. Each operation
 emits an audit event: `client.created`, `client.updated`, `client.deleted`.
 
-Enumeration relies on the adapter's **optional** `listClients?()` capability. When the
-adapter doesn't implement it, the service's `canList` is `false` and the page **degrades
+Enumeration relies on the adapter's **optional** `list?()` capability (the legacy
+`listClients?()` is still honored for back-compat and now delegates to `list()`). When the
+adapter implements neither, the service's `canList` is `false` and the page **degrades
 gracefully** — static clients still render and the create form still works, but the
 adapter-stored list is hidden with a notice rather than erroring. Statically-configured
 clients are always read-only (they live in your config, not the adapter).

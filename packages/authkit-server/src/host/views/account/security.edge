@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="pt-br"><head><meta charset="utf-8"><title>{{ t('account.security.page_title') }}</title>
+<script src="https://cdn.tailwindcss.com"></script></head>
+<body class="min-h-screen bg-gray-100 p-4">
+  <div class="mx-auto max-w-2xl">
+    <div class="flex items-center justify-between py-6">
+      <div>
+        <div class="text-xs font-semibold uppercase tracking-widest text-gray-400">{{ t('common.brand_eyebrow') }}</div>
+        <h1 class="text-xl font-semibold text-gray-900">{{ t('account.security.title') }}</h1>
+        @if(email)
+          <p class="mt-1 text-sm text-gray-500">{{ t('account.security.current_email', { email: email }) }}</p>
+        @end
+      </div>
+      <form method="POST" action="/account/logout">
+        <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+        <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('account.security.logout') }}</button>
+      </form>
+    </div>
+
+    @if(!supported)
+      <div class="rounded-xl bg-white p-6 text-sm text-gray-500 shadow-sm ring-1 ring-black/5">
+        {{ t('account.security.not_supported') }}
+      </div>
+    @else
+      @if(error)
+        <div class="mb-6 rounded-lg border border-red-300 bg-red-50 p-4">
+          <p class="text-sm font-medium text-red-900">{{ error }}</p>
+        </div>
+      @end
+      @if(passwordChanged)
+        <div class="mb-6 rounded-lg border border-emerald-300 bg-emerald-50 p-4">
+          <p class="text-sm font-medium text-emerald-900">{{ passwordChanged }}</p>
+        </div>
+      @end
+      @if(emailChangeRequested)
+        <div class="mb-6 rounded-lg border border-blue-300 bg-blue-50 p-4">
+          <p class="text-sm font-medium text-blue-900">{{ emailChangeRequested }}</p>
+        </div>
+      @end
+
+      <div class="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+        <h2 class="mb-4 text-sm font-semibold text-gray-900">{{ t('account.security.password_section') }}</h2>
+        <form method="POST" action="/account/security/password" class="space-y-4">
+          <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-gray-700">{{ t('account.security.current_password_label') }}</label>
+            <input name="currentPassword" type="password" required
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900" />
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-gray-700">{{ t('account.security.new_password_label') }}</label>
+            <input name="newPassword" type="password" required minlength="8"
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900" />
+          </div>
+          <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white">
+            {{ t('account.security.change_password_submit') }}
+          </button>
+        </form>
+      </div>
+
+      <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+        <h2 class="mb-1 text-sm font-semibold text-gray-900">{{ t('account.security.email_section') }}</h2>
+        <p class="mb-4 text-xs text-gray-500">{{ t('account.security.email_intro') }}</p>
+        <form method="POST" action="/account/security/email" class="space-y-4">
+          <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-gray-700">{{ t('account.security.new_email_label') }}</label>
+            <input name="newEmail" type="email" required
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900" />
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-gray-700">{{ t('account.security.email_password_label') }}</label>
+            <input name="currentPassword" type="password" required
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900" />
+          </div>
+          <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white">
+            {{ t('account.security.change_email_submit') }}
+          </button>
+        </form>
+      </div>
+    @end
+  </div>
+</body></html>

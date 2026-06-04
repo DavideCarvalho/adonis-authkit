@@ -1,9 +1,21 @@
 import { test } from '@japa/runner'
 import { readFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { Edge } from 'edge.js'
+import { DEFAULT_MESSAGES, translate } from '../../src/host/i18n.js'
 
 const dir = fileURLToPath(new URL('../../src/host/views/', import.meta.url))
 const read = (p: string) => readFileSync(dir + p, 'utf8')
+
+/** Instancia um Edge real montando as views da lib + o helper `t` (igual produção). */
+function makeEdge() {
+  const edge = new Edge()
+  edge.mount('authkit', dir)
+  edge.global('t', (key: string, params?: Record<string, string | number>) =>
+    translate({ ...DEFAULT_MESSAGES }, key, params)
+  )
+  return edge
+}
 
 test.group('edge views (lib-owned)', () => {
   test('as 7 views existem', ({ assert }) => {
@@ -69,8 +81,14 @@ test.group('edge views (lib-owned)', () => {
 })
 
 test.group('admin views (B6)', () => {
-  test('as 4 views admin existem', ({ assert }) => {
-    for (const v of ['admin/dashboard.edge', 'admin/users.edge', 'admin/clients.edge', 'admin/audit.edge']) {
+  test('as 5 views admin existem (inclui client_form)', ({ assert }) => {
+    for (const v of [
+      'admin/dashboard.edge',
+      'admin/users.edge',
+      'admin/clients.edge',
+      'admin/client_form.edge',
+      'admin/audit.edge',
+    ]) {
       assert.isTrue(existsSync(dir + v), `falta ${v}`)
     }
   })
@@ -80,9 +98,112 @@ test.group('admin views (B6)', () => {
     assert.include(read('admin/users.edge'), 'name="_csrf"')
     assert.include(read('admin/users.edge'), '/admin/users/{{ user.id }}/roles')
     assert.include(read('admin/dashboard.edge'), 'name="_csrf"')
+    assert.include(read('admin/client_form.edge'), 'name="_csrf"')
+    assert.include(read('admin/clients.edge'), 'name="_csrf"')
   })
 
   test('audit.edge degrada quando consulta não suportada', ({ assert }) => {
     assert.include(read('admin/audit.edge'), '@if(!supported)')
+  })
+
+  test('clients.edge degrada quando o adapter não enumera', ({ assert }) => {
+    assert.include(read('admin/clients.edge'), '@if(!dynamicSupported)')
+  })
+
+  test('clients.edge expõe rotas de CRUD dinâmico', ({ assert }) => {
+    const content = read('admin/clients.edge')
+    assert.include(content, '/admin/clients/new')
+    assert.include(content, '/admin/clients/{{ client.clientId }}/edit')
+    assert.include(content, '/admin/clients/{{ client.clientId }}/regenerate-secret')
+    assert.include(content, '/admin/clients/{{ client.clientId }}/delete')
+  })
+})
+
+test.group('admin views render real (edge.js)', () => {
+  test('clients.edge renderiza listas estática + dinâmica e o banner de secret', async ({
+    assert,
+  }) => {
+    const edge = makeEdge()
+    const html = await edge.render('authkit::admin/clients', {
+      csrfToken: 'csrf-token-xyz',
+      dynamicEnabled: true,
+      dynamicSupported: true,
+      createdSecret: { clientId: 'cli_abc', clientSecret: 'sec_123' },
+      staticClients: [
+        {
+          clientId: 'static1',
+          confidential: true,
+          grants: ['authorization_code'],
+          redirectUris: ['https://app/cb'],
+          postLogoutRedirectUris: [],
+        },
+      ],
+      dynamicClients: [
+        {
+          clientId: 'dyn1',
+          confidential: true,
+          grants: ['authorization_code', 'refresh_token'],
+          redirectUris: ['https://dyn/cb'],
+          postLogoutRedirectUris: [],
+          tokenEndpointAuthMethod: 'client_secret_basic',
+        },
+      ],
+    })
+    assert.include(html, 'csrf-token-xyz')
+    assert.include(html, 'static1')
+    assert.include(html, 'dyn1')
+    assert.include(html, 'sec_123') // secret mostrado uma vez
+    assert.include(html, '/admin/clients/dyn1/edit')
+    assert.include(html, '/admin/clients/dyn1/delete')
+    assert.include(html, '/admin/clients/dyn1/regenerate-secret')
+  })
+
+  test('clients.edge degrada graciosamente sem listClients', async ({ assert }) => {
+    const edge = makeEdge()
+    const html = await edge.render('authkit::admin/clients', {
+      csrfToken: 't',
+      dynamicEnabled: false,
+      dynamicSupported: false,
+      createdSecret: null,
+      staticClients: [],
+      dynamicClients: [],
+    })
+    assert.include(html, translate({ ...DEFAULT_MESSAGES }, 'admin.clients.dynamic_not_supported'))
+    assert.notInclude(html, '/admin/clients/new')
+  })
+
+  test('client_form.edge renderiza modo create (sem disabled) e edit (campo disabled)', async ({
+    assert,
+  }) => {
+    const edge = makeEdge()
+    const createHtml = await edge.render('authkit::admin/client_form', {
+      csrfToken: 'csrf',
+      mode: 'create',
+      client: {
+        clientId: '',
+        redirectUris: [],
+        postLogoutRedirectUris: [],
+        grants: ['authorization_code', 'refresh_token'],
+        tokenEndpointAuthMethod: 'client_secret_basic',
+      },
+    })
+    assert.include(createHtml, 'action="/admin/clients"')
+    assert.include(createHtml, 'name="client_id"')
+    assert.include(createHtml, 'name="redirect_uris"')
+
+    const editHtml = await edge.render('authkit::admin/client_form', {
+      csrfToken: 'csrf',
+      mode: 'edit',
+      client: {
+        clientId: 'dyn1',
+        redirectUris: ['https://dyn/cb'],
+        postLogoutRedirectUris: [],
+        grants: ['authorization_code'],
+        tokenEndpointAuthMethod: 'client_secret_basic',
+      },
+    })
+    assert.include(editHtml, 'action="/admin/clients/dyn1/edit"')
+    assert.include(editHtml, 'disabled')
+    assert.include(editHtml, 'https://dyn/cb')
   })
 })

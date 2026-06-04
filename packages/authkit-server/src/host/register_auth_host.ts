@@ -187,6 +187,14 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
         router.get('/admin/users', [C.adminUsers, 'index'])
         router.post('/admin/users/:id/roles', [C.adminUsers, 'updateRoles'])
         router.get('/admin/clients', [C.adminClients, 'index'])
+        // CRUD de clients OIDC (adapter-backed). `/new` ANTES de `:id` p/ não casar
+        // "new" como id; todas as escritas são POST (com _csrf na view).
+        router.get('/admin/clients/new', [C.adminClients, 'create'])
+        router.post('/admin/clients', [C.adminClients, 'store'])
+        router.get('/admin/clients/:id/edit', [C.adminClients, 'edit'])
+        router.post('/admin/clients/:id/edit', [C.adminClients, 'update'])
+        router.post('/admin/clients/:id/regenerate-secret', [C.adminClients, 'regenerateSecret'])
+        router.post('/admin/clients/:id/delete', [C.adminClients, 'destroy'])
         router.get('/admin/audit', [C.adminAudit, 'index'])
       })
       .use([adminGuard])

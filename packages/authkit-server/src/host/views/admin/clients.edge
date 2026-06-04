@@ -21,17 +21,30 @@
       <a href="/admin/audit" class="text-gray-500 hover:underline">{{ t('admin.nav.audit') }}</a>
     </nav>
 
+    @if(createdSecret)
+      <div class="mb-6 rounded-lg border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-900">
+        <p class="font-semibold">{{ t('admin.clients.secret_once_title') }}</p>
+        <p class="mt-1">{{ t('admin.clients.secret_once_notice') }}</p>
+        <p class="mt-2 break-all font-mono text-xs">
+          <span class="text-emerald-700">client_id:</span> {{ createdSecret.clientId }}<br>
+          <span class="text-emerald-700">client_secret:</span> {{ createdSecret.clientSecret }}
+        </p>
+      </div>
+    @end
+
     @if(dynamicEnabled)
       <div class="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
         {{ t('admin.clients.dynamic_notice') }}
       </div>
     @end
 
-    <div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-black/5">
-      @if(clients.length === 0)
+    {{-- Clients estáticos (config, somente leitura). --}}
+    <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">{{ t('admin.clients.static_section') }}</h2>
+    <div class="mb-8 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-black/5">
+      @if(staticClients.length === 0)
         <p class="p-6 text-sm text-gray-500">{{ t('admin.clients.empty') }}</p>
       @else
-        @each(client in clients)
+        @each(client in staticClients)
           <div class="border-b border-gray-100 p-4 last:border-0">
             <div class="flex items-center justify-between">
               <p class="text-sm font-medium text-gray-900">{{ client.clientId }}</p>
@@ -47,5 +60,57 @@
         @end
       @end
     </div>
+
+    {{-- Clients dinâmicos (adapter, com CRUD). --}}
+    <div class="mb-2 flex items-center justify-between">
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-500">{{ t('admin.clients.dynamic_section') }}</h2>
+      @if(dynamicSupported)
+        <a href="/admin/clients/new" class="rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-gray-800">
+          {{ t('admin.clients.new') }}
+        </a>
+      @end
+    </div>
+
+    @if(!dynamicSupported)
+      <div class="rounded-xl bg-white p-6 text-sm text-gray-500 shadow-sm ring-1 ring-black/5">
+        {{ t('admin.clients.dynamic_not_supported') }}
+      </div>
+    @else
+      <div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-black/5">
+        @if(dynamicClients.length === 0)
+          <p class="p-6 text-sm text-gray-500">{{ t('admin.clients.dynamic_empty') }}</p>
+        @else
+          @each(client in dynamicClients)
+            <div class="border-b border-gray-100 p-4 last:border-0">
+              <div class="flex items-center justify-between gap-2">
+                <p class="break-all text-sm font-medium text-gray-900">{{ client.clientId }}</p>
+                <span class="shrink-0 rounded-full px-2 py-0.5 text-xs {{ client.confidential ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">
+                  {{ client.confidential ? t('admin.clients.confidential') : t('admin.clients.public') }}
+                </span>
+              </div>
+              <p class="mt-1 text-xs text-gray-500">{{ t('admin.clients.grants', { grants: client.grants.join(', ') }) }}</p>
+              @if(client.redirectUris.length > 0)
+                <p class="text-xs text-gray-400">{{ t('admin.clients.redirect_uris', { uris: client.redirectUris.join(', ') }) }}</p>
+              @end
+              <div class="mt-3 flex flex-wrap items-center gap-2">
+                <a href="/admin/clients/{{ client.clientId }}/edit" class="rounded border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50">
+                  {{ t('admin.clients.edit') }}
+                </a>
+                @if(client.confidential)
+                  <form method="POST" action="/admin/clients/{{ client.clientId }}/regenerate-secret" onsubmit="return confirm('{{ t('admin.clients.regenerate_confirm') }}')">
+                    <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                    <button type="submit" class="rounded border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50">{{ t('admin.clients.regenerate_secret') }}</button>
+                  </form>
+                @end
+                <form method="POST" action="/admin/clients/{{ client.clientId }}/delete" onsubmit="return confirm('{{ t('admin.clients.delete_confirm') }}')">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <button type="submit" class="rounded border border-red-300 px-3 py-1 text-xs text-red-700 hover:bg-red-50">{{ t('admin.clients.delete') }}</button>
+                </form>
+              </div>
+            </div>
+          @end
+        @end
+      </div>
+    @end
   </div>
 </body></html>

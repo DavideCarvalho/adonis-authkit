@@ -26,3 +26,15 @@ declare module 'oidc-provider' {
     [key: string]: new (...args: any[]) => Error
   }
 }
+
+/**
+ * Deep import interno do `oidc-provider` v9: o `weak_cache` é um WeakMap que mapeia
+ * a instância do Provider para seu estado interno (inclui a LRU `dynamicClients`).
+ * Usado pelo console admin para invalidar o cache de clients após escritas no adapter.
+ */
+declare module 'oidc-provider/lib/helpers/weak_cache.js' {
+  export function get(provider: unknown): any
+  export function set(provider: unknown, value: any): void
+  const _default: typeof get
+  export default _default
+}

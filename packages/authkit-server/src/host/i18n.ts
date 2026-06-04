@@ -190,7 +190,38 @@ export const DEFAULT_MESSAGES = {
   'admin.clients.grants': 'Grants: {grants}',
   'admin.clients.redirect_uris': 'Redirects: {uris}',
   'admin.clients.dynamic_notice':
-    'O registro dinâmico de clients está ligado — clients registrados via /reg vivem no adapter e não aparecem nesta lista.',
+    'O registro dinâmico de clients (RFC 7591) está ligado — clients registrados via /reg são persistidos no adapter e aparecem na seção dinâmica abaixo.',
+  'admin.clients.static_section': 'Clients estáticos (config)',
+  'admin.clients.dynamic_section': 'Clients dinâmicos (adapter)',
+  'admin.clients.dynamic_empty': 'Nenhum client dinâmico persistido.',
+  'admin.clients.dynamic_not_supported':
+    'O adapter OIDC configurado não suporta enumeração de clients — a gestão dinâmica fica indisponível.',
+  'admin.clients.new': 'Novo client',
+  'admin.clients.new_title': 'Novo client OIDC',
+  'admin.clients.edit_title': 'Editar client OIDC',
+  'admin.clients.edit': 'Editar',
+  'admin.clients.delete': 'Excluir',
+  'admin.clients.delete_confirm': 'Excluir este client? Esta ação não pode ser desfeita.',
+  'admin.clients.regenerate_secret': 'Regenerar secret',
+  'admin.clients.regenerate_confirm':
+    'Regenerar o secret? O secret atual deixará de funcionar imediatamente.',
+  'admin.clients.back': 'Voltar',
+  'admin.clients.cancel': 'Cancelar',
+  'admin.clients.save': 'Salvar',
+  'admin.clients.create': 'Criar client',
+  'admin.clients.secret_once_title': 'Guarde o client_secret agora',
+  'admin.clients.secret_once_notice':
+    'Este é o único momento em que o secret é exibido. Copie-o agora — ele não pode ser recuperado depois.',
+  'admin.clients.field_client_id': 'Client ID',
+  'admin.clients.field_client_id_placeholder': 'deixe em branco para gerar automaticamente',
+  'admin.clients.field_client_id_help':
+    'Opcional. Se vazio, um identificador aleatório será gerado.',
+  'admin.clients.field_redirect_uris': 'Redirect URIs',
+  'admin.clients.field_redirect_uris_help': 'Uma URI por linha.',
+  'admin.clients.field_post_logout_uris': 'Post-logout redirect URIs',
+  'admin.clients.field_post_logout_uris_help': 'Uma URI por linha (opcional).',
+  'admin.clients.field_grant_types': 'Grant types',
+  'admin.clients.field_auth_method': 'Token endpoint auth method',
 
   // Console admin — auditoria.
   'admin.audit.page_title': 'Auditoria',

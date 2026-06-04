@@ -1,5 +1,5 @@
 import type { Database } from '@adonisjs/lucid/database'
-import type { OidcAdapter, OidcPayload } from './adapter_contract.js'
+import type { EnumeratedClient, OidcAdapter, OidcPayload } from './adapter_contract.js'
 
 const TABLE = 'authkit_oidc_payloads'
 
@@ -67,5 +67,22 @@ export class DatabaseAdapter implements OidcAdapter {
 
   async revokeByGrantId(grantId: string): Promise<void> {
     await this.db.query().from(TABLE).where('grant_id', grantId).delete()
+  }
+
+  /**
+   * Enumera os clients persistidos (registro dinâmico ou CRUD do console admin).
+   * Filtra por `model_name = this.name` (sempre 'Client' aqui) e descarta linhas
+   * expiradas — clients são persistidos sem TTL (`expires_at` NULL), então isso
+   * só é uma rede de segurança caso algum dia algo grave o model com expiração.
+   */
+  async listClients(): Promise<EnumeratedClient[]> {
+    const rows = await this.#query().orderBy('id', 'asc')
+    const now = Date.now()
+    const result: EnumeratedClient[] = []
+    for (const row of rows) {
+      if (row.expires_at && new Date(row.expires_at).getTime() <= now) continue
+      result.push({ clientId: row.id, payload: JSON.parse(row.payload) as Record<string, unknown> })
+    }
+    return result
   }
 }

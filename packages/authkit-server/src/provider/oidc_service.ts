@@ -78,6 +78,33 @@ export class OidcService {
     this.interactions = createInteractionActions(this.provider, { verifyCredentials: config.verifyCredentials })
   }
 
+  /**
+   * Invalida o cache de clients DINÂMICOS do oidc-provider (a `dynamicClients`
+   * QuickLRU em `instance(provider)`). DEVE ser chamado após qualquer escrita
+   * (create/update/delete) no model `Client` via adapter, pelo console admin.
+   *
+   * NOTA sobre o porquê: o oidc-provider v9 cacheia clients carregados do adapter
+   * numa LRU CUJA CHAVE É O HASH (sha256) DO PAYLOAD persistido — não o client_id.
+   * Por isso uma alteração de metadata já é "auto-invalidante": `Client.find` relê o
+   * adapter, hasheia o payload NOVO, dá cache-miss e reconstrói o client. Mesmo assim
+   * limpamos a LRU explicitamente para (a) tornar o efeito imediato e determinístico
+   * (sem depender de pressão de LRU para expulsar a entrada antiga, agora inalcançável)
+   * e (b) liberar a entrada órfã na hora. É o caminho de invalidação suportado: a LRU
+   * é um detalhe interno acessível via o helper `weak_cache` do próprio provider.
+   */
+  async evictDynamicClientCache(): Promise<void> {
+    try {
+      const wc: any = await import('oidc-provider/lib/helpers/weak_cache.js')
+      const get = wc.default ?? wc.get
+      const int = get(this.provider)
+      int?.dynamicClients?.clear?.()
+    } catch {
+      // Estrutura interna mudou numa versão futura do oidc-provider: a invalidação por
+      // hash-de-conteúdo (acima) continua garantindo correção; só perdemos a expulsão
+      // imediata da entrada órfã. Best-effort — não propaga erro pro caminho da request.
+    }
+  }
+
   /** Verifica client_id + client_secret contra os clients da config (p/ endpoints custom como introspecção de PAT). */
   verifyClientCredentials(clientId: string, clientSecret: string): boolean {
     const client = this.#clients.find((c) => c.clientId === clientId)

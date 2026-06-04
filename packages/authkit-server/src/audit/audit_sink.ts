@@ -18,6 +18,9 @@ export type AuditEventType =
   | 'passkey.removed'
   | 'email_verification.issued'
   | 'email_verification.consumed'
+  | 'client.created'
+  | 'client.updated'
+  | 'client.deleted'
 
 /**
  * Evento de auditoria a registrar. O timestamp é definido pelo sink (não aqui).

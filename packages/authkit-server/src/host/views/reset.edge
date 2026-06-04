@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-br"><head><meta charset="utf-8"><title>{{ t('reset.page_title') }}</title>
+<script src="https://cdn.tailwindcss.com"></script></head>
+<body class="min-h-screen flex items-center justify-center bg-gray-50">
+  <div class="w-full max-w-sm bg-white p-8 rounded-2xl shadow-xl ring-1 ring-black/5">
+    @if(done)
+      <h1 class="text-xl font-semibold text-gray-900">{{ t('reset.done_title') }}</h1>
+      <p class="mt-2 text-sm text-gray-600">{{ t('reset.done_body') }}</p>
+    @else
+      <form method="POST" action="/auth/reset-password">
+        <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+        <input type="hidden" name="token" value="{{ token }}">
+        <h1 class="text-xl font-semibold text-gray-900">{{ t('reset.title') }}</h1>
+        <p class="mt-1 text-sm text-gray-500">{{ t('reset.intro') }}</p>
+
+        <div class="mt-6">
+          <label for="password" class="mb-1 block text-sm font-medium text-gray-700">{{ t('reset.password_label') }}</label>
+          <input id="password" name="password" type="password" required minlength="8"
+            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900" />
+        </div>
+
+        <button type="submit"
+          class="mt-6 w-full rounded-lg bg-gray-900 py-2.5 text-sm font-semibold text-white transition hover:opacity-90">
+          {{ t('reset.submit') }}
+        </button>
+      </form>
+    @end
+  </div>
+</body></html>

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="pt-br"><head><meta charset="utf-8"><title>{{ t('admin.clients.page_title') }}</title>
+<script src="https://cdn.tailwindcss.com"></script></head>
+<body class="min-h-screen bg-gray-100 p-4">
+  <div class="mx-auto max-w-4xl">
+    <div class="flex items-center justify-between py-6">
+      <div>
+        <div class="text-xs font-semibold uppercase tracking-widest text-gray-400">{{ t('common.brand_eyebrow') }}</div>
+        <h1 class="text-xl font-semibold text-gray-900">{{ t('admin.clients.title') }}</h1>
+      </div>
+      <form method="POST" action="/account/logout">
+        <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+        <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('admin.nav.logout') }}</button>
+      </form>
+    </div>
+
+    <nav class="mb-6 flex gap-4 text-sm font-medium">
+      <a href="/admin" class="text-gray-500 hover:underline">{{ t('admin.nav.dashboard') }}</a>
+      <a href="/admin/users" class="text-gray-500 hover:underline">{{ t('admin.nav.users') }}</a>
+      <a href="/admin/clients" class="text-gray-900 underline">{{ t('admin.nav.clients') }}</a>
+      <a href="/admin/audit" class="text-gray-500 hover:underline">{{ t('admin.nav.audit') }}</a>
+    </nav>
+
+    @if(dynamicEnabled)
+      <div class="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+        {{ t('admin.clients.dynamic_notice') }}
+      </div>
+    @end
+
+    <div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-black/5">
+      @if(clients.length === 0)
+        <p class="p-6 text-sm text-gray-500">{{ t('admin.clients.empty') }}</p>
+      @else
+        @each(client in clients)
+          <div class="border-b border-gray-100 p-4 last:border-0">
+            <div class="flex items-center justify-between">
+              <p class="text-sm font-medium text-gray-900">{{ client.clientId }}</p>
+              <span class="rounded-full px-2 py-0.5 text-xs {{ client.confidential ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">
+                {{ client.confidential ? t('admin.clients.confidential') : t('admin.clients.public') }}
+              </span>
+            </div>
+            <p class="mt-1 text-xs text-gray-500">{{ t('admin.clients.grants', { grants: client.grants.join(', ') }) }}</p>
+            @if(client.redirectUris.length > 0)
+              <p class="text-xs text-gray-400">{{ t('admin.clients.redirect_uris', { uris: client.redirectUris.join(', ') }) }}</p>
+            @end
+          </div>
+        @end
+      @end
+    </div>
+  </div>
+</body></html>

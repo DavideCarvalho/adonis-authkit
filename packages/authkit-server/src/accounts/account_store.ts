@@ -1,0 +1,159 @@
+/** DTO público da conta — o que o provider e os controllers enxergam. Nunca um model Lucid. */
+export interface AuthAccount {
+  id: string
+  email: string
+  globalRoles?: string[]
+  name?: string
+  avatarUrl?: string
+}
+
+export interface CreateAccountInput {
+  email: string
+  password: string
+  fullName?: string | null
+  globalRoles?: string[]
+  /** social/Google entra como true (provider já verificou o email). Default: false. */
+  emailVerified?: boolean
+}
+
+/** Dados para ligar uma identidade de provider a uma conta. */
+export interface LinkProviderIdentityInput {
+  accountId: string
+  provider: string
+  providerUserId: string
+  email?: string
+}
+
+/** Parâmetros de listagem paginada de contas (console admin). */
+export interface ListAccountsParams {
+  /** Filtro por e-mail (substring, case-insensitive). */
+  search?: string
+  /** Página (1-based). Default: 1. */
+  page?: number
+  /** Itens por página. Default: 20. */
+  limit?: number
+}
+
+/** Página de resultados + total absoluto (para paginação na UI). */
+export interface Paginated<T> {
+  data: T[]
+  total: number
+}
+
+/**
+ * Resumo de uma passkey (credencial WebAuthn) para exibição na UI de gerência.
+ * Nunca expõe a chave pública nem o counter.
+ */
+export interface PasskeySummary {
+  /** Credential id (base64url). */
+  id: string
+  /** Rótulo legível opcional (ex.: nome do dispositivo). */
+  label?: string
+  /** ISO timestamp de criação. */
+  createdAt: string
+}
+
+export interface AccountStore {
+  // Provider-facing
+  findById(id: string): Promise<AuthAccount | null>
+  verifyCredentials(email: string, password: string): Promise<AuthAccount | null>
+  // Cadastro / social
+  findByEmail(email: string): Promise<AuthAccount | null>
+  create(input: CreateAccountInput): Promise<AuthAccount>
+  // Account linking por identidade de provider (Google, GitHub, …).
+  // `(provider, providerUserId)` é a chave estável vinda do provider OAuth — não
+  // depende do e-mail (que pode mudar / não estar presente). Uma conta pode ter
+  // várias identidades. Stores sem suporte (sem `providerIdentityModel`) lançam.
+  /** Acha a conta ligada a uma identidade de provider; null se desconhecida. */
+  findByProviderIdentity(provider: string, providerUserId: string): Promise<AuthAccount | null>
+  /** Liga (upsert idempotente na chave única) uma identidade de provider a uma conta. */
+  linkProviderIdentity(data: LinkProviderIdentityInput): Promise<void>
+  // Reset de senha
+  issuePasswordResetToken(email: string): Promise<{ token: string; account: AuthAccount } | null>
+  consumePasswordResetToken(token: string, newPassword: string): Promise<boolean>
+  // Verificação de e-mail
+  issueEmailVerificationToken(email: string): Promise<{ token: string; account: AuthAccount } | null>
+  consumeEmailVerificationToken(token: string): Promise<boolean>
+
+  // Administração (console admin opt-in — B6).
+  /** Lista contas paginadas, opcionalmente filtrando por e-mail. */
+  listAccounts(params: ListAccountsParams): Promise<Paginated<AuthAccount>>
+  /** Substitui as roles globais de uma conta. */
+  setGlobalRoles(accountId: string, roles: string[]): Promise<void>
+
+  // MFA / TOTP (todos os métodos são opcionais — stores sem suporte a MFA podem
+  // omiti-los; o interaction flow trata `undefined` como "MFA desligado").
+  /** Estado do MFA da conta (se o desafio TOTP deve ser exigido no login). */
+  getMfaState?(accountId: string): Promise<{ enabled: boolean }>
+  /**
+   * Inicia o enrollment TOTP: gera um segredo PENDENTE (mfaEnabledAt continua
+   * null) e devolve o segredo + otpauth URI (keyuri). Não ativa o MFA ainda.
+   */
+  startTotpEnrollment?(
+    accountId: string
+  ): Promise<{ secret: string; otpauthUri: string } | null>
+  /**
+   * Confirma o enrollment: verifica o código contra o segredo pendente; em caso
+   * de sucesso ativa o MFA, gera N recovery codes e devolve os códigos em claro
+   * (uma única vez).
+   */
+  confirmTotpEnrollment?(
+    accountId: string,
+    code: string
+  ): Promise<{ ok: boolean; recoveryCodes?: string[] }>
+  /** Verifica um código TOTP contra o segredo ativo. */
+  verifyTotp?(accountId: string, code: string): Promise<boolean>
+  /** Consome (single-use) um recovery code; true se casou e foi removido. */
+  consumeRecoveryCode?(accountId: string, code: string): Promise<boolean>
+  /** Desliga o MFA: limpa segredo + mfaEnabledAt + recovery codes. */
+  disableMfa?(accountId: string): Promise<void>
+
+  // MFA / WebAuthn (passkeys) — 2º fator alternativo ao TOTP. Como o TOTP, todos
+  // os métodos são OPCIONAIS: stores sem suporte (sem `webauthnCredentialModel`)
+  // os omitem e a UI esconde a seção de passkeys. O `expectedChallenge` é gerado
+  // no begin (generate*Options) e DEVE ser guardado pelo controller (na sessão)
+  // para ser passado de volta no finish (verify*) — o store não mantém estado de
+  // desafio entre as chamadas.
+  /**
+   * Inicia o registro de uma passkey: gera as opções de criação
+   * (`generateRegistrationOptions`) escopadas à conta (e excluindo credenciais já
+   * registradas). Devolve as opções JSON (o controller serializa pro browser) e o
+   * `challenge` (base64url) para guardar na sessão. null = conta inexistente.
+   */
+  generatePasskeyRegistrationOptions?(
+    accountId: string
+  ): Promise<{ options: Record<string, unknown>; challenge: string } | null>
+  /**
+   * Finaliza o registro: verifica a resposta do browser
+   * (`verifyRegistrationResponse`) contra o `expectedChallenge` guardado. Em caso
+   * de sucesso persiste a credencial (id, publicKey, counter, transports) e
+   * habilita o MFA. Retorna true se registrou.
+   */
+  verifyPasskeyRegistration?(
+    accountId: string,
+    response: unknown,
+    expectedChallenge: string
+  ): Promise<boolean>
+  /**
+   * Inicia a autenticação por passkey no login: gera as opções
+   * (`generateAuthenticationOptions`) restritas às credenciais da conta. Devolve
+   * as opções JSON + o `challenge` para guardar na sessão. null = conta sem passkeys.
+   */
+  generatePasskeyAuthenticationOptions?(
+    accountId: string
+  ): Promise<{ options: Record<string, unknown>; challenge: string } | null>
+  /**
+   * Verifica a resposta de autenticação por passkey
+   * (`verifyAuthenticationResponse`) contra o `expectedChallenge` guardado. Em
+   * caso de sucesso atualiza o signature counter armazenado. Retorna true se válido.
+   */
+  verifyPasskeyAuthentication?(
+    accountId: string,
+    response: unknown,
+    expectedChallenge: string
+  ): Promise<boolean>
+  /** Lista as passkeys da conta (sem expor chave pública / counter). */
+  listPasskeys?(accountId: string): Promise<PasskeySummary[]>
+  /** Remove uma passkey (por credential id) da conta. */
+  removePasskey?(accountId: string, credentialId: string): Promise<void>
+}

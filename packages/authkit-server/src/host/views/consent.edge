@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="pt-br"><head><meta charset="utf-8"><title>{{ t('consent.page_title') }} — {{ brand && brand.appName ? brand.appName : t('common.app_fallback') }}</title>
+<script src="https://cdn.tailwindcss.com"></script></head>
+<body class="min-h-screen flex items-center justify-center bg-gray-50">
+  <div class="w-full max-w-sm bg-white p-8 rounded-2xl shadow-xl ring-1 ring-black/5">
+    <form method="POST" action="/auth/interaction/{{ uid }}/consent">
+      <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+      <h1 class="text-xl font-semibold text-gray-900">{{ t('consent.title') }}</h1>
+      <p class="mt-2 text-sm text-gray-600">
+        {{{ t('consent.body', { app: brand && brand.appName ? brand.appName : params.client_id }) }}}
+      </p>
+
+      <button type="submit"
+        class="mt-6 w-full rounded-lg bg-gray-900 py-2.5 text-sm font-semibold text-white transition hover:opacity-90">
+        {{ t('consent.submit') }}
+      </button>
+    </form>
+  </div>
+</body></html>

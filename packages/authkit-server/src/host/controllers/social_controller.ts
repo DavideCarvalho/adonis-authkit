@@ -1,0 +1,96 @@
+import '../augmentations.js'
+import type { HttpContext } from '@adonisjs/core/http'
+import type { AllyDriverContract } from '@adonisjs/ally/types'
+import { randomUUID } from 'node:crypto'
+
+const UID_SESSION_KEY = 'authkit_social_uid'
+
+/**
+ * `AllyService.use()` é tipado contra a interface `SocialProviders`, que só é
+ * preenchida pelo HOST (a lib não conhece os providers configurados). Para um
+ * nome de provider dinâmico (vindo da rota), o retorno colapsa em `never`, então
+ * resolvemos via o contrato genérico do driver — sem cast pro `HttpContext` inteiro.
+ */
+function useProvider(ctx: HttpContext, provider: string): AllyDriverContract<any, any> {
+  return (ctx.ally.use as (name: string) => AllyDriverContract<any, any>)(provider)
+}
+
+export default class AuthSocialController {
+  /** GET /auth/:provider/redirect/:uid — guarda o uid e redireciona para o provider OAuth. */
+  async redirect(ctx: HttpContext) {
+    const provider = ctx.request.param('provider')
+    ctx.session.put(UID_SESSION_KEY, ctx.request.param('uid'))
+    return useProvider(ctx, provider).redirect()
+  }
+
+  /** GET /auth/:provider/callback — retorno do provider → acha/cria AuthUser → conclui a interaction. */
+  async callback(ctx: HttpContext) {
+    const provider = ctx.request.param('provider')
+    const social = useProvider(ctx, provider)
+    const uid = ctx.session.get(UID_SESSION_KEY) as string | undefined
+    const backToLogin = uid ? `/auth/interaction/${uid}` : '/health'
+
+    if (social.accessDenied() || social.stateMisMatch() || social.hasError()) {
+      ctx.session.forget(UID_SESSION_KEY)
+      return ctx.response.redirect(backToLogin)
+    }
+
+    const profile = await social.user()
+    // `profile.id` é o id estável do usuário no provider — independe do e-mail.
+    if (!profile.id) {
+      ctx.session.forget(UID_SESSION_KEY)
+      return ctx.response.redirect(backToLogin)
+    }
+
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const store = cfg.accountStore
+    const email = profile.email ?? undefined
+
+    // Precedência do account linking:
+    //  1. Identidade de provider já ligada → loga essa conta.
+    //  2. Senão, e-mail conhecido → acha por e-mail e LIGA a identidade (linking).
+    //  3. Senão → cria conta nova e liga a identidade.
+    let user = await store.findByProviderIdentity(provider, profile.id)
+
+    if (!user && email) {
+      const byEmail = await store.findByEmail(email)
+      if (byEmail) {
+        await store.linkProviderIdentity({
+          accountId: byEmail.id,
+          provider,
+          providerUserId: profile.id,
+          email,
+        })
+        user = byEmail
+      }
+    }
+
+    if (!user) {
+      // Sem e-mail não há como criar/identificar uma conta — volta ao login.
+      if (!email) {
+        ctx.session.forget(UID_SESSION_KEY)
+        return ctx.response.redirect(backToLogin)
+      }
+      const created = await store.create({
+        email,
+        password: randomUUID(),
+        fullName: profile.name ?? null,
+        emailVerified: true,
+      })
+      await store.linkProviderIdentity({
+        accountId: created.id,
+        provider,
+        providerUserId: profile.id,
+        email,
+      })
+      user = created
+    }
+
+    ctx.session.forget(UID_SESSION_KEY)
+
+    // Conclui a interaction OIDC para este usuário (escreve o 303 de volta ao authorize).
+    // O cookie de interaction (path '/') sobrevive ao round-trip do provider OAuth.
+    await service.interactions.completeLogin(ctx, user.id)
+  }
+}

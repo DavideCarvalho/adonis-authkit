@@ -1,0 +1,64 @@
+{
+  "name": "@dudousxd/adonis-authkit-react",
+  "version": "0.1.0",
+  "description": "Frontend ergonomics over AuthKit for AdonisJS + Inertia + React apps: a typed useAuth() hook, role-gating hooks and gating components.",
+  "license": "MIT",
+  "author": "dudousxd",
+  "homepage": "https://github.com/DavideCarvalho/streaming-educacao/tree/main/packages/authkit-react#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DavideCarvalho/streaming-educacao.git",
+    "directory": "packages/authkit-react"
+  },
+  "bugs": {
+    "url": "https://github.com/DavideCarvalho/streaming-educacao/issues"
+  },
+  "keywords": [
+    "adonisjs",
+    "inertia",
+    "react",
+    "authentication",
+    "authkit",
+    "rbac",
+    "authorization"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "./build/index.js",
+  "types": "./build/index.d.ts",
+  "files": [
+    "build"
+  ],
+  "exports": {
+    ".": "./build/index.js",
+    "./types": "./build/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import=@poppinss/ts-exec bin/test.ts"
+  },
+  "peerDependencies": {
+    "@inertiajs/react": "catalog:frontend",
+    "react": "catalog:frontend",
+    "react-dom": "catalog:frontend"
+  },
+  "dependencies": {
+    "@dudousxd/adonis-authkit-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@adonisjs/tsconfig": "catalog:adonis",
+    "@inertiajs/react": "catalog:frontend",
+    "@japa/assert": "catalog:",
+    "@japa/runner": "catalog:",
+    "@poppinss/ts-exec": "catalog:",
+    "@types/node": "catalog:adonis",
+    "@types/react": "catalog:frontend",
+    "@types/react-dom": "catalog:frontend",
+    "react": "catalog:frontend",
+    "react-dom": "catalog:frontend",
+    "typescript": "catalog:frontend"
+  }
+}

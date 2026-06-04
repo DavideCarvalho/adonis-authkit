@@ -1,0 +1,14 @@
+{
+  "extends": "@adonisjs/tsconfig/tsconfig.client.json",
+  "compilerOptions": {
+    "rootDir": "./",
+    "outDir": "./build",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "declaration": true,
+    "rewriteRelativeImportExtensions": true,
+    "types": ["@types/node", "@types/react"]
+  },
+  "include": ["index.ts", "src/**/*"]
+}

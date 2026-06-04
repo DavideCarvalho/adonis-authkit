@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="pt-br"><head><meta charset="utf-8"><title>{{ t('login.page_title') }} — {{ brand && brand.appName ? brand.appName : t('common.app_fallback') }}</title>
+<script src="https://cdn.tailwindcss.com"></script></head>
+<body class="min-h-screen flex items-center justify-center bg-gray-50">
+  @if(step === 'identifier')
+    <div class="w-full max-w-sm bg-white p-8 rounded-2xl shadow-xl ring-1 ring-black/5">
+      <form method="POST" action="/auth/interaction/{{ uid }}/identifier">
+        <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+        <h1 class="text-xl font-semibold text-gray-900">{{ t('login.title') }}</h1>
+        <p class="mt-1 text-sm text-gray-500">{{ t('login.identifier_intro') }}</p>
+
+        @if(error)
+          <p class="mt-4 text-sm text-red-600">{{ error }}</p>
+        @end
+
+        <div class="mt-6">
+          <label for="email" class="mb-1 block text-sm font-medium text-gray-700">{{ t('login.email_label') }}</label>
+          <input id="email" name="email" type="email" required autofocus
+            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900" />
+        </div>
+
+        <button type="submit"
+          class="mt-6 w-full rounded-lg bg-gray-900 py-2.5 text-sm font-semibold text-white transition hover:opacity-90">
+          {{ t('login.identifier_submit') }}
+        </button>
+
+        <div class="mt-4 flex justify-between text-sm text-gray-600">
+          <a href="/auth/interaction/{{ uid }}/signup" class="hover:underline">{{ t('login.create_account') }}</a>
+          <a href="/auth/forgot-password" class="hover:underline">{{ t('login.forgot_password') }}</a>
+        </div>
+      </form>
+
+      <div class="my-6 flex items-center gap-3 text-xs text-gray-400">
+        <span class="h-px flex-1 bg-gray-200"></span>
+        {{ t('login.divider_or') }}
+        <span class="h-px flex-1 bg-gray-200"></span>
+      </div>
+
+      <a href="/auth/google/redirect/{{ uid }}"
+        class="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1Z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z"/>
+          <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84Z"/>
+          <path fill="#EA4335" d="M12 4.75c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 1.46 14.97.5 12 .5A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.3 9.14 4.75 12 4.75Z"/>
+        </svg>
+        {{ t('login.google') }}
+      </a>
+    </div>
+  @else
+    <div class="w-full max-w-sm bg-white p-8 rounded-2xl shadow-xl ring-1 ring-black/5">
+      <form method="POST" action="/auth/interaction/{{ uid }}/login">
+        <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+
+        @if(account && account.fullName)
+          <h1 class="text-xl font-semibold text-gray-900">{{ t('login.greeting', { name: account.fullName }) }}</h1>
+        @else
+          <h1 class="text-xl font-semibold text-gray-900">{{ t('login.title') }}</h1>
+        @end
+
+        <div class="mt-1 flex items-center gap-2">
+          @if(email)
+            <span class="text-sm text-gray-500">{{ email }}</span>
+          @end
+          <a href="/auth/interaction/{{ uid }}/switch" class="text-xs font-medium text-gray-900 hover:underline">
+            {{ t('login.switch_account') }}
+          </a>
+        </div>
+
+        @if(error)
+          <p class="mt-4 text-sm text-red-600">{{ error }}</p>
+        @end
+
+        <div class="mt-6">
+          <label for="password" class="mb-1 block text-sm font-medium text-gray-700">{{ t('login.password_label') }}</label>
+          <input id="password" name="password" type="password" required autofocus
+            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900" />
+        </div>
+
+        <button type="submit"
+          class="mt-6 w-full rounded-lg bg-gray-900 py-2.5 text-sm font-semibold text-white transition hover:opacity-90">
+          {{ t('login.submit') }}
+        </button>
+
+        <div class="mt-4 flex justify-end text-sm text-gray-600">
+          <a href="/auth/forgot-password" class="hover:underline">{{ t('login.forgot_password') }}</a>
+        </div>
+      </form>
+    </div>
+  @end
+</body></html>

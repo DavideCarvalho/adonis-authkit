@@ -1,0 +1,13 @@
+{{{
+  exports({ to: app.makePath('app/models/auth_user.ts') })
+}}}
+import { BaseModel, column } from '@adonisjs/lucid/orm'
+import { compose } from '@adonisjs/core/helpers'
+import { withAuthUser, withCredentials } from '@authkit/server'
+
+export default class AuthUser extends compose(BaseModel, withAuthUser(), withCredentials()) {
+  static connection = 'auth'
+
+  @column({ isPrimary: true })
+  declare id: string
+}

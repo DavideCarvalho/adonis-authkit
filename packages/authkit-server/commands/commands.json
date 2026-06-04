@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "commands": [
+    {
+      "commandName": "authkit:eject",
+      "description": "Ejeta views Edge ou um controller do host-kit do @dudousxd/adonis-authkit-server para customização local",
+      "namespace": "authkit",
+      "aliases": [],
+      "flags": [
+        {
+          "name": "views",
+          "flagName": "views",
+          "required": false,
+          "type": "boolean",
+          "description": "Copia as views Edge da lib para resources/views/authkit/"
+        },
+        {
+          "name": "controller",
+          "flagName": "controller",
+          "required": false,
+          "type": "string",
+          "description": "Copia um controller do host-kit (ex.: interaction) para app/controllers/authkit/"
+        }
+      ],
+      "args": [],
+      "options": {},
+      "filePath": "eject.js"
+    }
+  ]
+}

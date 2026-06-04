@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="pt-br"><head><meta charset="utf-8"><title>{{ t('account.mfa.page_title') }}</title>
+<script src="https://cdn.tailwindcss.com"></script></head>
+<body class="min-h-screen bg-gray-100 p-4">
+  <div class="mx-auto max-w-2xl">
+    <div class="flex items-center justify-between py-6">
+      <div>
+        <div class="text-xs font-semibold uppercase tracking-widest text-gray-400">{{ t('common.brand_eyebrow') }}</div>
+        <h1 class="text-xl font-semibold text-gray-900">{{ t('account.mfa.title') }}</h1>
+      </div>
+      <form method="POST" action="/account/logout">
+        <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+        <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('account.mfa.logout') }}</button>
+      </form>
+    </div>
+
+    @if(error)
+      <p class="mb-4 text-sm text-red-600">{{ error }}</p>
+    @end
+
+    {{-- Recovery codes mostrados uma única vez após confirmar o enrollment --}}
+    @if(recoveryCodes && recoveryCodes.length > 0)
+      <div class="mb-6 rounded-lg border border-emerald-300 bg-emerald-50 p-4">
+        <p class="text-sm font-medium text-emerald-900">
+          {{ t('account.mfa.recovery_codes_notice') }}
+        </p>
+        <ul class="mt-3 grid grid-cols-2 gap-2">
+          @each(rc in recoveryCodes)
+            <li><code class="block rounded bg-white px-3 py-2 text-sm text-emerald-800 ring-1 ring-emerald-200">{{ rc }}</code></li>
+          @end
+        </ul>
+      </div>
+    @end
+
+    @if(enrolling)
+      <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+        <p class="text-sm text-gray-600">
+          {{ t('account.mfa.enroll_intro') }}
+        </p>
+        @if(qrDataUrl)
+          <img src="{{ qrDataUrl }}" alt="{{ t('account.mfa.qr_alt') }}" class="mx-auto my-4 h-48 w-48" />
+        @end
+        @if(secret)
+          <p class="text-center text-xs text-gray-500">{{ t('account.mfa.manual_intro') }}</p>
+          <code class="mx-auto mt-1 block w-fit break-all rounded bg-gray-100 px-3 py-2 text-sm text-gray-800">{{ secret }}</code>
+        @end
+
+        <form method="POST" action="/account/mfa/confirm" class="mt-6">
+          <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+          <label for="code" class="mb-1 block text-sm font-medium text-gray-700">{{ t('account.mfa.confirm_code_label') }}</label>
+          <input id="code" name="code" inputmode="numeric" pattern="[0-9]*" maxlength="6" autofocus
+            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-center text-lg tracking-[0.4em] outline-none focus:border-gray-900" />
+          <button type="submit" class="mt-4 w-full rounded-lg bg-gray-900 py-2.5 text-sm font-semibold text-white">
+            {{ t('account.mfa.activate') }}
+          </button>
+        </form>
+      </div>
+    @elseif(enabled)
+      <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+        <p class="text-sm text-gray-700">
+          {{{ t('account.mfa.enabled_html') }}}
+        </p>
+        <form method="POST" action="/account/mfa/disable" class="mt-4">
+          <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+          <button type="submit" class="rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50">
+            {{ t('account.mfa.disable') }}
+          </button>
+        </form>
+      </div>
+    @else
+      <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+        <p class="text-sm text-gray-700">
+          {{ t('account.mfa.disabled_intro') }}
+        </p>
+        <form method="POST" action="/account/mfa/enroll" class="mt-4">
+          <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+          <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white">
+            {{ t('account.mfa.enable') }}
+          </button>
+        </form>
+      </div>
+    @end
+
+    @if(passkeysSupported)
+      {{-- Passkeys / chaves de acesso (WebAuthn) — 2º fator alternativo ao TOTP. --}}
+      <div class="mt-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+        <h2 class="text-base font-semibold text-gray-900">{{ t('mfa.passkey.section_title') }}</h2>
+        <p class="mt-1 text-sm text-gray-600">{{ t('mfa.passkey.section_intro') }}</p>
+
+        @if(passkeys && passkeys.length > 0)
+          <ul class="mt-4 space-y-2">
+            @each(pk in passkeys)
+              <li class="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2">
+                <span class="text-sm text-gray-800">{{ pk.label ? pk.label : t('mfa.passkey.unnamed') }}</span>
+                <form method="POST" action="/account/mfa/passkeys/{{ pk.id }}/remove">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <button type="submit" class="text-sm text-red-600 hover:underline">{{ t('mfa.passkey.remove') }}</button>
+                </form>
+              </li>
+            @end
+          </ul>
+        @else
+          <p class="mt-4 text-sm text-gray-400">{{ t('mfa.passkey.empty') }}</p>
+        @end
+
+        <button type="button" id="passkey-add"
+          class="mt-4 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+          {{ t('mfa.passkey.add') }}
+        </button>
+        <p id="passkey-error" class="mt-3 hidden text-sm text-red-600">{{ t('mfa.passkey.register_error') }}</p>
+      </div>
+    @end
+  </div>
+
+  @if(passkeysSupported)
+    <script type="module">
+      import { startRegistration } from 'https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@13/dist/bundle/index.js'
+      const btn = document.getElementById('passkey-add')
+      const errEl = document.getElementById('passkey-error')
+      const csrf = '{{ csrfToken }}'
+      btn?.addEventListener('click', async () => {
+        errEl.classList.add('hidden')
+        btn.disabled = true
+        try {
+          // 1) Opções de registro (challenge guardado na sessão server-side).
+          const optsRes = await fetch('/account/mfa/passkeys/options', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', 'x-csrf-token': csrf },
+            body: JSON.stringify({}),
+          })
+          if (!optsRes.ok) throw new Error('options')
+          const optionsJSON = await optsRes.json()
+          // 2) Cerimônia de registro no authenticator.
+          const attResp = await startRegistration({ optionsJSON })
+          // 3) Verifica/persiste no servidor.
+          const verifyRes = await fetch('/account/mfa/passkeys/verify', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', 'x-csrf-token': csrf },
+            body: JSON.stringify({ response: attResp }),
+          })
+          if (!verifyRes.ok) throw new Error('verify')
+          // 4) Recarrega para mostrar a nova passkey.
+          window.location.reload()
+        } catch (e) {
+          errEl.classList.remove('hidden')
+          btn.disabled = false
+        }
+      })
+    </script>
+  @end
+</body></html>

@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="pt-br"><head><meta charset="utf-8"><title>{{ t('verify_email.page_title') }}</title>
+<script src="https://cdn.tailwindcss.com"></script></head>
+<body class="min-h-screen flex items-center justify-center bg-gray-50">
+  <div class="w-full max-w-sm bg-white p-8 rounded-2xl shadow-xl ring-1 ring-black/5">
+    @if(verified)
+      <h1 class="text-xl font-semibold text-gray-900">{{ t('verify_email.verified_title') }}</h1>
+      <p class="mt-2 text-sm text-gray-600">{{ t('verify_email.verified_body') }}</p>
+    @else
+      <h1 class="text-xl font-semibold text-gray-900">{{ t('verify_email.invalid_title') }}</h1>
+      <p class="mt-2 text-sm text-gray-600">
+        {{ t('verify_email.invalid_body') }}
+      </p>
+    @end
+  </div>
+</body></html>

@@ -1,0 +1,47 @@
+{
+  "name": "@dudousxd/adonis-authkit-core",
+  "version": "0.1.0",
+  "description": "Shared core types and utilities for AuthKit — the AdonisJS OIDC/OAuth2 server and client toolkits.",
+  "license": "MIT",
+  "author": "dudousxd",
+  "homepage": "https://github.com/DavideCarvalho/streaming-educacao/tree/main/packages/authkit-core#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DavideCarvalho/streaming-educacao.git",
+    "directory": "packages/authkit-core"
+  },
+  "bugs": {
+    "url": "https://github.com/DavideCarvalho/streaming-educacao/issues"
+  },
+  "keywords": [
+    "adonisjs",
+    "oidc",
+    "oauth2",
+    "openid-connect",
+    "authentication",
+    "authkit"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "./build/index.js",
+  "types": "./build/index.d.ts",
+  "files": [
+    "build"
+  ],
+  "exports": {
+    ".": "./build/index.js",
+    "./types": "./build/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@adonisjs/core": "catalog:adonis",
+    "@adonisjs/tsconfig": "catalog:adonis",
+    "@types/node": "catalog:adonis",
+    "typescript": "catalog:frontend"
+  }
+}

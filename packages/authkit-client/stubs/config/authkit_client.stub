@@ -1,0 +1,17 @@
+{{{
+  exports({ to: app.configPath('authkit_client.ts') })
+}}}
+import env from '#start/env'
+import { defineConfig, resolvers } from '@authkit/client'
+
+const authkitClientConfig = defineConfig({
+  issuer: env.get('AUTHKIT_ISSUER'),
+  clientId: env.get('AUTHKIT_CLIENT_ID'),
+  clientSecret: env.get('AUTHKIT_CLIENT_SECRET'),
+  redirectUri: env.get('AUTHKIT_REDIRECT_URI'),
+  resolver: resolvers.jwt({ tokenSource: 'session' }),
+  // resolveUser: async (identity) => User.find(identity.userId),
+  // resolveAppRoles: async (identity) => RoleService.appRolesFor(identity.userId),
+})
+
+export default authkitClientConfig

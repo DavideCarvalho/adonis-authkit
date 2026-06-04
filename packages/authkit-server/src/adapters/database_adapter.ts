@@ -1,0 +1,71 @@
+import type { Database } from '@adonisjs/lucid/database'
+import type { OidcAdapter, OidcPayload } from './adapter_contract.js'
+
+const TABLE = 'authkit_oidc_payloads'
+
+export class DatabaseAdapter implements OidcAdapter {
+  constructor(
+    private name: string,
+    private db: Database
+  ) {}
+
+  #query() {
+    return this.db.query().from(TABLE).where('model_name', this.name)
+  }
+
+  async upsert(id: string, payload: OidcPayload, expiresIn: number): Promise<void> {
+    // Armazenamos como ISO string para que o parse de expiração seja determinístico
+    // independente do backend (SQLite/Postgres) e do formato nativo de timestamp.
+    const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null
+    const row = {
+      id,
+      model_name: this.name,
+      payload: JSON.stringify(payload),
+      grant_id: (payload.grantId as string) ?? null,
+      user_code: (payload.userCode as string) ?? null,
+      uid: (payload.uid as string) ?? null,
+      expires_at: expiresAt,
+    }
+    const existing = await this.#query().where('id', id).first()
+    if (existing) {
+      await this.#query().where('id', id).update(row)
+    } else {
+      await this.db.table(TABLE).insert(row)
+    }
+  }
+
+  async #parse(record: any): Promise<OidcPayload | undefined> {
+    if (!record) return undefined
+    if (record.expires_at && new Date(record.expires_at).getTime() <= Date.now()) {
+      return undefined
+    }
+    return JSON.parse(record.payload) as OidcPayload
+  }
+
+  async find(id: string): Promise<OidcPayload | undefined> {
+    return this.#parse(await this.#query().where('id', id).first())
+  }
+
+  async findByUid(uid: string): Promise<OidcPayload | undefined> {
+    return this.#parse(await this.#query().where('uid', uid).first())
+  }
+
+  async findByUserCode(userCode: string): Promise<OidcPayload | undefined> {
+    return this.#parse(await this.#query().where('user_code', userCode).first())
+  }
+
+  async consume(id: string): Promise<void> {
+    const found = await this.find(id)
+    if (!found) return
+    found.consumed = Math.floor(Date.now() / 1000)
+    await this.#query().where('id', id).update({ payload: JSON.stringify(found) })
+  }
+
+  async destroy(id: string): Promise<void> {
+    await this.#query().where('id', id).delete()
+  }
+
+  async revokeByGrantId(grantId: string): Promise<void> {
+    await this.db.query().from(TABLE).where('grant_id', grantId).delete()
+  }
+}

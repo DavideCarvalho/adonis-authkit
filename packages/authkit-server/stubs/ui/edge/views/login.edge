@@ -1,0 +1,19 @@
+{{{
+  exports({ to: app.makePath('resources/views/authkit/login.edge') })
+}}}
+<!doctype html>
+<html lang="pt-br"><head><meta charset="utf-8"><title>Entrar</title>
+<script src="https://cdn.tailwindcss.com"></script></head>
+<body class="min-h-screen flex items-center justify-center bg-gray-50">
+  <form method="POST" action="/auth/interaction/{{ uid }}/login" class="w-full max-w-sm bg-white p-6 rounded-lg shadow">
+    <h1 class="text-lg font-semibold mb-4">Entrar</h1>
+    @if(error)
+      <p class="text-red-600 text-sm mb-3">{{ error }}</p>
+    @end
+    <label class="block text-sm mb-1">E-mail</label>
+    <input name="email" type="email" required class="w-full border rounded px-3 py-2 mb-3" />
+    <label class="block text-sm mb-1">Senha</label>
+    <input name="password" type="password" required class="w-full border rounded px-3 py-2 mb-4" />
+    <button class="w-full bg-black text-white rounded py-2">Entrar</button>
+  </form>
+</body></html>

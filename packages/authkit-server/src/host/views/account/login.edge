@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-br"><head><meta charset="utf-8"><title>{{ t('account.login.page_title') }}</title>
+<script src="https://cdn.tailwindcss.com"></script></head>
+<body class="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+  <form method="POST" action="/account/login"
+    class="w-full max-w-sm rounded-2xl bg-white p-8 shadow-xl ring-1 ring-black/5">
+    <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+    <div class="text-xs font-semibold uppercase tracking-widest text-gray-400">{{ t('common.brand_eyebrow') }}</div>
+    <h1 class="mt-2 text-xl font-semibold text-gray-900">{{ t('account.login.title') }}</h1>
+    <p class="mt-1 text-sm text-gray-500">{{ t('account.login.intro') }}</p>
+
+    @if(error)
+      <p class="mt-4 text-sm text-red-600">{{ error }}</p>
+    @end
+
+    <label for="email" class="mt-6 mb-1 block text-sm font-medium text-gray-700">{{ t('account.login.email_label') }}</label>
+    <input id="email" name="email" type="email" required autofocus
+      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-gray-900" />
+
+    <label for="password" class="mt-4 mb-1 block text-sm font-medium text-gray-700">{{ t('account.login.password_label') }}</label>
+    <input id="password" name="password" type="password" required
+      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-gray-900" />
+
+    <button type="submit"
+      class="mt-6 w-full rounded-lg bg-gray-900 py-2.5 text-sm font-semibold text-white transition hover:opacity-90">
+      {{ t('account.login.submit') }}
+    </button>
+  </form>
+</body></html>

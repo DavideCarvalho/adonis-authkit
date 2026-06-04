@@ -1,0 +1,108 @@
+{
+  "name": "@dudousxd/adonis-authkit-server",
+  "version": "0.1.0",
+  "description": "AdonisJS OIDC/OAuth2 provider (Identity Provider) toolkit: ejectable auth server with sessions, rate-limiting, MFA/TOTP, audit log, federated logout and OpenTelemetry metrics.",
+  "license": "MIT",
+  "author": "dudousxd",
+  "homepage": "https://github.com/DavideCarvalho/streaming-educacao/tree/main/packages/authkit-server#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DavideCarvalho/streaming-educacao.git",
+    "directory": "packages/authkit-server"
+  },
+  "bugs": {
+    "url": "https://github.com/DavideCarvalho/streaming-educacao/issues"
+  },
+  "keywords": [
+    "adonisjs",
+    "oidc",
+    "oauth2",
+    "openid-connect",
+    "authentication",
+    "authkit",
+    "identity-provider",
+    "rate-limiting",
+    "mfa",
+    "totp"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "./build/index.js",
+  "types": "./build/index.d.ts",
+  "files": [
+    "build",
+    "stubs"
+  ],
+  "exports": {
+    ".": "./build/index.js",
+    "./types": "./build/index.js",
+    "./authkit_server_provider": "./build/providers/authkit_server_provider.js",
+    "./commands": "./build/commands/main.js",
+    "./commands/configure": "./build/commands/configure.js"
+  },
+  "adonisjs": {
+    "types": "@dudousxd/adonis-authkit-server",
+    "providers": [
+      "@dudousxd/adonis-authkit-server/authkit_server_provider"
+    ],
+    "commands": [
+      "@dudousxd/adonis-authkit-server/commands"
+    ]
+  },
+  "scripts": {
+    "build": "tsc && node -e \"require('node:fs').cpSync('stubs','build/stubs',{recursive:true,filter:(s)=>!s.endsWith('.ts')})\" && node -e \"const fs=require('node:fs');if(fs.existsSync('assets'))fs.cpSync('assets','build/assets',{recursive:true})\" && node -e \"require('node:fs').cpSync('src/host/views','build/host/views',{recursive:true})\" && node -e \"require('node:fs').copyFileSync('commands/commands.json','build/commands/commands.json')\"",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import=@poppinss/ts-exec bin/test.ts"
+  },
+  "peerDependencies": {
+    "@adonisjs/ally": "catalog:adonis",
+    "@adonisjs/core": "catalog:adonis",
+    "@adonisjs/lucid": "catalog:adonis",
+    "@adonisjs/session": "catalog:adonis",
+    "@adonisjs/shield": "catalog:adonis",
+    "edge.js": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "edge.js": {
+      "optional": true
+    },
+    "@adonisjs/ally": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@dudousxd/adonis-authkit-core": "workspace:*",
+    "@simplewebauthn/server": "^13.3.1",
+    "@vinejs/vine": "catalog:",
+    "jose": "^5.9.0",
+    "koa": "^3.2.1",
+    "koa-mount": "^4.2.0",
+    "oidc-provider": "^9.8.4",
+    "otplib": "^12.0.1",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@adonisjs/ally": "catalog:adonis",
+    "@adonisjs/core": "catalog:adonis",
+    "@adonisjs/lucid": "catalog:adonis",
+    "@adonisjs/session": "catalog:adonis",
+    "@adonisjs/shield": "catalog:adonis",
+    "@adonisjs/tsconfig": "catalog:adonis",
+    "@japa/assert": "catalog:",
+    "@japa/runner": "catalog:",
+    "@poppinss/ts-exec": "catalog:",
+    "@types/koa": "^2.15.2",
+    "@types/koa-mount": "^4.0.5",
+    "@types/luxon": "catalog:adonis",
+    "@types/node": "catalog:adonis",
+    "@types/qrcode": "^1.5.5",
+    "better-sqlite3": "^11.0.0",
+    "edge.js": "catalog:",
+    "ioredis": "catalog:",
+    "ioredis-mock": "^8.9.0",
+    "luxon": "catalog:",
+    "typescript": "catalog:frontend"
+  }
+}

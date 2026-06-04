@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="pt-br"><head><meta charset="utf-8"><title>{{ t('admin.dashboard.page_title') }}</title>
+<script src="https://cdn.tailwindcss.com"></script></head>
+<body class="min-h-screen bg-gray-100 p-4">
+  <div class="mx-auto max-w-4xl">
+    <div class="flex items-center justify-between py-6">
+      <div>
+        <div class="text-xs font-semibold uppercase tracking-widest text-gray-400">{{ t('common.brand_eyebrow') }}</div>
+        <h1 class="text-xl font-semibold text-gray-900">{{ t('admin.dashboard.title') }}</h1>
+      </div>
+      <form method="POST" action="/account/logout">
+        <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+        <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('admin.nav.logout') }}</button>
+      </form>
+    </div>
+
+    <nav class="mb-6 flex gap-4 text-sm font-medium">
+      <a href="/admin" class="text-gray-900 underline">{{ t('admin.nav.dashboard') }}</a>
+      <a href="/admin/users" class="text-gray-500 hover:underline">{{ t('admin.nav.users') }}</a>
+      <a href="/admin/clients" class="text-gray-500 hover:underline">{{ t('admin.nav.clients') }}</a>
+      <a href="/admin/audit" class="text-gray-500 hover:underline">{{ t('admin.nav.audit') }}</a>
+    </nav>
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <a href="/admin/users" class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-black/5 hover:ring-gray-900/20">
+        <p class="text-xs uppercase tracking-wide text-gray-400">{{ t('admin.dashboard.users_count') }}</p>
+        <p class="mt-1 text-2xl font-semibold text-gray-900">{{ usersTotal }}</p>
+      </a>
+      <a href="/admin/clients" class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-black/5 hover:ring-gray-900/20">
+        <p class="text-xs uppercase tracking-wide text-gray-400">{{ t('admin.dashboard.clients_count') }}</p>
+        <p class="mt-1 text-2xl font-semibold text-gray-900">{{ clientsCount }}</p>
+      </a>
+      <a href="/admin/audit" class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-black/5 hover:ring-gray-900/20">
+        <p class="text-xs uppercase tracking-wide text-gray-400">{{ t('admin.dashboard.audit_count') }}</p>
+        <p class="mt-1 text-2xl font-semibold text-gray-900">{{ auditSupported ? auditTotal : '—' }}</p>
+      </a>
+    </div>
+
+    <h2 class="mt-8 mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{{ t('admin.dashboard.recent_title') }}</h2>
+    <div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-black/5">
+      @if(!auditSupported)
+        <p class="p-6 text-sm text-gray-500">{{ t('admin.audit.not_supported') }}</p>
+      @elseif(recentEvents.length === 0)
+        <p class="p-6 text-sm text-gray-500">{{ t('admin.audit.empty') }}</p>
+      @else
+        @each(event in recentEvents)
+          <div class="flex items-center justify-between border-b border-gray-100 p-4 last:border-0">
+            <div>
+              <p class="text-sm font-medium text-gray-900">{{ event.type }}</p>
+              <p class="text-xs text-gray-500">{{ event.email ?? event.accountId ?? '—' }}</p>
+            </div>
+            <p class="text-xs text-gray-400">{{ event.createdAt }}</p>
+          </div>
+        @end
+      @end
+    </div>
+  </div>
+</body></html>

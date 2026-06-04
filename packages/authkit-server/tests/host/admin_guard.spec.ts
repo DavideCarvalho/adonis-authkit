@@ -1,0 +1,95 @@
+import { test } from '@japa/runner'
+import { adminGuard } from '../../src/host/register_auth_host.js'
+
+/**
+ * Fake ctx mínimo para exercitar o adminGuard. `sessionUserId` controla a sessão;
+ * `account` é o que o accountStore.findById resolve; `adminRoles` são as roles
+ * permitidas pelo config. Captura o redirect e se o `next()` foi chamado.
+ */
+function fakeCtx(opts: {
+  sessionUserId?: string
+  account?: { id: string; email: string; globalRoles?: string[] } | null
+  adminRoles?: string[]
+}) {
+  const redirects: string[] = []
+  const ctx = {
+    session: { get: (_k: string) => opts.sessionUserId },
+    response: { redirect: (to: string) => redirects.push(to) },
+    containerResolver: {
+      make: async () => ({
+        config: {
+          admin: { enabled: true, roles: opts.adminRoles ?? ['ADMIN'] },
+          accountStore: {
+            findById: async (_id: string) => opts.account ?? null,
+          },
+        },
+      }),
+    },
+  } as any
+  return { ctx, redirects }
+}
+
+test.group('adminGuard', () => {
+  test('sem sessão → redireciona para /account/login', async ({ assert }) => {
+    const { ctx, redirects } = fakeCtx({})
+    let nextCalled = false
+    await adminGuard(ctx, async () => {
+      nextCalled = true
+    })
+    assert.isFalse(nextCalled)
+    assert.deepEqual(redirects, ['/account/login'])
+  })
+
+  test('sessão com role admin → chama next()', async ({ assert }) => {
+    const { ctx, redirects } = fakeCtx({
+      sessionUserId: 'u1',
+      account: { id: 'u1', email: 'a@x.com', globalRoles: ['ADMIN'] },
+    })
+    let nextCalled = false
+    await adminGuard(ctx, async () => {
+      nextCalled = true
+    })
+    assert.isTrue(nextCalled)
+    assert.lengthOf(redirects, 0)
+  })
+
+  test('sessão sem role admin → redireciona para /account/tokens', async ({ assert }) => {
+    const { ctx, redirects } = fakeCtx({
+      sessionUserId: 'u2',
+      account: { id: 'u2', email: 'b@x.com', globalRoles: ['VIEWER'] },
+    })
+    let nextCalled = false
+    await adminGuard(ctx, async () => {
+      nextCalled = true
+    })
+    assert.isFalse(nextCalled)
+    assert.deepEqual(redirects, ['/account/tokens'])
+  })
+
+  test('respeita roles customizadas do config', async ({ assert }) => {
+    const { ctx, redirects } = fakeCtx({
+      sessionUserId: 'u3',
+      account: { id: 'u3', email: 'c@x.com', globalRoles: ['STAFF'] },
+      adminRoles: ['STAFF', 'ROOT'],
+    })
+    let nextCalled = false
+    await adminGuard(ctx, async () => {
+      nextCalled = true
+    })
+    assert.isTrue(nextCalled)
+    assert.lengthOf(redirects, 0)
+  })
+
+  test('conta sem roles → rejeitado', async ({ assert }) => {
+    const { ctx, redirects } = fakeCtx({
+      sessionUserId: 'u4',
+      account: { id: 'u4', email: 'd@x.com' },
+    })
+    let nextCalled = false
+    await adminGuard(ctx, async () => {
+      nextCalled = true
+    })
+    assert.isFalse(nextCalled)
+    assert.deepEqual(redirects, ['/account/tokens'])
+  })
+})

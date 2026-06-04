@@ -1,0 +1,74 @@
+{
+  "name": "@dudousxd/adonis-authkit-client",
+  "version": "0.1.0",
+  "description": "AdonisJS OIDC/OAuth2 relying-party (client) toolkit: session-based authentication against an OpenID Connect identity provider, with JWT/PAT user resolvers and OpenTelemetry metrics.",
+  "license": "MIT",
+  "author": "dudousxd",
+  "homepage": "https://github.com/DavideCarvalho/streaming-educacao/tree/main/packages/authkit-client#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DavideCarvalho/streaming-educacao.git",
+    "directory": "packages/authkit-client"
+  },
+  "bugs": {
+    "url": "https://github.com/DavideCarvalho/streaming-educacao/issues"
+  },
+  "keywords": [
+    "adonisjs",
+    "oidc",
+    "oauth2",
+    "openid-connect",
+    "authentication",
+    "authkit",
+    "relying-party",
+    "jwt"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "./build/index.js",
+  "types": "./build/index.d.ts",
+  "files": [
+    "build",
+    "stubs"
+  ],
+  "exports": {
+    ".": "./build/index.js",
+    "./types": "./build/index.js",
+    "./authkit_client_provider": "./build/providers/authkit_client_provider.js",
+    "./authkit_middleware": "./build/src/middleware/authkit_middleware.js",
+    "./commands": "./build/commands/configure.js"
+  },
+  "adonisjs": {
+    "types": "@dudousxd/adonis-authkit-client",
+    "providers": ["@dudousxd/adonis-authkit-client/authkit_client_provider"],
+    "commands": ["@dudousxd/adonis-authkit-client/commands"]
+  },
+  "scripts": {
+    "build": "tsc && node -e \"require('node:fs').cpSync('stubs','build/stubs',{recursive:true,filter:(s)=>!s.endsWith('.ts')})\"",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import=@poppinss/ts-exec bin/test.ts"
+  },
+  "peerDependencies": {
+    "@adonisjs/core": "catalog:adonis",
+    "@adonisjs/session": "catalog:adonis"
+  },
+  "dependencies": {
+    "@dudousxd/adonis-authkit-core": "workspace:*",
+    "jose": "^5.9.0"
+  },
+  "devDependencies": {
+    "@adonisjs/core": "catalog:adonis",
+    "@dudousxd/adonis-authkit-server": "workspace:*",
+    "@adonisjs/session": "catalog:adonis",
+    "@adonisjs/lucid": "catalog:adonis",
+    "@adonisjs/tsconfig": "catalog:adonis",
+    "@japa/assert": "catalog:",
+    "@japa/runner": "catalog:",
+    "@poppinss/ts-exec": "catalog:",
+    "ioredis-mock": "^8.9.0",
+    "@types/node": "catalog:adonis",
+    "typescript": "catalog:frontend"
+  }
+}

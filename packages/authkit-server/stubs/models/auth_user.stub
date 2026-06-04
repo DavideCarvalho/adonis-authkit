@@ -3,11 +3,20 @@
 }}}
 import { BaseModel, column } from '@adonisjs/lucid/orm'
 import { compose } from '@adonisjs/core/helpers'
-import { withAuthUser, withCredentials } from '@authkit/server'
+import { withAuthUser, withCredentials } from '@dudousxd/adonis-authkit-server'
 
+/**
+ * Por padrão o AuthKit cria/usa as tabelas na conexão DEFAULT da aplicação
+ * (config/database.ts) — não força nenhum banco/schema próprio.
+ *
+ * Se você quiser isolar o AuthKit num schema ou banco dedicado, defina uma
+ * conexão no config/database.ts do app e referencie aqui, ex.:
+ *
+ *   static connection = 'auth'
+ *
+ * (e aponte as migrations correspondentes para essa conexão).
+ */
 export default class AuthUser extends compose(BaseModel, withAuthUser(), withCredentials()) {
-  static connection = 'auth'
-
   @column({ isPrimary: true })
   declare id: string
 }

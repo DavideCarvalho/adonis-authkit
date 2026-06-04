@@ -2,7 +2,7 @@
   exports({ to: app.makePath('app/controllers/oidc_session_controller.ts') })
 }}}
 import type { HttpContext } from '@adonisjs/core/http'
-import { buildAuthorizeUrl, exchangeCode, generatePkce } from '@authkit/client'
+import { buildAuthorizeUrl, exchangeCode, generatePkce } from '@dudousxd/adonis-authkit-client'
 import { randomUUID } from 'node:crypto'
 
 export default class OidcSessionController {

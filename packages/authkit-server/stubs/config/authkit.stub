@@ -3,7 +3,7 @@
 }}}
 import env from '#start/env'
 import AuthUser from '#models/auth_user'
-import { defineConfig, adapters } from '@authkit/server'
+import { defineConfig, adapters } from '@dudousxd/adonis-authkit-server'
 
 const authServerConfig = defineConfig({
   issuer: env.get('AUTHKIT_ISSUER'),

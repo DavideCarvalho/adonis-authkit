@@ -1,17 +1,17 @@
 {
   "name": "@dudousxd/adonis-authkit-core",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Shared core types and utilities for AuthKit — the AdonisJS OIDC/OAuth2 server and client toolkits.",
   "license": "MIT",
   "author": "dudousxd",
-  "homepage": "https://github.com/DavideCarvalho/streaming-educacao/tree/main/packages/authkit-core#readme",
+  "homepage": "https://github.com/DavideCarvalho/adonis-authkit/tree/main/packages/authkit-core#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/DavideCarvalho/streaming-educacao.git",
+    "url": "https://github.com/DavideCarvalho/adonis-authkit.git",
     "directory": "packages/authkit-core"
   },
   "bugs": {
-    "url": "https://github.com/DavideCarvalho/streaming-educacao/issues"
+    "url": "https://github.com/DavideCarvalho/adonis-authkit/issues"
   },
   "keywords": [
     "adonisjs",

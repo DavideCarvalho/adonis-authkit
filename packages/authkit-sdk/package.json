@@ -1,17 +1,17 @@
 {
   "name": "@dudousxd/adonis-authkit-sdk",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Backend SDK for the AuthKit Admin API with one typed interface and two drivers: remote (HTTP/Bearer) and embedded (in-process when the IdP runs in the same AdonisJS app).",
   "license": "MIT",
   "author": "dudousxd",
-  "homepage": "https://github.com/DavideCarvalho/streaming-educacao/tree/main/packages/authkit-sdk#readme",
+  "homepage": "https://github.com/DavideCarvalho/adonis-authkit/tree/main/packages/authkit-sdk#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/DavideCarvalho/streaming-educacao.git",
+    "url": "https://github.com/DavideCarvalho/adonis-authkit.git",
     "directory": "packages/authkit-sdk"
   },
   "bugs": {
-    "url": "https://github.com/DavideCarvalho/streaming-educacao/issues"
+    "url": "https://github.com/DavideCarvalho/adonis-authkit/issues"
   },
   "keywords": [
     "adonisjs",

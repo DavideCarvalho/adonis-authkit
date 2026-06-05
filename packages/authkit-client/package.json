@@ -1,17 +1,17 @@
 {
   "name": "@dudousxd/adonis-authkit-client",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "AdonisJS OIDC/OAuth2 relying-party (client) toolkit: session-based authentication against an OpenID Connect identity provider, with JWT/PAT user resolvers and OpenTelemetry metrics.",
   "license": "MIT",
   "author": "dudousxd",
-  "homepage": "https://github.com/DavideCarvalho/streaming-educacao/tree/main/packages/authkit-client#readme",
+  "homepage": "https://github.com/DavideCarvalho/adonis-authkit/tree/main/packages/authkit-client#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/DavideCarvalho/streaming-educacao.git",
+    "url": "https://github.com/DavideCarvalho/adonis-authkit.git",
     "directory": "packages/authkit-client"
   },
   "bugs": {
-    "url": "https://github.com/DavideCarvalho/streaming-educacao/issues"
+    "url": "https://github.com/DavideCarvalho/adonis-authkit/issues"
   },
   "keywords": [
     "adonisjs",

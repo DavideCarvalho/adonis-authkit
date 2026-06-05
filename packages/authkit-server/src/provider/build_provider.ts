@@ -136,7 +136,7 @@ export function buildProvider(config: ResolvedServerConfig, options: BuildProvid
     // do escopo `roles` para quem optar por solicitá-lo explicitamente.
     claims: {
       openid: ['sub'],
-      profile: ['name', 'picture', config.globalRolesClaim],
+      profile: ['name', 'picture', config.globalRolesClaim, 'org_id', 'org_slug', 'org_role'],
       email: ['email', 'email_verified'],
       roles: [config.globalRolesClaim],
     },

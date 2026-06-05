@@ -7,6 +7,7 @@ import { wireProviderEvents } from '../observability/wire_provider_events.js'
 import { buildProvider } from './build_provider.js'
 import { createInteractionActions, type InteractionActions } from './interaction_actions.js'
 import { registerTokenExchange } from './token_exchange.js'
+import { readActiveOrgFromKoaCtx } from '../host/active_org_cookie.js'
 
 export class OidcService {
   readonly provider: ReturnType<typeof buildProvider>
@@ -28,19 +29,32 @@ export class OidcService {
     this.recorder = recorder
     this.provider = buildProvider(config, {
       appKey,
-      findAccount: async (_ctx, sub) => {
+      findAccount: async (ctx, sub) => {
         const user = await config.findAccount(sub)
         if (!user) return undefined
+
+        // Lê a org ativa do cookie de sessão (se organizations estiver disponível).
+        const activeOrg = readActiveOrgFromKoaCtx(ctx)
+
         return {
           accountId: user.id,
-          claims: async (_use: string, _scope: string) => ({
-            sub: user.id,
-            email: user.email,
-            email_verified: true,
-            name: user.name,
-            picture: user.avatarUrl,
-            [config.globalRolesClaim]: user.globalRoles ?? [],
-          }),
+          claims: async (_use: string, _scope: string) => {
+            const base: Record<string, unknown> = {
+              sub: user.id,
+              email: user.email,
+              email_verified: true,
+              name: user.name,
+              picture: user.avatarUrl,
+              [config.globalRolesClaim]: user.globalRoles ?? [],
+            }
+            // Emite claims de org somente quando há uma org ativa na sessão.
+            if (activeOrg) {
+              base['org_id'] = activeOrg.orgId
+              base['org_slug'] = activeOrg.orgSlug
+              base['org_role'] = activeOrg.orgRole
+            }
+            return base
+          },
         }
       },
     })

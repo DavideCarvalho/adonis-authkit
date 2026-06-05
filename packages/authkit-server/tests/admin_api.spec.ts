@@ -496,4 +496,52 @@ test.group('Admin REST API (controllers)', (group) => {
     assert.equal(empty.captured.status(), 400)
     assert.equal(e.error.code, 'invalid_request')
   })
+
+  test('GET /stats → shape completo (totais + MAU + séries 30d)', async ({ assert }) => {
+    const users = new ApiUsersController()
+    // Cria 2 usuários para aumentar o total.
+    await users.store(fakeCtx({ service, inputs: { email: 'st1@x.com', password: 'pw-secret-123' } }).ctx)
+    await users.store(fakeCtx({ service, inputs: { email: 'st2@x.com', password: 'pw-secret-123' } }).ctx)
+
+    const misc = new ApiMiscController()
+    const stats: any = await misc.stats(fakeCtx({ service }).ctx)
+
+    assert.isNumber(stats.totalUsers)
+    assert.isAtLeast(stats.totalUsers, 2)
+    // activeSessions: null (DatabaseAdapter lista, mas não há sessões seedadas) ou número.
+    assert.oneOf(typeof stats.activeSessions, ['number', 'object']) // null é objeto
+    assert.isNumber(stats.mau)
+    assert.isNumber(stats.signInsTotal)
+    assert.isNumber(stats.signUpsTotal)
+    assert.isArray(stats.signInsPerDay)
+    assert.isArray(stats.signUpsPerDay)
+    assert.lengthOf(stats.signInsPerDay, 30)
+    assert.lengthOf(stats.signUpsPerDay, 30)
+    assert.isBoolean(stats.auditSupported)
+    assert.equal(stats.windowDays, 30)
+    // Cada ponto tem date (YYYY-MM-DD) + count.
+    const pt = stats.signInsPerDay[0]
+    assert.isString(pt.date)
+    assert.match(pt.date, /^\d{4}-\d{2}-\d{2}$/)
+    assert.isNumber(pt.count)
+  })
+
+  test('GET /stats degrada quando audit não tem list', async ({ assert }) => {
+    // Sobe um service SEM audit para simular write-only (sem audit configurado).
+    const { service: svcNoAudit, server: srv } = await startService(port++, db, {
+      // sem audit → undefined → degrada
+      audit: undefined,
+    })
+    const cleanup = () => new Promise<void>((r) => srv.close(() => r()))
+    try {
+      const misc = new ApiMiscController()
+      const stats: any = await misc.stats(fakeCtx({ service: svcNoAudit }).ctx)
+      // Sem audit, auditSupported deve ser false e séries vazias (count=0).
+      assert.isFalse(stats.auditSupported)
+      assert.equal(stats.signInsTotal, 0)
+      assert.isTrue(stats.signInsPerDay.every((p: any) => p.count === 0))
+    } finally {
+      await cleanup()
+    }
+  })
 })

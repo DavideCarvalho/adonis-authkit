@@ -204,6 +204,36 @@ test.group('remote driver — error mapping', () => {
   })
 })
 
+test.group('remote driver — stats', () => {
+  test('stats() hits GET /stats and returns the shape', async ({ assert }) => {
+    const statsPayload = {
+      totalUsers: 100,
+      activeSessions: 5,
+      mau: 42,
+      signInsTotal: 200,
+      signUpsTotal: 15,
+      signInsPerDay: [{ date: '2024-01-01', count: 7 }],
+      signUpsPerDay: [{ date: '2024-01-01', count: 2 }],
+      auditSupported: true,
+      windowDays: 30,
+    }
+    await withApi(
+      () => ({ status: 200, body: statsPayload }),
+      async (sdk, api) => {
+        const res = await sdk.stats()
+        assert.equal(res.totalUsers, 100)
+        assert.equal(res.mau, 42)
+        assert.equal(res.signInsTotal, 200)
+        assert.equal(res.windowDays, 30)
+        assert.isArray(res.signInsPerDay)
+        assert.equal(api.last!.method, 'GET')
+        assert.equal(api.last!.url, '/api/authkit/v1/stats')
+        assert.equal(api.last!.authorization, 'Bearer key-123')
+      }
+    )
+  })
+})
+
 test.group('remote driver — clients + tokens', () => {
   test('create returns secret once', async ({ assert }) => {
     await withApi(

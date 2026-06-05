@@ -276,8 +276,9 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
         withApiThrottle(router.patch('/clients/:id', [C.apiClients, 'update']))
         withApiThrottle(router.post('/clients/:id/regenerate-secret', [C.apiClients, 'regenerateSecret']))
         withApiThrottle(router.delete('/clients/:id', [C.apiClients, 'destroy']))
-        // Auditoria + verificação de token.
+        // Auditoria + métricas + verificação de token.
         withApiThrottle(router.get('/audit', [C.apiMisc, 'audit']))
+        withApiThrottle(router.get('/stats', [C.apiMisc, 'stats']))
         withApiThrottle(router.post('/tokens/verify', [C.apiMisc, 'verify']))
       })
       .prefix('/api/authkit/v1')

@@ -1,6 +1,8 @@
 import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import { TokenVerifyService } from './token_verify_service.js'
+import { AdminSessionsService } from '../admin_sessions_service.js'
+import { computeAdminStats } from '../admin_stats_service.js'
 import { auditDto, apiError } from './dto.js'
 
 /**
@@ -25,6 +27,14 @@ export default class ApiMiscController {
 
     const result = await sink.list({ page, limit, type, subject })
     return { data: result.data.map(auditDto), total: result.total, page, limit }
+  }
+
+  /** GET /stats — métricas-resumo do IdP (totais + MAU + séries de 30 dias). */
+  async stats(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const sessions = new AdminSessionsService(service)
+    return computeAdminStats(cfg, sessions)
   }
 
   /** POST /tokens/verify — { token } → resultado de introspecção (PAT ou opaque AT). */

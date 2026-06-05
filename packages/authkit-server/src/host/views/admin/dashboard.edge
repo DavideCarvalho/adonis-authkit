@@ -21,19 +21,48 @@
       <a href="/admin/audit" class="text-gray-500 hover:underline">{{ t('admin.nav.audit') }}</a>
     </nav>
 
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+    <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
       <a href="/admin/users" class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-black/5 hover:ring-gray-900/20">
         <p class="text-xs uppercase tracking-wide text-gray-400">{{ t('admin.dashboard.users_count') }}</p>
         <p class="mt-1 text-2xl font-semibold text-gray-900">{{ usersTotal }}</p>
       </a>
+      <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-black/5">
+        <p class="text-xs uppercase tracking-wide text-gray-400">{{ t('admin.dashboard.mau') }}</p>
+        <p class="mt-1 text-2xl font-semibold text-gray-900">{{ auditSupported ? mau : '—' }}</p>
+      </div>
+      <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-black/5">
+        <p class="text-xs uppercase tracking-wide text-gray-400">{{ t('admin.dashboard.active_sessions') }}</p>
+        <p class="mt-1 text-2xl font-semibold text-gray-900">{{ activeSessions === null ? '—' : activeSessions }}</p>
+      </div>
       <a href="/admin/clients" class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-black/5 hover:ring-gray-900/20">
         <p class="text-xs uppercase tracking-wide text-gray-400">{{ t('admin.dashboard.clients_count') }}</p>
         <p class="mt-1 text-2xl font-semibold text-gray-900">{{ clientsCount }}</p>
       </a>
-      <a href="/admin/audit" class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-black/5 hover:ring-gray-900/20">
-        <p class="text-xs uppercase tracking-wide text-gray-400">{{ t('admin.dashboard.audit_count') }}</p>
-        <p class="mt-1 text-2xl font-semibold text-gray-900">{{ auditSupported ? auditTotal : '—' }}</p>
-      </a>
+    </div>
+
+    <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-black/5">
+        <div class="flex items-baseline justify-between">
+          <p class="text-xs uppercase tracking-wide text-gray-400">{{ t('admin.dashboard.signins_title', { days: windowDays }) }}</p>
+          <p class="text-sm font-semibold text-gray-900">{{ auditSupported ? signInsTotal : '—' }}</p>
+        </div>
+        @if(auditSupported)
+          <div class="mt-3 h-20">{{{ signInsChart }}}</div>
+        @else
+          <p class="mt-3 text-xs text-gray-500">{{ t('admin.audit.not_supported') }}</p>
+        @end
+      </div>
+      <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-black/5">
+        <div class="flex items-baseline justify-between">
+          <p class="text-xs uppercase tracking-wide text-gray-400">{{ t('admin.dashboard.signups_title', { days: windowDays }) }}</p>
+          <p class="text-sm font-semibold text-gray-900">{{ auditSupported ? signUpsTotal : '—' }}</p>
+        </div>
+        @if(auditSupported)
+          <div class="mt-3 h-20">{{{ signUpsChart }}}</div>
+        @else
+          <p class="mt-3 text-xs text-gray-500">{{ t('admin.audit.not_supported') }}</p>
+        @end
+      </div>
     </div>
 
     <h2 class="mt-8 mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{{ t('admin.dashboard.recent_title') }}</h2>

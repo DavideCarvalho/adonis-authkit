@@ -3,6 +3,7 @@ import type { ResolvedServerConfig } from '../define_config.js'
 import {
   supportsAccountDeletion,
   supportsMfa,
+  supportsOrganizations,
   supportsPasskeys,
   supportsProviderIdentity,
 } from '../accounts/account_store.js'
@@ -38,6 +39,10 @@ export interface DeletionResult {
   auditAnonymized: number
   /** Avatar removido do drive (best-effort). */
   avatarDeleted: boolean
+  /** Memberships em organizations removidas. */
+  orgMemberships: number
+  /** Convites pendentes de organizations removidos. */
+  orgInvitations: number
 }
 
 /**
@@ -90,6 +95,8 @@ export class AccountDeletionService {
       providerIdentities: 0,
       auditAnonymized: 0,
       avatarDeleted: false,
+      orgMemberships: 0,
+      orgInvitations: 0,
     }
 
     if (!supportsAccountDeletion(store)) return result
@@ -159,6 +166,19 @@ export class AccountDeletionService {
     if (supportsProviderIdentity(store)) {
       try {
         result.providerIdentities = await store.unlinkAllProviderIdentities(accountId)
+      } catch {
+        /* best-effort */
+      }
+    }
+
+    // 6b) Organizations: remove memberships + convites da conta (best-effort).
+    // Nota: se a conta é o ÚNICO owner de uma org, a org fica sem owner e isso é
+    // documentado no JSDoc — a deleção NUNCA é bloqueada por LGPD/GDPR.
+    if (supportsOrganizations(store)) {
+      try {
+        const orgResult = await store.removeAccountFromAllOrgs(accountId)
+        result.orgMemberships = orgResult.memberships
+        result.orgInvitations = orgResult.invitations
       } catch {
         /* best-effort */
       }

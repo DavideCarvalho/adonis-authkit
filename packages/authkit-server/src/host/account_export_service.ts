@@ -1,6 +1,6 @@
 import type { OidcService } from '../provider/oidc_service.js'
 import type { ResolvedServerConfig } from '../define_config.js'
-import { supportsPasskeys, supportsProviderIdentity } from '../accounts/account_store.js'
+import { supportsOrganizations, supportsPasskeys, supportsProviderIdentity } from '../accounts/account_store.js'
 import { AdminSessionsService } from './admin_sessions_service.js'
 
 /** Payload de export de dados de uma conta (portabilidade — LGPD/GDPR). */
@@ -37,6 +37,8 @@ export interface AccountExport {
     metadata: Record<string, unknown> | null
     createdAt: string | null
   }>
+  /** Memberships em organizations (multi-tenancy). */
+  organizations?: Array<{ orgId: string; name: string; slug: string; role: string }>
 }
 
 /** Limite de eventos de audit incluídos no export (evita payloads gigantes). */
@@ -112,6 +114,17 @@ export class AccountExportService {
       }
     }
 
+    // Organizations (capability-probed).
+    let organizations: AccountExport['organizations'] = []
+    if (supportsOrganizations(store)) {
+      try {
+        const orgs = await store.listOrgsForAccount(accountId)
+        organizations = orgs.map((o) => ({ orgId: o.id, name: o.name, slug: o.slug, role: o.role }))
+      } catch {
+        /* best-effort */
+      }
+    }
+
     // Audit do próprio usuário (quando o sink suporta consulta).
     let auditLog: AccountExport['auditLog'] = []
     if (cfg.audit && typeof cfg.audit.list === 'function') {
@@ -144,6 +157,7 @@ export class AccountExportService {
       sessions,
       passkeys,
       auditLog,
+      organizations,
     }
   }
 }

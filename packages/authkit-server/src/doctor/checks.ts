@@ -351,6 +351,41 @@ export function checkAccessTokens(input: DoctorInput): Finding | null {
   }
 }
 
+/**
+ * Organizations (multi-tenancy). Informa se a capacidade está disponível
+ * (store expõe createOrg) e avisa se `organizations.enabled: true` no config mas
+ * a capacidade não está presente no store (organizationModels não foram passados).
+ */
+export function checkOrganizations(input: DoctorInput): Finding | null {
+  const cfg = input.authkitConfig
+  if (!cfg) return null
+
+  const store = cfg.accountStore
+  const orgsEnabled = cfg.organizations?.enabled
+  const storeSupports = has(store, 'createOrg')
+
+  if (orgsEnabled === true && !storeSupports) {
+    return {
+      level: 'warn',
+      message:
+        'organizations.enabled: true, but the accountStore has no OrganizationsCapability — ' +
+        'pass `organizationModels: { OrgModel, MemberModel, InvitationModel }` to `lucidAccountStore()`. ' +
+        'Expected tables: auth_organizations, auth_organization_members, auth_organization_invitations.',
+    }
+  }
+
+  if (storeSupports) {
+    const roles = cfg.organizations?.roles ?? ['owner', 'admin', 'member']
+    return {
+      level: 'ok',
+      message: `organizations capability present (roles: ${roles.join(', ')}).`,
+    }
+  }
+
+  // Auto mode (enabled === undefined) and store doesn't support — silently ok (opt-in).
+  return null
+}
+
 /** Roda todos os checks e devolve a lista plana de findings. */
 export function runAllChecks(input: DoctorInput): Finding[] {
   const findings: Finding[] = []
@@ -376,6 +411,8 @@ export function runAllChecks(input: DoctorInput): Finding[] {
   if (jwks) findings.push(jwks)
   const accessTokens = checkAccessTokens(input)
   if (accessTokens) findings.push(accessTokens)
+  const orgs = checkOrganizations(input)
+  if (orgs) findings.push(orgs)
   return findings
 }
 

@@ -1,5 +1,12 @@
 # @dudousxd/adonis-authkit-react
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [1872a30]
+  - @dudousxd/adonis-authkit-core@0.2.0
+
 ## 0.1.1
 
 ### Patch Changes

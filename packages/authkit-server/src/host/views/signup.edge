@@ -1,6 +1,10 @@
 <!doctype html>
 <html lang="pt-br"><head><meta charset="utf-8"><title>{{ t('signup.page_title') }} — {{ brand && brand.appName ? brand.appName : t('common.app_fallback') }}</title>
-<script src="https://cdn.tailwindcss.com"></script></head>
+<script src="https://cdn.tailwindcss.com"></script>
+@if(botProtection && botProtection.scriptUrl)
+  <script src="{{ botProtection.scriptUrl }}" async defer></script>
+@end
+</head>
 <body class="min-h-screen flex items-center justify-center bg-gray-50">
   <div class="w-full max-w-sm bg-white p-8 rounded-2xl shadow-xl ring-1 ring-black/5">
     <form method="POST" action="/auth/interaction/{{ uid }}/signup">
@@ -29,6 +33,11 @@
         <input id="password" name="password" type="password" required minlength="8"
           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900" />
       </div>
+
+      {{-- Bot protection: container do widget (config-trusted; HTML do host renderizado raw). --}}
+      @if(botProtection && botProtection.html)
+        <div class="mt-4">{{{ botProtection.html }}}</div>
+      @end
 
       <button type="submit"
         class="mt-6 w-full rounded-lg bg-gray-900 py-2.5 text-sm font-semibold text-white transition hover:opacity-90">

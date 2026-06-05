@@ -12,6 +12,7 @@ import {
   checkPasswordPolicy,
   checkJwks,
   checkAccessTokens,
+  checkBotProtection,
   type DoctorInput,
 } from '../src/doctor/checks.js'
 
@@ -180,6 +181,26 @@ test.group('doctor checks', () => {
     const f = checkJwks(baseInput({ authkitConfig: { jwks: { source: 'managed' } } }))
     assert.equal(f!.level, 'warn')
     assert.include(f!.message, 'store')
+  })
+
+  test('botProtection ausente → check silencioso (null)', ({ assert }) => {
+    assert.isNull(checkBotProtection(baseInput()))
+  })
+
+  test('botProtection ligado → ok informa as ações + fail-safe', ({ assert }) => {
+    const f = checkBotProtection(baseInput({
+      authkitConfig: { botProtection: { verify: () => true, on: ['login', 'reset'] } },
+    }))
+    assert.equal(f!.level, 'ok')
+    assert.include(f!.message, 'login, reset')
+    assert.include(f!.message, 'fail-safe')
+  })
+
+  test('botProtection sem verify função → warn', ({ assert }) => {
+    const f = checkBotProtection(baseInput({
+      authkitConfig: { botProtection: { verify: 'nope' } },
+    }))
+    assert.equal(f!.level, 'warn')
   })
 
   test('accessTokens: sem config → null (silencioso)', ({ assert }) => {

@@ -27,6 +27,8 @@ export type AuditEventType =
   | 'email.change_requested'
   | 'email.changed'
   | 'login.new_ip_notified'
+  | 'login.new_device'
+  | 'bot_protection.rejected'
   | 'grant.revoked_by_user'
   | 'user.created'
   | 'user.password_reset_sent'

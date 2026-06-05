@@ -4,6 +4,7 @@ import { brandFor, isFirstParty } from '../branding.js'
 import { translate } from '../i18n.js'
 import { attemptPasswordLogin, isEmailUnverifiedBlock } from '../login_attempt.js'
 import { notifyLoginSuccess } from '../login_notify.js'
+import { guardBotProtection } from '../bot_protection.js'
 import { supportsPasskeys, supportsMagicLink } from '../../accounts/account_store.js'
 import { sendMagicLinkEmail } from '../default_mailer.js'
 import {
@@ -80,6 +81,7 @@ export default class AuthInteractionController {
       brand,
       magicLinkAvailable,
       passkeyFirstAvailable,
+      botProtection: cfg.botProtection?.on.includes('login') ? cfg.botProtection.widget : undefined,
     })
   }
 
@@ -118,6 +120,25 @@ export default class AuthInteractionController {
     const ip = ctx.request.ip?.() ?? null
     const clientId = (details.params.client_id as string | undefined) ?? null
 
+    // Bot protection (plugável): valida o token do widget ANTES de tocar nas
+    // credenciais. Fail-safe: erro/timeout no verify do host PERMITE o fluxo.
+    if (!(await guardBotProtection(ctx, cfg, 'login', { email, clientId }))) {
+      const found = await cfg.accountStore.findByEmail(email)
+      const account = found
+        ? { fullName: found.name ?? null, globalRoles: found.globalRoles ?? [] }
+        : null
+      return render(ctx, 'login', {
+        uid: ctx.request.param('uid'),
+        csrfToken: ctx.request.csrfToken,
+        step: 'password',
+        email,
+        account,
+        error: translate(cfg.messages, 'errors.bot_protection_failed'),
+        brand,
+        botProtection: cfg.botProtection?.widget,
+      })
+    }
+
     // Verificamos as credenciais ANTES de finalizar a interaction, porque com MFA
     // ligado precisamos exigir o 2º fator e NÃO podemos chamar interactionFinished
     // ainda. A sequência verificação + lockout + auditoria de falha é centralizada
@@ -145,6 +166,7 @@ export default class AuthInteractionController {
               ? translate(cfg.messages, 'errors.email_unverified')
               : translate(cfg.messages, 'errors.invalid_credentials'),
         brand,
+        botProtection: cfg.botProtection?.on.includes('login') ? cfg.botProtection.widget : undefined,
       })
     }
 
@@ -177,7 +199,13 @@ export default class AuthInteractionController {
         const trusted = await this.checkTrustedDevice(ctx, acc.id, mfa.enabledAt ?? null)
         if (trusted) {
           await service.interactions.completeLogin(ctx, acc.id, { amr: ['pwd'] })
-          await notifyLoginSuccess(ctx, cfg, { accountId: acc.id, email, ip, clientId })
+          await notifyLoginSuccess(ctx, cfg, {
+            accountId: acc.id,
+            email,
+            ip,
+            clientId,
+            trustedDevice: true,
+          })
           ctx.session.forget(SESSION_KEY)
           return
         }

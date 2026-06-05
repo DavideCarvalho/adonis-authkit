@@ -397,6 +397,7 @@ export const DEFAULT_MESSAGES = {
   'errors.invalid_or_expired_token': 'Invalid or expired token',
   'errors.account_locked':
     'Account temporarily locked due to too many attempts. Try again in {seconds}s.',
+  'errors.bot_protection_failed': 'Bot verification failed. Please try again.',
   'errors.session_expired': 'Session expired',
   'errors.challenge_expired': 'Challenge expired',
   'errors.passkeys_unavailable': 'Passkeys unavailable',
@@ -820,6 +821,7 @@ export const PT_BR_MESSAGES = {
   'errors.invalid_or_expired_token': 'Token inválido ou expirado',
   'errors.account_locked':
     'Conta temporariamente bloqueada por excesso de tentativas. Tente novamente em {seconds}s.',
+  'errors.bot_protection_failed': 'A verificação anti-bot falhou. Tente novamente.',
   'errors.session_expired': 'Sessão expirada',
   'errors.challenge_expired': 'Desafio expirado',
   'errors.passkeys_unavailable': 'Passkeys indisponíveis',

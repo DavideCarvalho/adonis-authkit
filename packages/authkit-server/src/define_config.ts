@@ -23,6 +23,11 @@ import {
   type ResolvedTrustedDevicesConfig,
   type TrustedDevicesConfigInput,
 } from './host/trusted_device.js'
+import {
+  resolveBotProtection,
+  type BotProtectionConfigInput,
+  type ResolvedBotProtectionConfig,
+} from './host/bot_protection.js'
 
 export { adapters }
 export type { AuthAccount }
@@ -53,6 +58,18 @@ export interface MailHooks {
   }) => Promise<void>
   /** Disparado após gerar o magic link de login (passwordless). */
   onMagicLink?: (data: { email: string; magicUrl: string; token: string }) => Promise<void>
+  /**
+   * Disparado num login bem-sucedido a partir de um dispositivo NOVO (sem cookie
+   * de dispositivo confiável válido para a conta). Best-effort, fire-and-forget:
+   * uma falha aqui NUNCA quebra o login. Quando ausente mas o mail estiver
+   * configurado, o host-kit envia o e-mail default de "novo dispositivo".
+   */
+  onNewDeviceLogin?: (data: {
+    account: { id: string; email: string | null }
+    ip?: string | null
+    userAgent?: string | null
+    timestamp: string
+  }) => Promise<void>
 }
 
 /** Bucket de rate-limit: pontos (requests) permitidos por janela de duração. */
@@ -143,8 +160,9 @@ export function resolveLockout(input?: LockoutConfigInput): ResolvedLockoutConfi
 }
 
 /**
- * Notificações de segurança por e-mail (best-effort, fire-and-forget). Hoje cobre
- * o alerta de NOVO acesso (login de um IP nunca visto antes para a conta).
+ * Notificações de segurança por e-mail (best-effort, fire-and-forget). Cobre o
+ * alerta de NOVO ACESSO (login de um IP nunca visto antes) e o alerta de NOVO
+ * DISPOSITIVO (login sem cookie de dispositivo confiável válido para a conta).
  */
 export interface NotificationsConfigInput {
   /**
@@ -153,10 +171,20 @@ export interface NotificationsConfigInput {
    * histórico usa o `audit.list` (degrada para no-op se o sink não consulta).
    */
   newLoginEmail?: boolean
+  /**
+   * Envia um e-mail "novo login num dispositivo" quando um login bem-sucedido
+   * acontece SEM um cookie de dispositivo confiável válido para a conta (o sinal
+   * de "dispositivo novo", como o GitHub faz). Default: true. Independente do
+   * mecanismo de trusted devices estar habilitado — o sinal é a ausência do
+   * cookie de confiança. O e-mail é enviado pelo `mail.onNewDeviceLogin` (override)
+   * ou pelo mailer default do host.
+   */
+  newDeviceEmail?: boolean
 }
 
 export interface ResolvedNotificationsConfig {
   newLoginEmail: boolean
+  newDeviceEmail: boolean
 }
 
 export function resolveNotifications(
@@ -164,6 +192,7 @@ export function resolveNotifications(
 ): ResolvedNotificationsConfig {
   return {
     newLoginEmail: input?.newLoginEmail ?? true,
+    newDeviceEmail: input?.newDeviceEmail ?? true,
   }
 }
 
@@ -628,6 +657,13 @@ export interface AuthServerConfigInput {
    */
   trustedDevices?: TrustedDevicesConfigInput
   /**
+   * Bot protection plugável (CAPTCHA/challenge), agnóstica de vendor. O HOST
+   * fornece o `verify`; a lib injeta o widget nas telas e checa o token ANTES de
+   * processar credenciais. Default: desligado. Fail-safe: erro/timeout no `verify`
+   * PERMITE o fluxo (disponibilidade > proteção).
+   */
+  botProtection?: BotProtectionConfigInput
+  /**
    * Login passwordless (magic link por e-mail e/ou passkey-first). Default: ambos
    * desligados. Exigem as capacidades correspondentes no accountStore.
    */
@@ -698,6 +734,8 @@ export interface ResolvedServerConfig {
   stepUp: ResolvedStepUpConfig
   /** Trusted devices resolvido (default ligado, 30 dias). */
   trustedDevices: ResolvedTrustedDevicesConfig
+  /** Bot protection resolvido (undefined quando não configurado). */
+  botProtection?: ResolvedBotProtectionConfig
   /** Passwordless resolvido (default tudo desligado). */
   passwordless: ResolvedPasswordlessConfig
   /** Política de login resolvida (requireVerifiedEmail; default desligado). */
@@ -789,6 +827,7 @@ export function defineConfig(config: AuthServerConfigInput) {
       par: resolvePar(config.par),
       stepUp: resolveStepUp(config.stepUp),
       trustedDevices: resolveTrustedDevices(config.trustedDevices),
+      botProtection: resolveBotProtection(config.botProtection),
       passwordless: resolvePasswordless(config.passwordless),
       login: resolveLogin(config.login),
       accessTokens: resolveAccessTokens(config.issuer, config.accessTokens),

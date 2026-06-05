@@ -35,6 +35,21 @@ export type {
   ResolvedTrustedDevicesConfig,
   TrustedDevicePayload,
 } from './src/host/trusted_device.js'
+export {
+  resolveBotProtection,
+  botProtectionApplies,
+  extractBotToken,
+  verifyBotProtection,
+  guardBotProtection,
+  DEFAULT_BOT_TOKEN_FIELDS,
+} from './src/host/bot_protection.js'
+export type {
+  BotProtectionConfigInput,
+  ResolvedBotProtectionConfig,
+  BotProtectionVerifyInput,
+  BotProtectionWidget,
+  BotProtectionAction,
+} from './src/host/bot_protection.js'
 export { lucidAccountStore } from './src/accounts/lucid_account_store.js'
 export type {
   LucidAccountStoreOptions,

@@ -5,6 +5,7 @@ import { signupValidator, forgotPasswordValidator, resetPasswordValidator } from
 import { sendPasswordResetEmail, sendEmailVerificationEmail } from '../default_mailer.js'
 import { translate } from '../i18n.js'
 import { PasswordPolicyError } from '../../password/password_manager.js'
+import { guardBotProtection } from '../bot_protection.js'
 
 export default class AuthRegistrationController {
   /** GET /auth/interaction/:uid/signup — tela de cadastro (dentro do fluxo OIDC). */
@@ -18,6 +19,7 @@ export default class AuthRegistrationController {
       uid: details.uid,
       csrfToken: ctx.request.csrfToken,
       brand,
+      botProtection: cfg.botProtection?.on.includes('signup') ? cfg.botProtection.widget : undefined,
     })
   }
 
@@ -28,6 +30,20 @@ export default class AuthRegistrationController {
     const render = cfg.render!
     const details = await service.interactions.details(ctx)
     const brand = brandFor(cfg.branding!, details.params.client_id as string | undefined)
+
+    // Bot protection (plugável): valida o token do widget ANTES de criar a conta.
+    // Fail-safe: erro/timeout no verify do host PERMITE o cadastro.
+    const clientId = (details.params.client_id as string | undefined) ?? null
+    if (!(await guardBotProtection(ctx, cfg, 'signup', { clientId }))) {
+      return render(ctx, 'signup', {
+        uid: ctx.request.param('uid'),
+        csrfToken: ctx.request.csrfToken,
+        error: translate(cfg.messages, 'errors.bot_protection_failed'),
+        brand,
+        botProtection: cfg.botProtection?.widget,
+      })
+    }
+
     const data = await ctx.request.validateUsing(signupValidator)
 
     const accountStore = cfg.accountStore
@@ -38,6 +54,7 @@ export default class AuthRegistrationController {
         csrfToken: ctx.request.csrfToken,
         error: translate(cfg.messages, 'errors.email_taken'),
         brand,
+        botProtection: cfg.botProtection?.on.includes('signup') ? cfg.botProtection.widget : undefined,
       })
     }
 
@@ -57,6 +74,7 @@ export default class AuthRegistrationController {
           csrfToken: ctx.request.csrfToken,
           error: translate(cfg.messages, error.key, error.params),
           brand,
+          botProtection: cfg.botProtection?.on.includes('signup') ? cfg.botProtection.widget : undefined,
         })
       }
       throw error
@@ -81,6 +99,7 @@ export default class AuthRegistrationController {
         csrfToken: ctx.request.csrfToken,
         error: translate(cfg.messages, 'errors.signup_failed'),
         brand,
+        botProtection: cfg.botProtection?.on.includes('signup') ? cfg.botProtection.widget : undefined,
       })
     }
 
@@ -113,7 +132,10 @@ export default class AuthRegistrationController {
     const service = await ctx.containerResolver.make('authkit.server')
     const cfg = service.config
     const render = cfg.render!
-    return render(ctx, 'forgot', { csrfToken: ctx.request.csrfToken })
+    return render(ctx, 'forgot', {
+      csrfToken: ctx.request.csrfToken,
+      botProtection: cfg.botProtection?.on.includes('reset') ? cfg.botProtection.widget : undefined,
+    })
   }
 
   /** POST /auth/forgot-password — gera token e (dev) loga o link. Sempre responde sucesso (não vaza emails). */
@@ -121,6 +143,17 @@ export default class AuthRegistrationController {
     const service = await ctx.containerResolver.make('authkit.server')
     const cfg = service.config
     const render = cfg.render!
+
+    // Bot protection (plugável): valida o token do widget ANTES de emitir o token
+    // de reset. Fail-safe: erro/timeout no verify do host PERMITE o fluxo.
+    if (!(await guardBotProtection(ctx, cfg, 'reset'))) {
+      return render(ctx, 'forgot', {
+        csrfToken: ctx.request.csrfToken,
+        error: translate(cfg.messages, 'errors.bot_protection_failed'),
+        botProtection: cfg.botProtection?.widget,
+      })
+    }
+
     const { email } = await ctx.request.validateUsing(forgotPasswordValidator)
     const accountStore = cfg.accountStore
     const result = await accountStore.issuePasswordResetToken(email)

@@ -213,6 +213,27 @@ export function checkRequireVerifiedEmail(input: DoctorInput): Finding | null {
   return { level: 'ok', message: 'login.requireVerifiedEmail on and the accountStore can check it.' }
 }
 
+/**
+ * Bot protection (informativo): ativo quando `botProtection.verify` é uma função.
+ * Reporta em quais ações está ligado e lembra da semântica fail-safe. Silencioso
+ * quando não configurado.
+ */
+export function checkBotProtection(input: DoctorInput): Finding | null {
+  const bot = input.authkitConfig?.botProtection
+  if (!bot) return null
+  if (typeof bot.verify !== 'function') {
+    return {
+      level: 'warn',
+      message: 'botProtection is set but `verify` is not a function — the check is skipped (no protection).',
+    }
+  }
+  const on = Array.isArray(bot.on) && bot.on.length > 0 ? bot.on : ['login', 'signup']
+  return {
+    level: 'ok',
+    message: `bot protection on for: ${on.join(', ')} — fail-safe (verify errors/timeouts allow the request, availability over protection).`,
+  }
+}
+
 /** webauthn rpId deve casar com o host do issuer. */
 export function checkWebauthn(input: DoctorInput): Finding | null {
   const cfg = input.authkitConfig
@@ -345,6 +366,8 @@ export function runAllChecks(input: DoctorInput): Finding[] {
   if (admin) findings.push(admin)
   const requireVerified = checkRequireVerifiedEmail(input)
   if (requireVerified) findings.push(requireVerified)
+  const botProtection = checkBotProtection(input)
+  if (botProtection) findings.push(botProtection)
   const webauthn = checkWebauthn(input)
   if (webauthn) findings.push(webauthn)
   const passwordPolicy = checkPasswordPolicy(input)

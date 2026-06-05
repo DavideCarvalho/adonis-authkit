@@ -1,5 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import type { ResolvedServerConfig } from '../define_config.js'
+import type { SettingsCapability } from './runtime_settings.js'
 
 /**
  * Bot protection plugável (CAPTCHA / challenge), agnóstica de vendor.
@@ -242,4 +243,56 @@ export async function guardBotProtection(
     metadata: { action },
   })
   return false
+}
+
+/** Shape da setting `bot_protection` em `auth_settings`. */
+export interface BotProtectionSetting {
+  /** Liga/desliga em runtime. */
+  enabled: boolean
+  /**
+   * Ações protegidas. Se omitido, herda do config. Só é considerado
+   * quando `enabled: true`.
+   */
+  on?: BotProtectionAction[]
+}
+
+/**
+ * Resolve a config EFETIVA do bot protection considerando o runtime setting
+ * armazenado em `auth_settings` (via `RuntimeSettings` / `SettingsCapability`).
+ *
+ * Regras:
+ *   - config ausente (host não configurou `botProtection`) → `undefined` sempre
+ *     (a feature não existe; settings são ignoradas).
+ *   - config presente + setting ausente/erro → retorna `config` intacto.
+ *   - config presente + setting `{ enabled: false }` → retorna `undefined`
+ *     (desligado em runtime).
+ *   - config presente + setting `{ enabled: true }` → retorna config com
+ *     `on` substituído pelo `setting.on` (se definido) ou pelo `config.on`.
+ *   - O `verify` NUNCA vem da setting (é código do host, não serializável).
+ *
+ * FAIL-SAFE: se `getSetting` retornar null (tabela ausente/erro), usa o config.
+ */
+export async function resolveEffectiveBotProtection(
+  config: ResolvedBotProtectionConfig | undefined,
+  settings: SettingsCapability
+): Promise<ResolvedBotProtectionConfig | undefined> {
+  if (!config) return undefined
+
+  const raw = await settings.getSetting('bot_protection')
+  if (raw === null || raw === undefined) return config
+
+  // Valida a shape mínima da setting.
+  if (typeof raw !== 'object' || typeof (raw as any).enabled !== 'boolean') {
+    return config // shape inválida → fallback
+  }
+
+  const setting = raw as BotProtectionSetting
+
+  if (!setting.enabled) return undefined // runtime off
+
+  // enabled: true — on pode sobrescrever
+  const on =
+    Array.isArray(setting.on) && setting.on.length > 0 ? setting.on : config.on
+
+  return { ...config, on }
 }

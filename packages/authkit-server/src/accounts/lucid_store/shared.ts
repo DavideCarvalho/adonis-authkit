@@ -6,6 +6,8 @@ import {
   verifyRegistrationResponse,
 } from '@simplewebauthn/server'
 import type { AuthAccount } from '../account_store.js'
+import type { AuditSink } from '../../audit/audit_sink.js'
+import type { PasswordManager } from '../../password/password_manager.js'
 
 /**
  * Encripta/decripta um valor (ex.: o segredo TOTP) em repouso. Mantém a lib
@@ -50,6 +52,16 @@ export interface LucidStoreContext {
   /** Decripta o segredo armazenado; null em falha/adulteração (no-op sem encrypter). */
   openSecret(stored: string | null | undefined): string | null
   toAccount(row: any): AuthAccount
+  /**
+   * Gerência de senha: validação de política/vazamento (ao definir) e
+   * verificação com lazy rehash + legacy verifier (ao autenticar).
+   */
+  passwords: PasswordManager
+  /**
+   * Sink de auditoria (best-effort), usado para o evento `password.rehashed`.
+   * Ausente → o evento não é emitido (capability-probed).
+   */
+  audit?: AuditSink
 }
 
 export const sha256 = (value: string): string =>

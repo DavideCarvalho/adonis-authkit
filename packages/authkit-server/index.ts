@@ -54,6 +54,8 @@ export type {
   MagicLinkCapability,
   EmailVerificationStatusCapability,
   AccountDeletionCapability,
+  AccountImportCapability,
+  ImportAccountInput,
   AuthAccount,
   CreateAccountInput,
   LinkProviderIdentityInput,
@@ -71,7 +73,35 @@ export {
   supportsMagicLink,
   supportsEmailVerificationStatus,
   supportsAccountDeletion,
+  supportsAccountImport,
 } from './src/accounts/account_store.js'
+// Gerência de senha: lazy rehash + legacy verifier, política e checagem de vazamento.
+export {
+  PasswordManager,
+  PasswordPolicyError,
+} from './src/password/password_manager.js'
+export type {
+  PasswordConfigInput,
+  LegacyPasswordVerifier,
+  PasswordVerifyResult,
+} from './src/password/password_manager.js'
+export {
+  checkPasswordPolicy,
+  resolvePasswordPolicy,
+  resolveCheckPwned,
+  resolvePasswordConfig,
+  policyViolationParams,
+  DEFAULT_PWNED_TIMEOUT_MS,
+} from './src/password/policy.js'
+export type {
+  PasswordPolicyInput,
+  ResolvedPasswordPolicy,
+  CheckPwnedInput,
+  ResolvedPasswordConfig,
+  PasswordPolicyViolation,
+} from './src/password/policy.js'
+export { isPasswordPwned, __setFetchForTests as __setPwnedFetchForTests } from './src/password/pwned.js'
+export type { PwnedLogger, FetchLike as PwnedFetchLike } from './src/password/pwned.js'
 export { withProviderIdentity } from './src/mixins/with_provider_identity.js'
 export type {
   ProviderIdentityRow,

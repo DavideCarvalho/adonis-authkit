@@ -314,6 +314,36 @@ export interface AccountDeletionCapability {
   deleteAccount(accountId: string): Promise<boolean>
 }
 
+/** Entrada do import de uma conta (comando `authkit:users:import`). */
+export interface ImportAccountInput {
+  email: string
+  /**
+   * Hash de senha JÁ pronto, vindo do sistema de origem (qualquer formato:
+   * bcrypt `$2y$`, scrypt, pbkdf2, etc.). Inserido COMO ESTÁ — sem re-hash. O
+   * lazy rehash no primeiro login transparente cuida da migração. Mutuamente
+   * exclusivo com nada: se ausente, a conta nasce sem senha utilizável (até um
+   * reset). NÃO passa pela política de senha (dado legado/confiável).
+   */
+  passwordHash?: string | null
+  fullName?: string | null
+  globalRoles?: string[]
+  emailVerified?: boolean
+}
+
+/**
+ * Import em massa de contas (comando `authkit:users:import`). CAPACIDADE
+ * opcional, presente no store Lucid default. Distinta de
+ * {@link CoreAccountStore.create}: NÃO re-hasheia o `passwordHash` (insere como
+ * está, para migração lazy) e NÃO aplica a política de senha.
+ */
+export interface AccountImportCapability {
+  /**
+   * Insere uma conta com o hash de senha já pronto (sem re-hash, sem política).
+   * Retorna a conta criada, ou null se o e-mail já existe (skip).
+   */
+  importAccount(input: ImportAccountInput): Promise<AuthAccount | null>
+}
+
 /**
  * Login sem senha por "magic link" — um token de uso único e curta duração
  * enviado por e-mail. CAPACIDADE opcional: stores sem suporte omitem os métodos e
@@ -359,7 +389,8 @@ export type AccountStore = CoreAccountStore &
       ProfileCapability &
       MagicLinkCapability &
       EmailVerificationStatusCapability &
-      AccountDeletionCapability
+      AccountDeletionCapability &
+      AccountImportCapability
   >
 
 /** Type guard: o store implementa a capacidade de MFA / TOTP. */
@@ -417,4 +448,11 @@ export function supportsAccountDeletion(
   store: AccountStore
 ): store is AccountStore & AccountDeletionCapability {
   return typeof store.deleteAccount === 'function'
+}
+
+/** Type guard: o store implementa o import em massa de contas. */
+export function supportsAccountImport(
+  store: AccountStore
+): store is AccountStore & AccountImportCapability {
+  return typeof store.importAccount === 'function'
 }

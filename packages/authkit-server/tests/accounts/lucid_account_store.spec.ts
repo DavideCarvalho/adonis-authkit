@@ -14,10 +14,14 @@ import { lucidAccountStore } from '../../src/accounts/lucid_account_store.js'
 import type { WebauthnCeremonies } from '../../src/accounts/lucid_account_store.js'
 import {
   supportsAccountDeletion,
+  supportsAccountImport,
   supportsEmailVerificationStatus,
   supportsPasskeys,
   supportsProviderIdentity,
 } from '../../src/accounts/account_store.js'
+import { PasswordPolicyError } from '../../src/password/password_manager.js'
+import type { FetchLike } from '../../src/password/pwned.js'
+import type { AuditEvent } from '../../src/audit/audit_sink.js'
 
 class TestAccount extends compose(BaseModel, withAuthUser(), withCredentials(), withMfa()) {
   static table = 'users'
@@ -852,5 +856,178 @@ test.group('lucidAccountStore', (group) => {
     const store = lucidAccountStore(TestAccount)
     assert.isTrue('getMfaState' in store)
     assert.isTrue('verifyTotp' in store)
+  })
+})
+
+test.group('lucidAccountStore — senha (rehash/legacy/política/import)', (group) => {
+  let db: any
+  group.each.setup(async () => {
+    db = createTestDatabase()
+    BaseModel.useAdapter(db.modelAdapter())
+    await db.connection().schema.createTable('users', (t: any) => {
+      t.string('id').primary()
+      t.string('email').notNullable()
+      t.string('password').notNullable()
+      t.string('full_name').nullable()
+      t.string('avatar_url').nullable()
+      t.timestamp('disabled_at').nullable()
+      t.text('global_roles').nullable()
+      t.timestamp('email_verified_at').nullable()
+      t.string('email_verification_token').nullable()
+      t.string('password_reset_token').nullable()
+      t.timestamp('password_reset_expires_at').nullable()
+      t.string('totp_secret').nullable()
+      t.timestamp('mfa_enabled_at').nullable()
+      t.text('recovery_codes').nullable()
+    })
+    return async () => db.manager.closeAll()
+  })
+
+  test('lazy rehash: hash legado migra no login + emite password.rehashed', async ({ assert }) => {
+    const events: AuditEvent[] = []
+    // Senha legada armazenada num "formato de outro sistema" (prefixo desconhecido).
+    const LEGACY_HASH = 'legacy$plain:secret'
+    const store = lucidAccountStore(TestAccount, {
+      audit: { record: async (e) => { events.push(e) } },
+      password: {
+        // Reconhece o formato legado: confere comparando o sufixo.
+        legacyVerifier: async (hashed, plain) => {
+          if (!hashed.startsWith('legacy$plain:')) return null
+          return hashed.slice('legacy$plain:'.length) === plain
+        },
+      },
+    })
+    // Insere a conta com o hash legado COMO ESTÁ (via import — sem re-hash).
+    const created = await store.importAccount({ email: 'leg@b.com', passwordHash: LEGACY_HASH })
+    assert.isNotNull(created)
+    let row = await TestAccount.findBy('email', 'leg@b.com')
+    assert.equal(row!.password, LEGACY_HASH)
+
+    // Login com a senha correta → confere via legacy → re-hasheia transparente.
+    const acc = await store.verifyCredentials('leg@b.com', 'secret')
+    assert.isNotNull(acc)
+    row = await TestAccount.findBy('email', 'leg@b.com')
+    assert.notEqual(row!.password, LEGACY_HASH) // migrado para o hasher atual (scrypt)
+    assert.isTrue(row!.password.startsWith('$scrypt$'))
+    // Login subsequente confere pelo hasher nativo (sem novo rehash).
+    assert.isNotNull(await store.verifyCredentials('leg@b.com', 'secret'))
+    assert.equal(events.filter((e) => e.type === 'password.rehashed').length, 1)
+  })
+
+  test('legacyVerifier false → login falha (senha errada)', async ({ assert }) => {
+    const store = lucidAccountStore(TestAccount, {
+      password: {
+        legacyVerifier: async (hashed, plain) =>
+          hashed === 'legacy$plain:right' ? plain === 'right' : null,
+      },
+    })
+    await store.importAccount({ email: 'l2@b.com', passwordHash: 'legacy$plain:right' })
+    assert.isNull(await store.verifyCredentials('l2@b.com', 'wrong'))
+    assert.isNotNull(await store.verifyCredentials('l2@b.com', 'right'))
+  })
+
+  test('legacyVerifier null (formato não tratado) → login falha', async ({ assert }) => {
+    const store = lucidAccountStore(TestAccount, {
+      password: { legacyVerifier: async () => null },
+    })
+    await store.importAccount({ email: 'l3@b.com', passwordHash: 'unknown-format-hash' })
+    assert.isNull(await store.verifyCredentials('l3@b.com', 'whatever'))
+  })
+
+  test('rehash fail-safe: falha ao salvar o rehash NÃO falha o login', async ({ assert }) => {
+    const events: AuditEvent[] = []
+    const store = lucidAccountStore(TestAccount, {
+      audit: { record: async (e) => { events.push(e) } },
+      password: {
+        legacyVerifier: async (hashed, plain) =>
+          hashed === 'legacy$plain:s' ? plain === 's' : null,
+      },
+    })
+    await store.importAccount({ email: 'l4@b.com', passwordHash: 'legacy$plain:s' })
+    // Força o save do rehash a falhar mockando o save no prototype da row.
+    const proto = Object.getPrototypeOf(await TestAccount.findBy('email', 'l4@b.com'))
+    const originalSave = proto.save
+    proto.save = async function () {
+      throw new Error('save failed')
+    }
+    try {
+      // Mesmo com o save do rehash falhando, o login deve ter sucesso.
+      const acc = await store.verifyCredentials('l4@b.com', 's')
+      assert.isNotNull(acc)
+      // O evento de rehash NÃO é emitido (o save falhou antes).
+      assert.equal(events.filter((e) => e.type === 'password.rehashed').length, 0)
+    } finally {
+      proto.save = originalSave
+    }
+  })
+
+  test('política: create rejeita senha curta com PasswordPolicyError', async ({ assert }) => {
+    const store = lucidAccountStore(TestAccount, { password: { policy: { minLength: 10 } } })
+    await assert.rejects(
+      () => store.create({ email: 'p@b.com', password: 'short' }),
+      PasswordPolicyError as any
+    )
+    // Senha cumprindo a política passa.
+    const ok = await store.create({ email: 'p2@b.com', password: 'longenoughpw' })
+    assert.equal(ok.email, 'p2@b.com')
+  })
+
+  test('política: changePassword e reset também aplicam', async ({ assert }) => {
+    const store = lucidAccountStore(TestAccount, { password: { policy: { minLength: 10 } } })
+    const acc = await store.create({ email: 'pc@b.com', password: 'longenoughpw' })
+    await assert.rejects(
+      () => store.changePassword!(acc.id, 'short'),
+      PasswordPolicyError as any
+    )
+    const issued = await store.issuePasswordResetToken('pc@b.com')
+    await assert.rejects(
+      () => store.consumePasswordResetToken(issued!.token, 'short'),
+      PasswordPolicyError as any
+    )
+  })
+
+  test('política: checkPwned bloqueia senha vazada (fetch injetado)', async ({ assert }) => {
+    const { createHash } = await import('node:crypto')
+    const suffix = createHash('sha1').update('leakedpass1', 'utf8').digest('hex').toUpperCase().slice(5)
+    const fetchImpl: FetchLike = async () => ({
+      ok: true,
+      status: 200,
+      text: async () => `${suffix}:5\n`,
+    })
+    const store = lucidAccountStore(TestAccount, {
+      password: { checkPwned: true },
+      pwnedFetch: fetchImpl,
+    })
+    await assert.rejects(
+      () => store.create({ email: 'pw@b.com', password: 'leakedpass1' }),
+      PasswordPolicyError as any
+    )
+  })
+
+  test('importAccount: insere hash COMO ESTÁ, pula duplicados', async ({ assert }) => {
+    const store = lucidAccountStore(TestAccount)
+    assert.isTrue(supportsAccountImport(store))
+    const created = await store.importAccount({
+      email: 'imp@b.com',
+      passwordHash: '$2y$10$abcdefghijklmnopqrstuv',
+      fullName: 'Acme Importer',
+      emailVerified: true,
+    })
+    assert.isNotNull(created)
+    const row = await TestAccount.findBy('email', 'imp@b.com')
+    assert.equal(row!.password, '$2y$10$abcdefghijklmnopqrstuv') // sem re-hash
+    assert.isNotNull(row!.emailVerifiedAt)
+    // Duplicado → null.
+    const dup = await store.importAccount({ email: 'imp@b.com', passwordHash: 'x' })
+    assert.isNull(dup)
+  })
+
+  test('importAccount sem passwordHash: cria com senha aleatória inutilizável', async ({ assert }) => {
+    const store = lucidAccountStore(TestAccount)
+    const created = await store.importAccount({ email: 'noh@b.com' })
+    assert.isNotNull(created)
+    const row = await TestAccount.findBy('email', 'noh@b.com')
+    // Senha aleatória hasheada (scrypt) — não é vazia.
+    assert.isTrue(row!.password.startsWith('$scrypt$'))
   })
 })

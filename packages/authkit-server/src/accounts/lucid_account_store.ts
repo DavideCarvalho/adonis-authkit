@@ -21,6 +21,9 @@ import {
   buildDeletion,
   hasColumn,
 } from './lucid_store/status_profile.js'
+import { PasswordManager, type PasswordConfigInput } from '../password/password_manager.js'
+import type { AuditSink } from '../audit/audit_sink.js'
+import type { PwnedLogger, FetchLike } from '../password/pwned.js'
 
 export type { AccountSecretEncrypter, WebauthnCeremonies }
 
@@ -68,6 +71,29 @@ export interface LucidAccountStoreOptions {
    * um authenticator real) — produção não precisa fornecer.
    */
   webauthnCeremonies?: Partial<WebauthnCeremonies>
+  /**
+   * Gerência de senha: verificador de hashes legados (import de outros sistemas),
+   * política de complexidade e checagem contra vazamentos (HIBP). Tudo opcional —
+   * sem config, a política cai no default (min 8) e o lazy rehash usa só o hasher
+   * nativo do model. Veja {@link PasswordConfigInput}.
+   */
+  password?: PasswordConfigInput
+  /**
+   * Sink de auditoria (best-effort), usado para emitir `password.rehashed` quando
+   * o lazy rehash acontece. Ausente → o evento não é emitido. Normalmente o
+   * `define_config` injeta o `audit` resolvido aqui.
+   */
+  audit?: AuditSink
+  /**
+   * Logger do app (subconjunto `warn`), usado pela checagem de vazamento para
+   * registrar falhas fail-safe (timeout/rede). Ausente → silencioso.
+   */
+  logger?: PwnedLogger
+  /**
+   * Seam de injeção do cliente HTTP da checagem de vazamento (HIBP). Default: o
+   * `fetch` nativo. Existe para testes — produção não precisa fornecer.
+   */
+  pwnedFetch?: FetchLike
 }
 
 /**
@@ -105,10 +131,17 @@ export function lucidAccountStore(
     ...options.webauthnCeremonies,
   }
 
+  const passwords = new PasswordManager(options.password, {
+    logger: options.logger,
+    fetchImpl: options.pwnedFetch,
+  })
+
   const ctx: LucidStoreContext = {
     Model,
     mfaIssuer,
     recoveryCodeCount,
+    passwords,
+    audit: options.audit,
     // Encripta o segredo antes de persistir (no-op sem encrypter).
     sealSecret: (secret: string) => (encrypter ? encrypter.encrypt(secret) : secret),
     // Decripta o segredo armazenado; retorna null em falha/adulteração (no-op sem encrypter).
@@ -146,5 +179,8 @@ export function lucidAccountStore(
     ...(hasColumn(Model, 'emailVerifiedAt') ? buildEmailVerificationStatus(ctx) : {}),
     // Deleção da conta: sempre disponível (qualquer model Lucid pode deletar).
     ...buildDeletion(ctx),
-  }
+    // Config de senha resolvida — exposta (não-enumerável) para o authkit:doctor
+    // inspecionar policy/checkPwned. NÃO faz parte do contrato AccountStore.
+    __passwordConfig: passwords.config,
+  } as AccountStore
 }

@@ -13,6 +13,12 @@ export interface AuthUserRow {
   password: string
   globalRoles: string[]
   verifyPassword(plain: string): Promise<boolean>
+  /**
+   * O hash armazenado precisa ser re-gerado? `true` quando o hasher atual não
+   * reconhece o formato (hash legado de outro sistema) OU os parâmetros estão
+   * desatualizados. Usado pelo lazy rehash no login.
+   */
+  passwordNeedsRehash(): boolean
 }
 
 /**
@@ -45,7 +51,16 @@ export function withAuthUser() {
       }
 
       async verifyPassword(plain: string): Promise<boolean> {
+        // `verify` do driver devolve false (não lança) em hash de formato
+        // desconhecido — o lazy rehash + legacyVerifier no store cuidam disso.
         return hasher.verify(this.password, plain)
+      }
+
+      passwordNeedsRehash(): boolean {
+        // Hash não reconhecido pelo hasher atual (formato legado) OU com
+        // parâmetros desatualizados → precisa re-hash.
+        if (!hasher.isValidHash(this.password)) return true
+        return hasher.needsReHash(this.password)
       }
     }
 

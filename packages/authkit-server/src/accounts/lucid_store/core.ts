@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { DateTime } from 'luxon'
 import type {
+  AccountImportCapability,
   AccountSecurityCapability,
   CoreAccountStore,
   CreateAccountInput,
@@ -22,7 +23,7 @@ const MAGIC_LINK_PREFIX = 'ml:'
  */
 export function buildCore(
   ctx: LucidStoreContext
-): CoreAccountStore & AccountSecurityCapability & MagicLinkCapability {
+): CoreAccountStore & AccountSecurityCapability & MagicLinkCapability & AccountImportCapability {
   const { Model, toAccount } = ctx
 
   return {
@@ -38,11 +39,31 @@ export function buildCore(
 
     async verifyCredentials(email, password) {
       const row = await Model.query().where('email', email).first()
-      if (!row || !(await row.verifyPassword(password))) return null
+      if (!row) return null
+      const result = await ctx.passwords.verify(row.password, password, {
+        nativeVerify: (_hashed: string, plain: string) => row.verifyPassword(plain),
+        needsRehash: () => row.passwordNeedsRehash(),
+      })
+      if (!result.ok) return null
+      // Lazy rehash transparente (padrão Auth0/Clerk): senha confere mas o hash
+      // está em formato legado OU com parâmetros desatualizados → re-hasheia com o
+      // hasher atual e persiste. Best-effort: uma falha no rehash NÃO falha o login.
+      if (result.rehash) {
+        try {
+          row.password = password // o @beforeSave do mixin re-hasheia
+          await row.save()
+          await ctx.audit?.record({ type: 'password.rehashed', accountId: row.id })
+        } catch {
+          // ignora — o usuário já está autenticado; o rehash tentará de novo no próximo login.
+        }
+      }
       return toAccount(row)
     },
 
     async create(input: CreateAccountInput) {
+      // Aplica a política de senha (comprimento/complexidade + vazamento) à senha
+      // nova. Lança PasswordPolicyError quando viola — o controller traduz a chave.
+      await ctx.passwords.assertAcceptable(input.password)
       const row = await Model.create({
         email: input.email,
         password: input.password,
@@ -50,6 +71,30 @@ export function buildCore(
         globalRoles: input.globalRoles ?? [],
         emailVerifiedAt: input.emailVerified ? DateTime.now() : null,
       })
+      return toAccount(row)
+    },
+
+    async importAccount(input) {
+      // Skip se o e-mail já existe (idempotência do import).
+      const existing = await Model.query().where('email', input.email).first()
+      if (existing) return null
+      // Cria com uma senha aleatória (que o @beforeSave hasheia) só para satisfazer
+      // a coluna NOT NULL; em seguida sobrescreve com o hash de ORIGEM via query
+      // builder (bypassa o @beforeSave, então o hash entra COMO ESTÁ — o lazy rehash
+      // no 1º login migra para o hasher atual). NÃO aplica a política de senha.
+      const row = await Model.create({
+        email: input.email,
+        password: randomBytes(24).toString('hex'),
+        fullName: input.fullName ?? null,
+        globalRoles: input.globalRoles ?? [],
+        emailVerifiedAt: input.emailVerified ? DateTime.now() : null,
+      })
+      if (input.passwordHash) {
+        await Model.query().where('id', row.id).update({ password: input.passwordHash })
+        row.password = input.passwordHash
+        // Limpa o dirty para que um save futuro não re-hasheie este hash de origem.
+        row.$attributes.password = input.passwordHash
+      }
       return toAccount(row)
     },
 
@@ -70,6 +115,8 @@ export function buildCore(
       const row = await Model.query().where('passwordResetToken', token).first()
       if (!row) return false
       if (!row.passwordResetExpiresAt || row.passwordResetExpiresAt < DateTime.now()) return false
+      // Política de senha aplicada também no reset (lança PasswordPolicyError).
+      await ctx.passwords.assertAcceptable(newPassword)
       row.password = newPassword
       row.passwordResetToken = null
       row.passwordResetExpiresAt = null
@@ -165,6 +212,8 @@ export function buildCore(
     async changePassword(accountId, newPassword) {
       const row = await Model.find(accountId)
       if (!row) return false
+      // Política de senha aplicada na troca (lança PasswordPolicyError).
+      await ctx.passwords.assertAcceptable(newPassword)
       // O hash acontece no @beforeSave do mixin withAuthUser ao detectar $dirty.password.
       row.password = newPassword
       await row.save()

@@ -53,6 +53,31 @@
       "args": [],
       "options": { "startApp": true },
       "filePath": "rotate_keys.js"
+    },
+    {
+      "commandName": "authkit:users:import",
+      "description": "Importa usuários de um arquivo JSON/NDJSON pelo account store (hashes entram como estão; lazy rehash no login).",
+      "namespace": "authkit",
+      "aliases": [],
+      "flags": [
+        {
+          "name": "file",
+          "flagName": "file",
+          "required": false,
+          "type": "string",
+          "description": "Caminho do arquivo JSON/NDJSON com os usuários."
+        },
+        {
+          "name": "dryRun",
+          "flagName": "dry-run",
+          "required": false,
+          "type": "boolean",
+          "description": "Valida e relata SEM persistir nada."
+        }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "import_users.js"
     }
   ]
 }

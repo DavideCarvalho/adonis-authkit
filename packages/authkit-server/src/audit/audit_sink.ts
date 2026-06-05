@@ -23,6 +23,7 @@ export type AuditEventType =
   | 'client.deleted'
   | 'session.revoked_all'
   | 'password.changed'
+  | 'password.rehashed'
   | 'email.change_requested'
   | 'email.changed'
   | 'login.new_ip_notified'

@@ -18,6 +18,7 @@ import { translate } from '../i18n.js'
 import { TRUSTED_DEVICE_COOKIE } from '../trusted_device.js'
 import { AccountDeletionService } from '../account_deletion_service.js'
 import { AccountExportService } from '../account_export_service.js'
+import { PasswordPolicyError } from '../../password/password_manager.js'
 
 /**
  * Self-service de segurança da conta (console de conta): trocar a senha e o
@@ -245,7 +246,16 @@ export default class AccountSecurityController {
       return ctx.response.redirect('/account/security')
     }
 
-    await store.changePassword(userId, newPassword)
+    try {
+      await store.changePassword(userId, newPassword)
+    } catch (error) {
+      // Política de senha violada → flash com a regra e volta à tela de segurança.
+      if (error instanceof PasswordPolicyError) {
+        ctx.session.flash('securityError', translate(cfg.messages, error.key, error.params))
+        return ctx.response.redirect('/account/security')
+      }
+      throw error
+    }
     await cfg.audit?.record({
       type: 'password.changed',
       accountId: userId,

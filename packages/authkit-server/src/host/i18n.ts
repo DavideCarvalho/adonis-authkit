@@ -402,6 +402,15 @@ export const DEFAULT_MESSAGES = {
   'errors.passkeys_unavailable': 'Passkeys unavailable',
   'errors.no_passkey_registered': 'No passkey registered',
 
+  // Política de senha (validação ao definir uma senha nova) + vazamento (HIBP).
+  'password.policy.min_length': 'Password must be at least {min} characters long.',
+  'password.policy.uppercase': 'Password must contain at least one uppercase letter.',
+  'password.policy.lowercase': 'Password must contain at least one lowercase letter.',
+  'password.policy.numbers': 'Password must contain at least one number.',
+  'password.policy.symbols': 'Password must contain at least one symbol.',
+  'password.pwned':
+    'This password has appeared in known data breaches. Please choose a different one.',
+
   // Assuntos/corpos de e-mail transacional (default_mailer).
   'mail.common.link_fallback':
     "If the button does not work, copy and paste this link into your browser:",
@@ -815,6 +824,15 @@ export const PT_BR_MESSAGES = {
   'errors.challenge_expired': 'Desafio expirado',
   'errors.passkeys_unavailable': 'Passkeys indisponíveis',
   'errors.no_passkey_registered': 'Nenhuma passkey registrada',
+
+  // Política de senha (validação ao definir uma senha nova) + vazamento (HIBP).
+  'password.policy.min_length': 'A senha deve ter no mínimo {min} caracteres.',
+  'password.policy.uppercase': 'A senha deve conter ao menos uma letra maiúscula.',
+  'password.policy.lowercase': 'A senha deve conter ao menos uma letra minúscula.',
+  'password.policy.numbers': 'A senha deve conter ao menos um número.',
+  'password.policy.symbols': 'A senha deve conter ao menos um símbolo.',
+  'password.pwned':
+    'Esta senha apareceu em vazamentos de dados conhecidos. Escolha uma senha diferente.',
 
   // Assuntos/corpos de e-mail transacional (default_mailer).
   'mail.common.link_fallback':

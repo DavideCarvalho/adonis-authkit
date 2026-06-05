@@ -58,6 +58,11 @@ export default class ApiUsersController {
     const users = new AdminUsersService(cfg)
     const result = await users.create(ctx, { email, name, password, invite }, actor)
     if (!result.ok) {
+      if (result.reason === 'password_policy') {
+        return ctx.response.badRequest(
+          apiError('password_policy', cfg.messages[result.messageKey] ?? result.messageKey)
+        )
+      }
       return ctx.response.conflict(apiError('email_taken', 'Já existe uma conta com este e-mail.'))
     }
     ctx.response.status(201)

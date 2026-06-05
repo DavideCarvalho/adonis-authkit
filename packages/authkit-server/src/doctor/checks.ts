@@ -235,6 +235,47 @@ export function checkWebauthn(input: DoctorInput): Finding | null {
   return { level: 'ok', message: `webauthn.rpId matches the issuer host (${host}).` }
 }
 
+/**
+ * Política de senha + checagem de vazamento (config do accountStore — opção
+ * `password`). Valida o shape da policy e informa quando o HIBP está ligado. A
+ * config vive no store (não no nível raiz da config authkit), então lemos de
+ * `accountStore` quando o host a expõe via `__passwordConfig` (best-effort) — na
+ * ausência, este check é silencioso (não falha).
+ */
+export function checkPasswordPolicy(input: DoctorInput): Finding | null {
+  const store = input.authkitConfig?.accountStore
+  const pwConfig = store?.__passwordConfig as
+    | { policy?: Record<string, unknown>; checkPwned?: { enabled?: boolean } }
+    | undefined
+  if (!pwConfig) return null
+
+  const policy = pwConfig.policy
+  if (policy) {
+    const minLength = policy.minLength
+    if (minLength !== undefined && (typeof minLength !== 'number' || minLength < 1)) {
+      return {
+        level: 'warn',
+        message: `password.policy.minLength is invalid (${String(minLength)}) — expected a positive number.`,
+      }
+    }
+    if (typeof minLength === 'number' && minLength < 8) {
+      return {
+        level: 'warn',
+        message: `password.policy.minLength is ${minLength} — values below 8 are discouraged.`,
+      }
+    }
+  }
+
+  if (pwConfig.checkPwned?.enabled) {
+    return {
+      level: 'ok',
+      message:
+        'password.checkPwned is on — new passwords are checked against HaveIBeenPwned (k-anonymity, fail-safe on network errors).',
+    }
+  }
+  return { level: 'ok', message: 'password policy configured.' }
+}
+
 /** info sobre rotação quando jwks é managed. */
 export function checkJwks(input: DoctorInput): Finding | null {
   const jwks = input.authkitConfig?.jwks
@@ -265,6 +306,8 @@ export function runAllChecks(input: DoctorInput): Finding[] {
   if (requireVerified) findings.push(requireVerified)
   const webauthn = checkWebauthn(input)
   if (webauthn) findings.push(webauthn)
+  const passwordPolicy = checkPasswordPolicy(input)
+  if (passwordPolicy) findings.push(passwordPolicy)
   const jwks = checkJwks(input)
   if (jwks) findings.push(jwks)
   return findings

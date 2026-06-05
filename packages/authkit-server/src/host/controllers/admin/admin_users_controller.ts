@@ -76,7 +76,9 @@ export default class AdminUsersController {
     const users = new AdminUsersService(cfg)
     const result = await users.create(ctx, { email, name, password }, { actorId, ip })
     if (!result.ok) {
-      ctx.session.flash('usersError', cfg.messages['errors.email_taken'] ?? 'errors.email_taken')
+      const flashKey =
+        result.reason === 'password_policy' ? result.messageKey : 'errors.email_taken'
+      ctx.session.flash('usersError', cfg.messages[flashKey] ?? flashKey)
       return ctx.response.redirect('/admin/users')
     }
 

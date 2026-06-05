@@ -9,6 +9,7 @@ import {
   checkAdmin,
   checkWebauthn,
   checkRequireVerifiedEmail,
+  checkPasswordPolicy,
   type DoctorInput,
 } from '../src/doctor/checks.js'
 
@@ -94,6 +95,48 @@ test.group('doctor checks', () => {
       authkitConfig: {
         login: { requireVerifiedEmail: true },
         accountStore: { findById: () => {} },
+      },
+    }))
+    assert.equal(f!.level, 'warn')
+  })
+
+  test('password: sem __passwordConfig no store → check silencioso (null)', ({ assert }) => {
+    const f = checkPasswordPolicy(baseInput())
+    assert.isNull(f)
+  })
+
+  test('password: checkPwned ligado → finding informativo ok', ({ assert }) => {
+    const f = checkPasswordPolicy(baseInput({
+      authkitConfig: {
+        accountStore: {
+          findById: () => {},
+          __passwordConfig: { policy: { minLength: 12 }, checkPwned: { enabled: true } },
+        },
+      },
+    }))
+    assert.equal(f!.level, 'ok')
+    assert.include(f!.message, 'HaveIBeenPwned')
+  })
+
+  test('password: minLength < 8 → warn', ({ assert }) => {
+    const f = checkPasswordPolicy(baseInput({
+      authkitConfig: {
+        accountStore: {
+          findById: () => {},
+          __passwordConfig: { policy: { minLength: 4 }, checkPwned: { enabled: false } },
+        },
+      },
+    }))
+    assert.equal(f!.level, 'warn')
+  })
+
+  test('password: minLength inválido → warn', ({ assert }) => {
+    const f = checkPasswordPolicy(baseInput({
+      authkitConfig: {
+        accountStore: {
+          findById: () => {},
+          __passwordConfig: { policy: { minLength: -1 }, checkPwned: { enabled: false } },
+        },
       },
     }))
     assert.equal(f!.level, 'warn')

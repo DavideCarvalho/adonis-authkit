@@ -10,6 +10,7 @@ import {
 } from '../../accounts/account_store.js'
 import { sendPasswordResetEmail } from '../default_mailer.js'
 import { AccountDeletionService, type DeletionResult } from '../account_deletion_service.js'
+import { PasswordPolicyError } from '../../password/password_manager.js'
 
 /** Quem disparou a operação (para auditoria). `admin-api` quando via REST API. */
 export interface AdminActor {
@@ -35,6 +36,13 @@ export interface CreateUserInput {
 export type CreateUserResult =
   | { ok: true; account: AuthAccount; invited: boolean }
   | { ok: false; reason: 'email_taken' }
+  | {
+      ok: false
+      reason: 'password_policy'
+      /** Chave i18n da regra violada + params para interpolar. */
+      messageKey: string
+      messageParams?: Record<string, string | number>
+    }
 
 /**
  * Lógica de gestão de usuários compartilhada entre o console admin (B6, HTML) e a
@@ -57,11 +65,25 @@ export class AdminUsersService {
 
     const hasPassword = !!input.password
     const initialPassword = input.password ?? randomBytes(24).toString('hex')
-    const account = await store.create({
-      email: input.email,
-      password: initialPassword,
-      fullName: input.name ?? null,
-    })
+    let account: AuthAccount
+    try {
+      account = await store.create({
+        email: input.email,
+        password: initialPassword,
+        fullName: input.name ?? null,
+      })
+    } catch (error) {
+      // Política de senha aplicada também na criação por admin (quando há senha).
+      if (error instanceof PasswordPolicyError) {
+        return {
+          ok: false,
+          reason: 'password_policy',
+          messageKey: error.key,
+          messageParams: error.params,
+        }
+      }
+      throw error
+    }
 
     await this.cfg.audit?.record({
       type: 'user.created',

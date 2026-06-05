@@ -4,6 +4,7 @@ import { brandFor } from '../branding.js'
 import { signupValidator, forgotPasswordValidator, resetPasswordValidator } from '../validators.js'
 import { sendPasswordResetEmail, sendEmailVerificationEmail } from '../default_mailer.js'
 import { translate } from '../i18n.js'
+import { PasswordPolicyError } from '../../password/password_manager.js'
 
 export default class AuthRegistrationController {
   /** GET /auth/interaction/:uid/signup — tela de cadastro (dentro do fluxo OIDC). */
@@ -40,11 +41,26 @@ export default class AuthRegistrationController {
       })
     }
 
-    const created = await accountStore.create({
-      email: data.email,
-      password: data.password,
-      fullName: data.fullName,
-    })
+    let created
+    try {
+      created = await accountStore.create({
+        email: data.email,
+        password: data.password,
+        fullName: data.fullName,
+      })
+    } catch (error) {
+      // Política de senha (comprimento/complexidade/vazamento) violada → re-renderiza
+      // com a mensagem i18n específica da regra.
+      if (error instanceof PasswordPolicyError) {
+        return render(ctx, 'signup', {
+          uid: ctx.request.param('uid'),
+          csrfToken: ctx.request.csrfToken,
+          error: translate(cfg.messages, error.key, error.params),
+          brand,
+        })
+      }
+      throw error
+    }
     await cfg.audit?.record({
       type: 'signup',
       accountId: created?.id ?? null,
@@ -145,7 +161,20 @@ export default class AuthRegistrationController {
     const render = cfg.render!
     const { token, password } = await ctx.request.validateUsing(resetPasswordValidator)
     const accountStore = cfg.accountStore
-    const ok = await accountStore.consumePasswordResetToken(token, password)
+    let ok: boolean
+    try {
+      ok = await accountStore.consumePasswordResetToken(token, password)
+    } catch (error) {
+      // Política de senha violada → re-renderiza a tela de reset com a regra.
+      if (error instanceof PasswordPolicyError) {
+        return render(ctx, 'reset', {
+          token,
+          csrfToken: ctx.request.csrfToken,
+          error: translate(cfg.messages, error.key, error.params),
+        })
+      }
+      throw error
+    }
     if (!ok) {
       return ctx.response.badRequest({ error: translate(cfg.messages, 'errors.invalid_or_expired_token') })
     }

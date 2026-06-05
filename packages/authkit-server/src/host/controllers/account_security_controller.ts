@@ -4,6 +4,7 @@ import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
 import { supportsAccountSecurity, supportsProfile } from '../../accounts/account_store.js'
 import { changePasswordValidator, changeEmailValidator, updateProfileValidator } from '../validators.js'
 import { sendEmailChangeConfirmationEmail } from '../default_mailer.js'
+import { storeAvatar, isDriveAvailable, AvatarUploadError } from '../avatar_storage.js'
 import { translate } from '../i18n.js'
 import { TRUSTED_DEVICE_COOKIE } from '../trusted_device.js'
 
@@ -27,6 +28,8 @@ export default class AccountSecurityController {
       csrfToken: ctx.request.csrfToken,
       supported: supportsAccountSecurity(cfg.accountStore),
       profileSupported: supportsProfile(cfg.accountStore),
+      // Só mostramos o input de arquivo se o drive do app estiver disponível.
+      avatarUploadSupported: await isDriveAvailable(),
       email: account?.email ?? '',
       name: account?.name ?? '',
       avatarUrl: account?.avatarUrl ?? '',
@@ -75,17 +78,47 @@ export default class AccountSecurityController {
     }
 
     const { name, avatarUrl } = await ctx.request.validateUsing(updateProfileValidator)
+
+    // Upload de avatar via o drive do app (opt-in pela presença do arquivo).
+    // Se um arquivo for enviado e o drive estiver disponível, a URL resultante
+    // tem prioridade sobre o input de URL; senão caímos no avatarUrl (texto).
+    let resolvedAvatarUrl: string | null = avatarUrl ?? null
+    let via: 'upload' | 'url' = 'url'
+    const file = ctx.request.file('avatar', {
+      size: `${cfg.uploads.avatars.maxSizeMb}mb`,
+      extnames: ['jpg', 'jpeg', 'png', 'webp'],
+    })
+    if (file) {
+      try {
+        const uploadedUrl = await storeAvatar(ctx, cfg.uploads, file as any, userId, {
+          extname: translate(cfg.messages, 'account.profile.avatar_invalid_type'),
+          size: translate(cfg.messages, 'account.profile.avatar_too_large'),
+        })
+        if (uploadedUrl) {
+          resolvedAvatarUrl = uploadedUrl
+          via = 'upload'
+        }
+      } catch (error) {
+        if (error instanceof AvatarUploadError) {
+          ctx.session.flash('securityError', error.message)
+          return ctx.response.redirect('/account/security')
+        }
+        throw error
+      }
+    }
+
     // Campos ausentes no form viram string vazia (limpa o valor); enviamos null
     // para limpar, ou o valor trimado.
     await store.updateProfile(userId, {
       name: name ?? null,
-      avatarUrl: avatarUrl ?? null,
+      avatarUrl: resolvedAvatarUrl,
     })
 
     await cfg.audit?.record({
       type: 'profile.updated',
       accountId: userId,
       ip: ctx.request.ip?.() ?? null,
+      metadata: { via },
     })
     ctx.session.flash(
       'profileUpdated',

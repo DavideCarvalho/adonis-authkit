@@ -234,6 +234,42 @@ export function resolveDeviceFlow(input?: DeviceFlowConfigInput): ResolvedDevice
 }
 
 /**
+ * Uploads — usa o `@adonisjs/drive` JÁ configurado no app (mesmo princípio do
+ * mailer/limiter: a infra do host por padrão, sobreponível aqui). Hoje cobre o
+ * upload de avatar no console de conta. Se o drive estiver ausente, a feature
+ * degrada para o input de URL.
+ */
+export interface UploadsConfigInput {
+  avatars?: {
+    /** Disk do `@adonisjs/drive` a usar. Default: o disk DEFAULT do app. */
+    disk?: string
+    /** Diretório/prefixo das chaves. Default: 'authkit/avatars'. */
+    directory?: string
+    /** Tamanho máximo em MB. Default: 5. */
+    maxSizeMb?: number
+  }
+}
+
+export interface ResolvedUploadsConfig {
+  avatars: {
+    /** Disk explícito; `undefined` = disk DEFAULT do app. */
+    disk?: string
+    directory: string
+    maxSizeMb: number
+  }
+}
+
+export function resolveUploads(input?: UploadsConfigInput): ResolvedUploadsConfig {
+  return {
+    avatars: {
+      disk: input?.avatars?.disk,
+      directory: input?.avatars?.directory ?? 'authkit/avatars',
+      maxSizeMb: input?.avatars?.maxSizeMb ?? 5,
+    },
+  }
+}
+
+/**
  * DPoP — Demonstrating Proof of Possession (RFC 9449). Quando habilitado, o
  * oidc-provider aceita DPoP proofs e emite tokens sender-constrained
  * (`token_type: DPoP`, com `cnf.jkt`). A discovery passa a anunciar
@@ -470,6 +506,9 @@ export interface AuthServerConfigInput {
   dynamicRegistration?: DynamicRegistrationConfigInput
   /** Device Authorization Grant (RFC 8628). Default: desligado. */
   deviceFlow?: DeviceFlowConfigInput
+
+  /** Uploads (avatar) via o `@adonisjs/drive` do app. Default: drive default, 5MB. */
+  uploads?: UploadsConfigInput
   /** DPoP — sender-constrained tokens (RFC 9449). Default: desligado. */
   dpop?: DpopConfigInput
   /** Pushed Authorization Requests (RFC 9126). Default: desligado. */
@@ -526,6 +565,8 @@ export interface ResolvedServerConfig {
   dynamicRegistration: ResolvedDynamicRegistrationConfig
   /** Device Authorization Grant resolvido (default desligado). */
   deviceFlow: ResolvedDeviceFlowConfig
+  /** Uploads resolvido (avatar via drive do app; sempre presente). */
+  uploads: ResolvedUploadsConfig
   /** DPoP resolvido (default desligado). */
   dpop: ResolvedDpopConfig
   /** PAR resolvido (default desligado). */
@@ -612,6 +653,7 @@ export function defineConfig(config: AuthServerConfigInput) {
       webauthn: resolveWebauthn(config.issuer, config.mfaIssuer ?? 'AuthKit', config.webauthn),
       dynamicRegistration: resolveDynamicRegistration(config.dynamicRegistration),
       deviceFlow: resolveDeviceFlow(config.deviceFlow),
+      uploads: resolveUploads(config.uploads),
       dpop: resolveDpop(config.dpop),
       par: resolvePar(config.par),
       stepUp: resolveStepUp(config.stepUp),

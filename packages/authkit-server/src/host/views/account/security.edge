@@ -33,13 +33,26 @@
       <div class="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
         <h2 class="mb-1 text-sm font-semibold text-gray-900">{{ t('account.profile.section') }}</h2>
         <p class="mb-4 text-xs text-gray-500">{{ t('account.profile.intro') }}</p>
-        <form method="POST" action="/account/security/profile" class="space-y-4">
+        <form method="POST" action="/account/security/profile" enctype="multipart/form-data" class="space-y-4">
           <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+          @if(avatarUrl)
+            <div>
+              <img src="{{ avatarUrl }}" alt="avatar" class="h-16 w-16 rounded-full object-cover ring-1 ring-black/5" />
+            </div>
+          @end
           <div>
             <label class="mb-1 block text-sm font-medium text-gray-700">{{ t('account.profile.name_label') }}</label>
             <input name="name" type="text" value="{{ name }}" maxlength="255"
               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900" />
           </div>
+          @if(avatarUploadSupported)
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700">{{ t('account.profile.avatar_upload_label') }}</label>
+              <input name="avatar" type="file" accept="image/jpeg,image/png,image/webp"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900" />
+              <p class="mt-1 text-xs text-gray-500">{{ t('account.profile.avatar_upload_hint') }}</p>
+            </div>
+          @end
           <div>
             <label class="mb-1 block text-sm font-medium text-gray-700">{{ t('account.profile.avatar_label') }}</label>
             <input name="avatarUrl" type="url" value="{{ avatarUrl }}"

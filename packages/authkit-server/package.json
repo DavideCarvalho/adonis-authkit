@@ -59,6 +59,7 @@
   "peerDependencies": {
     "@adonisjs/ally": "catalog:adonis",
     "@adonisjs/core": "catalog:adonis",
+    "@adonisjs/drive": "catalog:adonis",
     "@adonisjs/lucid": "catalog:adonis",
     "@adonisjs/session": "catalog:adonis",
     "@adonisjs/shield": "catalog:adonis",
@@ -69,6 +70,9 @@
       "optional": true
     },
     "@adonisjs/ally": {
+      "optional": true
+    },
+    "@adonisjs/drive": {
       "optional": true
     }
   },
@@ -86,6 +90,7 @@
   "devDependencies": {
     "@adonisjs/ally": "catalog:adonis",
     "@adonisjs/core": "catalog:adonis",
+    "@adonisjs/drive": "catalog:adonis",
     "@adonisjs/lucid": "catalog:adonis",
     "@adonisjs/session": "catalog:adonis",
     "@adonisjs/shield": "catalog:adonis",

@@ -51,7 +51,7 @@ users self-serve:
 | `GET /account/security` | Change password and request an email change |
 | `POST /account/security/password` | Change password — requires the **current** password (verified via `verifyCredentials`) and a new one (min 8 chars, same rule as signup). Emits `password.changed`. |
 | `POST /account/security/email` | Request an email change — requires the current password; sends a confirmation link to the **new** address. Emits `email.change_requested`. |
-| `POST /account/security/profile` | Update display name + avatar URL — backed by the optional `ProfileCapability` (`updateProfile`). Emits `profile.updated`. Hidden when unsupported. |
+| `POST /account/security/profile` | Update display name + avatar (file **upload** via the app's `@adonisjs/drive`, or an avatar URL) — backed by the optional `ProfileCapability` (`updateProfile`). Emits `profile.updated` with `{ via: 'upload' \| 'url' }`. Hidden when unsupported. |
 | `GET /account/email/confirm?token=…` | Consume the confirmation token and apply the new email (standalone, no session required — openable on another device). Emits `email.changed`. |
 | `GET /account/apps` | List the apps (OIDC clients) you have authorized, grouped by client, with live access/refresh token counts |
 | `POST /account/apps/:clientId/revoke` | Revoke one app's access — destroys that client's grants + tokens for your account (reuses `AdminSessionsService`). Emits `grant.revoked_by_user`. |
@@ -69,7 +69,37 @@ The confirmation email is sent through the same default mailer (and is overridab
 security page (`supportsAccountSecurity` guards it).
 
 The **Profile** section (name + avatar) is backed by the optional `ProfileCapability`; the
-Lucid store mounts it only when the model has a `full_name`/`avatar_url` column. The **Apps
+Lucid store mounts it only when the model has a `full_name`/`avatar_url` column.
+
+### Avatar uploads
+
+The profile form accepts an avatar **file upload** that reuses the host app's
+`@adonisjs/drive` — the same "use the app's infra by default, overridable via config"
+principle as the mailer and the rate limiter. By default the avatar is stored on the app's
+**default** drive disk under `authkit/avatars/`, and the resolved public URL (`disk.getUrl`)
+is saved as the account's `avatarUrl`. The plain avatar-URL input remains as an alternative.
+
+Configure it via `uploads.avatars` in `config/authkit.ts` (all optional):
+
+```ts
+defineConfig({
+  // …
+  uploads: {
+    avatars: {
+      disk: 's3',                 // default: the app's DEFAULT drive disk
+      directory: 'authkit/avatars', // default
+      maxSizeMb: 5,               // default
+    },
+  },
+})
+```
+
+Uploads accept `jpg`/`jpeg`/`png`/`webp` up to `maxSizeMb`; invalid type/size flashes a
+localized error. The loader is **lazy and fail-safe**: if `@adonisjs/drive` is not installed
+or not configured, the file input is hidden and the feature degrades to the URL-only input —
+it never throws on the request. `@adonisjs/drive` is an **optional** peer dependency.
+
+The **Apps
 with access** page (`/account/apps`) lists the account's OIDC grants and lets the user revoke
 a single client's access — the consent self-service counterpart of the admin "revoke all"
 button. It relies on the OIDC adapter's optional `list?()` capability and degrades gracefully

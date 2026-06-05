@@ -1,5 +1,24 @@
 # @dudousxd/adonis-authkit-client
 
+## 0.3.0
+
+### Minor Changes
+
+- 0c33640: Round 4 — events/webhooks, DPoP client, full e2e harness, polish.
+
+  **server (minor):** add `events` config — observe every audit event in-process (`onEvent`)
+  and/or via an HMAC-signed webhook (`x-authkit-signature: sha256=...`, 5s fire-and-forget,
+  never throws into the request path). When set, the resolved `audit` sink becomes a fan-out
+  (original sink + onEvent + webhook), preserving the admin `list()` query. Also: a full
+  interaction e2e harness driving login → consent → token (plus step-up MFA and device-flow
+  variants) through the real host controllers, and English `authkit:doctor` messages. Builds on
+  the existing consent/account-console, admin user CRUD, profile self-service, trusted-device,
+  and passwordless (magic-link / passkey-first) features.
+
+  **client (minor):** add DPoP (RFC 9449) proof generation — `generateDpopKeyPair()` (jose
+  ES256, exportable JWK) and `createDpopProof({ key, htm, htu, nonce?, accessToken? })` producing
+  a signed `dpop+jwt`, plus `dpopJwkThumbprint()`.
+
 ## 0.2.1
 
 ### Patch Changes

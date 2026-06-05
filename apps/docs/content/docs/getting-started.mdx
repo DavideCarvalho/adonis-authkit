@@ -12,45 +12,52 @@ If you want the two end-to-end topology walkthroughs side by side (everything-in
 vs. a standalone IdP with separate client apps), see the [Quickstart](/docs/starter)
 instead — this page is the linear single-app path.
 
-## Install
+## Install & scaffold
+
+Use `node ace add` — it installs the package **and** runs its configure hook in one step.
+Run it once per package:
 
 ```bash
-npm install @dudousxd/adonis-authkit-server @dudousxd/adonis-authkit-client
-node ace configure @dudousxd/adonis-authkit-server
-node ace configure @dudousxd/adonis-authkit-client
+node ace add @dudousxd/adonis-authkit-server
+node ace add @dudousxd/adonis-authkit-client
 ```
-
-Each `node ace configure` runs the package's configure hook: it publishes the config file
-(`config/authkit_server.ts` / `config/authkit_client.ts`), wires the provider into your
-app, publishes the controller stubs, and registers the bundled ace commands (including
-`authkit:eject`).
 
 <Callout type="info">
   AuthKit needs a SQL connection for its adapter and stores. The `database` adapter and
   `lucidAccountStore` use Lucid, so `@adonisjs/lucid` must be installed and configured.
 </Callout>
 
-## The account model
+### What the server `add` scaffolds
 
-Compose an `AuthUser` from the mixins so the Lucid store has the columns it needs:
+`node ace add @dudousxd/adonis-authkit-server` prompts for the UI preset of the
+login/consent screens — **`edge` | `react` | `headless`** (pass `--ui=react` to skip the
+prompt) — and then:
 
-```ts title="app/models/auth_user.ts"
-import { BaseModel } from '@adonisjs/lucid/orm'
-import { compose } from '@adonisjs/core/helpers'
-import { withAuthUser, withCredentials } from '@dudousxd/adonis-authkit-server'
+- Publishes **`config/authkit.ts`** — a starter config (Redis adapter, managed JWKS,
+  `findAccount` / `verifyCredentials` callbacks). Edit it to taste.
+- Publishes the **`app/models/auth_user.ts`** model, composed from the `withAuthUser()` +
+  `withCredentials()` mixins.
+- With `--ui=react`: publishes the **React interaction pages** under `inertia/pages`
+  (login, consent, signup, forgot, reset, verify-email, mfa-challenge, account/*) plus an
+  `auth_shell` component. `edge` and `headless` publish **no** UI files (Edge views ship
+  from the package's `authkit::` disk; headless means you render your own).
+- Registers the **provider** in `adonisrc.ts` and the bundled **ace commands** (including
+  `authkit:eject`) via the package's `adonisjs` block.
+- Adds an **env validation** for `AUTHKIT_ISSUER` and writes a default value
+  (`http://localhost:3333/oidc`) to `.env`.
 
-export default class AuthUser extends compose(
-  BaseModel,
-  withAuthUser(),
-  withCredentials()
-) {}
-```
+<Callout type="warn">
+  Choosing `--ui=react` requires `@adonisjs/inertia` + `react` + Vite already configured in
+  the app, or the command aborts. Run `node ace add @adonisjs/inertia` (with React) first.
+</Callout>
 
-## Server config
+#### Tune the server config (manual)
 
-A minimal `config/authkit_server.ts`:
+The published `config/authkit.ts` is a Redis-adapter starter. For the Lucid-backed
+single-app path in this guide, edit it to use the `database` adapter, declare your client,
+point at the `AuthUser` store, and set the `mountPath`/renderer:
 
-```ts title="config/authkit_server.ts"
+```ts title="config/authkit.ts"
 import env from '#start/env'
 import AuthUser from '#models/auth_user'
 import {
@@ -82,12 +89,31 @@ export default authServerConfig
 ```
 
 The `issuer` is the public URL of the provider and **must end with `mountPath`** — e.g.
-`https://auth.example.com/oidc` for `mountPath: '/oidc'`.
+`https://auth.example.com/oidc` for `mountPath: '/oidc'`. The published model already
+composes the mixins the Lucid store needs; add columns to it as your domain grows.
+
+### What the client `add` scaffolds
+
+`node ace add @dudousxd/adonis-authkit-client` (no prompts):
+
+- Publishes **`config/authkit_client.ts`** — issuer, client credentials, and a JWT resolver
+  reading the token set from the session.
+- Publishes the **`app/controllers/oidc_session_controller.ts`** stub — the
+  login / callback / logout flow over the client helpers.
+- Registers the **provider** in `adonisrc.ts` and the bundled **ace commands**.
+- Registers **`authkit_middleware` as a router-global middleware** automatically — this is
+  what makes `ctx.auth` exist on every request. No manual kernel edit needed.
+- Adds **env validations** for `AUTHKIT_ISSUER`, `AUTHKIT_CLIENT_ID`,
+  `AUTHKIT_CLIENT_SECRET`, and `AUTHKIT_REDIRECT_URI`. It does **not** write their values —
+  fill them in `.env` yourself (see [Environment variables](#environment-variables)).
+
+The remaining client work is manual: tune the config below, and wire the login / callback /
+logout **routes** (the controller is scaffolded but its routes are not).
 
 ## Client config
 
-`config/authkit_client.ts` declares the issuer, client credentials, the resolver, and how
-to map an IdP identity to your user record:
+Edit the published `config/authkit_client.ts` to declare the issuer, client credentials,
+the resolver, and how to map an IdP identity to your user record:
 
 ```ts title="config/authkit_client.ts"
 import env from '#start/env'
@@ -118,9 +144,9 @@ export default authkitClientConfig
 the `Identity` shape, resolvers, and reconciling pre-existing rows by email — see
 [Client](/docs/client).
 
-## Mount the host
+## Mount the host (manual)
 
-`registerAuthHost` mounts everything in one call — the OIDC provider wildcard, the login /
+`registerAuthHost` is **not** scaffolded — add it yourself. It mounts everything in one call — the OIDC provider wildcard, the login /
 consent / signup interaction pages, password reset, the account console, and (opt-in)
 social, PAT introspection, and rate-limit middleware.
 
@@ -141,10 +167,11 @@ registerAuthHost(router, {
   happens before the (lazy) config resolves.
 </Callout>
 
-## Register the client middleware
+## The client middleware (already registered)
 
-`authkit_middleware` is what makes `ctx.auth` exist. Register it as a **router-global**
-middleware so every route gets an authenticator:
+`authkit_middleware` is what makes `ctx.auth` exist. **`node ace add` already registered it
+as a router-global middleware** in `start/kernel.ts`, so every route gets an authenticator —
+you don't have to add it yourself. For reference, the registration it wrote looks like:
 
 ```ts title="start/kernel.ts"
 import router from '@adonisjs/core/services/router'
@@ -165,8 +192,8 @@ Per request it proactively refreshes the token set (`maybeRefresh`, see
   resolving to a non-`null` value. Use `authenticate()` / `check()` for that (below).
 </Callout>
 
-You can register it as a **named** middleware instead if you'd rather opt routes in
-explicitly:
+If you'd rather opt routes in explicitly, swap the router-global registration for a
+**named** middleware instead:
 
 ```ts title="start/kernel.ts"
 export const middleware = router.named({
@@ -181,8 +208,10 @@ router.get('/dashboard', [DashboardController]).use(middleware.authkit())
 
 ## Login, callback, logout
 
-Login is OIDC authorization-code + PKCE. The bundled `OidcSessionController` stub
-(published on configure) is the whole flow — three short methods over the client helpers:
+Login is OIDC authorization-code + PKCE. The bundled `OidcSessionController` stub was
+already published to `app/controllers/oidc_session_controller.ts` by `node ace add` — it's
+the whole flow in three short methods over the client helpers (shown here with an
+RP-initiated logout; the scaffolded `logout` does a simpler local-only session drop):
 
 ```ts title="app/controllers/oidc_session_controller.ts"
 import type { HttpContext } from '@adonisjs/core/http'

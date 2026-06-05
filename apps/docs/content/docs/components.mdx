@@ -1,0 +1,151 @@
+---
+title: React Components
+description: Pre-built, themeable Clerk-style components — SignInButton, SignOutButton, UserButton, UserProfile, AuthorizedApps, Avatar.
+---
+
+`@dudousxd/adonis-authkit-react` ships a small set of accessible, themeable components built
+on top of the [headless hooks](/docs/react#6-headless-hooks). They consume the same auth
+state and `AuthkitProvider` config — no extra wiring beyond what
+[React](/docs/react) sets up. Several render **nothing** when the user is unauthenticated,
+so they're safe to drop into a shared layout.
+
+Import the stylesheet once (anywhere in your app entry):
+
+```tsx
+import '@dudousxd/adonis-authkit-react/styles.css'
+
+import {
+  SignInButton,
+  SignOutButton,
+  UserButton,
+  UserProfile,
+  AuthorizedApps,
+  Avatar,
+} from '@dudousxd/adonis-authkit-react'
+```
+
+All components are SSR-safe (no `window` access at module load).
+
+## SignInButton
+
+Starts the OIDC login redirect (via `useSignIn`). Hidden when already authenticated unless
+`showWhenAuthenticated` is set. Extends `<button>` — any extra HTML button attribute is
+forwarded.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `children` | `ReactNode` | `'Entrar'` | Button label. |
+| `returnTo` | `string` | current URL | Where to return after login. |
+| `showWhenAuthenticated` | `boolean` | `false` | Render even when logged in. |
+| `className` | `string` | — | Appended to `authkit-button authkit-button--primary`. |
+| `...rest` | `ButtonHTMLAttributes` | — | Forwarded to the `<button>`. |
+
+```tsx
+<SignInButton returnTo="/dashboard">Sign in</SignInButton>
+```
+
+## SignOutButton
+
+Logs out (via `useSignOut`). Renders **nothing** when unauthenticated.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `children` | `ReactNode` | `'Sair'` | Button label. |
+| `returnTo` | `string` | — | Where to go after logout. |
+| `className` | `string` | — | Appended to `authkit-button authkit-button--ghost`. |
+| `...rest` | `ButtonHTMLAttributes` | — | Forwarded to the `<button>`. |
+
+```tsx
+<SignOutButton returnTo="/" />
+```
+
+## UserButton
+
+A clickable avatar that opens a dropdown menu with a profile link (`config.profileUrl` from
+`AuthkitProvider`) and a sign-out item. Renders **nothing** when unauthenticated.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `profileLabel` | `string` | `'Perfil'` | Label of the profile menu item. |
+| `signOutLabel` | `string` | `'Sair'` | Label of the sign-out menu item. |
+| `className` | `string` | — | Appended to the `authkit-userbutton` wrapper. |
+
+```tsx
+<UserButton profileLabel="Profile" signOutLabel="Sign out" />
+```
+
+## UserProfile
+
+A card showing the avatar, name, and email, with an inline edit form that POSTs to the
+configured `profile` endpoint (via `useProfile`). Renders **nothing** when unauthenticated;
+disables the submit button while saving and surfaces errors.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `className` | `string` | — | Appended to `authkit-card authkit-profile`. |
+
+```tsx
+<UserProfile />
+```
+
+## AuthorizedApps
+
+Lists the OAuth/OIDC apps the user has authorized, each with a revoke button (via
+`useAuthorizedApps`). Shows loading, error, and empty states.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `revokeLabel` | `string` | `'Revogar'` | Label of each revoke button. |
+| `emptyLabel` | `string` | `'Nenhum app autorizado.'` | Shown when the list is empty. |
+| `className` | `string` | — | Appended to the `authkit-apps` list. |
+
+```tsx
+<AuthorizedApps revokeLabel="Revoke" emptyLabel="No authorized apps." />
+```
+
+## Avatar
+
+The avatar primitive used by `UserButton` and `UserProfile`. Renders the user's
+`avatarUrl` as an `<img>`, or falls back to initials derived from `name` / `email`.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `user` | `Pick<AuthUser, 'name' \| 'email' \| 'avatarUrl'>` | — | The user to render (required). |
+| `size` | `number` | `36` | Width/height in pixels. |
+| `className` | `string` | — | Appended to `authkit-avatar`. |
+
+```tsx
+import { useAuth } from '@dudousxd/adonis-authkit-react'
+
+function Me() {
+  const { user } = useAuth()
+  return user ? <Avatar user={user} size={48} /> : null
+}
+```
+
+## Theming
+
+Components carry static `authkit-*` class names and read their colors and metrics from CSS
+variables (Adonis-violet defaults). Override the variables — typically on `:root` — to
+theme every component at once. These are the variables `styles.css` defines:
+
+```css
+:root {
+  --authkit-primary: #5a45ff;
+  --authkit-primary-contrast: #ffffff;
+  --authkit-danger: #e5484d;
+  --authkit-fg: #1a1523;
+  --authkit-muted: #6f6e77;
+  --authkit-bg: #ffffff;
+  --authkit-border: #e4e2e8;
+  --authkit-radius: 8px;
+  --authkit-gap: 0.5rem;
+}
+```
+
+You can also target the class names directly (`.authkit-button`, `.authkit-card`,
+`.authkit-userbutton__menu`, `.authkit-apps__item`, …) for finer control, but the variables
+cover the common cases.
+
+For the provider, `useAuth()`, headless hooks, and the role helpers these components are
+built on, see [React](/docs/react).

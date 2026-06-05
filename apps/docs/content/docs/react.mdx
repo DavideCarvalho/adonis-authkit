@@ -181,54 +181,10 @@ The data hooks fetch JSON against the endpoints configured in `AuthkitProvider`,
 
 ## 7. Pre-built components
 
-Small, accessible, themeable components that consume the hooks above. They render nothing
-when unauthenticated where it makes sense (`SignOutButton`, `UserButton`, `UserProfile`).
-Import the stylesheet once:
-
-```tsx
-import '@dudousxd/adonis-authkit-react/styles.css'
-
-import {
-  SignInButton,
-  SignOutButton,
-  UserButton,
-  UserProfile,
-  AuthorizedApps,
-  Avatar,
-} from '@dudousxd/adonis-authkit-react'
-
-<SignInButton returnTo="/dashboard">Sign in</SignInButton>
-<SignOutButton />
-
-{/* avatar (initials or img) + dropdown: profile link + sign out */}
-<UserButton />
-
-{/* name/avatar/email card + edit form posting to the profile endpoint */}
-<UserProfile />
-
-{/* list of authorized OAuth/OIDC apps with per-item revoke */}
-<AuthorizedApps />
-```
-
-All components are SSR-safe (no `window` access at module load).
-
-### Theming
-
-Components ship inline `authkit-*` class names. Override the CSS variables (Adonis-violet
-defaults) to theme them:
-
-```css
-:root {
-  --authkit-primary: #5a45ff;
-  --authkit-primary-contrast: #ffffff;
-  --authkit-danger: #e5484d;
-  --authkit-fg: #1a1523;
-  --authkit-muted: #6f6e77;
-  --authkit-bg: #ffffff;
-  --authkit-border: #e4e2e8;
-  --authkit-radius: 8px;
-}
-```
+The kit also ships small, accessible, themeable components built on the hooks above —
+`SignInButton`, `SignOutButton`, `UserButton`, `UserProfile`, `AuthorizedApps`, and
+`Avatar` — with `--authkit-*` CSS-variable theming. They have their own page:
+**[React Components](/docs/components)**.
 
 ## Pure helpers
 

@@ -163,6 +163,7 @@ export type { I18nConfig, AuthMessages } from './src/host/i18n.js'
 export type { AuthHostRenderer, AuthSocialConfig } from './src/define_config.js'
 export { registerAuthHost } from './src/host/register_auth_host.js'
 export type { AuthHostOptions } from './src/host/register_auth_host.js'
+export { getAdminPrefix, setAdminPrefix, normalizeAdminPrefix } from './src/host/admin_prefix.js'
 export { resolveRateLimit, resolveNotifications } from './src/define_config.js'
 export type {
   NotificationsConfigInput,

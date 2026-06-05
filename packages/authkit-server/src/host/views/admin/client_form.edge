@@ -8,12 +8,12 @@
         <div class="text-xs font-semibold uppercase tracking-widest text-gray-400">{{ t('common.brand_eyebrow') }}</div>
         <h1 class="text-xl font-semibold text-gray-900">{{ mode === 'edit' ? t('admin.clients.edit_title') : t('admin.clients.new_title') }}</h1>
       </div>
-      <a href="/admin/clients" class="text-sm text-gray-500 hover:underline">{{ t('admin.clients.back') }}</a>
+      <a href="{{ adminBase }}/clients" class="text-sm text-gray-500 hover:underline">{{ t('admin.clients.back') }}</a>
     </div>
 
     <form
       method="POST"
-      action="{{ mode === 'edit' ? `/admin/clients/${client.clientId}/edit` : '/admin/clients' }}"
+      action="{{ mode === 'edit' ? `${adminBase}/clients/${client.clientId}/edit` : `${adminBase}/clients` }}"
       class="space-y-5 rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5"
     >
       <input type="hidden" name="_csrf" value="{{ csrfToken }}">
@@ -89,7 +89,7 @@
       </div>
 
       <div class="flex items-center justify-end gap-2 pt-2">
-        <a href="/admin/clients" class="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">{{ t('admin.clients.cancel') }}</a>
+        <a href="{{ adminBase }}/clients" class="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">{{ t('admin.clients.cancel') }}</a>
         <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">
           {{ mode === 'edit' ? t('admin.clients.save') : t('admin.clients.create') }}
         </button>

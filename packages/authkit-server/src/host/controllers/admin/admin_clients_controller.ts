@@ -7,6 +7,7 @@ import {
   type ClientInput,
   type TokenEndpointAuthMethod,
 } from '../../admin_clients_service.js'
+import { getAdminPrefix } from '../../admin_prefix.js'
 
 const VALID_GRANTS = ['authorization_code', 'refresh_token', 'client_credentials']
 const VALID_AUTH_METHODS: TokenEndpointAuthMethod[] = [
@@ -79,6 +80,7 @@ export default class AdminClientsController {
 
     return render(ctx, 'admin/clients', {
       csrfToken: ctx.request.csrfToken,
+      adminBase: getAdminPrefix(),
       dynamicEnabled: cfg.dynamicRegistration.enabled,
       dynamicSupported,
       createdSecret: createdSecret ?? null,
@@ -99,6 +101,7 @@ export default class AdminClientsController {
     const render = service.config.render!
     return render(ctx, 'admin/client_form', {
       csrfToken: ctx.request.csrfToken,
+      adminBase: getAdminPrefix(),
       mode: 'create',
       client: {
         clientId: '',
@@ -131,7 +134,7 @@ export default class AdminClientsController {
       actorId: (ctx.session.get(ACCOUNT_SESSION_KEY) as string) ?? null,
       ip: ctx.request.ip?.() ?? null,
     })
-    return ctx.response.redirect('/admin/clients')
+    return ctx.response.redirect(`${getAdminPrefix()}/clients`)
   }
 
   /** Formulário de edição de um client persistido. */
@@ -142,10 +145,11 @@ export default class AdminClientsController {
 
     const clientId = ctx.request.param('id')
     const client = await admin.find(clientId)
-    if (!client) return ctx.response.redirect('/admin/clients')
+    if (!client) return ctx.response.redirect(`${getAdminPrefix()}/clients`)
 
     return render(ctx, 'admin/client_form', {
       csrfToken: ctx.request.csrfToken,
+      adminBase: getAdminPrefix(),
       mode: 'edit',
       client,
     })
@@ -159,7 +163,7 @@ export default class AdminClientsController {
 
     const clientId = ctx.request.param('id')
     const existing = await admin.find(clientId)
-    if (!existing) return ctx.response.redirect('/admin/clients')
+    if (!existing) return ctx.response.redirect(`${getAdminPrefix()}/clients`)
 
     const input = { ...readInput(ctx), clientId }
     await admin.update(clientId, input)
@@ -170,7 +174,7 @@ export default class AdminClientsController {
       actorId: (ctx.session.get(ACCOUNT_SESSION_KEY) as string) ?? null,
       ip: ctx.request.ip?.() ?? null,
     })
-    return ctx.response.redirect('/admin/clients')
+    return ctx.response.redirect(`${getAdminPrefix()}/clients`)
   }
 
   /** Regenera o secret de um client confidencial; mostra o novo valor UMA vez. */
@@ -193,7 +197,7 @@ export default class AdminClientsController {
     } catch {
       // client inexistente ou public — sem secret a regenerar; volta silenciosamente.
     }
-    return ctx.response.redirect('/admin/clients')
+    return ctx.response.redirect(`${getAdminPrefix()}/clients`)
   }
 
   /** Remove um client persistido. */
@@ -211,6 +215,6 @@ export default class AdminClientsController {
       actorId: (ctx.session.get(ACCOUNT_SESSION_KEY) as string) ?? null,
       ip: ctx.request.ip?.() ?? null,
     })
-    return ctx.response.redirect('/admin/clients')
+    return ctx.response.redirect(`${getAdminPrefix()}/clients`)
   }
 }

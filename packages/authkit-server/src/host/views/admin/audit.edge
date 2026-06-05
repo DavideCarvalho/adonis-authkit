@@ -15,10 +15,10 @@
     </div>
 
     <nav class="mb-6 flex gap-4 text-sm font-medium">
-      <a href="/admin" class="text-gray-500 hover:underline">{{ t('admin.nav.dashboard') }}</a>
-      <a href="/admin/users" class="text-gray-500 hover:underline">{{ t('admin.nav.users') }}</a>
-      <a href="/admin/clients" class="text-gray-500 hover:underline">{{ t('admin.nav.clients') }}</a>
-      <a href="/admin/audit" class="text-gray-900 underline">{{ t('admin.nav.audit') }}</a>
+      <a href="{{ adminBase }}" class="text-gray-500 hover:underline">{{ t('admin.nav.dashboard') }}</a>
+      <a href="{{ adminBase }}/users" class="text-gray-500 hover:underline">{{ t('admin.nav.users') }}</a>
+      <a href="{{ adminBase }}/clients" class="text-gray-500 hover:underline">{{ t('admin.nav.clients') }}</a>
+      <a href="{{ adminBase }}/audit" class="text-gray-900 underline">{{ t('admin.nav.audit') }}</a>
     </nav>
 
     @if(!supported)
@@ -26,7 +26,7 @@
         {{ t('admin.audit.not_supported') }}
       </div>
     @else
-      <form method="GET" action="/admin/audit" class="mb-6 flex gap-2">
+      <form method="GET" action="{{ adminBase }}/audit" class="mb-6 flex gap-2">
         <input name="type" value="{{ type }}" placeholder="{{ t('admin.audit.type_placeholder') }}"
           class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900" />
         <input name="subject" value="{{ subject }}" placeholder="{{ t('admin.audit.subject_placeholder') }}"
@@ -59,10 +59,10 @@
           <span>{{ t('admin.pagination.page', { page: page, total: totalPages }) }}</span>
           <div class="flex gap-2">
             @if(page > 1)
-              <a href="/admin/audit?type={{ type }}&subject={{ subject }}&page={{ page - 1 }}" class="rounded border border-gray-300 px-3 py-1 hover:bg-white">{{ t('admin.pagination.prev') }}</a>
+              <a href="{{ adminBase }}/audit?type={{ type }}&subject={{ subject }}&page={{ page - 1 }}" class="rounded border border-gray-300 px-3 py-1 hover:bg-white">{{ t('admin.pagination.prev') }}</a>
             @end
             @if(page < totalPages)
-              <a href="/admin/audit?type={{ type }}&subject={{ subject }}&page={{ page + 1 }}" class="rounded border border-gray-300 px-3 py-1 hover:bg-white">{{ t('admin.pagination.next') }}</a>
+              <a href="{{ adminBase }}/audit?type={{ type }}&subject={{ subject }}&page={{ page + 1 }}" class="rounded border border-gray-300 px-3 py-1 hover:bg-white">{{ t('admin.pagination.next') }}</a>
             @end
           </div>
         </div>

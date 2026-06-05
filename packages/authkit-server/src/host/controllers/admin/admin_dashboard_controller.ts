@@ -3,6 +3,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import { AdminSessionsService } from '../../admin_sessions_service.js'
 import { computeAdminStats } from '../../admin_stats_service.js'
 import { barChartSvg } from '../../svg_chart.js'
+import { getAdminPrefix } from '../../admin_prefix.js'
 
 /**
  * Dashboard do console admin: métricas-resumo (usuários, sessões ativas, MAU,
@@ -27,6 +28,7 @@ export default class AdminDashboardController {
 
     return render(ctx, 'admin/dashboard', {
       csrfToken: ctx.request.csrfToken,
+      adminBase: getAdminPrefix(),
       usersTotal: stats.totalUsers,
       activeSessions: stats.activeSessions,
       mau: stats.mau,

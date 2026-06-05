@@ -7,6 +7,7 @@ import {
   resolveEffectiveRequireVerifiedEmail,
   resolveEffectiveMaintenanceMode,
 } from '../../runtime_toggles.js'
+import { getAdminPrefix } from '../../admin_prefix.js'
 
 /** Best-effort: returns RuntimeSettings from container DB, or null if unavailable. */
 async function getRuntimeSettings(ctx: HttpContext): Promise<RuntimeSettings | null> {
@@ -94,6 +95,7 @@ export default class AdminSettingsController {
 
     return render(ctx, 'admin/settings', {
       csrfToken: ctx.request.csrfToken,
+      adminBase: getAdminPrefix(),
       flash: ctx.session?.flashMessages?.get?.('flash') ?? null,
       // bot protection
       hasBotConfig,
@@ -129,7 +131,7 @@ export default class AdminSettingsController {
     const runtimeSettings = await getRuntimeSettings(ctx)
     if (!runtimeSettings || !(await runtimeSettings.isTablePresent())) {
       ctx.session?.flash('flash', t('admin.settings.no_settings_table'))
-      return ctx.response.redirect('/admin/settings')
+      return ctx.response.redirect(`${getAdminPrefix()}/settings`)
     }
 
     const enabled = ctx.request.input('enabled') === '1' || ctx.request.input('enabled') === 'true'
@@ -155,7 +157,7 @@ export default class AdminSettingsController {
     })
 
     ctx.session?.flash('flash', t('admin.settings.saved'))
-    return ctx.response.redirect('/admin/settings')
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
   }
 
   async resetBotProtection(ctx: HttpContext) {
@@ -176,7 +178,7 @@ export default class AdminSettingsController {
     }
 
     ctx.session?.flash('flash', t('admin.settings.reset_done'))
-    return ctx.response.redirect('/admin/settings')
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
   }
 
   // -------------------------------------------------------------------------
@@ -192,7 +194,7 @@ export default class AdminSettingsController {
     const runtimeSettings = await getRuntimeSettings(ctx)
     if (!runtimeSettings || !(await runtimeSettings.isTablePresent())) {
       ctx.session?.flash('flash', t('admin.settings.no_settings_table'))
-      return ctx.response.redirect('/admin/settings')
+      return ctx.response.redirect(`${getAdminPrefix()}/settings`)
     }
 
     const enabled = ctx.request.input('enabled') === '1' || ctx.request.input('enabled') === 'true'
@@ -207,7 +209,7 @@ export default class AdminSettingsController {
     })
 
     ctx.session?.flash('flash', t('admin.settings.saved'))
-    return ctx.response.redirect('/admin/settings')
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
   }
 
   async resetRegistration(ctx: HttpContext) {
@@ -228,7 +230,7 @@ export default class AdminSettingsController {
     }
 
     ctx.session?.flash('flash', t('admin.settings.reset_done'))
-    return ctx.response.redirect('/admin/settings')
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
   }
 
   // -------------------------------------------------------------------------
@@ -244,7 +246,7 @@ export default class AdminSettingsController {
     const runtimeSettings = await getRuntimeSettings(ctx)
     if (!runtimeSettings || !(await runtimeSettings.isTablePresent())) {
       ctx.session?.flash('flash', t('admin.settings.no_settings_table'))
-      return ctx.response.redirect('/admin/settings')
+      return ctx.response.redirect(`${getAdminPrefix()}/settings`)
     }
 
     const enabled = ctx.request.input('enabled') === '1' || ctx.request.input('enabled') === 'true'
@@ -259,7 +261,7 @@ export default class AdminSettingsController {
     })
 
     ctx.session?.flash('flash', t('admin.settings.saved'))
-    return ctx.response.redirect('/admin/settings')
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
   }
 
   async resetRequireVerifiedEmail(ctx: HttpContext) {
@@ -280,7 +282,7 @@ export default class AdminSettingsController {
     }
 
     ctx.session?.flash('flash', t('admin.settings.reset_done'))
-    return ctx.response.redirect('/admin/settings')
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
   }
 
   // -------------------------------------------------------------------------
@@ -297,7 +299,7 @@ export default class AdminSettingsController {
     const runtimeSettings = await getRuntimeSettings(ctx)
     if (!runtimeSettings || !(await runtimeSettings.isTablePresent())) {
       ctx.session?.flash('flash', t('admin.settings.no_settings_table'))
-      return ctx.response.redirect('/admin/settings')
+      return ctx.response.redirect(`${getAdminPrefix()}/settings`)
     }
 
     const enabled = ctx.request.input('enabled') === '1' || ctx.request.input('enabled') === 'true'
@@ -325,7 +327,7 @@ export default class AdminSettingsController {
     })
 
     ctx.session?.flash('flash', t('admin.settings.saved'))
-    return ctx.response.redirect('/admin/settings')
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
   }
 
   async resetMaintenance(ctx: HttpContext) {
@@ -353,6 +355,6 @@ export default class AdminSettingsController {
     }
 
     ctx.session?.flash('flash', t('admin.settings.reset_done'))
-    return ctx.response.redirect('/admin/settings')
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
   }
 }

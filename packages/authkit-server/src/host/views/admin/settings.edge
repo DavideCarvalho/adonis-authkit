@@ -15,11 +15,11 @@
     </div>
 
     <nav class="mb-6 flex gap-4 text-sm font-medium">
-      <a href="/admin" class="text-gray-500 hover:underline">{{ t('admin.nav.dashboard') }}</a>
-      <a href="/admin/users" class="text-gray-500 hover:underline">{{ t('admin.nav.users') }}</a>
-      <a href="/admin/clients" class="text-gray-500 hover:underline">{{ t('admin.nav.clients') }}</a>
-      <a href="/admin/audit" class="text-gray-500 hover:underline">{{ t('admin.nav.audit') }}</a>
-      <a href="/admin/settings" class="text-gray-900 underline">{{ t('admin.nav.settings') }}</a>
+      <a href="{{ adminBase }}" class="text-gray-500 hover:underline">{{ t('admin.nav.dashboard') }}</a>
+      <a href="{{ adminBase }}/users" class="text-gray-500 hover:underline">{{ t('admin.nav.users') }}</a>
+      <a href="{{ adminBase }}/clients" class="text-gray-500 hover:underline">{{ t('admin.nav.clients') }}</a>
+      <a href="{{ adminBase }}/audit" class="text-gray-500 hover:underline">{{ t('admin.nav.audit') }}</a>
+      <a href="{{ adminBase }}/settings" class="text-gray-900 underline">{{ t('admin.nav.settings') }}</a>
     </nav>
 
     @if(flash)
@@ -43,7 +43,7 @@
           @else
             <p class="mb-4 text-xs text-gray-500">{{ t('admin.settings.bot_protection_intro') }}</p>
 
-            <form method="POST" action="/admin/settings/bot-protection">
+            <form method="POST" action="{{ adminBase }}/settings/bot-protection">
               <input type="hidden" name="_csrf" value="{{ csrfToken }}">
 
               <label class="flex items-center gap-2 mb-4">
@@ -79,7 +79,7 @@
                   {{ t('admin.settings.save') }}
                 </button>
                 @if(currentSetting !== null)
-                  <form method="POST" action="/admin/settings/bot-protection/reset" class="inline">
+                  <form method="POST" action="{{ adminBase }}/settings/bot-protection/reset" class="inline">
                     <input type="hidden" name="_csrf" value="{{ csrfToken }}">
                     <button type="submit" class="text-sm text-gray-500 hover:underline">
                       {{ t('admin.settings.reset_to_config') }}
@@ -107,7 +107,7 @@
           </div>
           <p class="mb-4 text-xs text-gray-500">{{ t('admin.settings.registration_intro') }}</p>
 
-          <form method="POST" action="/admin/settings/registration">
+          <form method="POST" action="{{ adminBase }}/settings/registration">
             <input type="hidden" name="_csrf" value="{{ csrfToken }}">
             <label class="flex items-center gap-2 mb-4">
               <input type="checkbox" name="enabled" value="1" {{ registrationEffective ? 'checked' : '' }}
@@ -120,7 +120,7 @@
                 {{ t('admin.settings.save') }}
               </button>
               @if(currentRegistrationSetting !== null)
-                <form method="POST" action="/admin/settings/registration/reset" class="inline">
+                <form method="POST" action="{{ adminBase }}/settings/registration/reset" class="inline">
                   <input type="hidden" name="_csrf" value="{{ csrfToken }}">
                   <button type="submit" class="text-sm text-gray-500 hover:underline">
                     {{ t('admin.settings.reset_to_config') }}
@@ -148,7 +148,7 @@
           <p class="mb-1 text-xs text-gray-500">{{ t('admin.settings.require_verified_email_intro') }}</p>
           <p class="mb-4 text-xs text-amber-600">{{ t('admin.settings.require_verified_email_config_note') }}</p>
 
-          <form method="POST" action="/admin/settings/require-verified-email">
+          <form method="POST" action="{{ adminBase }}/settings/require-verified-email">
             <input type="hidden" name="_csrf" value="{{ csrfToken }}">
             <label class="flex items-center gap-2 mb-4">
               <input type="checkbox" name="enabled" value="1" {{ requireVerifiedEffective ? 'checked' : '' }}
@@ -161,7 +161,7 @@
                 {{ t('admin.settings.save') }}
               </button>
               @if(currentRequireVerifiedSetting !== null)
-                <form method="POST" action="/admin/settings/require-verified-email/reset" class="inline">
+                <form method="POST" action="{{ adminBase }}/settings/require-verified-email/reset" class="inline">
                   <input type="hidden" name="_csrf" value="{{ csrfToken }}">
                   <button type="submit" class="text-sm text-gray-500 hover:underline">
                     {{ t('admin.settings.reset_to_config') }}
@@ -192,7 +192,7 @@
             {{ t('admin.settings.maintenance_warning') }}
           </div>
 
-          <form method="POST" action="/admin/settings/maintenance">
+          <form method="POST" action="{{ adminBase }}/settings/maintenance">
             <input type="hidden" name="_csrf" value="{{ csrfToken }}">
             <label class="flex items-center gap-2 mb-4">
               <input type="checkbox" name="enabled" value="1"
@@ -216,7 +216,7 @@
                 {{ t('admin.settings.save') }}
               </button>
               @if(currentMaintenanceSetting !== null)
-                <form method="POST" action="/admin/settings/maintenance/reset" class="inline">
+                <form method="POST" action="{{ adminBase }}/settings/maintenance/reset" class="inline">
                   <input type="hidden" name="_csrf" value="{{ csrfToken }}">
                   <button type="submit" class="text-sm text-gray-500 hover:underline">
                     {{ t('admin.settings.reset_to_config') }}

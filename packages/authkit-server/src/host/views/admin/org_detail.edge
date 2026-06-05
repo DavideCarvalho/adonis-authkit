@@ -10,7 +10,7 @@
         <p class="text-xs text-gray-500">{{ org.slug }}</p>
       </div>
       <div class="flex items-center gap-4">
-        <a href="/admin/orgs" class="text-sm text-gray-500 hover:underline">{{ t('admin.orgs.back') }}</a>
+        <a href="{{ adminBase }}/orgs" class="text-sm text-gray-500 hover:underline">{{ t('admin.orgs.back') }}</a>
         <form method="POST" action="/account/logout">
           <input type="hidden" name="_csrf" value="{{ csrfToken }}">
           <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('admin.nav.logout') }}</button>
@@ -19,12 +19,12 @@
     </div>
 
     <nav class="mb-6 flex gap-4 text-sm font-medium">
-      <a href="/admin" class="text-gray-500 hover:underline">{{ t('admin.nav.dashboard') }}</a>
-      <a href="/admin/users" class="text-gray-500 hover:underline">{{ t('admin.nav.users') }}</a>
-      <a href="/admin/orgs" class="text-gray-500 hover:underline">{{ t('admin.nav.orgs') }}</a>
-      <a href="/admin/clients" class="text-gray-500 hover:underline">{{ t('admin.nav.clients') }}</a>
-      <a href="/admin/audit" class="text-gray-500 hover:underline">{{ t('admin.nav.audit') }}</a>
-      <a href="/admin/settings" class="text-gray-500 hover:underline">{{ t('admin.nav.settings') }}</a>
+      <a href="{{ adminBase }}" class="text-gray-500 hover:underline">{{ t('admin.nav.dashboard') }}</a>
+      <a href="{{ adminBase }}/users" class="text-gray-500 hover:underline">{{ t('admin.nav.users') }}</a>
+      <a href="{{ adminBase }}/orgs" class="text-gray-500 hover:underline">{{ t('admin.nav.orgs') }}</a>
+      <a href="{{ adminBase }}/clients" class="text-gray-500 hover:underline">{{ t('admin.nav.clients') }}</a>
+      <a href="{{ adminBase }}/audit" class="text-gray-500 hover:underline">{{ t('admin.nav.audit') }}</a>
+      <a href="{{ adminBase }}/settings" class="text-gray-500 hover:underline">{{ t('admin.nav.settings') }}</a>
     </nav>
 
     @if(error)
@@ -48,7 +48,7 @@
               <p class="text-sm font-medium text-gray-900">{{ member.email ?? member.accountId }}</p>
               <p class="text-xs text-gray-500">{{ member.role }}</p>
             </div>
-            <form method="POST" action="/admin/orgs/{{ org.id }}/members/{{ member.accountId }}/remove" class="inline"
+            <form method="POST" action="{{ adminBase }}/orgs/{{ org.id }}/members/{{ member.accountId }}/remove" class="inline"
               onsubmit="return confirm('{{ t('admin.orgs.member_remove_confirm') }}')">
               <input type="hidden" name="_csrf" value="{{ csrfToken }}">
               <button type="submit" class="text-sm text-red-700 hover:underline">{{ t('admin.orgs.remove_member') }}</button>
@@ -61,7 +61,7 @@
     {{-- Adicionar membro --}}
     <div class="mb-6 rounded-xl bg-white p-4 shadow-sm ring-1 ring-black/5">
       <h2 class="mb-3 text-sm font-semibold text-gray-900">{{ t('admin.orgs.add_member_section') }}</h2>
-      <form method="POST" action="/admin/orgs/{{ org.id }}/members" class="grid gap-2 sm:grid-cols-3">
+      <form method="POST" action="{{ adminBase }}/orgs/{{ org.id }}/members" class="grid gap-2 sm:grid-cols-3">
         <input type="hidden" name="_csrf" value="{{ csrfToken }}">
         <select name="accountId" required class="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900">
           <option value="">{{ t('admin.orgs.select_account') }}</option>
@@ -92,7 +92,7 @@
               <p class="text-sm font-medium text-gray-900">{{ inv.email }}</p>
               <p class="text-xs text-gray-500">{{ inv.role }} · {{ t('admin.orgs.expires') }}: {{ inv.expiresAt }}</p>
             </div>
-            <form method="POST" action="/admin/orgs/{{ org.id }}/invitations/{{ inv.id }}/revoke" class="inline">
+            <form method="POST" action="{{ adminBase }}/orgs/{{ org.id }}/invitations/{{ inv.id }}/revoke" class="inline">
               <input type="hidden" name="_csrf" value="{{ csrfToken }}">
               <button type="submit" class="text-sm text-red-700 hover:underline">{{ t('admin.orgs.revoke_invitation') }}</button>
             </form>
@@ -104,7 +104,7 @@
     {{-- Danger zone --}}
     <div class="rounded-xl bg-white p-4 shadow-sm ring-1 ring-red-200">
       <h2 class="mb-3 text-sm font-semibold text-red-900">{{ t('admin.orgs.danger_zone') }}</h2>
-      <form method="POST" action="/admin/orgs/{{ org.id }}/delete"
+      <form method="POST" action="{{ adminBase }}/orgs/{{ org.id }}/delete"
         onsubmit="return confirm('{{ t('admin.orgs.delete_confirm') }}')">
         <input type="hidden" name="_csrf" value="{{ csrfToken }}">
         <button type="submit" class="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800">

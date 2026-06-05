@@ -15,12 +15,12 @@
     </div>
 
     <nav class="mb-6 flex gap-4 text-sm font-medium">
-      <a href="/admin" class="text-gray-500 hover:underline">{{ t('admin.nav.dashboard') }}</a>
-      <a href="/admin/users" class="text-gray-500 hover:underline">{{ t('admin.nav.users') }}</a>
-      <a href="/admin/orgs" class="text-gray-900 underline">{{ t('admin.nav.orgs') }}</a>
-      <a href="/admin/clients" class="text-gray-500 hover:underline">{{ t('admin.nav.clients') }}</a>
-      <a href="/admin/audit" class="text-gray-500 hover:underline">{{ t('admin.nav.audit') }}</a>
-      <a href="/admin/settings" class="text-gray-500 hover:underline">{{ t('admin.nav.settings') }}</a>
+      <a href="{{ adminBase }}" class="text-gray-500 hover:underline">{{ t('admin.nav.dashboard') }}</a>
+      <a href="{{ adminBase }}/users" class="text-gray-500 hover:underline">{{ t('admin.nav.users') }}</a>
+      <a href="{{ adminBase }}/orgs" class="text-gray-900 underline">{{ t('admin.nav.orgs') }}</a>
+      <a href="{{ adminBase }}/clients" class="text-gray-500 hover:underline">{{ t('admin.nav.clients') }}</a>
+      <a href="{{ adminBase }}/audit" class="text-gray-500 hover:underline">{{ t('admin.nav.audit') }}</a>
+      <a href="{{ adminBase }}/settings" class="text-gray-500 hover:underline">{{ t('admin.nav.settings') }}</a>
     </nav>
 
     @if(error)
@@ -37,7 +37,7 @@
     @else
       <div class="mb-6 rounded-xl bg-white p-4 shadow-sm ring-1 ring-black/5">
         <h2 class="mb-3 text-sm font-semibold text-gray-900">{{ t('admin.orgs.create_section') }}</h2>
-        <form method="POST" action="/admin/orgs" class="grid gap-2 sm:grid-cols-3">
+        <form method="POST" action="{{ adminBase }}/orgs" class="grid gap-2 sm:grid-cols-3">
           <input type="hidden" name="_csrf" value="{{ csrfToken }}">
           <input name="name" type="text" required placeholder="{{ t('admin.orgs.create_name_placeholder') }}"
             class="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900" />
@@ -61,8 +61,8 @@
                   <p class="text-xs text-gray-500">{{ org.slug }} · {{ org.memberCount }} {{ t('admin.orgs.members_count') }}</p>
                 </div>
                 <div class="flex items-center gap-3 text-sm">
-                  <a href="/admin/orgs/{{ org.id }}" class="text-gray-500 hover:underline">{{ t('admin.orgs.view') }}</a>
-                  <form method="POST" action="/admin/orgs/{{ org.id }}/delete" class="inline"
+                  <a href="{{ adminBase }}/orgs/{{ org.id }}" class="text-gray-500 hover:underline">{{ t('admin.orgs.view') }}</a>
+                  <form method="POST" action="{{ adminBase }}/orgs/{{ org.id }}/delete" class="inline"
                     onsubmit="return confirm('{{ t('admin.orgs.delete_confirm') }}')">
                     <input type="hidden" name="_csrf" value="{{ csrfToken }}">
                     <button type="submit" class="font-semibold text-red-700 hover:underline">{{ t('admin.orgs.delete') }}</button>

@@ -5,6 +5,7 @@ import { supportsAccountDeletion, supportsAccountStatus } from '../../../account
 import { ACCOUNT_SESSION_KEY } from '../../middleware/account_auth.js'
 import { adminCreateUserValidator } from '../../validators.js'
 import { AdminUsersService } from '../../admin_api/admin_users_service.js'
+import { getAdminPrefix } from '../../admin_prefix.js'
 
 const PAGE_SIZE = 20
 
@@ -38,6 +39,7 @@ export default class AdminUsersController {
 
     return render(ctx, 'admin/users', {
       csrfToken: ctx.request.csrfToken,
+      adminBase: getAdminPrefix(),
       search,
       page,
       totalPages,
@@ -79,11 +81,11 @@ export default class AdminUsersController {
       const flashKey =
         result.reason === 'password_policy' ? result.messageKey : 'errors.email_taken'
       ctx.session.flash('usersError', cfg.messages[flashKey] ?? flashKey)
-      return ctx.response.redirect('/admin/users')
+      return ctx.response.redirect(`${getAdminPrefix()}/users`)
     }
 
     ctx.session.flash('userCreated', cfg.messages['admin.users.created'] ?? 'admin.users.created')
-    return ctx.response.redirect('/admin/users')
+    return ctx.response.redirect(`${getAdminPrefix()}/users`)
   }
 
   /** POST /admin/users/:id/reset-password — emite token de reset + envia e-mail. */
@@ -155,7 +157,7 @@ export default class AdminUsersController {
     if (search) qs.set('search', search)
     if (page > 1) qs.set('page', String(page))
     const query = qs.toString()
-    return ctx.response.redirect(`/admin/users${query ? `?${query}` : ''}`)
+    return ctx.response.redirect(`${getAdminPrefix()}/users${query ? `?${query}` : ''}`)
   }
 
   async updateRoles(ctx: HttpContext) {
@@ -182,6 +184,6 @@ export default class AdminUsersController {
     if (search) qs.set('search', search)
     if (page > 1) qs.set('page', String(page))
     const query = qs.toString()
-    return ctx.response.redirect(`/admin/users${query ? `?${query}` : ''}`)
+    return ctx.response.redirect(`${getAdminPrefix()}/users${query ? `?${query}` : ''}`)
   }
 }

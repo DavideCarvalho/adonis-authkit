@@ -18,14 +18,14 @@
     </div>
 
     <nav class="mb-6 flex gap-4 text-sm font-medium">
-      <a href="/admin" class="text-gray-500 hover:underline">{{ t('admin.nav.dashboard') }}</a>
-      <a href="/admin/users" class="text-gray-900 underline">{{ t('admin.nav.users') }}</a>
-      <a href="/admin/clients" class="text-gray-500 hover:underline">{{ t('admin.nav.clients') }}</a>
-      <a href="/admin/audit" class="text-gray-500 hover:underline">{{ t('admin.nav.audit') }}</a>
-      <a href="/admin/settings" class="text-gray-500 hover:underline">{{ t('admin.nav.settings') }}</a>
+      <a href="{{ adminBase }}" class="text-gray-500 hover:underline">{{ t('admin.nav.dashboard') }}</a>
+      <a href="{{ adminBase }}/users" class="text-gray-900 underline">{{ t('admin.nav.users') }}</a>
+      <a href="{{ adminBase }}/clients" class="text-gray-500 hover:underline">{{ t('admin.nav.clients') }}</a>
+      <a href="{{ adminBase }}/audit" class="text-gray-500 hover:underline">{{ t('admin.nav.audit') }}</a>
+      <a href="{{ adminBase }}/settings" class="text-gray-500 hover:underline">{{ t('admin.nav.settings') }}</a>
     </nav>
 
-    <a href="/admin/users" class="mb-4 inline-block text-sm text-gray-500 hover:underline">&larr; {{ t('admin.sessions.back') }}</a>
+    <a href="{{ adminBase }}/users" class="mb-4 inline-block text-sm text-gray-500 hover:underline">&larr; {{ t('admin.sessions.back') }}</a>
 
     @if(!supported)
       <div class="rounded-xl bg-white p-6 text-sm text-gray-500 shadow-sm ring-1 ring-black/5">
@@ -83,7 +83,7 @@
       </div>
 
       @if(sessions.length > 0 || grants.length > 0)
-        <form method="POST" action="/admin/users/{{ accountId }}/revoke-sessions"
+        <form method="POST" action="{{ adminBase }}/users/{{ accountId }}/revoke-sessions"
           onsubmit="return confirm('{{ t('admin.sessions.revoke_confirm') }}')">
           <input type="hidden" name="_csrf" value="{{ csrfToken }}">
           <button type="submit" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:opacity-90">

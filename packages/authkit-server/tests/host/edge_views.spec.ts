@@ -107,7 +107,8 @@ test.group('admin views (B6)', () => {
   test('forms POST das views admin têm campo CSRF', ({ assert }) => {
     // users.edge tem o form de roles; todas têm o form de logout.
     assert.include(read('admin/users.edge'), 'name="_csrf"')
-    assert.include(read('admin/users.edge'), '/admin/users/{{ user.id }}/roles')
+    // As views usam {{ adminBase }} em vez de /admin hardcoded.
+    assert.include(read('admin/users.edge'), '{{ adminBase }}/users/{{ user.id }}/roles')
     assert.include(read('admin/dashboard.edge'), 'name="_csrf"')
     assert.include(read('admin/client_form.edge'), 'name="_csrf"')
     assert.include(read('admin/clients.edge'), 'name="_csrf"')
@@ -121,24 +122,25 @@ test.group('admin views (B6)', () => {
     assert.include(read('admin/clients.edge'), '@if(!dynamicSupported)')
   })
 
-  test('clients.edge expõe rotas de CRUD dinâmico', ({ assert }) => {
+  test('clients.edge expõe rotas de CRUD dinâmico (via adminBase)', ({ assert }) => {
     const content = read('admin/clients.edge')
-    assert.include(content, '/admin/clients/new')
-    assert.include(content, '/admin/clients/{{ client.clientId }}/edit')
-    assert.include(content, '/admin/clients/{{ client.clientId }}/regenerate-secret')
-    assert.include(content, '/admin/clients/{{ client.clientId }}/delete')
+    // As views usam {{ adminBase }} — verificamos os fragmentos de template.
+    assert.include(content, '{{ adminBase }}/clients/new')
+    assert.include(content, '{{ adminBase }}/clients/{{ client.clientId }}/edit')
+    assert.include(content, '{{ adminBase }}/clients/{{ client.clientId }}/regenerate-secret')
+    assert.include(content, '{{ adminBase }}/clients/{{ client.clientId }}/delete')
   })
 
-  test('sessions.edge existe, degrada e expõe a rota de revogação', ({ assert }) => {
+  test('sessions.edge existe, degrada e expõe a rota de revogação (via adminBase)', ({ assert }) => {
     assert.isTrue(existsSync(dir + 'admin/sessions.edge'))
     const content = read('admin/sessions.edge')
     assert.include(content, '@if(!supported)')
-    assert.include(content, '/admin/users/{{ accountId }}/revoke-sessions')
+    assert.include(content, '{{ adminBase }}/users/{{ accountId }}/revoke-sessions')
     assert.include(content, 'name="_csrf"')
   })
 
-  test('users.edge linka a página de sessões da conta', ({ assert }) => {
-    assert.include(read('admin/users.edge'), '/admin/users/{{ user.id }}/sessions')
+  test('users.edge linka a página de sessões da conta (via adminBase)', ({ assert }) => {
+    assert.include(read('admin/users.edge'), '{{ adminBase }}/users/{{ user.id }}/sessions')
   })
 })
 
@@ -147,6 +149,7 @@ test.group('account console views render real (edge.js)', () => {
     const edge = makeEdge()
     const html = await edge.render('authkit::admin/sessions', {
       csrfToken: 'csrf',
+      adminBase: '/admin',
       supported: true,
       accountId: 'acc-1',
       email: 'u@x.com',
@@ -164,6 +167,7 @@ test.group('account console views render real (edge.js)', () => {
     const edge = makeEdge()
     const html = await edge.render('authkit::admin/sessions', {
       csrfToken: 't',
+      adminBase: '/admin',
       supported: false,
       accountId: 'acc-1',
       email: 'u@x.com',
@@ -227,14 +231,17 @@ test.group('account console views render real (edge.js)', () => {
     const edge = makeEdge()
     const html = await edge.render('authkit::admin/users', {
       csrfToken: 'csrf',
+      adminBase: '/admin',
       search: '',
       page: 1,
       totalPages: 1,
       total: 1,
       statusSupported: true,
+      deletionSupported: false,
       created: null,
       resetSent: null,
       statusChanged: null,
+      userDeleted: null,
       error: null,
       users: [
         {
@@ -377,6 +384,7 @@ test.group('admin views render real (edge.js)', () => {
     const edge = makeEdge()
     const html = await edge.render('authkit::admin/clients', {
       csrfToken: 'csrf-token-xyz',
+      adminBase: '/admin',
       dynamicEnabled: true,
       dynamicSupported: true,
       createdSecret: { clientId: 'cli_abc', clientSecret: 'sec_123' },
@@ -409,10 +417,39 @@ test.group('admin views render real (edge.js)', () => {
     assert.include(html, '/admin/clients/dyn1/regenerate-secret')
   })
 
+  test('clients.edge renderiza prefixo custom quando adminBase é /auth/admin', async ({
+    assert,
+  }) => {
+    const edge = makeEdge()
+    const html = await edge.render('authkit::admin/clients', {
+      csrfToken: 't',
+      adminBase: '/auth/admin',
+      dynamicEnabled: false,
+      dynamicSupported: true,
+      createdSecret: null,
+      staticClients: [],
+      dynamicClients: [
+        {
+          clientId: 'dyn2',
+          confidential: false,
+          grants: ['authorization_code'],
+          redirectUris: [],
+          postLogoutRedirectUris: [],
+          tokenEndpointAuthMethod: 'none',
+        },
+      ],
+    })
+    assert.include(html, '/auth/admin/clients/dyn2/edit')
+    assert.include(html, '/auth/admin/clients/dyn2/delete')
+    // Garante que o prefixo antigo "/admin" sem o "/auth" não aparece antes de "/clients".
+    assert.notInclude(html, 'href="/admin/clients')
+  })
+
   test('clients.edge degrada graciosamente sem listClients', async ({ assert }) => {
     const edge = makeEdge()
     const html = await edge.render('authkit::admin/clients', {
       csrfToken: 't',
+      adminBase: '/admin',
       dynamicEnabled: false,
       dynamicSupported: false,
       createdSecret: null,
@@ -429,6 +466,7 @@ test.group('admin views render real (edge.js)', () => {
     const edge = makeEdge()
     const createHtml = await edge.render('authkit::admin/client_form', {
       csrfToken: 'csrf',
+      adminBase: '/admin',
       mode: 'create',
       client: {
         clientId: '',
@@ -444,6 +482,7 @@ test.group('admin views render real (edge.js)', () => {
 
     const editHtml = await edge.render('authkit::admin/client_form', {
       csrfToken: 'csrf',
+      adminBase: '/admin',
       mode: 'edit',
       client: {
         clientId: 'dyn1',
@@ -456,5 +495,23 @@ test.group('admin views render real (edge.js)', () => {
     assert.include(editHtml, 'action="/admin/clients/dyn1/edit"')
     assert.include(editHtml, 'disabled')
     assert.include(editHtml, 'https://dyn/cb')
+  })
+
+  test('client_form.edge usa prefixo custom quando adminBase é /auth/admin', async ({ assert }) => {
+    const edge = makeEdge()
+    const createHtml = await edge.render('authkit::admin/client_form', {
+      csrfToken: 'c',
+      adminBase: '/auth/admin',
+      mode: 'create',
+      client: {
+        clientId: '',
+        redirectUris: [],
+        postLogoutRedirectUris: [],
+        grants: ['authorization_code'],
+        tokenEndpointAuthMethod: 'client_secret_basic',
+      },
+    })
+    assert.include(createHtml, 'action="/auth/admin/clients"')
+    assert.notInclude(createHtml, 'action="/admin/clients"')
   })
 })

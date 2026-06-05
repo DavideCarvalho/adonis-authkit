@@ -2,6 +2,7 @@ import '../../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import { ACCOUNT_SESSION_KEY } from '../../middleware/account_auth.js'
 import { AdminOrgsService } from '../../admin_api/admin_orgs_service.js'
+import { getAdminPrefix } from '../../admin_prefix.js'
 
 /**
  * Console admin de organizações (B6). Server-rendered, mesmo padrão dos outros
@@ -19,6 +20,7 @@ export default class AdminOrgsController {
     if (!svc.supported) {
       return render(ctx, 'admin/orgs', {
         csrfToken: ctx.request.csrfToken,
+        adminBase: getAdminPrefix(),
         supported: false,
         orgs: [],
         error: null,
@@ -31,6 +33,7 @@ export default class AdminOrgsController {
 
     return render(ctx, 'admin/orgs', {
       csrfToken: ctx.request.csrfToken,
+      adminBase: getAdminPrefix(),
       supported: true,
       orgs,
       error: ctx.session.flashMessages.get('orgsError') ?? null,
@@ -48,12 +51,12 @@ export default class AdminOrgsController {
     const id = ctx.request.param('id')
 
     if (!svc.supported) {
-      return ctx.response.redirect('/admin/orgs')
+      return ctx.response.redirect(`${getAdminPrefix()}/orgs`)
     }
 
     const result = await svc.getOrg(id)
     if ('ok' in result && result.ok === false) {
-      return ctx.response.redirect('/admin/orgs')
+      return ctx.response.redirect(`${getAdminPrefix()}/orgs`)
     }
 
     const store = cfg.accountStore
@@ -62,6 +65,7 @@ export default class AdminOrgsController {
 
     return render(ctx, 'admin/org_detail', {
       csrfToken: ctx.request.csrfToken,
+      adminBase: getAdminPrefix(),
       org: result,
       accounts: accountsResult.data,
       availableRoles: cfg.organizations.roles,
@@ -84,7 +88,7 @@ export default class AdminOrgsController {
 
     if (!name || !slug || !ownerAccountId) {
       ctx.session.flash('orgsError', cfg.messages['admin.orgs.invalid_input'] ?? 'admin.orgs.invalid_input')
-      return ctx.response.redirect('/admin/orgs')
+      return ctx.response.redirect(`${getAdminPrefix()}/orgs`)
     }
 
     const result = await svc.createOrg(
@@ -99,11 +103,11 @@ export default class AdminOrgsController {
           ? (cfg.messages['admin.orgs.slug_taken'] ?? 'admin.orgs.slug_taken')
           : (cfg.messages['admin.orgs.not_supported'] ?? 'admin.orgs.not_supported')
       )
-      return ctx.response.redirect('/admin/orgs')
+      return ctx.response.redirect(`${getAdminPrefix()}/orgs`)
     }
 
     ctx.session.flash('orgsSuccess', cfg.messages['admin.orgs.created'] ?? 'admin.orgs.created')
-    return ctx.response.redirect('/admin/orgs')
+    return ctx.response.redirect(`${getAdminPrefix()}/orgs`)
   }
 
   /** POST /admin/orgs/:id/delete — deleta a org. */
@@ -119,7 +123,7 @@ export default class AdminOrgsController {
     await svc.deleteOrg(id, { actorId, ip, source: 'admin' })
 
     ctx.session.flash('orgsSuccess', cfg.messages['admin.orgs.deleted'] ?? 'admin.orgs.deleted')
-    return ctx.response.redirect('/admin/orgs')
+    return ctx.response.redirect(`${getAdminPrefix()}/orgs`)
   }
 
   /** POST /admin/orgs/:id/members — adiciona membro. */
@@ -141,7 +145,7 @@ export default class AdminOrgsController {
     } else {
       ctx.session.flash('orgsSuccess', cfg.messages['admin.orgs.member_added'] ?? 'admin.orgs.member_added')
     }
-    return ctx.response.redirect(`/admin/orgs/${orgId}`)
+    return ctx.response.redirect(`${getAdminPrefix()}/orgs/${orgId}`)
   }
 
   /** POST /admin/orgs/:id/members/:accountId/remove — remove membro. */
@@ -165,7 +169,7 @@ export default class AdminOrgsController {
     } else {
       ctx.session.flash('orgsSuccess', cfg.messages['admin.orgs.member_removed'] ?? 'admin.orgs.member_removed')
     }
-    return ctx.response.redirect(`/admin/orgs/${orgId}`)
+    return ctx.response.redirect(`${getAdminPrefix()}/orgs/${orgId}`)
   }
 
   /** POST /admin/orgs/:id/invitations/:invId/revoke */
@@ -181,6 +185,6 @@ export default class AdminOrgsController {
 
     await svc.revokeInvitation(orgId, invId, { actorId, ip, source: 'admin' })
     ctx.session.flash('orgsSuccess', cfg.messages['admin.orgs.invitation_revoked'] ?? 'admin.orgs.invitation_revoked')
-    return ctx.response.redirect(`/admin/orgs/${orgId}`)
+    return ctx.response.redirect(`${getAdminPrefix()}/orgs/${orgId}`)
   }
 }

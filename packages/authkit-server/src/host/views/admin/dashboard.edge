@@ -15,15 +15,15 @@
     </div>
 
     <nav class="mb-6 flex gap-4 text-sm font-medium">
-      <a href="/admin" class="text-gray-900 underline">{{ t('admin.nav.dashboard') }}</a>
-      <a href="/admin/users" class="text-gray-500 hover:underline">{{ t('admin.nav.users') }}</a>
-      <a href="/admin/clients" class="text-gray-500 hover:underline">{{ t('admin.nav.clients') }}</a>
-      <a href="/admin/audit" class="text-gray-500 hover:underline">{{ t('admin.nav.audit') }}</a>
-      <a href="/admin/settings" class="text-gray-500 hover:underline">{{ t('admin.nav.settings') }}</a>
+      <a href="{{ adminBase }}" class="text-gray-900 underline">{{ t('admin.nav.dashboard') }}</a>
+      <a href="{{ adminBase }}/users" class="text-gray-500 hover:underline">{{ t('admin.nav.users') }}</a>
+      <a href="{{ adminBase }}/clients" class="text-gray-500 hover:underline">{{ t('admin.nav.clients') }}</a>
+      <a href="{{ adminBase }}/audit" class="text-gray-500 hover:underline">{{ t('admin.nav.audit') }}</a>
+      <a href="{{ adminBase }}/settings" class="text-gray-500 hover:underline">{{ t('admin.nav.settings') }}</a>
     </nav>
 
     <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-      <a href="/admin/users" class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-black/5 hover:ring-gray-900/20">
+      <a href="{{ adminBase }}/users" class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-black/5 hover:ring-gray-900/20">
         <p class="text-xs uppercase tracking-wide text-gray-400">{{ t('admin.dashboard.users_count') }}</p>
         <p class="mt-1 text-2xl font-semibold text-gray-900">{{ usersTotal }}</p>
       </a>
@@ -35,7 +35,7 @@
         <p class="text-xs uppercase tracking-wide text-gray-400">{{ t('admin.dashboard.active_sessions') }}</p>
         <p class="mt-1 text-2xl font-semibold text-gray-900">{{ activeSessions === null ? '—' : activeSessions }}</p>
       </div>
-      <a href="/admin/clients" class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-black/5 hover:ring-gray-900/20">
+      <a href="{{ adminBase }}/clients" class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-black/5 hover:ring-gray-900/20">
         <p class="text-xs uppercase tracking-wide text-gray-400">{{ t('admin.dashboard.clients_count') }}</p>
         <p class="mt-1 text-2xl font-semibold text-gray-900">{{ clientsCount }}</p>
       </a>

@@ -1,6 +1,7 @@
 import '../../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { StoredAuditEvent } from '../../../audit/audit_sink.js'
+import { getAdminPrefix } from '../../admin_prefix.js'
 
 const PAGE_SIZE = 20
 
@@ -23,6 +24,7 @@ export default class AdminAuditController {
     if (!supported) {
       return render(ctx, 'admin/audit', {
         csrfToken: ctx.request.csrfToken,
+        adminBase: getAdminPrefix(),
         supported: false,
         type,
         subject,
@@ -43,6 +45,7 @@ export default class AdminAuditController {
 
     return render(ctx, 'admin/audit', {
       csrfToken: ctx.request.csrfToken,
+      adminBase: getAdminPrefix(),
       supported: true,
       type,
       subject,

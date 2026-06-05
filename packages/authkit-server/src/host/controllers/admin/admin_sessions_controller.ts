@@ -4,6 +4,7 @@ import { ACCOUNT_SESSION_KEY } from '../../middleware/account_auth.js'
 import { AdminSessionsService } from '../../admin_sessions_service.js'
 import { enrichSessionsWithContext } from '../../session_context.js'
 import { buildImpersonationPanel } from '../../impersonation.js'
+import { getAdminPrefix } from '../../admin_prefix.js'
 
 /**
  * Inspeção/revogação das sessões e grants ativos de uma conta no console admin.
@@ -50,6 +51,7 @@ export default class AdminSessionsController {
 
     return render(ctx, 'admin/sessions', {
       csrfToken: ctx.request.csrfToken,
+      adminBase: getAdminPrefix(),
       supported,
       accountId,
       email: account?.email ?? '',
@@ -97,6 +99,6 @@ export default class AdminSessionsController {
     })
 
     ctx.session.flash('sessionsRevoked', result)
-    return ctx.response.redirect(`/admin/users/${accountId}/sessions`)
+    return ctx.response.redirect(`${getAdminPrefix()}/users/${accountId}/sessions`)
   }
 }

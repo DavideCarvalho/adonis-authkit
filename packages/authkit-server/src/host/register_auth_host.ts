@@ -4,6 +4,7 @@ import { resolveRateLimit } from '../define_config.js'
 import { createAuthThrottles } from './rate_limit.js'
 import { ACCOUNT_SESSION_KEY } from './middleware/account_auth.js'
 import { adminApiGuard } from './admin_api/admin_api_guard.js'
+import { setAdminPrefix, normalizeAdminPrefix } from './admin_prefix.js'
 
 /**
  * Guard inline do console de conta. Usamos uma closure (forma confiável do
@@ -38,6 +39,7 @@ export const adminGuard = async (ctx: any, next: () => Promise<void>) => {
   }
   const accountId = ctx.session?.get(ACCOUNT_SESSION_KEY) as string | undefined
   if (!accountId) {
+    // `/account/login` é sempre o login da conta — NÃO muda com o prefixo admin.
     return ctx.response.redirect('/account/login')
   }
   const allowed = cfg.admin.roles as string[]
@@ -45,6 +47,8 @@ export const adminGuard = async (ctx: any, next: () => Promise<void>) => {
   const roles = account?.globalRoles ?? []
   const isAdmin = roles.some((r: string) => allowed.includes(r))
   if (!isAdmin) {
+    // Evita vazar a existência do console admin: redireciona para a página de
+    // tokens da conta (sem mostrar a URL do admin).
     return ctx.response.redirect('/account/tokens')
   }
   return next()
@@ -80,12 +84,25 @@ export interface AuthHostOptions {
    */
   rateLimit?: RateLimitConfigInput
   /**
-   * Console admin opt-in (B6); quando `true`, monta o grupo `/admin/*` atrás do
-   * adminGuard. Necessário aqui (e não só no config) porque a decisão de montar
-   * as rotas é tomada em tempo de registro, antes do config (lazy) resolver.
+   * Console admin opt-in (B6).
+   *
+   * - `true` → comportamento padrão: monta as rotas sob o prefixo `/admin` (back-compat total).
+   * - `{ prefix?: string }` → monta sob o prefixo fornecido, e.g. `{ prefix: '/auth/admin' }`.
+   *   O prefixo é normalizado: começa com `/`, sem trailing slash.
+   *   Quando `prefix` é omitido ou vazio, usa o default `/admin`.
+   *
+   * Necessário aqui (e não só no config) porque a decisão de montar as rotas é
+   * tomada em tempo de registro, antes do config (lazy) resolver.
    * Espelhe o `admin.enabled` de config/authkit.ts.
+   *
+   * @example
+   * // Prefixo padrão (back-compat)
+   * registerAuthHost(router, { mountPath: '/oidc', admin: true })
+   *
+   * // Prefixo customizado — console em /auth/admin
+   * registerAuthHost(router, { mountPath: '/oidc', admin: { prefix: '/auth/admin' } })
    */
-  admin?: boolean
+  admin?: boolean | { prefix?: string }
   /**
    * Admin REST API opt-in (R6); quando `true`, monta o grupo `/api/authkit/v1/*`
    * atrás do `adminApiGuard` (API key). Necessário aqui (e não só no config) porque
@@ -244,47 +261,54 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
 
   // Console admin (opt-in — B6). Protegido pelo adminGuard (sessão + role global).
   if (opts.admin) {
+    // Resolve o prefixo: `true` → '/admin' (default); objeto → usa prefix fornecido.
+    const rawPrefix =
+      typeof opts.admin === 'object' && opts.admin.prefix ? opts.admin.prefix : '/admin'
+    const ap = normalizeAdminPrefix(rawPrefix)
+    // Persiste no singleton de processo para que controllers e views usem o mesmo prefixo.
+    setAdminPrefix(ap)
+
     router
       .group(() => {
-        router.get('/admin', [C.adminDashboard, 'index'])
-        router.get('/admin/users', [C.adminUsers, 'index'])
-        router.post('/admin/users', [C.adminUsers, 'store'])
-        router.post('/admin/users/:id/roles', [C.adminUsers, 'updateRoles'])
-        router.post('/admin/users/:id/reset-password', [C.adminUsers, 'resetPassword'])
-        router.post('/admin/users/:id/disable', [C.adminUsers, 'disable'])
-        router.post('/admin/users/:id/enable', [C.adminUsers, 'enable'])
-        router.post('/admin/users/:id/delete', [C.adminUsers, 'destroy'])
+        router.get(ap, [C.adminDashboard, 'index'])
+        router.get(`${ap}/users`, [C.adminUsers, 'index'])
+        router.post(`${ap}/users`, [C.adminUsers, 'store'])
+        router.post(`${ap}/users/:id/roles`, [C.adminUsers, 'updateRoles'])
+        router.post(`${ap}/users/:id/reset-password`, [C.adminUsers, 'resetPassword'])
+        router.post(`${ap}/users/:id/disable`, [C.adminUsers, 'disable'])
+        router.post(`${ap}/users/:id/enable`, [C.adminUsers, 'enable'])
+        router.post(`${ap}/users/:id/delete`, [C.adminUsers, 'destroy'])
         // Sessões/grants ativos da conta + revogação em massa.
-        router.get('/admin/users/:id/sessions', [C.adminSessions, 'index'])
-        router.post('/admin/users/:id/revoke-sessions', [C.adminSessions, 'revoke'])
-        router.get('/admin/clients', [C.adminClients, 'index'])
+        router.get(`${ap}/users/:id/sessions`, [C.adminSessions, 'index'])
+        router.post(`${ap}/users/:id/revoke-sessions`, [C.adminSessions, 'revoke'])
+        router.get(`${ap}/clients`, [C.adminClients, 'index'])
         // CRUD de clients OIDC (adapter-backed). `/new` ANTES de `:id` p/ não casar
         // "new" como id; todas as escritas são POST (com _csrf na view).
-        router.get('/admin/clients/new', [C.adminClients, 'create'])
-        router.post('/admin/clients', [C.adminClients, 'store'])
-        router.get('/admin/clients/:id/edit', [C.adminClients, 'edit'])
-        router.post('/admin/clients/:id/edit', [C.adminClients, 'update'])
-        router.post('/admin/clients/:id/regenerate-secret', [C.adminClients, 'regenerateSecret'])
-        router.post('/admin/clients/:id/delete', [C.adminClients, 'destroy'])
-        router.get('/admin/audit', [C.adminAudit, 'index'])
+        router.get(`${ap}/clients/new`, [C.adminClients, 'create'])
+        router.post(`${ap}/clients`, [C.adminClients, 'store'])
+        router.get(`${ap}/clients/:id/edit`, [C.adminClients, 'edit'])
+        router.post(`${ap}/clients/:id/edit`, [C.adminClients, 'update'])
+        router.post(`${ap}/clients/:id/regenerate-secret`, [C.adminClients, 'regenerateSecret'])
+        router.post(`${ap}/clients/:id/delete`, [C.adminClients, 'destroy'])
+        router.get(`${ap}/audit`, [C.adminAudit, 'index'])
         // Organizations (opt-in — capability-gated inside the controller).
-        router.get('/admin/orgs', [C.adminOrgs, 'index'])
-        router.post('/admin/orgs', [C.adminOrgs, 'store'])
-        router.get('/admin/orgs/:id', [C.adminOrgs, 'show'])
-        router.post('/admin/orgs/:id/delete', [C.adminOrgs, 'destroy'])
-        router.post('/admin/orgs/:id/members', [C.adminOrgs, 'addMember'])
-        router.post('/admin/orgs/:id/members/:accountId/remove', [C.adminOrgs, 'removeMember'])
-        router.post('/admin/orgs/:id/invitations/:invId/revoke', [C.adminOrgs, 'revokeInvitation'])
+        router.get(`${ap}/orgs`, [C.adminOrgs, 'index'])
+        router.post(`${ap}/orgs`, [C.adminOrgs, 'store'])
+        router.get(`${ap}/orgs/:id`, [C.adminOrgs, 'show'])
+        router.post(`${ap}/orgs/:id/delete`, [C.adminOrgs, 'destroy'])
+        router.post(`${ap}/orgs/:id/members`, [C.adminOrgs, 'addMember'])
+        router.post(`${ap}/orgs/:id/members/:accountId/remove`, [C.adminOrgs, 'removeMember'])
+        router.post(`${ap}/orgs/:id/invitations/:invId/revoke`, [C.adminOrgs, 'revokeInvitation'])
         // Runtime settings.
-        router.get('/admin/settings', [C.adminSettings, 'index'])
-        router.post('/admin/settings/bot-protection', [C.adminSettings, 'updateBotProtection'])
-        router.post('/admin/settings/bot-protection/reset', [C.adminSettings, 'resetBotProtection'])
-        router.post('/admin/settings/registration', [C.adminSettings, 'updateRegistration'])
-        router.post('/admin/settings/registration/reset', [C.adminSettings, 'resetRegistration'])
-        router.post('/admin/settings/require-verified-email', [C.adminSettings, 'updateRequireVerifiedEmail'])
-        router.post('/admin/settings/require-verified-email/reset', [C.adminSettings, 'resetRequireVerifiedEmail'])
-        router.post('/admin/settings/maintenance', [C.adminSettings, 'updateMaintenance'])
-        router.post('/admin/settings/maintenance/reset', [C.adminSettings, 'resetMaintenance'])
+        router.get(`${ap}/settings`, [C.adminSettings, 'index'])
+        router.post(`${ap}/settings/bot-protection`, [C.adminSettings, 'updateBotProtection'])
+        router.post(`${ap}/settings/bot-protection/reset`, [C.adminSettings, 'resetBotProtection'])
+        router.post(`${ap}/settings/registration`, [C.adminSettings, 'updateRegistration'])
+        router.post(`${ap}/settings/registration/reset`, [C.adminSettings, 'resetRegistration'])
+        router.post(`${ap}/settings/require-verified-email`, [C.adminSettings, 'updateRequireVerifiedEmail'])
+        router.post(`${ap}/settings/require-verified-email/reset`, [C.adminSettings, 'resetRequireVerifiedEmail'])
+        router.post(`${ap}/settings/maintenance`, [C.adminSettings, 'updateMaintenance'])
+        router.post(`${ap}/settings/maintenance/reset`, [C.adminSettings, 'resetMaintenance'])
       })
       .use([adminGuard])
   }

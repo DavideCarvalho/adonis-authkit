@@ -1,5 +1,6 @@
 import { test } from '@japa/runner'
 import { registerAuthHost } from '../../src/host/register_auth_host.js'
+import { getAdminPrefix, normalizeAdminPrefix } from '../../src/host/admin_prefix.js'
 
 function fakeRouter() {
   const routes: Array<{ method: string; pattern: string; middleware: unknown[] }> = []
@@ -101,7 +102,7 @@ test.group('registerAuthHost', () => {
     assert.isFalse(router.routes.some((r: any) => r.pattern === '/admin/users'))
   })
 
-  test('monta o grupo /admin quando admin: true', ({ assert }) => {
+  test('monta o grupo /admin quando admin: true (back-compat)', ({ assert }) => {
     const router = fakeRouter()
     registerAuthHost(router, { mountPath: '/oidc', admin: true })
     assert.isTrue(router.routes.some((r: any) => r.pattern === '/admin'))
@@ -111,6 +112,42 @@ test.group('registerAuthHost', () => {
     assert.isTrue(router.routes.some((r: any) => r.pattern === '/admin/audit'))
     // O grupo recebeu middleware (adminGuard).
     assert.isTrue(router.groupMiddlewareApplied)
+    // O singleton de processo reflete o prefixo default.
+    assert.equal(getAdminPrefix(), '/admin')
+  })
+
+  test('monta o grupo sob prefixo custom quando admin: { prefix }', ({ assert }) => {
+    const router = fakeRouter()
+    registerAuthHost(router, { mountPath: '/oidc', admin: { prefix: '/auth/admin' } })
+    // Rotas devem existir sob o prefixo custom.
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/auth/admin'))
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/auth/admin/users'))
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/auth/admin/users/:id/roles'))
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/auth/admin/clients'))
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/auth/admin/audit'))
+    // As rotas do prefixo DEFAULT /admin NÃO devem existir.
+    assert.isFalse(router.routes.some((r: any) => r.pattern === '/admin'))
+    assert.isFalse(router.routes.some((r: any) => r.pattern === '/admin/users'))
+    // O singleton reflete o prefixo custom.
+    assert.equal(getAdminPrefix(), '/auth/admin')
+    // O grupo recebeu middleware (adminGuard).
+    assert.isTrue(router.groupMiddlewareApplied)
+  })
+
+  test('admin: {} sem prefix usa o default /admin', ({ assert }) => {
+    const router = fakeRouter()
+    registerAuthHost(router, { mountPath: '/oidc', admin: {} })
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/admin'))
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/admin/users'))
+    assert.equal(getAdminPrefix(), '/admin')
+  })
+
+  test('normalizeAdminPrefix normaliza corretamente', ({ assert }) => {
+    assert.equal(normalizeAdminPrefix('/admin'), '/admin')
+    assert.equal(normalizeAdminPrefix('admin'), '/admin')
+    assert.equal(normalizeAdminPrefix('/admin/'), '/admin')
+    assert.equal(normalizeAdminPrefix('/auth/admin/'), '/auth/admin')
+    assert.equal(normalizeAdminPrefix('  /auth/admin  '), '/auth/admin')
   })
 
   test('NÃO aplica throttle quando rateLimit enabled: false explícito', ({ assert }) => {

@@ -12,8 +12,10 @@ export type {
   ResolvedDynamicRegistrationConfig,
   AdminConfigInput,
   ResolvedAdminConfig,
+  AdminApiConfigInput,
+  ResolvedAdminApiConfig,
 } from './src/define_config.js'
-export { resolveAdmin, resolveWebauthn, resolveDynamicRegistration } from './src/define_config.js'
+export { resolveAdmin, resolveAdminApi, resolveWebauthn, resolveDynamicRegistration } from './src/define_config.js'
 export type { WebauthnConfigInput, ResolvedWebauthnConfig } from './src/define_config.js'
 export { resolvePasswordless } from './src/define_config.js'
 export type {

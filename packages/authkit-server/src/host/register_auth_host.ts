@@ -3,6 +3,7 @@ import type { AuthSocialConfig, RateLimitConfigInput } from '../define_config.js
 import { resolveRateLimit } from '../define_config.js'
 import { createAuthThrottles } from './rate_limit.js'
 import { ACCOUNT_SESSION_KEY } from './middleware/account_auth.js'
+import { adminApiGuard } from './admin_api/admin_api_guard.js'
 
 /**
  * Guard inline do console de conta. Usamos uma closure (forma confiável do
@@ -85,6 +86,13 @@ export interface AuthHostOptions {
    * Espelhe o `admin.enabled` de config/authkit.ts.
    */
   admin?: boolean
+  /**
+   * Admin REST API opt-in (R6); quando `true`, monta o grupo `/api/authkit/v1/*`
+   * atrás do `adminApiGuard` (API key). Necessário aqui (e não só no config) porque
+   * a decisão de montar as rotas é tomada em tempo de registro, antes do config
+   * (lazy) resolver. Espelhe o `adminApi.enabled` de config/authkit.ts.
+   */
+  adminApi?: boolean
 }
 
 const C = {
@@ -103,6 +111,9 @@ const C = {
   adminSessions: () => import('./controllers/admin/admin_sessions_controller.js'),
   adminClients: () => import('./controllers/admin/admin_clients_controller.js'),
   adminAudit: () => import('./controllers/admin/admin_audit_controller.js'),
+  apiUsers: () => import('./admin_api/api_users_controller.js'),
+  apiClients: () => import('./admin_api/api_clients_controller.js'),
+  apiMisc: () => import('./admin_api/api_misc_controller.js'),
 }
 
 /**
@@ -230,5 +241,40 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
         router.get('/admin/audit', [C.adminAudit, 'index'])
       })
       .use([adminGuard])
+  }
+
+  // Admin REST API (opt-in — R6). Superfície machine-to-machine atrás do
+  // adminApiGuard (API key). Todas as rotas levam o throttle de introspecção.
+  if (opts.adminApi) {
+    // Aplica o throttle de introspecção a uma rota qualquer (GET ou escrita).
+    const withApiThrottle = (route: any): any => {
+      if (throttles) route.use([throttles.introspection])
+      return route
+    }
+    router
+      .group(() => {
+        // Usuários.
+        withApiThrottle(router.get('/users', [C.apiUsers, 'index']))
+        withApiThrottle(router.post('/users', [C.apiUsers, 'store']))
+        withApiThrottle(router.get('/users/:id', [C.apiUsers, 'show']))
+        withApiThrottle(router.patch('/users/:id', [C.apiUsers, 'update']))
+        withApiThrottle(router.post('/users/:id/disable', [C.apiUsers, 'disable']))
+        withApiThrottle(router.post('/users/:id/enable', [C.apiUsers, 'enable']))
+        withApiThrottle(router.post('/users/:id/reset-password', [C.apiUsers, 'resetPassword']))
+        withApiThrottle(router.get('/users/:id/sessions', [C.apiUsers, 'sessions']))
+        withApiThrottle(router.post('/users/:id/revoke-sessions', [C.apiUsers, 'revokeSessions']))
+        // Clients OIDC.
+        withApiThrottle(router.get('/clients', [C.apiClients, 'index']))
+        withApiThrottle(router.post('/clients', [C.apiClients, 'store']))
+        withApiThrottle(router.get('/clients/:id', [C.apiClients, 'show']))
+        withApiThrottle(router.patch('/clients/:id', [C.apiClients, 'update']))
+        withApiThrottle(router.post('/clients/:id/regenerate-secret', [C.apiClients, 'regenerateSecret']))
+        withApiThrottle(router.delete('/clients/:id', [C.apiClients, 'destroy']))
+        // Auditoria + verificação de token.
+        withApiThrottle(router.get('/audit', [C.apiMisc, 'audit']))
+        withApiThrottle(router.post('/tokens/verify', [C.apiMisc, 'verify']))
+      })
+      .prefix('/api/authkit/v1')
+      .use([adminApiGuard])
   }
 }

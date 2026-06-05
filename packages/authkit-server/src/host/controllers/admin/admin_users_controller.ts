@@ -1,11 +1,10 @@
 import '../../augmentations.js'
-import { randomBytes } from 'node:crypto'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { AuthAccount } from '../../../accounts/account_store.js'
 import { supportsAccountStatus } from '../../../accounts/account_store.js'
 import { ACCOUNT_SESSION_KEY } from '../../middleware/account_auth.js'
 import { adminCreateUserValidator } from '../../validators.js'
-import { sendPasswordResetEmail } from '../../default_mailer.js'
+import { AdminUsersService } from '../../admin_api/admin_users_service.js'
 
 const PAGE_SIZE = 20
 
@@ -66,34 +65,16 @@ export default class AdminUsersController {
   async store(ctx: HttpContext) {
     const service = await ctx.containerResolver.make('authkit.server')
     const cfg = service.config
-    const store = cfg.accountStore
     const actorId = (ctx.session.get(ACCOUNT_SESSION_KEY) as string) ?? null
     const ip = ctx.request.ip?.() ?? null
 
     const { email, name, password } = await ctx.request.validateUsing(adminCreateUserValidator)
 
-    const existing = await store.findByEmail(email)
-    if (existing) {
+    const users = new AdminUsersService(cfg)
+    const result = await users.create(ctx, { email, name, password }, { actorId, ip })
+    if (!result.ok) {
       ctx.session.flash('usersError', cfg.messages['errors.email_taken'] ?? 'errors.email_taken')
       return ctx.response.redirect('/admin/users')
-    }
-
-    // Sem senha informada: cria com uma senha aleatória forte (descartável) e
-    // dispara o fluxo de reset para o usuário definir a sua.
-    const initialPassword = password ?? randomBytes(24).toString('hex')
-    const account = await store.create({ email, password: initialPassword, fullName: name ?? null })
-
-    await cfg.audit?.record({
-      type: 'user.created',
-      accountId: account.id,
-      email,
-      actorId,
-      ip,
-      metadata: { invited: !password },
-    })
-
-    if (!password) {
-      await this.#sendResetEmail(ctx, cfg, email)
     }
 
     ctx.session.flash('userCreated', cfg.messages['admin.users.created'] ?? 'admin.users.created')
@@ -104,22 +85,11 @@ export default class AdminUsersController {
   async resetPassword(ctx: HttpContext) {
     const service = await ctx.containerResolver.make('authkit.server')
     const cfg = service.config
-    const store = cfg.accountStore
     const actorId = (ctx.session.get(ACCOUNT_SESSION_KEY) as string) ?? null
     const ip = ctx.request.ip?.() ?? null
 
     const accountId = ctx.request.param('id')
-    const account = await store.findById(accountId)
-    if (account) {
-      await this.#sendResetEmail(ctx, cfg, account.email)
-      await cfg.audit?.record({
-        type: 'user.password_reset_sent',
-        accountId,
-        email: account.email,
-        actorId,
-        ip,
-      })
-    }
+    await new AdminUsersService(cfg).resetPassword(ctx, accountId, { actorId, ip })
     ctx.session.flash('resetSent', cfg.messages['admin.users.reset_sent'] ?? 'admin.users.reset_sent')
     return this.#redirectBack(ctx)
   }
@@ -137,20 +107,12 @@ export default class AdminUsersController {
   async #toggleStatus(ctx: HttpContext, disable: boolean) {
     const service = await ctx.containerResolver.make('authkit.server')
     const cfg = service.config
-    const store = cfg.accountStore
     const actorId = (ctx.session.get(ACCOUNT_SESSION_KEY) as string) ?? null
     const ip = ctx.request.ip?.() ?? null
 
     const accountId = ctx.request.param('id')
-    if (supportsAccountStatus(store)) {
-      if (disable) await store.disableAccount(accountId)
-      else await store.enableAccount(accountId)
-      await cfg.audit?.record({
-        type: disable ? 'user.disabled' : 'user.enabled',
-        accountId,
-        actorId,
-        ip,
-      })
+    const applied = await new AdminUsersService(cfg).setStatus(accountId, disable, { actorId, ip })
+    if (applied) {
       ctx.session.flash(
         'statusChanged',
         cfg.messages[disable ? 'admin.users.disabled' : 'admin.users.enabled'] ??
@@ -158,19 +120,6 @@ export default class AdminUsersController {
       )
     }
     return this.#redirectBack(ctx)
-  }
-
-  /** Emite o token de reset e dispara o e-mail (hook do config tem prioridade). */
-  async #sendResetEmail(ctx: HttpContext, cfg: any, email: string) {
-    const issued = await cfg.accountStore.issuePasswordResetToken(email)
-    if (!issued) return
-    const origin = `${ctx.request.protocol()}://${ctx.request.host()}`
-    const resetUrl = `${origin}/auth/reset-password?token=${encodeURIComponent(issued.token)}`
-    if (cfg.mail?.onPasswordReset) {
-      await cfg.mail.onPasswordReset({ email, resetUrl, token: issued.token })
-    } else {
-      await sendPasswordResetEmail(ctx, { email, resetUrl })
-    }
   }
 
   #redirectBack(ctx: HttpContext) {

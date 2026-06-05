@@ -401,6 +401,31 @@ export function resolveAdmin(input?: AdminConfigInput): ResolvedAdminConfig {
 }
 
 /**
+ * Admin REST API (R6) — superfície de gestão machine-to-machine, consumida por um
+ * futuro SDK. Default: DESLIGADA. A autenticação é por API key (Bearer), checada
+ * em tempo constante contra `apiKeys`. Independente do console admin (B6): pode
+ * ligar uma sem a outra.
+ */
+export interface AdminApiConfigInput {
+  /** Liga a Admin REST API (`/api/authkit/v1`). Default: false. */
+  enabled: boolean
+  /** API keys aceitas no header `Authorization: Bearer <key>`. */
+  apiKeys?: string[]
+}
+
+export interface ResolvedAdminApiConfig {
+  enabled: boolean
+  apiKeys: string[]
+}
+
+export function resolveAdminApi(input?: AdminApiConfigInput): ResolvedAdminApiConfig {
+  return {
+    enabled: input?.enabled ?? false,
+    apiKeys: input?.apiKeys ?? [],
+  }
+}
+
+/**
  * Parâmetros do Relying Party (RP) das cerimônias WebAuthn / passkeys. Quando
  * omitidos, são derivados do `issuer`: `rpId` = hostname (sem porta), `origin` =
  * origem (scheme://host[:port]) do issuer, `rpName` = nome do app/branding.
@@ -532,6 +557,12 @@ export interface AuthServerConfigInput {
    * (a montagem das rotas acontece antes do config resolver).
    */
   admin?: AdminConfigInput
+  /**
+   * Admin REST API (R6). Default: desligada. Quando ligada, o host também deve
+   * passar `adminApi: true` em {@link AuthHostOptions} no registro de rotas (a
+   * montagem das rotas acontece antes do config resolver). Autenticação por API key.
+   */
+  adminApi?: AdminApiConfigInput
 }
 
 export interface ResolvedServerConfig {
@@ -579,6 +610,8 @@ export interface ResolvedServerConfig {
   passwordless: ResolvedPasswordlessConfig
   /** Console admin resolvido (sempre presente; default desligado). */
   admin: ResolvedAdminConfig
+  /** Admin REST API resolvida (sempre presente; default desligada). */
+  adminApi: ResolvedAdminApiConfig
   /** Catálogo de mensagens ativo (locale resolvido), pronto para os renderers. */
   messages: AuthMessages
   /** Locale ativo (default 'pt-BR'). */
@@ -660,6 +693,7 @@ export function defineConfig(config: AuthServerConfigInput) {
       trustedDevices: resolveTrustedDevices(config.trustedDevices),
       passwordless: resolvePasswordless(config.passwordless),
       admin: resolveAdmin(config.admin),
+      adminApi: resolveAdminApi(config.adminApi),
       messages: resolveMessages(config.i18n),
       locale: config.i18n?.locale ?? 'pt-BR',
     }

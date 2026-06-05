@@ -82,6 +82,13 @@ export type {
   AuditPage,
 } from './src/audit/audit_sink.js'
 export { withAuditLog } from './src/mixins/with_audit_log.js'
+export {
+  composeAuditSink,
+  resolveEvents,
+  buildWebhookBody,
+  signWebhookBody,
+} from './src/events/dispatcher.js'
+export type { EventsConfigInput, ResolvedEventsConfig } from './src/events/dispatcher.js'
 export { inertiaRenderer } from './src/host/renderers/inertia_renderer.js'
 export { edgeRenderer } from './src/host/renderers/edge_renderer.js'
 export { brandFor, isFirstParty } from './src/host/branding.js'

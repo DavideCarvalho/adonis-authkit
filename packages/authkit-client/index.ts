@@ -33,6 +33,12 @@ export type {
   SessionIndex,
   SessionIndexEntry,
 } from './src/backchannel_logout.js'
+export {
+  generateDpopKeyPair,
+  createDpopProof,
+  dpopJwkThumbprint,
+} from './src/dpop.js'
+export type { DpopKeyPair, CreateDpopProofInput } from './src/dpop.js'
 export type { TokenSet } from './src/types.js'
 export type { Identity } from '@dudousxd/adonis-authkit-core'
 export { configure } from './commands/configure.js'

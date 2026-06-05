@@ -176,11 +176,43 @@ request carrying a valid `DPoP` proof header yields a sender-constrained token
 (`token_type: DPoP`) whose confirmation key (`cnf.jkt`) is surfaced via introspection.
 Requests without a DPoP proof keep working unchanged.
 
+### Client-side proof generation
+
+The `@dudousxd/adonis-authkit-client` package ships DPoP proof helpers (jose ES256). Generate
+a key pair once (persist the exported JWKs in the session), then mint a fresh proof per
+request:
+
+```ts
+import { generateDpopKeyPair, createDpopProof } from '@dudousxd/adonis-authkit-client'
+
+// once per client/session
+const key = await generateDpopKeyPair()
+
+// per token request
+const proof = await createDpopProof({
+  key,
+  htm: 'POST',
+  htu: `${issuer}/token`,
+})
+await fetch(`${issuer}/token`, { method: 'POST', headers: { DPoP: proof }, body })
+
+// per resource request (binds to the access token via the `ath` claim)
+const apiProof = await createDpopProof({
+  key,
+  htm: 'GET',
+  htu: 'https://api.example.com/me',
+  accessToken,
+})
+```
+
+The proof is a `dpop+jwt` JWT carrying the public JWK in its header and `jti`/`htm`/`htu`/`iat`
+claims (plus `ath` when an access token is supplied, and `nonce` when the server demands one).
+`dpopJwkThumbprint(key)` returns the `jkt` the server stamps into `cnf.jkt`.
+
 <Callout type="info">
-  **Client side:** the AuthKit client resolvers accept these tokens regardless — the `cnf`
-  binding travels in the introspection result. Generating DPoP proofs in the client
-  (per-request signed headers) is **not implemented** and is documented as future work; for
-  now, enable DPoP on the server and validate via introspection.
+  The AuthKit client resolvers also accept DPoP tokens transparently — the `cnf` binding
+  travels in the introspection result, so server-side validation works whether or not the
+  resource server checks the proof itself.
 </Callout>
 
 ## PAR

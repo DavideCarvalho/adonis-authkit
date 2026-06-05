@@ -5,8 +5,27 @@ a full **OpenID Connect / OAuth2 Authorization Server** (Identity Provider), let
 apps consume it as **OIDC clients**, and give React frontends typed auth ergonomics.
 
 It is built as an idiomatic wrapper around
-[`oidc-provider`](https://github.com/panva/node-oidc-provider), with sessions,
-rate-limiting, MFA/TOTP, audit logging, federated logout, and OpenTelemetry metrics.
+[`oidc-provider`](https://github.com/panva/node-oidc-provider).
+
+## Features
+
+- **OIDC / OAuth2 Authorization Server** — authorization code + PKCE, refresh tokens,
+  token exchange, discovery, JWKS, revocation, introspection.
+- **MFA** — TOTP, WebAuthn passkeys, recovery codes, and trusted-device skip.
+- **Passwordless** — magic-link email login and passkey-first login.
+- **Protocol extensions** — Device Flow (RFC 8628), DPoP (RFC 9449, with client-side
+  proof generation), PAR (RFC 9126), step-up auth via `acr_values`, Dynamic Client
+  Registration (RFC 7591/7592).
+- **Consoles** — admin console (user & client CRUD, sessions, audit) and a self-service
+  account console (apps/consent, security, profile).
+- **Tokens & sessions** — Personal Access Tokens, admin impersonation, back-channel
+  logout, RP-initiated logout.
+- **Hardening** — progressive account lockout, per-IP rate-limiting, audit logging with
+  an events/webhook fan-out, new-login email alerts.
+- **Operability** — i18n (English + pt-BR built in), OpenTelemetry metrics, `authkit:doctor`
+  and `authkit:rotate-keys` commands, and a `@dudousxd/adonis-authkit-testing` helper package.
+- **Client & React** — typed OIDC client resolvers (JWT/opaque/PAT) and a React
+  `useAuth()` hook with role-gating components.
 
 ## Packages
 

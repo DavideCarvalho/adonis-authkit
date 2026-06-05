@@ -23,6 +23,7 @@
     "dynamic-registration",
     "device-flow",
     "admin-console",
+    "events",
     "i18n",
     "---Frontend---",
     "react",

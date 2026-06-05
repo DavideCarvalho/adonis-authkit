@@ -64,7 +64,7 @@ test.group('doctor checks', () => {
         accountStore: { findById: () => {}, getMfaState: () => {}, listPasskeys: () => {} },
       },
     }))
-    const caps = findings.find((f) => f.message.includes('Capacidades'))
+    const caps = findings.find((f) => f.message.includes('Optional capabilities'))
     assert.include(caps!.message, 'MFA')
     assert.include(caps!.message, 'passkeys')
   })

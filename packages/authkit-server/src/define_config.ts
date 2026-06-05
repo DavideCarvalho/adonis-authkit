@@ -8,6 +8,7 @@ import { adapters, type AdapterFactory, type OidcAdapterClass } from './adapters
 import type { AccountStore, AuthAccount } from './accounts/account_store.js'
 import type { PatStore } from './pat/pat_store.js'
 import type { AuditSink } from './audit/audit_sink.js'
+import { composeAuditSink, resolveEvents, type EventsConfigInput } from './events/dispatcher.js'
 import type { BrandingConfig } from './host/branding.js'
 import { resolveMessages, type AuthMessages, type I18nConfig } from './host/i18n.js'
 import {
@@ -445,6 +446,13 @@ export interface AuthServerConfigInput {
   /** Sink de auditoria (best-effort). Opcional — quando ausente, auditoria é no-op. */
   audit?: AuditSink
   /**
+   * Eventos/webhooks: o host observa CADA evento de auditoria via callback
+   * in-process (`onEvent`) e/ou POST de webhook (`webhook`). Best-effort, nunca
+   * lança para a request. Quando setado, o `audit` resolvido vira um fan-out
+   * (sink original + onEvent + webhook).
+   */
+  events?: EventsConfigInput
+  /**
    * Label de issuer TOTP mostrado nos apps autenticadores (MFA). Default: 'AuthKit'.
    * O `lucidAccountStore` lê isso para montar o keyuri/QR.
    */
@@ -596,7 +604,10 @@ export function defineConfig(config: AuthServerConfigInput) {
       lockout: resolveLockout(config.lockout),
       notifications: resolveNotifications(config.notifications),
       mail: config.mail,
-      audit: config.audit,
+      audit: (() => {
+        const events = resolveEvents(config.events)
+        return events ? composeAuditSink(config.audit, events) : config.audit
+      })(),
       mfaIssuer: config.mfaIssuer ?? 'AuthKit',
       webauthn: resolveWebauthn(config.issuer, config.mfaIssuer ?? 'AuthKit', config.webauthn),
       dynamicRegistration: resolveDynamicRegistration(config.dynamicRegistration),

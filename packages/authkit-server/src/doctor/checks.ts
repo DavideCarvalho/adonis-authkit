@@ -37,10 +37,10 @@ export function checkConfigResolves(input: DoctorInput): Finding {
   if (!input.authkitConfig) {
     return {
       level: 'error',
-      message: "config('authkit') não resolveu — config/authkit.ts está ausente ou inválido.",
+      message: "config('authkit') did not resolve — config/authkit.ts is missing or invalid.",
     }
   }
-  return { level: 'ok', message: "config('authkit') resolvido." }
+  return { level: 'ok', message: "config('authkit') resolved." }
 }
 
 /** issuer é uma URL válida e seu pathname casa com o mountPath. */
@@ -51,22 +51,22 @@ export function checkIssuer(input: DoctorInput): Finding[] {
   const mountPath: string = cfg.mountPath ?? '/oidc'
 
   if (typeof issuer !== 'string' || issuer.length === 0) {
-    return [{ level: 'error', message: 'issuer ausente na config.' }]
+    return [{ level: 'error', message: 'issuer missing in config.' }]
   }
 
   let url: URL
   try {
     url = new URL(issuer)
   } catch {
-    return [{ level: 'error', message: `issuer não é uma URL válida: "${issuer}".` }]
+    return [{ level: 'error', message: `issuer is not a valid URL: "${issuer}".` }]
   }
 
-  const findings: Finding[] = [{ level: 'ok', message: `issuer válido: ${url.origin}${url.pathname}` }]
+  const findings: Finding[] = [{ level: 'ok', message: `valid issuer: ${url.origin}${url.pathname}` }]
   const normalize = (p: string) => (p.endsWith('/') ? p.slice(0, -1) : p) || '/'
   if (normalize(url.pathname) !== normalize(mountPath)) {
     findings.push({
       level: 'warn',
-      message: `O pathname do issuer ("${url.pathname}") difere do mountPath ("${mountPath}"). As rotas OIDC podem não casar com as URLs anunciadas no discovery.`,
+      message: `issuer pathname ("${url.pathname}") differs from mountPath ("${mountPath}"). OIDC routes may not match the URLs announced in discovery.`,
     })
   }
   return findings
@@ -75,10 +75,10 @@ export function checkIssuer(input: DoctorInput): Finding[] {
 /** Pelo menos um client com redirectUris. */
 export function checkClients(input: DoctorInput): Finding {
   const cfg = input.authkitConfig
-  if (!cfg) return { level: 'error', message: 'sem config para validar clients.' }
+  if (!cfg) return { level: 'error', message: 'no config to validate clients.' }
   const clients = Array.isArray(cfg.clients) ? cfg.clients : []
   if (clients.length === 0) {
-    return { level: 'error', message: 'nenhum client configurado em `clients`.' }
+    return { level: 'error', message: 'no client configured in `clients`.' }
   }
   const withRedirects = clients.filter(
     (c: any) => Array.isArray(c?.redirectUris) && c.redirectUris.length > 0
@@ -86,10 +86,10 @@ export function checkClients(input: DoctorInput): Finding {
   if (withRedirects.length === 0) {
     return {
       level: 'error',
-      message: `${clients.length} client(s) configurado(s), mas nenhum tem redirectUris.`,
+      message: `${clients.length} client(s) configured, but none has redirectUris.`,
     }
   }
-  return { level: 'ok', message: `${withRedirects.length}/${clients.length} client(s) com redirectUris.` }
+  return { level: 'ok', message: `${withRedirects.length}/${clients.length} client(s) with redirectUris.` }
 }
 
 /** accountStore presente + quais capacidades implementa. */
@@ -98,9 +98,9 @@ export function checkAccountStore(input: DoctorInput): Finding[] {
   if (!cfg) return []
   const store = cfg.accountStore
   if (!store) {
-    return [{ level: 'error', message: 'accountStore ausente — obrigatório.' }]
+    return [{ level: 'error', message: 'accountStore missing — required.' }]
   }
-  const findings: Finding[] = [{ level: 'ok', message: 'accountStore presente.' }]
+  const findings: Finding[] = [{ level: 'ok', message: 'accountStore present.' }]
   const caps: string[] = []
   if (has(store, 'getMfaState')) caps.push('MFA')
   if (has(store, 'listPasskeys')) caps.push('passkeys/WebAuthn')
@@ -109,8 +109,8 @@ export function checkAccountStore(input: DoctorInput): Finding[] {
   findings.push({
     level: 'ok',
     message: caps.length
-      ? `Capacidades opcionais: ${caps.join(', ')}.`
-      : 'Apenas o núcleo do accountStore (sem MFA/passkeys/linking/security).',
+      ? `Optional capabilities: ${caps.join(', ')}.`
+      : 'accountStore core only (no MFA/passkeys/linking/security).',
   })
   return findings
 }
@@ -121,19 +121,19 @@ export function checkSession(input: DoctorInput): Finding[] {
     return [
       {
         level: 'error',
-        message: '@adonisjs/session não é importável — instale-o (peer obrigatório).',
+        message: '@adonisjs/session is not importable — install it (required peer).',
       },
     ]
   }
   if (!input.sessionConfig) {
-    return [{ level: 'warn', message: "config('session') ausente — o provider de sessão pode não estar configurado." }]
+    return [{ level: 'warn', message: "config('session') missing — the session provider may not be configured." }]
   }
-  const findings: Finding[] = [{ level: 'ok', message: 'provider de sessão configurado.' }]
+  const findings: Finding[] = [{ level: 'ok', message: 'session provider configured.' }]
   const driver = input.sessionConfig.store ?? input.sessionConfig.driver
   if (driver === 'cookie') {
     findings.push({
       level: 'warn',
-      message: 'session store = cookie: token sets grandes podem estourar o limite de 4KB do cookie. Prefira `redis`/`file` em produção.',
+      message: 'session store = cookie: large token sets may exceed the 4KB cookie limit. Prefer `redis`/`file` in production.',
     })
   }
   return findings
@@ -142,12 +142,12 @@ export function checkSession(input: DoctorInput): Finding[] {
 /** Hint de exceções de CSRF do shield para o mountPath. */
 export function checkShield(input: DoctorInput): Finding {
   if (!input.peers.shield) {
-    return { level: 'error', message: '@adonisjs/shield não é importável — instale-o (peer obrigatório).' }
+    return { level: 'error', message: '@adonisjs/shield is not importable — install it (required peer).' }
   }
   const mountPath = input.authkitConfig?.mountPath ?? '/oidc'
   return {
     level: 'warn',
-    message: `Garanta que as rotas POST do IdP sob "${mountPath}" estejam nas exceções de CSRF do shield (ex.: endpoint /token), senão chamadas server-to-server falham.`,
+    message: `Make sure the IdP POST routes under "${mountPath}" are in the shield CSRF exceptions (e.g. the /token endpoint), otherwise server-to-server calls fail.`,
   }
 }
 
@@ -156,12 +156,12 @@ export function checkAlly(input: DoctorInput): Finding {
   const social = input.authkitConfig?.social
   const usesSocial = !!social && (Array.isArray(social.providers) ? social.providers.length > 0 : Object.keys(social).length > 0)
   if (!usesSocial) {
-    return { level: 'ok', message: 'login social não configurado — @adonisjs/ally é opcional.' }
+    return { level: 'ok', message: 'social login not configured — @adonisjs/ally is optional.' }
   }
   if (!input.peers.ally) {
-    return { level: 'error', message: 'login social configurado, mas @adonisjs/ally não é importável.' }
+    return { level: 'error', message: 'social login configured, but @adonisjs/ally is not importable.' }
   }
-  return { level: 'ok', message: 'login social configurado e @adonisjs/ally disponível.' }
+  return { level: 'ok', message: 'social login configured and @adonisjs/ally available.' }
 }
 
 /** rateLimit ligado mas @adonisjs/limiter ausente → warn. */
@@ -170,15 +170,15 @@ export function checkRateLimit(input: DoctorInput): Finding {
   const rateLimit = cfg?.rateLimit
   const enabled = rateLimit === undefined ? true : rateLimit?.enabled !== false
   if (!enabled) {
-    return { level: 'ok', message: 'rate-limiting desligado por config.' }
+    return { level: 'ok', message: 'rate-limiting disabled by config.' }
   }
   if (!input.peers.limiter) {
     return {
       level: 'warn',
-      message: 'rate-limiting está ligado (default), mas @adonisjs/limiter não é importável — vira no-op (sem proteção anti-brute-force).',
+      message: 'rate-limiting is on (default), but @adonisjs/limiter is not importable — becomes a no-op (no anti-brute-force protection).',
     }
   }
-  return { level: 'ok', message: 'rate-limiting ligado e @adonisjs/limiter disponível.' }
+  return { level: 'ok', message: 'rate-limiting on and @adonisjs/limiter available.' }
 }
 
 /** admin.enabled mas sem roles → warn. */
@@ -189,10 +189,10 @@ export function checkAdmin(input: DoctorInput): Finding | null {
   if (roles.length === 0) {
     return {
       level: 'warn',
-      message: 'console admin ligado, mas sem `admin.roles` — ninguém terá acesso (default ["ADMIN"] não foi resolvido aqui).',
+      message: 'admin console on, but no `admin.roles` — nobody will have access (the default ["ADMIN"] was not resolved here).',
     }
   }
-  return { level: 'ok', message: `console admin ligado para roles: ${roles.join(', ')}.` }
+  return { level: 'ok', message: `admin console on for roles: ${roles.join(', ')}.` }
 }
 
 /** webauthn rpId deve casar com o host do issuer. */
@@ -211,10 +211,10 @@ export function checkWebauthn(input: DoctorInput): Finding | null {
   if (webauthn.rpId !== host) {
     return {
       level: 'warn',
-      message: `webauthn.rpId ("${webauthn.rpId}") difere do host do issuer ("${host}") — as passkeys não validarão no browser.`,
+      message: `webauthn.rpId ("${webauthn.rpId}") differs from the issuer host ("${host}") — passkeys will not validate in the browser.`,
     }
   }
-  return { level: 'ok', message: `webauthn.rpId casa com o host do issuer (${host}).` }
+  return { level: 'ok', message: `webauthn.rpId matches the issuer host (${host}).` }
 }
 
 /** info sobre rotação quando jwks é managed. */
@@ -224,10 +224,10 @@ export function checkJwks(input: DoctorInput): Finding | null {
   if (jwks.source === 'managed') {
     return {
       level: 'ok',
-      message: 'jwks managed — rotacione as chaves de assinatura com `node ace authkit:rotate-keys` (use --store para persistir entre boots).',
+      message: 'jwks managed — rotate the signing keys with `node ace authkit:rotate-keys` (use --store to persist across boots).',
     }
   }
-  return { level: 'ok', message: 'jwks fornecido inline (source=jwks).' }
+  return { level: 'ok', message: 'jwks provided inline (source=jwks).' }
 }
 
 /** Roda todos os checks e devolve a lista plana de findings. */

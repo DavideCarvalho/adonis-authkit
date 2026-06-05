@@ -1,7 +1,28 @@
 # @dudousxd/adonis-authkit-server
 
-Authorization Server OpenID Connect para AdonisJS — um wrapper idiomático em volta do
-[`oidc-provider`](https://github.com/panva/node-oidc-provider).
+OpenID Connect / OAuth2 Authorization Server (Identity Provider) for AdonisJS — an idiomatic
+wrapper around [`oidc-provider`](https://github.com/panva/node-oidc-provider).
+
+## Features
+
+- **OIDC / OAuth2 AS** — authorization code + PKCE, refresh tokens (rotated), token exchange,
+  discovery, JWKS (managed + rotatable), revocation, introspection.
+- **MFA** — TOTP, WebAuthn passkeys, recovery codes, trusted-device skip.
+- **Passwordless** — magic-link email login and passkey-first login.
+- **Protocol extensions** — Device Flow (RFC 8628), DPoP (RFC 9449), PAR (RFC 9126), step-up
+  auth via `acr_values`, Dynamic Client Registration (RFC 7591/7592).
+- **Admin console** — user CRUD (+ disable), client CRUD, sessions, audit log (opt-in,
+  role-gated).
+- **Account console** — self-service apps/consent, security (password/email/sessions),
+  profile.
+- **Tokens & federation** — Personal Access Tokens, admin impersonation, back-channel logout,
+  RP-initiated logout.
+- **Hardening** — progressive account lockout, per-IP rate-limiting, audit logging with an
+  events/webhook fan-out, new-login email alerts.
+- **Operability** — i18n (English default, pt-BR built in), OpenTelemetry metrics, the
+  `authkit:doctor` and `authkit:rotate-keys` commands.
+
+> The remaining sections are in Portuguese pending a full translation pass.
 
 ## Instalação
 

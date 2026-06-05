@@ -1,6 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import type { ResolvedServerConfig } from '../define_config.js'
-import { sendNewLoginEmail } from './default_mailer.js'
+import { sendNewLoginEmail, sendNewDeviceLoginEmail } from './default_mailer.js'
+import { TRUSTED_DEVICE_COOKIE, isTrustedDeviceValid } from './trusted_device.js'
 
 /** Dados de um login bem-sucedido a auditar/notificar. */
 export interface LoginSuccessInput {
@@ -8,6 +9,13 @@ export interface LoginSuccessInput {
   email?: string | null
   ip?: string | null
   clientId?: string | null
+  /**
+   * Sinal "dispositivo já confiável" quando o caller JÁ resolveu o cookie de
+   * confiança (ex.: o controller pulou o MFA por causa dele). Quando omitido, a
+   * notificação resolve o cookie por conta própria (best-effort). `true` =
+   * dispositivo conhecido → NÃO notifica novo dispositivo.
+   */
+  trustedDevice?: boolean
   /** Metadata extra a anexar ao evento login.success (ex.: { mfa: 'totp' }). */
   metadata?: Record<string, unknown>
 }
@@ -25,7 +33,7 @@ export async function notifyLoginSuccess(
   cfg: ResolvedServerConfig,
   input: LoginSuccessInput
 ): Promise<void> {
-  const { accountId, email, ip, clientId, metadata } = input
+  const { accountId, email, ip, clientId, metadata, trustedDevice } = input
 
   // 1) Audit do login.success (mesmo formato de antes).
   await cfg.audit?.record({
@@ -37,9 +45,26 @@ export async function notifyLoginSuccess(
     metadata,
   })
 
-  // 2) Alerta de novo acesso (opt-out via notifications.newLoginEmail: false).
-  if (!cfg.notifications.newLoginEmail) return
-  // Fire-and-forget: nunca propaga erro pro caminho do login.
+  // 2) Sinal de DISPOSITIVO NOVO: login sem cookie de confiança válido para a
+  //    conta. Auditamos `login.new_device` (mesmo sem mail configurado) e, se
+  //    `notifications.newDeviceEmail`, enviamos o alerta. Resolvido aqui (síncrono
+  //    com o audit) porque depende do cookie da REQUEST atual; o e-mail em si é
+  //    fire-and-forget. `trustedDevice === true` (o caller já decidiu) pula tudo.
+  const onNewDevice = trustedDevice === true ? false : !hasTrustedDeviceCookie(ctx, accountId)
+  if (onNewDevice) {
+    await cfg.audit?.record({
+      type: 'login.new_device',
+      accountId,
+      email: email ?? null,
+      ip: ip ?? null,
+      clientId: clientId ?? null,
+    })
+  }
+
+  const userAgent = ctx.request.header?.('user-agent') ?? null
+
+  // 3) Alertas por e-mail (fire-and-forget): nunca propaga erro pro login.
+  if (!cfg.notifications.newLoginEmail && !(onNewDevice && cfg.notifications.newDeviceEmail)) return
   void (async () => {
     // Resolve o e-mail quando o caller não o forneceu (ex.: fluxo de MFA só tem o
     // accountId em escopo). Best-effort.
@@ -47,9 +72,65 @@ export async function notifyLoginSuccess(
     if (!resolvedEmail) {
       resolvedEmail = (await cfg.accountStore.findById(accountId))?.email ?? null
     }
-    await maybeNotifyNewLogin(ctx, cfg, { accountId, email: resolvedEmail, ip: ip ?? null })
+    if (cfg.notifications.newLoginEmail) {
+      await maybeNotifyNewLogin(ctx, cfg, { accountId, email: resolvedEmail, ip: ip ?? null })
+    }
+    if (onNewDevice && cfg.notifications.newDeviceEmail && resolvedEmail) {
+      await notifyNewDevice(ctx, cfg, {
+        accountId,
+        email: resolvedEmail,
+        ip: ip ?? null,
+        userAgent,
+      })
+    }
   })().catch((error) => {
-    ctx.logger.error({ err: error, accountId }, 'authkit: falha no alerta de novo acesso')
+    // Defensivo: o próprio handler de erro nunca pode lançar (logger pode faltar
+    // em contextos mínimos). Best-effort.
+    ctx.logger?.error?.({ err: error, accountId }, 'authkit: falha no alerta de login')
+  })
+}
+
+/**
+ * `true` se há um cookie de dispositivo confiável VÁLIDO (estrutura íntegra, conta
+ * casa, não expirou) para `accountId`. Best-effort: qualquer erro de leitura →
+ * `false` (tratado como dispositivo novo). NÃO checa o re-enrollment de MFA
+ * (mfaEnabledAt) — o sinal de "dispositivo conhecido" é a mera presença de um
+ * cookie de confiança válido, independente do estado do MFA.
+ */
+function hasTrustedDeviceCookie(ctx: HttpContext, accountId: string): boolean {
+  try {
+    const payload = ctx.request.encryptedCookie?.(TRUSTED_DEVICE_COOKIE)
+    return isTrustedDeviceValid(payload, { accountId })
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Envia o alerta de NOVO DISPOSITIVO: usa o hook `mail.onNewDeviceLogin` (override
+ * do host) ou o mailer default. Best-effort — qualquer erro é engolido (já estamos
+ * dentro do fire-and-forget de {@link notifyLoginSuccess}).
+ */
+async function notifyNewDevice(
+  ctx: HttpContext,
+  cfg: ResolvedServerConfig,
+  data: { accountId: string; email: string; ip: string | null; userAgent: string | null }
+): Promise<void> {
+  const timestamp = new Date().toISOString()
+  if (cfg.mail?.onNewDeviceLogin) {
+    await cfg.mail.onNewDeviceLogin({
+      account: { id: data.accountId, email: data.email },
+      ip: data.ip,
+      userAgent: data.userAgent,
+      timestamp,
+    })
+    return
+  }
+  await sendNewDeviceLoginEmail(ctx, {
+    email: data.email,
+    ip: data.ip,
+    userAgent: data.userAgent,
+    when: timestamp,
   })
 }
 

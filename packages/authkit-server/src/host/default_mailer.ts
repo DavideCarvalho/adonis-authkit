@@ -253,6 +253,47 @@ export async function sendNewLoginEmail(
 }
 
 /**
+ * Envia o e-mail de alerta de NOVO DISPOSITIVO (login sem cookie de dispositivo
+ * confiável). Best-effort: no fallback (sem mail) loga o evento; nunca lança.
+ */
+export async function sendNewDeviceLoginEmail(
+  ctx: HttpContext,
+  data: { email: string; ip?: string | null; userAgent?: string | null; when: string }
+): Promise<void> {
+  try {
+    const brand = resolveBrand(ctx)
+    const { messages: t, locale } = resolveMailMessages(ctx)
+    const origin = `${ctx.request.protocol()}://${ctx.request.host()}`
+    const lines = [translate(t, 'mail.new_login.intro'), translate(t, 'mail.new_login.when', { date: data.when })]
+    if (data.userAgent) lines.push(translate(t, 'mail.new_login.device', { device: data.userAgent }))
+    if (data.ip) lines.push(translate(t, 'mail.new_login.ip', { ip: data.ip }))
+    const content = renderTransactionalEmail({
+      brand,
+      locale,
+      linkFallback: translate(t, 'mail.common.link_fallback'),
+      subject: translate(t, 'mail.new_login.subject'),
+      heading: translate(t, 'mail.new_login.heading'),
+      intro: lines.join(' '),
+      ctaLabel: translate(t, 'account.security.title'),
+      ctaUrl: `${origin}/account/security`,
+      footnote: translate(t, 'mail.new_login.fallback'),
+    })
+    const sent = await sendEmail(ctx, data.email, content)
+    if (!sent) {
+      ctx.logger.info(
+        { ip: data.ip, email: data.email, userAgent: data.userAgent },
+        'authkit: alerta de novo dispositivo (dev — @adonisjs/mail ausente)'
+      )
+    }
+  } catch (error) {
+    ctx.logger.error(
+      { err: error, email: data.email },
+      'authkit: falha ao enviar alerta de novo dispositivo'
+    )
+  }
+}
+
+/**
  * Envia o e-mail de magic link (login passwordless) pelo mailer default do host.
  * Best-effort: no fallback (sem mail) loga o link; nunca lança.
  */

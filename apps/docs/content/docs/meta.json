@@ -18,6 +18,7 @@
     "dynamic-registration",
     "device-flow",
     "account-lockout",
+    "customizing-auth",
     "security",
     "---Frontend---",
     "react",

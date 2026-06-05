@@ -1,0 +1,324 @@
+---
+title: Customizing auth
+description: Task-oriented recipes for bending AuthKit's behaviour — route guards, role gating, user mapping, custom screens, emails, account stores, events, and token resolution.
+---
+
+A grab-bag of focused recipes for "I want to change how the lib behaves". Each one is a
+short intro plus working code against the real APIs. They're independent — jump to the one
+you need.
+
+## Protect a route group with a redirect to login
+
+`ctx.auth` is always present after the client middleware runs, but it never forces a login.
+For browser routes you want anonymous hits to *redirect* to your login route rather than
+throw a 500. Centralise the check in one middleware and apply it to a group:
+
+```ts title="app/middleware/require_auth_middleware.ts"
+import type { HttpContext } from '@adonisjs/core/http'
+import type { NextFn } from '@adonisjs/core/types/http'
+
+export default class RequireAuthMiddleware {
+  async handle(ctx: HttpContext, next: NextFn) {
+    // check() is the non-throwing probe: true if an Identity resolved.
+    if (!(await ctx.auth.check())) {
+      return ctx.response.redirect().toRoute('auth.login')
+    }
+    return next()
+  }
+}
+```
+
+Register it as a **named** middleware in the kernel, then `use()` it on the group:
+
+```ts title="start/kernel.ts"
+export const middleware = router.named({
+  // ...existing named middleware
+  requireAuth: () => import('#middleware/require_auth_middleware'),
+})
+```
+
+```ts title="start/routes.ts"
+router
+  .group(() => {
+    router.get('/dashboard', [DashboardController]).as('dashboard')
+    router.get('/settings', [SettingsController]).as('settings')
+  })
+  .prefix('/app')
+  .as('app')
+  .use(middleware.requireAuth())
+```
+
+`auth.login` is the route name from the [Getting Started](/docs/getting-started#login-callback-logout)
+login/callback/logout wiring. For API routes where anonymous access is a programming error,
+skip the middleware and call `auth.authenticate()` in the controller instead (it throws).
+
+## Role-gate a group
+
+Same shape, but it checks a role after confirming a login. `hasGlobalRole(role)` is
+**synchronous** and reads `identity.globalRoles` (the IdP claims), so the identity must be
+resolved first — `authenticate()` does both (resolve + throw-if-anonymous):
+
+```ts title="app/middleware/require_role_middleware.ts"
+import type { HttpContext } from '@adonisjs/core/http'
+import type { NextFn } from '@adonisjs/core/types/http'
+
+export default class RequireRoleMiddleware {
+  async handle(ctx: HttpContext, next: NextFn, options: { role: string }) {
+    // Browser flow: bounce anonymous users to login first.
+    if (!(await ctx.auth.check())) {
+      return ctx.response.redirect().toRoute('auth.login')
+    }
+    if (!ctx.auth.hasGlobalRole(options.role)) {
+      return ctx.response.forbidden({ message: 'Acesso negado' })
+    }
+    return next()
+  }
+}
+```
+
+```ts title="start/kernel.ts"
+export const middleware = router.named({
+  requireRole: () => import('#middleware/require_role_middleware'),
+})
+```
+
+```ts title="start/routes.ts"
+router
+  .group(() => {
+    router.get('/admin', [AdminController]).as('admin')
+  })
+  .use(middleware.requireRole({ role: 'ADMIN' }))
+```
+
+For app-local roles (not in the IdP claims) use `await ctx.auth.hasAppRole('billing.manager')`
+— it's `async` and consults `resolveAppRoles` (next recipe). For a full admin surface
+that's already built, see the [Admin Console](/docs/admin-console).
+
+## Map the Identity to your own User model
+
+The IdP authenticates a person and hands the client an `Identity` (claims only). Turn that
+into the row your app works with via `resolveUser` in `config/authkit_client.ts`. Resolve by
+the stable `userId` (the `sub`), and fall back to `email` to reconcile rows that pre-existed
+the IdP:
+
+```ts title="config/authkit_client.ts"
+import { defineConfig, resolvers } from '@dudousxd/adonis-authkit-client'
+import type { Identity } from '@dudousxd/adonis-authkit-client'
+import AppUser from '#models/app_user'
+
+export default defineConfig({
+  issuer: env.get('AUTHKIT_ISSUER'),
+  clientId: env.get('AUTHKIT_CLIENT_ID'),
+  clientSecret: env.get('AUTHKIT_CLIENT_SECRET'),
+  redirectUri: env.get('AUTHKIT_REDIRECT_URI'),
+  resolver: resolvers.jwt({ tokenSource: 'session' }),
+
+  resolveUser: async (identity: Identity) => {
+    // Prefer the stable IdP subject; fall back to email for pre-existing rows.
+    const byId = await AppUser.find(identity.userId)
+    if (byId) return byId
+
+    const byEmail = await AppUser.findBy('email', identity.email)
+    if (byEmail) {
+      byEmail.id = identity.userId // adopt the IdP subject going forward
+      await byEmail.save()
+      return byEmail
+    }
+
+    return AppUser.create({
+      id: identity.userId,
+      email: identity.email,
+      fullName: identity.profile?.name ?? null,
+    })
+  },
+
+  // App-local roles, derived however you like (DB join, claim mapping, ...).
+  resolveAppRoles: async (identity: Identity) => {
+    const user = await AppUser.find(identity.userId)
+    return user ? user.roles.map((r) => r.slug) : []
+  },
+})
+```
+
+`resolveUser` runs lazily (only on `auth.getUser()`), `resolveAppRoles` only on
+`auth.hasAppRole()`. Both signatures live in
+[`define_config.ts`](/docs/client). The `Identity` shape (`userId`, `email`, `globalRoles`,
+`profile`, `sessionId`, `raw`) is the same regardless of resolver — see [Resolvers](/docs/resolvers).
+
+## Custom screens
+
+The host-kit ships the login / consent / signup / account screens, but you choose **how**
+they render via the `render` hook in `config/authkit.ts`.
+
+**Inertia / React hosts** — point at pages in your own `inertia/pages/<prefix>/*` folder.
+`inertiaRenderer({ prefix })` calls `inertia.render('<prefix>/<view>', props)`, so changing
+the prefix re-targets the whole screen set at your own components:
+
+```ts title="config/authkit.ts"
+import { defineConfig, inertiaRenderer } from '@dudousxd/adonis-authkit-server'
+
+export default defineConfig({
+  // ...
+  // Renders inertia/pages/auth/login, inertia/pages/auth/consent, etc.
+  render: inertiaRenderer({ prefix: 'auth' }),
+})
+```
+
+**Edge hosts** — `edgeRenderer()` renders the library-owned views from the `authkit::` disk
+and exposes a `t()` helper for translations. Use it when you want the bundled markup but
+server-rendered Edge templates:
+
+```ts title="config/authkit.ts"
+import { defineConfig, edgeRenderer } from '@dudousxd/adonis-authkit-server'
+
+export default defineConfig({
+  // ...
+  render: edgeRenderer(),
+})
+```
+
+### Copy-only tweaks: override i18n strings
+
+If you only want to change wording (not layout), don't replace the screens — override
+strings via `i18n.messages`. The keys you provide are merged **over** the active locale's
+built-in catalogue, so you can change just a few:
+
+```ts title="config/authkit.ts"
+export default defineConfig({
+  // ...
+  i18n: {
+    locale: 'en',
+    messages: {
+      en: {
+        'login.title': 'Sign in to Acme',
+        'login.submit': 'Continue',
+      },
+    },
+  },
+})
+```
+
+The default locale is `en`; `pt-BR` is a built-in extra. See [i18n](/docs/i18n) for the full
+key catalogue and adding whole new locales.
+
+## Custom emails
+
+Reset-password, email-verification, and magic-link mails go through the host's
+`@adonisjs/mail` by default (branded HTML + text fallback; logs the link in dev when mail
+isn't configured). To take full control of delivery, provide the `mail` hooks — when present
+they **override** the default sender:
+
+```ts title="config/authkit.ts"
+import mail from '@adonisjs/mail/services/main'
+
+export default defineConfig({
+  // ...
+  mail: {
+    onPasswordReset: async ({ email, resetUrl, token }) => {
+      await mail.send((msg) => {
+        msg.to(email).subject('Reset your Acme password').htmlView('emails/reset', { resetUrl })
+      })
+    },
+    onEmailVerification: async ({ email, verifyUrl, token }) => {
+      await mail.send((msg) => {
+        msg.to(email).subject('Verify your email').htmlView('emails/verify', { verifyUrl })
+      })
+    },
+    onMagicLink: async ({ email, magicUrl, token }) => {
+      await mail.send((msg) => {
+        msg.to(email).subject('Your sign-in link').htmlView('emails/magic', { magicUrl })
+      })
+    },
+  },
+})
+```
+
+Each hook receives the ready-built URL plus the raw `token` (in case you build your own
+link). Hooks are best-effort — a throw is swallowed and never breaks the request. The
+`onMagicLink` hook only fires when [passwordless magic link](/docs/passwordless) is enabled.
+
+## Custom account store
+
+The `accountStore` is AuthKit's primary identity contract — it's where the IdP looks up and
+verifies accounts. `lucidAccountStore(AuthUser)` covers the common case, but you can point at
+any backing store by implementing `CoreAccountStore` yourself. The core surface is mandatory;
+MFA, passkeys, provider linking, and magic link are **opt-in capabilities** you mix in only
+if you want those features:
+
+```ts title="app/auth/my_account_store.ts"
+import type { CoreAccountStore, AuthAccount, CreateAccountInput } from '@dudousxd/adonis-authkit-server'
+
+export class MyAccountStore implements CoreAccountStore {
+  // --- identity (provider-facing) ---
+  async findById(id: string): Promise<AuthAccount | null> { /* ... */ }
+  async verifyCredentials(email: string, password: string): Promise<AuthAccount | null> { /* ... */ }
+
+  // --- signup / social ---
+  async findByEmail(email: string): Promise<AuthAccount | null> { /* ... */ }
+  async create(input: CreateAccountInput): Promise<AuthAccount> { /* ... */ }
+
+  // --- password reset ---
+  async issuePasswordResetToken(email: string) { /* ... */ }
+  async consumePasswordResetToken(token: string, newPassword: string) { /* ... */ }
+
+  // --- email verification ---
+  async issueEmailVerificationToken(email: string) { /* ... */ }
+  async consumeEmailVerificationToken(token: string) { /* ... */ }
+
+  // --- admin listing/roles (AdminCapability) ---
+  async listAccounts(/* ... */) { /* ... */ }
+}
+```
+
+`findById`/`verifyCredentials` return the public `AuthAccount` DTO (`id`, `email`,
+`globalRoles?`, `name?`, `avatarUrl?`) — never a raw Lucid model. To enable MFA or passkeys,
+also implement `MfaCapability` / `WebauthnCapability` on the same class. The full contract,
+every capability, and the published mixins are documented in
+[Account Store](/docs/account-store).
+
+## React to auth events
+
+The IdP audits every meaningful event (signup, login success/failure, password reset, MFA
+enrol, ...). Observe them in-process with `events.onEvent` — handy for syncing your own user
+table on signup/login without polling. It's best-effort and fire-and-forget; a throw is
+isolated and never reaches the request:
+
+```ts title="config/authkit.ts"
+export default defineConfig({
+  // ...
+  events: {
+    onEvent: async (event) => {
+      // event: { type, accountId, email, clientId, ip, metadata }
+      if (event.type === 'signup.success' && event.accountId) {
+        await AppUser.firstOrCreate(
+          { id: event.accountId },
+          { id: event.accountId, email: event.email ?? undefined }
+        )
+      }
+    },
+  },
+})
+```
+
+For HTTP delivery to an external service (with optional HMAC-SHA256 signing), set
+`events.webhook` instead of — or alongside — `onEvent`. See [Events](/docs/events) for the
+event catalogue and webhook details.
+
+## Custom token resolution
+
+The client's `resolver` decides how a request becomes an `Identity`. Pick by your token model
+and revocation needs:
+
+- **`resolvers.jwt`** — browser sessions, validated locally against the IdP's JWKS. Fastest
+  (no per-request network call) but only sees revocation at token expiry.
+- **`resolvers.opaque`** — browser sessions that must honour **immediate** revocation;
+  introspects the access token at the IdP per request (requires a confidential client).
+- **`resolvers.pat`** — machine-to-machine callers presenting a Personal Access Token,
+  introspected at the IdP.
+
+```ts title="config/authkit_client.ts"
+resolver: resolvers.opaque({ tokenSource: 'session', cacheTtlMs: 5000 })
+```
+
+Whichever you pick, `resolveUser` / `resolveAppRoles` are unchanged. See
+[Resolvers](/docs/resolvers) for every option and the choosing matrix.

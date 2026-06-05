@@ -222,6 +222,28 @@ export { barChartSvg } from './src/host/svg_chart.js'
 export { buildImpersonationPanel } from './src/host/impersonation.js'
 export type { ImpersonationPanel } from './src/host/impersonation.js'
 
+// Organizations (multi-tenancy)
+export {
+  ACTIVE_ORG_COOKIE,
+  ACTIVE_ORG_COOKIE_TTL,
+  encodeActiveOrgCookie,
+  decodeActiveOrgCookie,
+  readActiveOrgFromKoaCtx,
+} from './src/host/active_org_cookie.js'
+export { resolveOrganizations } from './src/define_config.js'
+export type {
+  OrganizationsConfigInput,
+  ResolvedOrganizationsConfig,
+} from './src/define_config.js'
+export { supportsOrganizations } from './src/accounts/account_store.js'
+export type {
+  OrganizationsCapability,
+  OrgSummary,
+  OrgMember,
+  OrgInvitation,
+  ActiveOrgInfo,
+} from './src/accounts/account_store.js'
+
 /**
  * Configure hook + stubsRoot resolvidos pelo `node ace configure @dudousxd/adonis-authkit-server`.
  * O comando do AdonisJS importa o entrypoint principal e procura por estes exports.

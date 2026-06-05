@@ -370,6 +370,82 @@ export interface MagicLinkCapability {
   consumeMagicLinkToken(token: string): Promise<AuthAccount | null>
 }
 
+/** DTO público de uma organização. */
+export interface OrgSummary {
+  id: string
+  name: string
+  slug: string
+  logoUrl?: string | null
+  metadata?: Record<string, unknown> | null
+  createdAt: string
+}
+
+/** Membro de uma organização. */
+export interface OrgMember {
+  accountId: string
+  email?: string | null
+  role: string
+  joinedAt: string
+}
+
+/** Convite pendente de uma organização. */
+export interface OrgInvitation {
+  id: string
+  organizationId: string
+  email: string
+  role: string
+  invitedBy: string
+  expiresAt: string
+  acceptedAt?: string | null
+  createdAt: string
+}
+
+/** Informações da org ativa de uma conta (para emissão de claims). */
+export interface ActiveOrgInfo {
+  orgId: string
+  orgSlug: string
+  orgRole: string
+}
+
+/**
+ * Capacidade de Organizations (multi-tenancy). CAPACIDADE OPCIONAL: quando as três
+ * tabelas (`auth_organizations`, `auth_organization_members`, `auth_organization_invitations`)
+ * estão presentes, o store expõe estes métodos; caso contrário fica genuinamente ausente.
+ */
+export interface OrganizationsCapability {
+  // --- Org CRUD ---
+  createOrg(input: { name: string; slug: string; logoUrl?: string | null; metadata?: Record<string, unknown> | null; ownerAccountId: string }): Promise<OrgSummary>
+  findOrgById(orgId: string): Promise<OrgSummary | null>
+  findOrgBySlug(slug: string): Promise<OrgSummary | null>
+  listOrgsForAccount(accountId: string): Promise<Array<OrgSummary & { role: string }>>
+  updateOrg(orgId: string, patch: { name?: string; logoUrl?: string | null; metadata?: Record<string, unknown> | null }): Promise<OrgSummary | null>
+  deleteOrg(orgId: string): Promise<boolean>
+
+  // --- Members ---
+  listOrgMembers(orgId: string): Promise<OrgMember[]>
+  addOrgMember(orgId: string, accountId: string, role: string): Promise<void>
+  removeOrgMember(orgId: string, accountId: string): Promise<{ ok: boolean; reason?: 'not_found' | 'last_owner' }>
+  updateOrgMemberRole(orgId: string, accountId: string, newRole: string): Promise<{ ok: boolean; reason?: 'not_found' | 'last_owner' }>
+  getOrgMembership(orgId: string, accountId: string): Promise<{ role: string } | null>
+
+  // --- Invitations ---
+  createOrgInvitation(input: { organizationId: string; email: string; role: string; invitedBy: string; ttlHours: number }): Promise<{ invitation: OrgInvitation; token: string }>
+  findInvitationByTokenHash(tokenHash: string): Promise<OrgInvitation | null>
+  listPendingInvitationsForOrg(orgId: string): Promise<OrgInvitation[]>
+  listPendingInvitationsForEmail(email: string): Promise<OrgInvitation[]>
+  acceptInvitation(invitationId: string, accountId: string): Promise<{ ok: boolean; reason?: 'not_found' | 'expired' | 'email_mismatch' | 'already_member' }>
+  revokeInvitation(invitationId: string): Promise<boolean>
+
+  // --- Cascade LGPD ---
+  /** Remove todas as memberships e convites enviados pela conta. Best-effort. */
+  removeAccountFromAllOrgs(accountId: string): Promise<{ memberships: number; invitations: number }>
+}
+
+/** Type guard: o store implementa a capacidade de Organizations. */
+export function supportsOrganizations(store: AccountStore): store is AccountStore & OrganizationsCapability {
+  return typeof (store as any).createOrg === 'function'
+}
+
 /**
  * Store de contas usado pela config. É o núcleo SEMPRE presente
  * ({@link CoreAccountStore}) + as capacidades opcionais (MFA, WebAuthn, account
@@ -390,7 +466,8 @@ export type AccountStore = CoreAccountStore &
       MagicLinkCapability &
       EmailVerificationStatusCapability &
       AccountDeletionCapability &
-      AccountImportCapability
+      AccountImportCapability &
+      OrganizationsCapability
   >
 
 /** Type guard: o store implementa a capacidade de MFA / TOTP. */

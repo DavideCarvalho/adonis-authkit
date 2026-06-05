@@ -40,6 +40,16 @@ export type AuditEventType =
   | 'account.deleted'
   | 'account.exported'
   | 'keys.rotated'
+  | 'organization.created'
+  | 'organization.deleted'
+  | 'organization.member_added'
+  | 'organization.member_removed'
+  | 'organization.member_role_changed'
+  | 'organization.switched'
+  | 'organization.deactivated'
+  | 'organization.invitation_sent'
+  | 'organization.invitation_accepted'
+  | 'organization.invitation_revoked'
 
 /**
  * Evento de auditoria a registrar. O timestamp é definido pelo sink (não aqui).

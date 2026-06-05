@@ -71,6 +71,16 @@ export interface MailHooks {
     userAgent?: string | null
     timestamp: string
   }) => Promise<void>
+  /** Disparado ao criar um convite de organização. */
+  onOrgInvitation?: (data: {
+    email: string
+    invitationId: string
+    orgName: string
+    orgSlug: string
+    role: string
+    acceptUrl: string
+    token: string
+  }) => Promise<void>
 }
 
 /** Bucket de rate-limit: pontos (requests) permitidos por janela de duração. */
@@ -548,6 +558,56 @@ export function resolveAdminApi(input?: AdminApiConfigInput): ResolvedAdminApiCo
 }
 
 /**
+ * Organizations (multi-tenancy). Feature opcional — ativa-se automaticamente
+ * quando as três tabelas (`auth_organizations`, `auth_organization_members`,
+ * `auth_organization_invitations`) estão presentes no DB (capability-probing).
+ *
+ * Roles disponíveis definem quais values são aceitos em `addMember`/`inviteByEmail`.
+ * A role `'owner'` é reservada: uma org SEMPRE precisa de pelo menos um owner.
+ * `allowSelfCreate`: se um usuário autenticado pode criar sua própria org (default false).
+ * `invitationTtlHours`: TTL dos convites em horas (default 168 = 7 dias).
+ * `claimStrategy: 'active'`: emite claims da org ATIVA da sessão (única estratégia implementada).
+ */
+export interface OrganizationsConfigInput {
+  /** Liga explicitamente. Default: auto (liga quando as tabelas existem). */
+  enabled?: boolean
+  /** Roles permitidas. A role 'owner' é sempre incluída. Default: ['owner','admin','member']. */
+  roles?: string[]
+  /** Usuários autenticados podem criar sua própria org. Default: false. */
+  allowSelfCreate?: boolean
+  /** TTL dos convites em horas. Default: 168 (7 dias). */
+  invitationTtlHours?: number
+  /**
+   * Estratégia de emissão de claims. Só 'active' é suportado:
+   * emite org_id/org_slug/org_role da org ativa da sessão via cookie assinado.
+   * Default: 'active'.
+   */
+  claimStrategy?: 'active'
+}
+
+export interface ResolvedOrganizationsConfig {
+  /** `undefined` = auto (decide em runtime pelo capability-probing do store). */
+  enabled: boolean | undefined
+  roles: string[]
+  allowSelfCreate: boolean
+  invitationTtlHours: number
+  claimStrategy: 'active'
+}
+
+export function resolveOrganizations(input?: OrganizationsConfigInput): ResolvedOrganizationsConfig {
+  const roles = input?.roles && input.roles.length > 0 ? input.roles : ['owner', 'admin', 'member']
+  // Garante que 'owner' sempre está na lista (invariante de governance).
+  const rolesWithOwner = roles.includes('owner') ? roles : ['owner', ...roles]
+  return {
+    enabled: input?.enabled,
+    roles: rolesWithOwner,
+    allowSelfCreate: input?.allowSelfCreate ?? false,
+    invitationTtlHours: input?.invitationTtlHours ?? 168,
+    claimStrategy: input?.claimStrategy ?? 'active',
+  }
+}
+
+/**
  * Parâmetros do Relying Party (RP) das cerimônias WebAuthn / passkeys. Quando
  * omitidos, são derivados do `issuer`: `rpId` = hostname (sem porta), `origin` =
  * origem (scheme://host[:port]) do issuer, `rpName` = nome do app/branding.
@@ -704,6 +764,12 @@ export interface AuthServerConfigInput {
    */
   adminApi?: AdminApiConfigInput
   /**
+   * Organizations (multi-tenancy). Default: auto (liga quando as tabelas
+   * `auth_organizations`, `auth_organization_members`, `auth_organization_invitations`
+   * existem no DB). Veja {@link OrganizationsConfigInput}.
+   */
+  organizations?: OrganizationsConfigInput
+  /**
    * Resolução de geolocalização PLUGÁVEL para o IP das sessões (console + Admin
    * API). A lib NÃO embute banco de geo: o host pluga (ex.: MaxMind/ipapi). Default:
    * ausente → as sessões mostram só o IP (sem localização). Fail-safe com timeout
@@ -765,6 +831,8 @@ export interface ResolvedServerConfig {
   admin: ResolvedAdminConfig
   /** Admin REST API resolvida (sempre presente; default desligada). */
   adminApi: ResolvedAdminApiConfig
+  /** Organizations resolvido (sempre presente; default auto). */
+  organizations: ResolvedOrganizationsConfig
   /** Resolver de geo plugável (undefined quando o host não plugou). */
   resolveGeo?: ResolveGeo
   /** Catálogo de mensagens ativo (locale resolvido), pronto para os renderers. */
@@ -854,6 +922,7 @@ export function defineConfig(config: AuthServerConfigInput) {
       accessTokens: resolveAccessTokens(config.issuer, config.accessTokens),
       admin: resolveAdmin(config.admin),
       adminApi: resolveAdminApi(config.adminApi),
+      organizations: resolveOrganizations(config.organizations),
       resolveGeo: config.resolveGeo,
       messages: resolveMessages(config.i18n),
       locale: config.i18n?.locale ?? 'pt-BR',

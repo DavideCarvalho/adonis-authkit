@@ -106,6 +106,7 @@ const C = {
   accountSecurity: () => import('./controllers/account_security_controller.js'),
   accountApps: () => import('./controllers/account_apps_controller.js'),
   accountMfa: () => import('./controllers/account_mfa_controller.js'),
+  accountOrgs: () => import('./controllers/account_orgs_controller.js'),
   adminDashboard: () => import('./controllers/admin/admin_dashboard_controller.js'),
   adminUsers: () => import('./controllers/admin/admin_users_controller.js'),
   adminSessions: () => import('./controllers/admin/admin_sessions_controller.js'),
@@ -171,6 +172,10 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
   // PAT introspection (server-to-server).
   withIntrospection(router.post('/authkit/pat/introspect', [C.patIntrospection, 'handle']))
 
+  // Organizations — invitation accept (sem guard: controller lida com não-autenticado).
+  router.get('/account/orgs/invitations/:token/accept', [C.accountOrgs, 'showAcceptInvitation'])
+  router.post('/account/orgs/invitations/:token/accept', [C.accountOrgs, 'acceptInvitation'])
+
   // Console de conta (login de sessão do IdP + gerência de PAT).
   router.get('/account/login', [C.accountSession, 'show'])
   router.post('/account/login', [C.accountSession, 'login'])
@@ -216,6 +221,16 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
       router.post('/account/mfa/passkeys/options', [C.accountMfa, 'passkeyRegisterOptions'])
       router.post('/account/mfa/passkeys/verify', [C.accountMfa, 'passkeyRegisterVerify'])
       router.post('/account/mfa/passkeys/:id/remove', [C.accountMfa, 'passkeyRemove'])
+
+      // Organizations (multi-tenancy) — sempre montadas; controller retorna 404/403 sem tabelas.
+      router.get('/account/orgs', [C.accountOrgs, 'index'])
+      router.post('/account/orgs', [C.accountOrgs, 'store'])
+      router.post('/account/orgs/deactivate', [C.accountOrgs, 'deactivate'])
+      router.post('/account/orgs/:id/activate', [C.accountOrgs, 'activate'])
+      router.post('/account/orgs/:id/leave', [C.accountOrgs, 'leave'])
+      router.post('/account/orgs/:id/invite', [C.accountOrgs, 'invite'])
+      router.post('/account/orgs/:id/members/:accountId/remove', [C.accountOrgs, 'removeMember'])
+      router.post('/account/orgs/:id/invitations/:invId/revoke', [C.accountOrgs, 'revokeInvitation'])
     })
     .use([accountGuard])
 

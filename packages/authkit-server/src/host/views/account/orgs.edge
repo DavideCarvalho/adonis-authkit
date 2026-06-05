@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>{{ t('account.orgs.page_title') }}</title>
+</head>
+<body>
+  @if(!supported)
+    <p>{{ t('account.orgs.not_supported') }}</p>
+  @else
+    <h1>{{ t('account.orgs.title') }}</h1>
+
+    @if(orgs.length === 0)
+      <p>{{ t('account.orgs.empty') }}</p>
+    @else
+      @each(org in orgs)
+        <div>
+          <strong>{{ org.name }}</strong> ({{ org.slug }})
+          @if(org.isActive)
+            <span>{{ t('account.orgs.active_badge') }}</span>
+            <form method="POST" action="/account/orgs/deactivate">
+              <button>{{ t('account.orgs.deactivate') }}</button>
+            </form>
+          @else
+            <form method="POST" action="/account/orgs/{{ org.id }}/activate">
+              <button>{{ t('account.orgs.activate') }}</button>
+            </form>
+          @end
+          <form method="POST" action="/account/orgs/{{ org.id }}/leave">
+            <button>{{ t('account.orgs.leave') }}</button>
+          </form>
+        </div>
+      @end
+    @end
+
+    @if(pendingInvitations.length > 0)
+      <h2>{{ t('account.orgs.invitations_section') }}</h2>
+      @each(inv in pendingInvitations)
+        <div>
+          {{ t('account.orgs.invitation_from', { orgName: inv.orgName, role: inv.role }) }}
+          <form method="POST" action="/account/orgs/invitations/{{ inv.id }}/accept">
+            <button>{{ t('account.orgs.invitation_accept') }}</button>
+          </form>
+        </div>
+      @end
+    @end
+
+    @if(allowSelfCreate)
+      <h2>{{ t('account.orgs.create_section') }}</h2>
+      <form method="POST" action="/account/orgs">
+        <input name="name" placeholder="{{ t('account.orgs.create_name_label') }}">
+        <input name="slug" placeholder="{{ t('account.orgs.create_slug_label') }}">
+        <button>{{ t('account.orgs.create_submit') }}</button>
+      </form>
+    @end
+  @end
+</body>
+</html>

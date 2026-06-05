@@ -158,6 +158,14 @@ export class RuntimeSettings implements SettingsCapability {
   }
 
   /**
+   * Verifica se a tabela `auth_settings` está presente (mesmo resultado de
+   * `hasTable()` privado, mas exposto para casos de diagnóstico como a UI admin).
+   */
+  async isTablePresent(): Promise<boolean> {
+    return this.hasTable()
+  }
+
+  /**
    * Invalida o cache em memória. Sem argumento: limpa tudo.
    * Chamado AUTOMATICAMENTE após setSetting/deleteSetting.
    * Chame externamente após writes que contornam este serviço.

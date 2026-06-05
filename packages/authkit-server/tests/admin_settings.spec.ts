@@ -1,0 +1,275 @@
+import { test } from '@japa/runner'
+import AdminSettingsController from '../src/host/controllers/admin/admin_settings_controller.js'
+import ApiSettingsController from '../src/host/admin_api/api_settings_controller.js'
+import { RuntimeSettings } from '../src/host/runtime_settings.js'
+
+// ---------- in-memory settings DB for tests ----------
+
+function makeSettingsDb(initialRows: Record<string, any> = {}) {
+  const store = new Map<string, { value: string; updated_at: Date; updated_by: string | null }>(
+    Object.entries(initialRows).map(([k, v]) => [k, { value: JSON.stringify(v), updated_at: new Date(), updated_by: null }])
+  )
+  let _hasTable = true
+
+  const db = {
+    _store: store,
+    withNoTable() { _hasTable = false; return db },
+    async connection() {
+      const localHasTable = _hasTable
+      return { schema: { async hasTable() { return localHasTable } } }
+    },
+    table(name: string) {
+      if (name !== 'auth_settings') throw new Error(`unexpected table: ${name}`)
+      return {
+        where(_col: string, key: string) {
+          return {
+            async first() {
+              const v = store.get(key)
+              return v ? { key, ...v } : null
+            },
+            async delete() { store.delete(key) },
+          }
+        },
+        async insert(row: any) {
+          store.set(row.key, { value: row.value, updated_at: row.updated_at ?? new Date(), updated_by: row.updated_by ?? null })
+        },
+        async select() {
+          return [...store.entries()].map(([key, v]) => ({ key, ...v }))
+        },
+      }
+    },
+  }
+  return db
+}
+
+/** Fake flash/session for tests */
+function fakeSession(initial: Record<string, any> = {}) {
+  const data = new Map(Object.entries(initial))
+  const flashed: Record<string, any> = {}
+  return {
+    get: (k: string) => data.get(k),
+    put: (k: string, v: any) => data.set(k, v),
+    flash: (k: string, v: any) => { flashed[k] = v },
+    flashMessages: {
+      get: (k: string) => flashed[k] ?? null,
+    },
+    _flashed: flashed,
+  }
+}
+
+function fakeCtx(opts: { service: any; db: any; inputs?: Record<string, any>; session?: any }) {
+  const { service, db, inputs = {}, session = fakeSession() } = opts
+  const captured = { _redirected: null as string | null }
+  const ctx = {
+    session,
+    request: {
+      csrfToken: 'csrf',
+      input: (k: string) => inputs[k],
+      ip: () => '127.0.0.1',
+    },
+    response: {
+      redirect(url: string) { captured._redirected = url; return undefined },
+    },
+    containerResolver: {
+      make: async (key: string) => {
+        if (key === 'authkit.server') return service
+        if (key === 'lucid.db') return db
+        throw new Error(`unknown key: ${key}`)
+      },
+    },
+  }
+  return { ctx, captured, session }
+}
+
+function fakeApiCtx(opts: { service: any; db: any; params?: Record<string, string>; body?: Record<string, any> }) {
+  const { service, db, params = {}, body = {} } = opts
+  const captured = { _status: 200 }
+  const ctx = {
+    request: {
+      param: (k: string) => params[k],
+      body: () => body,
+      ip: () => '127.0.0.1',
+    },
+    response: {
+      notFound: (data: any) => { captured._status = 404; return data },
+      badRequest: (data: any) => { captured._status = 400; return data },
+    },
+    containerResolver: {
+      make: async (key: string) => {
+        if (key === 'authkit.server') return service
+        if (key === 'lucid.db') return db
+        throw new Error(`unknown key: ${key}`)
+      },
+    },
+  }
+  return { ctx, captured }
+}
+
+function buildService(withBotProtection = true) {
+  const messages: Record<string, string> = {
+    'admin.settings.saved': 'Settings saved.',
+    'admin.settings.no_settings_table': 'No settings table.',
+    'admin.settings.reset_done': 'Reset done.',
+  }
+  const config = {
+    botProtection: withBotProtection ? { verify: async () => true, on: ['login', 'signup'] } : undefined,
+    render: async (_ctx: any, view: string, data: any) => ({ view, data }),
+    messages,
+    audit: {
+      events: [] as any[],
+      record: async (e: any) => { config.audit.events.push(e) },
+    },
+  }
+  return { config }
+}
+
+// ---------- tests ----------
+
+test.group('AdminSettingsController', (group) => {
+  let settingsDb: ReturnType<typeof makeSettingsDb>
+  let service: any
+
+  group.setup(() => {
+    service = buildService(true)
+    settingsDb = makeSettingsDb()
+  })
+
+  test('GET /admin/settings renders settings page with hasTable true', async ({ assert }) => {
+    const ctrl = new AdminSettingsController()
+    const { ctx } = fakeCtx({ service, db: settingsDb })
+    const result: any = await ctrl.index(ctx as any)
+    assert.equal(result.view, 'admin/settings')
+    assert.isTrue(result.data.hasBotConfig)
+    assert.isTrue(result.data.hasTable)
+  })
+
+  test('GET /admin/settings: hasTable false when table absent', async ({ assert }) => {
+    const noTableDb = makeSettingsDb().withNoTable()
+    const ctrl = new AdminSettingsController()
+    const { ctx } = fakeCtx({ service, db: noTableDb })
+    const result: any = await ctrl.index(ctx as any)
+    assert.isFalse(result.data.hasTable)
+  })
+
+  test('POST bot-protection saves setting + audits', async ({ assert }) => {
+    const ctrl = new AdminSettingsController()
+    const session = fakeSession()
+    const { ctx, captured } = fakeCtx({
+      service,
+      db: settingsDb,
+      inputs: { enabled: '1', on: ['login', 'reset'] },
+      session,
+    })
+    await ctrl.updateBotProtection(ctx as any)
+    assert.equal(captured._redirected, '/admin/settings')
+    // Check setting was persisted
+    const settings = new RuntimeSettings(settingsDb as any)
+    const saved: any = await settings.getSetting('bot_protection')
+    assert.isTrue(saved.enabled)
+    assert.deepEqual(saved.on, ['login', 'reset'])
+    // Audit event
+    const ev = service.config.audit.events.find((e: any) => e.type === 'settings.updated')
+    assert.isNotNull(ev)
+    assert.equal(ev.metadata.key, 'bot_protection')
+  })
+
+  test('POST bot-protection/reset clears setting + audits', async ({ assert }) => {
+    // Seed setting first
+    await settingsDb.table('auth_settings').insert({ key: 'bot_protection', value: JSON.stringify({ enabled: false }), updated_at: new Date(), updated_by: null })
+    const ctrl = new AdminSettingsController()
+    const session = fakeSession()
+    const { ctx } = fakeCtx({ service, db: settingsDb, session })
+    await ctrl.resetBotProtection(ctx as any)
+    const settings = new RuntimeSettings(settingsDb as any)
+    const after = await settings.getSetting('bot_protection')
+    assert.isNull(after)
+  })
+
+  test('POST bot-protection with no table redirects with flash message', async ({ assert }) => {
+    const noTableDb = makeSettingsDb().withNoTable()
+    const ctrl = new AdminSettingsController()
+    const session = fakeSession()
+    const { ctx, captured } = fakeCtx({ service, db: noTableDb, inputs: { enabled: '1' }, session })
+    await ctrl.updateBotProtection(ctx as any)
+    assert.equal(captured._redirected, '/admin/settings')
+  })
+})
+
+test.group('Admin REST API — /settings', (group) => {
+  let settingsDb: ReturnType<typeof makeSettingsDb>
+  let service: any
+
+  group.setup(() => {
+    service = buildService(false)
+    settingsDb = makeSettingsDb()
+  })
+
+  test('GET /settings: empty list when no rows', async ({ assert }) => {
+    const ctrl = new ApiSettingsController()
+    const { ctx } = fakeApiCtx({ service, db: settingsDb })
+    const result: any = await ctrl.index(ctx as any)
+    assert.isArray(result.data)
+    assert.lengthOf(result.data, 0)
+  })
+
+  test('GET /settings: 404 capability_unsupported when no table', async ({ assert }) => {
+    const noTableDb = makeSettingsDb().withNoTable()
+    const ctrl = new ApiSettingsController()
+    const { ctx, captured } = fakeApiCtx({ service, db: noTableDb })
+    const result: any = await ctrl.index(ctx as any)
+    assert.equal(captured._status, 404)
+    assert.equal(result.error.code, 'capability_unsupported')
+  })
+
+  test('PUT /settings/:key creates a setting', async ({ assert }) => {
+    const ctrl = new ApiSettingsController()
+    const value = { enabled: true, on: ['login'] }
+    const { ctx } = fakeApiCtx({ service, db: settingsDb, params: { key: 'bot_protection' }, body: { value } })
+    const result: any = await ctrl.upsert(ctx as any)
+    assert.equal(result.key, 'bot_protection')
+    assert.deepEqual(result.value, value)
+  })
+
+  test('PUT /settings/:key without body.value → 400', async ({ assert }) => {
+    const ctrl = new ApiSettingsController()
+    const { ctx, captured } = fakeApiCtx({ service, db: settingsDb, params: { key: 'x' }, body: {} })
+    const result: any = await ctrl.upsert(ctx as any)
+    assert.equal(captured._status, 400)
+    assert.equal(result.error.code, 'invalid_request')
+  })
+
+  test('GET /settings/:key returns saved value', async ({ assert }) => {
+    await settingsDb.table('auth_settings').insert({ key: 'test_key', value: '"hello"', updated_at: new Date(), updated_by: null })
+    const ctrl = new ApiSettingsController()
+    const { ctx } = fakeApiCtx({ service, db: settingsDb, params: { key: 'test_key' } })
+    const result: any = await ctrl.show(ctx as any)
+    assert.equal(result.key, 'test_key')
+    assert.equal(result.value, 'hello')
+  })
+
+  test('GET /settings/:key non-existent → 404', async ({ assert }) => {
+    const ctrl = new ApiSettingsController()
+    const { ctx, captured } = fakeApiCtx({ service, db: settingsDb, params: { key: 'does_not_exist_xyz' } })
+    const result: any = await ctrl.show(ctx as any)
+    assert.equal(captured._status, 404)
+  })
+
+  test('DELETE /settings/:key removes setting', async ({ assert }) => {
+    await settingsDb.table('auth_settings').insert({ key: 'to_delete', value: '"x"', updated_at: new Date(), updated_by: null })
+    const ctrl = new ApiSettingsController()
+    const { ctx } = fakeApiCtx({ service, db: settingsDb, params: { key: 'to_delete' } })
+    const result: any = await ctrl.destroy(ctx as any)
+    assert.isTrue(result.deleted)
+    const settings = new RuntimeSettings(settingsDb as any)
+    const after = await settings.getSetting('to_delete')
+    assert.isNull(after)
+  })
+
+  test('PUT upsert audits settings.updated event', async ({ assert }) => {
+    const ctrl = new ApiSettingsController()
+    const { ctx } = fakeApiCtx({ service, db: settingsDb, params: { key: 'audit_test' }, body: { value: { enabled: false } } })
+    await ctrl.upsert(ctx as any)
+    const ev = service.config.audit.events.find((e: any) => e.type === 'settings.updated' && e.metadata?.key === 'audit_test')
+    assert.isNotNull(ev)
+  })
+})

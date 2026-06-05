@@ -8,6 +8,7 @@ import type {
   AuthkitOrganizationDetail,
   AuthkitOrgInvitation,
   AuthkitOrgMember,
+  AuthkitSetting,
   AuthkitStats,
   AuthkitUser,
   AddedOrgMember,
@@ -18,12 +19,14 @@ import type {
   CreateUserInput,
   DeletedClient,
   DeletedOrganization,
+  DeletedSetting,
   DeletedUser,
   ListAuditParams,
   ListAuditResult,
   ListClientsResult,
   ListOrganizationsResult,
   ListSessionsResult,
+  ListSettingsResult,
   ListUsersParams,
   ListUsersResult,
   RegeneratedSecret,
@@ -463,5 +466,60 @@ export async function createEmbeddedAuthkit(opts: EmbeddedOptions): Promise<Auth
         },
       }
     })(),
+    settings: {
+      async list(): Promise<ListSettingsResult> {
+        const { RuntimeSettings } = await import('@dudousxd/adonis-authkit-server') as unknown as { RuntimeSettings: any }
+        let db: any
+        try { db = await app.container.make('lucid.db') } catch { return { data: [] } }
+        const svc = new RuntimeSettings(db)
+        const rows = await svc.listSettings()
+        return {
+          data: rows.map((r: any): AuthkitSetting => ({
+            key: r.key,
+            value: r.value,
+            updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : (r.updatedAt ?? null),
+            updatedBy: r.updatedBy ?? null,
+          })),
+        }
+      },
+      async get(key: string): Promise<AuthkitSetting> {
+        const { RuntimeSettings } = await import('@dudousxd/adonis-authkit-server') as unknown as { RuntimeSettings: any }
+        let db: any
+        try { db = await app.container.make('lucid.db') } catch { throw new Error('Runtime settings not available.') }
+        const svc = new RuntimeSettings(db)
+        const value = await svc.getSetting(key)
+        if (value === null) throw new Error(`Setting '${key}' not found.`)
+        return { key, value, updatedAt: null, updatedBy: null }
+      },
+      async set(key: string, value: unknown): Promise<AuthkitSetting> {
+        const { RuntimeSettings } = await import('@dudousxd/adonis-authkit-server') as unknown as { RuntimeSettings: any }
+        let db: any
+        try { db = await app.container.make('lucid.db') } catch { throw new Error('Runtime settings not available.') }
+        const svc = new RuntimeSettings(db)
+        await svc.setSetting(key, value, null)
+        const saved = await svc.getSetting(key)
+        await cfg.audit?.record({
+          type: 'settings.updated',
+          actorId: null,
+          ip: null,
+          metadata: { key, value },
+        })
+        return { key, value: saved, updatedAt: new Date().toISOString(), updatedBy: null }
+      },
+      async delete(key: string): Promise<DeletedSetting> {
+        const { RuntimeSettings } = await import('@dudousxd/adonis-authkit-server') as unknown as { RuntimeSettings: any }
+        let db: any
+        try { db = await app.container.make('lucid.db') } catch { throw new Error('Runtime settings not available.') }
+        const svc = new RuntimeSettings(db)
+        await svc.deleteSetting(key)
+        await cfg.audit?.record({
+          type: 'settings.updated',
+          actorId: null,
+          ip: null,
+          metadata: { key, action: 'deleted' },
+        })
+        return { key, deleted: true }
+      },
+    },
   }
 }

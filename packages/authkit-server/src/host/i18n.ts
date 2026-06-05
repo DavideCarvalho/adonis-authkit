@@ -295,6 +295,7 @@ export const DEFAULT_MESSAGES = {
   'admin.nav.orgs': 'Organizations',
   'admin.nav.clients': 'Clients',
   'admin.nav.audit': 'Audit',
+  'admin.nav.settings': 'Settings',
   'admin.nav.logout': 'Log out',
 
   // Console admin — dashboard.
@@ -458,6 +459,26 @@ export const DEFAULT_MESSAGES = {
   'admin.audit.filter': 'Filter',
   'admin.audit.empty': 'No events found.',
   'admin.audit.not_supported': 'The configured audit sink does not support querying.',
+
+  // Console admin — settings (runtime configuration).
+  'admin.settings.page_title': 'Settings',
+  'admin.settings.title': 'Settings',
+  'admin.settings.bot_protection_section': 'Bot protection',
+  'admin.settings.bot_protection_intro':
+    'Override the static config at runtime. The `verify` function always comes from config — only on/off and which actions are affected can be changed here.',
+  'admin.settings.bot_protection_no_verify':
+    'Bot protection is not configured — add `botProtection.verify` to config/authkit.ts to enable this feature.',
+  'admin.settings.no_settings_table':
+    'The `auth_settings` table is not present. To enable runtime settings, create it: `key TEXT PK, value TEXT NOT NULL, updated_at TIMESTAMP, updated_by TEXT`.',
+  'admin.settings.enabled_label': 'Enabled',
+  'admin.settings.actions_label': 'Active on',
+  'admin.settings.action_login': 'Login',
+  'admin.settings.action_signup': 'Signup',
+  'admin.settings.action_reset': 'Password reset',
+  'admin.settings.save': 'Save',
+  'admin.settings.saved': 'Settings saved.',
+  'admin.settings.reset_to_config': 'Reset to config',
+  'admin.settings.reset_done': 'Runtime setting cleared — config is now the source of truth.',
 
   // Console admin — paginação compartilhada.
   'admin.pagination.page': 'Page {page} of {total}',
@@ -814,6 +835,7 @@ export const PT_BR_MESSAGES = {
   'admin.nav.orgs': 'Organizações',
   'admin.nav.clients': 'Clients',
   'admin.nav.audit': 'Auditoria',
+  'admin.nav.settings': 'Configurações',
   'admin.nav.logout': 'Sair',
 
   // Console admin — dashboard.
@@ -977,6 +999,26 @@ export const PT_BR_MESSAGES = {
   'admin.audit.filter': 'Filtrar',
   'admin.audit.empty': 'Nenhum evento encontrado.',
   'admin.audit.not_supported': 'O sink de auditoria configurado não suporta consulta.',
+
+  // Console admin — settings (runtime configuration) — pt-BR.
+  'admin.settings.page_title': 'Configurações',
+  'admin.settings.title': 'Configurações',
+  'admin.settings.bot_protection_section': 'Bot protection',
+  'admin.settings.bot_protection_intro':
+    'Sobrescreva a config estática em tempo de execução. A função `verify` sempre vem do config — aqui só é possível ligar/desligar e escolher as ações afetadas.',
+  'admin.settings.bot_protection_no_verify':
+    'Bot protection não está configurado — adicione `botProtection.verify` ao config/authkit.ts para habilitar esta feature.',
+  'admin.settings.no_settings_table':
+    'A tabela `auth_settings` não existe. Para habilitar configurações em runtime, crie-a: `key TEXT PK, value TEXT NOT NULL, updated_at TIMESTAMP, updated_by TEXT`.',
+  'admin.settings.enabled_label': 'Habilitado',
+  'admin.settings.actions_label': 'Ativo em',
+  'admin.settings.action_login': 'Login',
+  'admin.settings.action_signup': 'Cadastro',
+  'admin.settings.action_reset': 'Redefinição de senha',
+  'admin.settings.save': 'Salvar',
+  'admin.settings.saved': 'Configurações salvas.',
+  'admin.settings.reset_to_config': 'Resetar ao config',
+  'admin.settings.reset_done': 'Setting em runtime apagado — o config estático voltou a ser a fonte de verdade.',
 
   // Console admin — paginação compartilhada.
   'admin.pagination.page': 'Página {page} de {total}',

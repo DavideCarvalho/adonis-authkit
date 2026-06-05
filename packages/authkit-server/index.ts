@@ -259,3 +259,11 @@ export type {
  */
 export { configure } from './commands/configure.js'
 export { stubsRoot } from './stubs/main.js'
+
+// Runtime settings (capability-probed, optional table `auth_settings`).
+export { RuntimeSettings, supportsSettings } from './src/host/runtime_settings.js'
+export type { SettingsCapability, SettingRow, RuntimeSettingsOptions } from './src/host/runtime_settings.js'
+export {
+  resolveEffectiveBotProtection,
+} from './src/host/bot_protection.js'
+export type { BotProtectionSetting } from './src/host/bot_protection.js'

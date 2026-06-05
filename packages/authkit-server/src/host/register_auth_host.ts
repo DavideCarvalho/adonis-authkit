@@ -113,10 +113,12 @@ const C = {
   adminClients: () => import('./controllers/admin/admin_clients_controller.js'),
   adminAudit: () => import('./controllers/admin/admin_audit_controller.js'),
   adminOrgs: () => import('./controllers/admin/admin_orgs_controller.js'),
+  adminSettings: () => import('./controllers/admin/admin_settings_controller.js'),
   apiUsers: () => import('./admin_api/api_users_controller.js'),
   apiClients: () => import('./admin_api/api_clients_controller.js'),
   apiMisc: () => import('./admin_api/api_misc_controller.js'),
   apiOrgs: () => import('./admin_api/api_orgs_controller.js'),
+  apiSettings: () => import('./admin_api/api_settings_controller.js'),
 }
 
 /**
@@ -273,6 +275,10 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
         router.post('/admin/orgs/:id/members', [C.adminOrgs, 'addMember'])
         router.post('/admin/orgs/:id/members/:accountId/remove', [C.adminOrgs, 'removeMember'])
         router.post('/admin/orgs/:id/invitations/:invId/revoke', [C.adminOrgs, 'revokeInvitation'])
+        // Runtime settings.
+        router.get('/admin/settings', [C.adminSettings, 'index'])
+        router.post('/admin/settings/bot-protection', [C.adminSettings, 'updateBotProtection'])
+        router.post('/admin/settings/bot-protection/reset', [C.adminSettings, 'resetBotProtection'])
       })
       .use([adminGuard])
   }
@@ -320,6 +326,11 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
         withApiThrottle(router.get('/audit', [C.apiMisc, 'audit']))
         withApiThrottle(router.get('/stats', [C.apiMisc, 'stats']))
         withApiThrottle(router.post('/tokens/verify', [C.apiMisc, 'verify']))
+        // Runtime settings CRUD.
+        withApiThrottle(router.get('/settings', [C.apiSettings, 'index']))
+        withApiThrottle(router.get('/settings/:key', [C.apiSettings, 'show']))
+        withApiThrottle(router.put('/settings/:key', [C.apiSettings, 'upsert']))
+        withApiThrottle(router.delete('/settings/:key', [C.apiSettings, 'destroy']))
       })
       .prefix('/api/authkit/v1')
       .use([adminApiGuard])

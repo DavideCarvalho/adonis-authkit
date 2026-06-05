@@ -13,6 +13,7 @@ import {
   checkJwks,
   checkAccessTokens,
   checkBotProtection,
+  checkSettings,
   type DoctorInput,
 } from '../src/doctor/checks.js'
 
@@ -236,5 +237,37 @@ test.group('doctor checks', () => {
     }))
     assert.equal(f!.level, 'warn')
     assert.include(f!.message, 'store')
+  })
+
+  test('checkSettings: settingsTablePresent undefined → null (silent)', ({ assert }) => {
+    const f = checkSettings(baseInput())
+    assert.isNull(f)
+  })
+
+  test('checkSettings: table absent → null (opt-in, silent)', ({ assert }) => {
+    const f = checkSettings(baseInput({ settingsTablePresent: false }))
+    assert.isNull(f)
+  })
+
+  test('checkSettings: table present + botProtection.verify present → ok', ({ assert }) => {
+    const f = checkSettings(baseInput({
+      settingsTablePresent: true,
+      authkitConfig: {
+        issuer: 'https://idp.test/oidc', mountPath: '/oidc',
+        clients: [{ redirectUris: ['https://app/cb'] }],
+        accountStore: { findById: () => {}, verifyCredentials: () => {} },
+        botProtection: { verify: async () => true },
+      },
+    }))
+    assert.equal(f!.level, 'ok')
+    assert.include(f!.message, 'auth_settings table present')
+  })
+
+  test('checkSettings: table present + no botProtection.verify → warn (orphan setting)', ({ assert }) => {
+    const f = checkSettings(baseInput({
+      settingsTablePresent: true,
+    }))
+    assert.equal(f!.level, 'warn')
+    assert.include(f!.message, 'orphan')
   })
 })

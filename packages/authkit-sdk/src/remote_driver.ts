@@ -7,6 +7,7 @@ import type {
   AuthkitOrganization,
   AuthkitOrganizationDetail,
   AuthkitOrgInvitation,
+  AuthkitSetting,
   AuthkitStats,
   AuthkitUser,
   AddedOrgMember,
@@ -17,12 +18,14 @@ import type {
   CreateUserInput,
   DeletedClient,
   DeletedOrganization,
+  DeletedSetting,
   DeletedUser,
   ListAuditParams,
   ListAuditResult,
   ListClientsResult,
   ListOrganizationsResult,
   ListSessionsResult,
+  ListSettingsResult,
   ListUsersParams,
   ListUsersResult,
   RegeneratedSecret,
@@ -186,6 +189,20 @@ export function createRemoteAuthkit(opts: RemoteOptions): Authkit {
     tokens: {
       verify(token: string) {
         return request<VerifyTokenResult>('POST', '/tokens/verify', { token })
+      },
+    },
+    settings: {
+      list(): Promise<ListSettingsResult> {
+        return request<ListSettingsResult>('GET', '/settings')
+      },
+      get(key: string): Promise<AuthkitSetting> {
+        return request<AuthkitSetting>('GET', `/settings/${encodeURIComponent(key)}`)
+      },
+      set(key: string, value: unknown): Promise<AuthkitSetting> {
+        return request<AuthkitSetting>('PUT', `/settings/${encodeURIComponent(key)}`, { value })
+      },
+      delete(key: string): Promise<DeletedSetting> {
+        return request<DeletedSetting>('DELETE', `/settings/${encodeURIComponent(key)}`)
       },
     },
     organizations: {

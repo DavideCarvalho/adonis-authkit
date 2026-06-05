@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="pt-br"><head><meta charset="utf-8"><title>{{ t('admin.settings.page_title') }}</title>
+<script src="https://cdn.tailwindcss.com"></script></head>
+<body class="min-h-screen bg-gray-100 p-4">
+  <div class="mx-auto max-w-4xl">
+    <div class="flex items-center justify-between py-6">
+      <div>
+        <div class="text-xs font-semibold uppercase tracking-widest text-gray-400">{{ t('common.brand_eyebrow') }}</div>
+        <h1 class="text-xl font-semibold text-gray-900">{{ t('admin.settings.title') }}</h1>
+      </div>
+      <form method="POST" action="/account/logout">
+        <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+        <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('admin.nav.logout') }}</button>
+      </form>
+    </div>
+
+    <nav class="mb-6 flex gap-4 text-sm font-medium">
+      <a href="/admin" class="text-gray-500 hover:underline">{{ t('admin.nav.dashboard') }}</a>
+      <a href="/admin/users" class="text-gray-500 hover:underline">{{ t('admin.nav.users') }}</a>
+      <a href="/admin/clients" class="text-gray-500 hover:underline">{{ t('admin.nav.clients') }}</a>
+      <a href="/admin/audit" class="text-gray-500 hover:underline">{{ t('admin.nav.audit') }}</a>
+      <a href="/admin/settings" class="text-gray-900 underline">{{ t('admin.nav.settings') }}</a>
+    </nav>
+
+    @if(flash)
+      <div class="mb-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-emerald-200">{{ flash }}</div>
+    @end
+
+    @if(!hasTable)
+      <div class="rounded-xl bg-amber-50 p-5 ring-1 ring-amber-200">
+        <p class="text-sm text-amber-800">{{ t('admin.settings.no_settings_table') }}</p>
+      </div>
+    @else
+
+      {{-- Bot protection card --}}
+      <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+        <h2 class="mb-1 text-sm font-semibold text-gray-900">{{ t('admin.settings.bot_protection_section') }}</h2>
+
+        @if(!hasBotConfig)
+          <p class="text-sm text-gray-500">{{ t('admin.settings.bot_protection_no_verify') }}</p>
+        @else
+          <p class="mb-4 text-xs text-gray-500">{{ t('admin.settings.bot_protection_intro') }}</p>
+
+          <form method="POST" action="/admin/settings/bot-protection">
+            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+
+            <label class="flex items-center gap-2 mb-4">
+              <input type="checkbox" name="enabled" value="1" {{ formEnabled ? 'checked' : '' }}
+                class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.enabled_label') }}</span>
+            </label>
+
+            <fieldset class="mb-4">
+              <legend class="mb-2 text-xs font-medium text-gray-500 uppercase tracking-wide">{{ t('admin.settings.actions_label') }}</legend>
+              <div class="flex gap-4">
+                <label class="flex items-center gap-1 text-sm">
+                  <input type="checkbox" name="on" value="login" {{ formOn.includes('login') ? 'checked' : '' }}
+                    class="h-4 w-4 rounded border-gray-300">
+                  {{ t('admin.settings.action_login') }}
+                </label>
+                <label class="flex items-center gap-1 text-sm">
+                  <input type="checkbox" name="on" value="signup" {{ formOn.includes('signup') ? 'checked' : '' }}
+                    class="h-4 w-4 rounded border-gray-300">
+                  {{ t('admin.settings.action_signup') }}
+                </label>
+                <label class="flex items-center gap-1 text-sm">
+                  <input type="checkbox" name="on" value="reset" {{ formOn.includes('reset') ? 'checked' : '' }}
+                    class="h-4 w-4 rounded border-gray-300">
+                  {{ t('admin.settings.action_reset') }}
+                </label>
+              </div>
+            </fieldset>
+
+            <div class="flex items-center gap-3">
+              <button type="submit"
+                class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
+                {{ t('admin.settings.save') }}
+              </button>
+              @if(currentSetting !== null)
+                <form method="POST" action="/admin/settings/bot-protection/reset" class="inline">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <button type="submit" class="text-sm text-gray-500 hover:underline">
+                    {{ t('admin.settings.reset_to_config') }}
+                  </button>
+                </form>
+              @end
+            </div>
+          </form>
+        @end
+      </div>
+    @end
+  </div>
+</body></html>

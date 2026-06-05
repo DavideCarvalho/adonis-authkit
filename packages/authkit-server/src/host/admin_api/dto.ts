@@ -120,3 +120,14 @@ export function orgDetailDto(detail: OrgDetail) {
 export function apiError(code: string, message: string) {
   return { error: { code, message } }
 }
+
+import type { SettingRow } from '../runtime_settings.js'
+
+export function settingDto(row: SettingRow) {
+  return {
+    key: row.key,
+    value: row.value,
+    updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : (row.updatedAt ?? null),
+    updatedBy: row.updatedBy ?? null,
+  }
+}

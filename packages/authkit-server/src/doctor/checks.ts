@@ -25,6 +25,11 @@ export interface DoctorInput {
     ally: boolean
     limiter: boolean
   }
+  /**
+   * Whether the `auth_settings` table is present (runtime settings capability).
+   * Provided by the doctor command; undefined = not checked (doctor runs old version).
+   */
+  settingsTablePresent?: boolean
 }
 
 /** Type guard estrutural: o store expõe um método (capacidade presente). */
@@ -386,6 +391,44 @@ export function checkOrganizations(input: DoctorInput): Finding | null {
   return null
 }
 
+/**
+ * Runtime settings: informa se a tabela `auth_settings` está presente.
+ * Quando ausente, é silencioso (a feature é opt-in). Quando presente mas
+ * `botProtection.verify` NÃO está no config, alerta que a setting em banco
+ * é órfã e não tem efeito.
+ */
+export function checkSettings(input: DoctorInput): Finding | null {
+  const cfg = input.authkitConfig
+  if (!cfg) return null
+
+  const tablePresent = input.settingsTablePresent
+
+  if (tablePresent === undefined) {
+    // Doctor did not check — silently skip.
+    return null
+  }
+
+  if (!tablePresent) {
+    // Table absent — opt-in feature, silently ok.
+    return null
+  }
+
+  // Table present — check if botProtection.verify is configured.
+  const hasBotVerify = typeof cfg.botProtection?.verify === 'function'
+  if (!hasBotVerify) {
+    return {
+      level: 'warn',
+      message:
+        'The `auth_settings` table is present, but `botProtection.verify` is not configured in config — any `bot_protection` setting stored in `auth_settings` is an orphan and has no effect. Add `botProtection.verify` to config/authkit.ts or drop the row.',
+    }
+  }
+
+  return {
+    level: 'ok',
+    message: 'auth_settings table present — runtime settings (including bot-protection toggle) are active.',
+  }
+}
+
 /** Roda todos os checks e devolve a lista plana de findings. */
 export function runAllChecks(input: DoctorInput): Finding[] {
   const findings: Finding[] = []
@@ -413,6 +456,8 @@ export function runAllChecks(input: DoctorInput): Finding[] {
   if (accessTokens) findings.push(accessTokens)
   const orgs = checkOrganizations(input)
   if (orgs) findings.push(orgs)
+  const settings = checkSettings(input)
+  if (settings) findings.push(settings)
   return findings
 }
 

@@ -323,6 +323,27 @@ export interface RevokedOrgInvitation {
   revoked: boolean
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// Runtime Settings
+// ──────────────────────────────────────────────────────────────────────────
+
+/** A runtime setting entry as projected by the Admin API. */
+export interface AuthkitSetting {
+  key: string
+  value: unknown
+  updatedAt: string | null
+  updatedBy: string | null
+}
+
+export interface ListSettingsResult {
+  data: AuthkitSetting[]
+}
+
+export interface DeletedSetting {
+  key: string
+  deleted: boolean
+}
+
 /** The shared SDK interface, implemented identically by both drivers. */
 export interface Authkit {
   users: {
@@ -372,5 +393,12 @@ export interface Authkit {
       create(orgId: string, input: CreateOrgInvitationInput): Promise<AuthkitOrgInvitation>
       revoke(orgId: string, invitationId: string): Promise<RevokedOrgInvitation>
     }
+  }
+  /** Runtime settings — CRUD for entries in `auth_settings` table. */
+  settings: {
+    list(): Promise<ListSettingsResult>
+    get(key: string): Promise<AuthkitSetting>
+    set(key: string, value: unknown): Promise<AuthkitSetting>
+    delete(key: string): Promise<DeletedSetting>
   }
 }

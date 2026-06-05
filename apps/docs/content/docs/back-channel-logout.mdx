@@ -15,10 +15,10 @@ Add `backchannelLogoutUri` to the client's `ClientConfig`. When set, the IdP sen
 ```ts title="config/authkit_server.ts"
 clients: [
   {
-    clientId: 'eduliberta',
-    clientSecret: env.get('EDULIBERTA_CLIENT_SECRET'),
-    redirectUris: [env.get('EDULIBERTA_REDIRECT_URI')],
-    backchannelLogoutUri: 'https://eduliberta.example.com/auth/backchannel-logout',
+    clientId: 'acme-web',
+    clientSecret: env.get('WEB_CLIENT_SECRET'),
+    redirectUris: [env.get('WEB_REDIRECT_URI')],
+    backchannelLogoutUri: 'https://web.acme.com/auth/backchannel-logout',
     backchannelLogoutSessionRequired: true, // require the `sid` claim
   },
 ]

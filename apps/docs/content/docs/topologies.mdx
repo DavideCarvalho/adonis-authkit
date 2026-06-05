@@ -9,26 +9,26 @@ Server is its own deployment or lives inside one of your product apps.
 ## Standalone
 
 A dedicated identity provider app — nothing but AuthKit. Product apps are all relying
-parties pointing at it. This is the `auth-service` example.
+parties pointing at it. This is a dedicated `auth` app.
 
 ```ts title="config/authkit_server.ts (standalone IdP)"
 const authServerConfig = defineConfig({
-  issuer: env.get('AUTH_SERVICE_ISSUER'), // https://auth.example.com/oidc
+  issuer: env.get('AUTHKIT_ISSUER'), // https://auth.acme.com/oidc
   adapter: adapters.database({ connection: 'auth' }),
   jwks: { source: 'managed', algorithm: 'RS256' },
   clients: [
     {
-      clientId: 'entre-textos',
-      clientSecret: env.get('ENTRE_TEXTOS_CLIENT_SECRET'),
-      redirectUris: [env.get('ENTRE_TEXTOS_REDIRECT_URI')],
-      postLogoutRedirectUris: [entreTextosPostLogout],
+      clientId: 'acme-web',
+      clientSecret: env.get('WEB_CLIENT_SECRET'),
+      redirectUris: [env.get('WEB_REDIRECT_URI')],
+      postLogoutRedirectUris: [webPostLogout],
       grants: ['authorization_code', 'refresh_token'],
     },
     {
-      clientId: 'eduliberta',
-      clientSecret: env.get('EDULIBERTA_CLIENT_SECRET'),
-      redirectUris: [env.get('EDULIBERTA_REDIRECT_URI')],
-      postLogoutRedirectUris: [eduLibertaPostLogout],
+      clientId: 'acme-admin',
+      clientSecret: env.get('ADMIN_CLIENT_SECRET'),
+      redirectUris: [env.get('ADMIN_REDIRECT_URI')],
+      postLogoutRedirectUris: [adminPostLogout],
       grants: ['authorization_code', 'refresh_token'],
     },
   ],
@@ -44,7 +44,7 @@ and registered redirect URIs.
 ## Embedded
 
 The provider runs **inside** an existing product app, and that app is also one of its own
-clients (host-is-its-own-client). This is the `entre-textos` example: the same process
+clients (host-is-its-own-client). This is the `acme-web` example: the same process
 serves the product *and* the OIDC endpoints.
 
 The server config is essentially identical — the host app simply lists itself in
@@ -56,8 +56,8 @@ const authServerConfig = defineConfig({
   adapter: adapters.database({ connection: 'auth' }),
   jwks: { source: 'managed', algorithm: 'RS256' },
   clients: [
-    { clientId: 'entre-textos', /* the host itself */ ... },
-    { clientId: 'eduliberta', ... },
+    { clientId: 'acme-web', /* the host itself */ ... },
+    { clientId: 'acme-admin', ... },
   ],
   accountStore: lucidAccountStore(AuthUser),
   mountPath: '/oidc',

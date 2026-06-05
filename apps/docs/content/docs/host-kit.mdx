@@ -88,14 +88,14 @@ the brand). `firstParty` marks clients whose consent screen is skipped.
 
 ```ts
 branding: {
-  company: 'educ(a)ção',
+  company: 'Acme',
   clients: {
-    'entre-textos': { appName: 'Entre Textos', accent: '#1d4ed8', accentSoft: '#3b82f6', tagline: 'Orientação acadêmica' },
-    eduliberta: { appName: 'EduLiberta', accent: '#047857', accentSoft: '#10b981', tagline: 'Educação livre' },
+    'acme-web': { appName: 'Acme Web', accent: '#1d4ed8', accentSoft: '#3b82f6', tagline: 'Your workspace' },
+    'acme-admin': { appName: 'Acme Admin', accent: '#047857', accentSoft: '#10b981', tagline: 'Control panel' },
   },
-  default: { appName: 'Sua conta', accent: '#111827', accentSoft: '#374151', tagline: 'Acesso unificado' },
-  firstParty: ['entre-textos', 'eduliberta'],
-  audienceLabels: { advisor: 'Orientador', advisee: 'Pesquisador' },
+  default: { appName: 'Your account', accent: '#111827', accentSoft: '#374151', tagline: 'Unified access' },
+  firstParty: ['acme-web', 'acme-admin'],
+  audienceLabels: { manager: 'Manager', member: 'Member' },
 }
 ```
 

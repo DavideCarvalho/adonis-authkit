@@ -14,9 +14,9 @@ The acting client must be allowed the token-exchange grant in its registration:
 ```ts title="config/authkit_server.ts"
 clients: [
   {
-    clientId: 'entre-textos',
-    clientSecret: env.get('ENTRE_TEXTOS_CLIENT_SECRET'),
-    redirectUris: [env.get('ENTRE_TEXTOS_REDIRECT_URI')],
+    clientId: 'acme-admin',
+    clientSecret: env.get('ADMIN_CLIENT_SECRET'),
+    redirectUris: [env.get('ADMIN_REDIRECT_URI')],
     grants: [
       'authorization_code',
       'refresh_token',

@@ -1,26 +1,43 @@
 ---
 title: Quickstart
-description: A minimal standalone IdP and a client app, from zero.
+description: Two end-to-end walkthroughs — everything in one app, or a standalone IdP with separate client apps.
 ---
 
-This walks through the smallest end-to-end setup: a **standalone Authorization Server** and
-a separate **client app** that authenticates against it. Every snippet uses real exported
-APIs. For deeper dives, follow the links to the feature pages.
+AuthKit is topology-agnostic: the same server config powers both an embedded provider and a
+dedicated one. This page gives you **two complete, parallel walkthroughs** so you can pick the
+shape that fits your deployment. Every snippet uses real exported APIs. For deeper dives, follow
+the links to the feature pages.
 
-## 1. The IdP
+- **[Topology A — everything in one app](#topology-a--everything-in-one-app)**: a single AdonisJS
+  app hosts the Authorization Server *and* is one of its own clients (host-is-its-own-client).
+- **[Topology B — separate apps](#topology-b--separate-apps)**: one app runs only the IdP;
+  `acme-web` and `acme-admin` are pure clients pointing at its issuer.
 
-### Install & configure
+See [Topologies](/docs/topologies) for the conceptual background; switching later is mostly an
+infrastructure change — keep the same `issuer` URL and the relying parties don't need to move.
+
+---
+
+## Topology A — everything in one app
+
+One AdonisJS process serves your product **and** the OIDC endpoints. The app authenticates
+against itself: it installs both the server kit (to *be* the IdP) and the client kit (to *consume*
+its own issuer). The provider's SSO cookie and the app's own session coexist on the same origin as
+two separate cookies.
+
+### A1. Install both packages
 
 ```bash
-npm install @dudousxd/adonis-authkit-server
+npm install @dudousxd/adonis-authkit-server @dudousxd/adonis-authkit-client
 node ace configure @dudousxd/adonis-authkit-server
+node ace configure @dudousxd/adonis-authkit-client
 ```
 
-`configure` publishes `config/authkit_server.ts`, wires the provider, and registers the
-bundled ace commands (including `authkit:eject`). AuthKit needs a SQL connection
-(`@adonisjs/lucid`) for its adapter and stores.
+`configure` publishes the config files, wires the providers, and registers the bundled ace
+commands (including `authkit:eject`). AuthKit needs a SQL connection (`@adonisjs/lucid`) for its
+adapter and stores.
 
-### The account model
+### A2. The account model
 
 Compose an `AuthUser` from the mixins so the Lucid store has the columns it needs:
 
@@ -36,7 +53,7 @@ export default class AuthUser extends compose(
 ) {}
 ```
 
-### config/authkit_server.ts
+### A3. Server config — list the host as its own client
 
 ```ts title="config/authkit_server.ts"
 import env from '#start/env'
@@ -55,9 +72,9 @@ const authServerConfig = defineConfig({
   ttl: { accessToken: '15m', refreshToken: '30d' },
   clients: [
     {
-      clientId: 'my-app',
-      clientSecret: env.get('MY_APP_CLIENT_SECRET'),
-      redirectUris: [env.get('MY_APP_REDIRECT_URI')],
+      clientId: 'acme-web', // the host itself
+      clientSecret: env.get('WEB_CLIENT_SECRET'),
+      redirectUris: [env.get('WEB_REDIRECT_URI')],
       grants: ['authorization_code', 'refresh_token'],
     },
   ],
@@ -70,35 +87,11 @@ export default authServerConfig
 ```
 
 <Callout type="warn">
-  `issuer` is the public provider URL and **must end with `mountPath`** — here
-  `…/oidc` for `mountPath: '/oidc'`.
+  `issuer` is the public provider URL and **must end with `mountPath`** — here `…/oidc` for
+  `mountPath: '/oidc'`. In this topology the issuer host is the host app's own origin.
 </Callout>
 
-### Mount the host
-
-```ts title="start/routes.ts"
-import router from '@adonisjs/core/services/router'
-import { registerAuthHost } from '@dudousxd/adonis-authkit-server'
-
-registerAuthHost(router, {
-  mountPath: '/oidc',
-})
-```
-
-One call mounts the provider, the login / consent / signup interaction, password reset,
-email verification, and the account console. That's the whole IdP. See
-[Host Kit](/docs/host-kit) for the render seam, branding, and ejecting.
-
-## 2. The client app
-
-### Install & configure
-
-```bash
-npm install @dudousxd/adonis-authkit-client
-node ace configure @dudousxd/adonis-authkit-client
-```
-
-### config/authkit_client.ts
+### A4. Client config — point at your own issuer
 
 ```ts title="config/authkit_client.ts"
 import env from '#start/env'
@@ -107,8 +100,8 @@ import type { Identity } from '@dudousxd/adonis-authkit-client'
 import AppUser from '#models/app_user'
 
 const authkitClientConfig = defineConfig({
-  issuer: env.get('AUTHKIT_ISSUER'),       // same issuer as the IdP
-  clientId: env.get('AUTHKIT_CLIENT_ID'),  // 'my-app'
+  issuer: env.get('AUTHKIT_ISSUER'),       // same issuer — the host points at itself
+  clientId: env.get('AUTHKIT_CLIENT_ID'),  // 'acme-web'
   clientSecret: env.get('AUTHKIT_CLIENT_SECRET'),
   redirectUri: env.get('AUTHKIT_REDIRECT_URI'),
   resolver: resolvers.jwt({ tokenSource: 'session' }),
@@ -124,7 +117,20 @@ const authkitClientConfig = defineConfig({
 export default authkitClientConfig
 ```
 
-### Middleware
+### A5. Mount the host + register middleware
+
+```ts title="start/routes.ts"
+import router from '@adonisjs/core/services/router'
+import { registerAuthHost } from '@dudousxd/adonis-authkit-server'
+
+registerAuthHost(router, {
+  mountPath: '/oidc',
+})
+```
+
+One call mounts the provider, the login / consent / signup interaction, password reset, email
+verification, and the account console. See [Host Kit](/docs/host-kit) for the render seam,
+branding, and ejecting.
 
 ```ts title="start/kernel.ts"
 router.use([
@@ -133,13 +139,12 @@ router.use([
 ])
 ```
 
-The middleware proactively refreshes the token set (see
+The client middleware proactively refreshes the token set (see
 [Refresh Tokens](/docs/refresh-tokens)) and attaches an authenticator to `ctx.auth`.
 
-### The login / callback / logout flow
+### A6. The login / callback / logout flow
 
-```ts title="start/routes.ts (client)"
-import router from '@adonisjs/core/services/router'
+```ts title="start/routes.ts"
 import {
   generatePkce,
   buildAuthorizeUrl,
@@ -186,31 +191,245 @@ router.get('/logout', async ({ session, response }) => {
     buildEndSessionUrl({
       issuer: cfg.issuer,
       idToken: tokens?.idToken,
-      postLogoutRedirectUri: 'http://localhost:3000/',
+      postLogoutRedirectUri: 'http://localhost:3333/',
     })
   )
 })
 ```
 
-## 3. Environment
+### A7. Environment
+
+```dotenv title=".env"
+AUTHKIT_ISSUER=http://localhost:3333/oidc
+AUTHKIT_CLIENT_ID=acme-web
+AUTHKIT_CLIENT_SECRET=super-secret
+AUTHKIT_REDIRECT_URI=http://localhost:3333/auth/callback
+# the server reads the same client back through these:
+WEB_CLIENT_SECRET=super-secret
+WEB_REDIRECT_URI=http://localhost:3333/auth/callback
+```
+
+That's the whole single-app setup — the provider and the relying party are the same process.
+
+---
+
+## Topology B — separate apps
+
+Three apps: a dedicated **IdP** (server kit only) and two pure **client apps**, `acme-web` and
+`acme-admin` (client kit only), pointing at the IdP's issuer. There is **no shared cookie or
+session** between them — auth flows entirely over OIDC redirects, and logout is RP-initiated (with
+an optional back-channel pointer for server-to-server termination).
+
+### The IdP side
+
+#### B1. Install & configure
+
+```bash
+npm install @dudousxd/adonis-authkit-server
+node ace configure @dudousxd/adonis-authkit-server
+```
+
+#### B2. The account model
+
+Identical to [A2](#a2-the-account-model) — compose `AuthUser` from `withAuthUser()` and
+`withCredentials()`. The IdP owns the user identities.
+
+#### B3. Server config — register every client
+
+```ts title="config/authkit_server.ts (IdP)"
+import env from '#start/env'
+import AuthUser from '#models/auth_user'
+import {
+  defineConfig,
+  adapters,
+  lucidAccountStore,
+  inertiaRenderer,
+} from '@dudousxd/adonis-authkit-server'
+
+const authServerConfig = defineConfig({
+  issuer: env.get('AUTHKIT_ISSUER'), // https://auth.acme.com/oidc
+  adapter: adapters.database({ connection: 'auth' }),
+  jwks: { source: 'managed', algorithm: 'RS256' },
+  ttl: { accessToken: '15m', refreshToken: '30d' },
+  clients: [
+    {
+      clientId: 'acme-web',
+      clientSecret: env.get('WEB_CLIENT_SECRET'),
+      redirectUris: [env.get('WEB_REDIRECT_URI')],
+      postLogoutRedirectUris: ['https://web.acme.com/'],
+      // optional: server-to-server logout pointer (see Back-channel Logout)
+      backchannelLogoutUri: 'https://web.acme.com/auth/backchannel-logout',
+      grants: ['authorization_code', 'refresh_token'],
+    },
+    {
+      clientId: 'acme-admin',
+      clientSecret: env.get('ADMIN_CLIENT_SECRET'),
+      redirectUris: [env.get('ADMIN_REDIRECT_URI')],
+      postLogoutRedirectUris: ['https://admin.acme.com/'],
+      grants: ['authorization_code', 'refresh_token'],
+    },
+  ],
+  accountStore: lucidAccountStore(AuthUser),
+  mountPath: '/oidc',
+  render: inertiaRenderer({ prefix: 'authkit' }),
+})
+
+export default authServerConfig
+```
+
+#### B4. Mount the host
+
+```ts title="start/routes.ts (IdP)"
+import router from '@adonisjs/core/services/router'
+import { registerAuthHost } from '@dudousxd/adonis-authkit-server'
+
+registerAuthHost(router, {
+  mountPath: '/oidc',
+})
+```
+
+That single call is the entire IdP: provider endpoints, login / consent / signup, password reset,
+email verification, and the account console.
 
 ```dotenv title=".env (IdP)"
-AUTHKIT_ISSUER=http://localhost:3333/oidc
-MY_APP_CLIENT_SECRET=super-secret
-MY_APP_REDIRECT_URI=http://localhost:3000/auth/callback
+AUTHKIT_ISSUER=https://auth.acme.com/oidc
+WEB_CLIENT_SECRET=web-super-secret
+WEB_REDIRECT_URI=https://web.acme.com/auth/callback
+ADMIN_CLIENT_SECRET=admin-super-secret
+ADMIN_REDIRECT_URI=https://admin.acme.com/auth/callback
 ```
 
-```dotenv title=".env (client)"
-AUTHKIT_ISSUER=http://localhost:3333/oidc
-AUTHKIT_CLIENT_ID=my-app
-AUTHKIT_CLIENT_SECRET=super-secret
-AUTHKIT_REDIRECT_URI=http://localhost:3000/auth/callback
+### The client side (`acme-web` and `acme-admin`)
+
+Each client app repeats the same steps with its own `clientId`, secret and redirect URI. The
+example below is `acme-web`; `acme-admin` is identical with its own credentials.
+
+#### B5. Install & configure
+
+```bash
+npm install @dudousxd/adonis-authkit-client
+node ace configure @dudousxd/adonis-authkit-client
 ```
 
-## Where to go next
+#### B6. Client config
 
-- [Topologies](/docs/topologies) — standalone vs embedded (host-is-its-own-client).
+```ts title="config/authkit_client.ts (acme-web)"
+import env from '#start/env'
+import { defineConfig, resolvers } from '@dudousxd/adonis-authkit-client'
+import type { Identity } from '@dudousxd/adonis-authkit-client'
+import AppUser from '#models/app_user'
+
+const authkitClientConfig = defineConfig({
+  issuer: env.get('AUTHKIT_ISSUER'),       // the IdP's issuer — https://auth.acme.com/oidc
+  clientId: env.get('AUTHKIT_CLIENT_ID'),  // 'acme-web'
+  clientSecret: env.get('AUTHKIT_CLIENT_SECRET'),
+  redirectUri: env.get('AUTHKIT_REDIRECT_URI'),
+  resolver: resolvers.jwt({ tokenSource: 'session' }),
+
+  resolveUser: async (identity: Identity) => {
+    return AppUser.updateOrCreate(
+      { id: identity.userId },
+      { id: identity.userId, email: identity.email, fullName: identity.profile?.name ?? null }
+    )
+  },
+})
+
+export default authkitClientConfig
+```
+
+#### B7. Middleware
+
+```ts title="start/kernel.ts (acme-web)"
+router.use([
+  // ...
+  () => import('@dudousxd/adonis-authkit-client/authkit_middleware'),
+])
+```
+
+#### B8. Login / callback / logout
+
+The flow is the same as [A6](#a6-the-login--callback--logout-flow), except the redirects cross
+hosts — the browser bounces to `https://auth.acme.com/oidc/auth` and back to
+`https://web.acme.com/auth/callback`. There is no shared session: the IdP's SSO cookie lives on
+`auth.acme.com`, the app's session cookie lives on `web.acme.com`.
+
+```ts title="start/routes.ts (acme-web)"
+import {
+  generatePkce,
+  buildAuthorizeUrl,
+  exchangeCode,
+  buildEndSessionUrl,
+} from '@dudousxd/adonis-authkit-client'
+
+const cfg = {
+  issuer: process.env.AUTHKIT_ISSUER!,
+  clientId: process.env.AUTHKIT_CLIENT_ID!,
+  clientSecret: process.env.AUTHKIT_CLIENT_SECRET!,
+  redirectUri: process.env.AUTHKIT_REDIRECT_URI!,
+}
+
+router.get('/login', async ({ session, response }) => {
+  const { verifier, challenge } = await generatePkce()
+  const state = crypto.randomUUID()
+  session.put('pkce', { verifier, state })
+  return response.redirect(
+    buildAuthorizeUrl({
+      ...cfg,
+      scopes: ['openid', 'profile', 'email', 'offline_access'],
+      state,
+      codeChallenge: challenge,
+    })
+  )
+})
+
+router.get('/auth/callback', async ({ request, session, response }) => {
+  const stash = session.get('pkce') as { verifier: string; state: string }
+  const tokens = await exchangeCode({
+    ...cfg,
+    code: request.input('code'),
+    codeVerifier: stash.verifier,
+  })
+  session.put('authkit', tokens)
+  return response.redirect('/')
+})
+
+// RP-initiated logout: clear the local session, then end the IdP session.
+router.get('/logout', async ({ session, response }) => {
+  const tokens = session.get('authkit') as { idToken?: string } | undefined
+  session.clear()
+  return response.redirect(
+    buildEndSessionUrl({
+      issuer: cfg.issuer,
+      idToken: tokens?.idToken,
+      postLogoutRedirectUri: 'https://web.acme.com/',
+    })
+  )
+})
+```
+
+For server-initiated termination (logging a user out of every app at once), the IdP POSTs a signed
+`logout_token` to each client's `backchannelLogoutUri`. Wire the receiving endpoint with
+`AuthkitClientManager.handleBackchannelLogout(ctx)` — see
+[Back-channel Logout](/docs/back-channel-logout).
+
+```dotenv title=".env (acme-web)"
+AUTHKIT_ISSUER=https://auth.acme.com/oidc
+AUTHKIT_CLIENT_ID=acme-web
+AUTHKIT_CLIENT_SECRET=web-super-secret
+AUTHKIT_REDIRECT_URI=https://web.acme.com/auth/callback
+```
+
+`acme-admin` uses the same code with `AUTHKIT_CLIENT_ID=acme-admin`, its own secret, and
+`https://admin.acme.com/auth/callback`.
+
+---
+
+## Next steps
+
+- [Topologies](/docs/topologies) — the conceptual standalone vs embedded reference.
+- [MFA](/docs/mfa) — TOTP and step-up.
+- [Admin Console](/docs/admin-console) — the built-in dashboard for users, roles, and clients.
+- [Device Flow](/docs/device-flow) — `urn:ietf:params:oauth:grant-type:device_code`.
 - [Resolvers](/docs/resolvers) — `jwt` / `pat` / `opaque`.
-- [Security](/docs/security) — rate-limiting, lockout, audit, logout.
+- [Security](/docs/security) — rate-limiting, lockout, audit, and logout.
 - [React](/docs/react) — frontend `useAuth()` and gating.
-- [Observability](/docs/observability) — metrics + a Grafana dashboard.

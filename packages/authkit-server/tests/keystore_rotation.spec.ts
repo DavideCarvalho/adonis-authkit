@@ -3,7 +3,14 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { SignJWT, importJWK, createLocalJWKSet, jwtVerify } from 'jose'
-import { ensureKeystore, rotateKeystore, toPublicJwks } from '../src/keys/keystore.js'
+import {
+  ensureKeystore,
+  rotateKeystore,
+  toPublicJwks,
+  planRotation,
+  readKeystore,
+  signingKeyAgeDays,
+} from '../src/keys/keystore.js'
 
 async function signWith(jwk: Record<string, any>, claims: Record<string, unknown>) {
   const key = await importJWK(jwk, jwk.alg)
@@ -67,5 +74,56 @@ test.group('keystore rotation', (group) => {
     const third = await rotateKeystore(path, 'RS256', 2)
     assert.lengthOf(third.store.keys, 2)
     assert.lengthOf(third.retiredKids, 1)
+  })
+
+  test('retire=true mantém SÓ a nova chave (aposenta todas as antigas)', async ({ assert }) => {
+    await ensureKeystore(path, 'RS256')
+    await rotateKeystore(path, 'RS256', 3) // 2 chaves
+    const retired = await rotateKeystore(path, 'RS256', 3, true)
+    assert.lengthOf(retired.store.keys, 1) // só a nova
+    assert.equal(retired.store.keys[0].kid, retired.newKid)
+    assert.isAbove(retired.retiredKids.length, 0)
+  })
+
+  test('planRotation (dry-run) calcula o plano SEM tocar o keystore', async ({ assert }) => {
+    const initial = await ensureKeystore(path, 'RS256')
+    const before = readKeystore(path)
+
+    const plan = planRotation(before, 2, false)
+    assert.equal(plan.currentKid, initial.keys[0].kid)
+    assert.equal(plan.keep, 2)
+    assert.equal(plan.keptKids[0], '<new>')
+    assert.include(plan.keptKids, initial.keys[0].kid)
+    assert.lengthOf(plan.retiredKids, 0)
+
+    // dry-run não persiste nada: o keystore continua idêntico.
+    const after = readKeystore(path)
+    assert.deepEqual(after, before)
+  })
+
+  test('planRotation com retire projeta a aposentadoria de todas as antigas', async ({ assert }) => {
+    await ensureKeystore(path, 'RS256')
+    await rotateKeystore(path, 'RS256', 3) // 2 chaves no store
+    const store = readKeystore(path)
+    const plan = planRotation(store, 3, true)
+    assert.equal(plan.keep, 1)
+    assert.deepEqual(plan.keptKids, ['<new>'])
+    assert.lengthOf(plan.retiredKids, 2) // ambas antigas seriam removidas
+  })
+
+  test('signingKeyAgeDays lê o carimbo iat da chave corrente', async ({ assert }) => {
+    const store = await ensureKeystore(path, 'RS256')
+    assert.property(store.keys[0], 'iat') // metadado de idade gravado
+    assert.equal(signingKeyAgeDays(store), 0) // recém-criada
+    // chave sem iat → null (degrada sem quebrar).
+    assert.isNull(signingKeyAgeDays({ keys: [{ kid: 'x' }] }))
+    assert.isNull(signingKeyAgeDays(null))
+  })
+
+  test('toPublicJwks remove o metadado interno iat', async ({ assert }) => {
+    const store = await ensureKeystore(path, 'RS256')
+    const pub = toPublicJwks(store)
+    assert.notProperty(pub.keys[0], 'iat')
+    assert.notProperty(pub.keys[0], 'd')
   })
 })

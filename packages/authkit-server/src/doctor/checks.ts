@@ -276,17 +276,58 @@ export function checkPasswordPolicy(input: DoctorInput): Finding | null {
   return { level: 'ok', message: 'password policy configured.' }
 }
 
-/** info sobre rotação quando jwks é managed. */
+/** info sobre rotação quando jwks é managed; warn se managed sem store (sem rotação real). */
 export function checkJwks(input: DoctorInput): Finding | null {
   const jwks = input.authkitConfig?.jwks
   if (!jwks) return null
   if (jwks.source === 'managed') {
+    if (!jwks.store) {
+      return {
+        level: 'warn',
+        message:
+          'jwks managed WITHOUT a `store` — a fresh ephemeral key is generated each boot (tokens stop validating after a restart and `node ace authkit:keys:rotate` has no effect). Set `jwks.store` to persist and enable real rotation.',
+      }
+    }
     return {
       level: 'ok',
-      message: 'jwks managed — rotate the signing keys with `node ace authkit:rotate-keys` (use --store to persist across boots).',
+      message:
+        'jwks managed with a persisted store — rotate the signing keys with `node ace authkit:keys:rotate` (--dry-run to preview, --retire to drop old keys, --keep=N for the grace window).',
     }
   }
   return { level: 'ok', message: 'jwks provided inline (source=jwks).' }
+}
+
+/**
+ * Formato dos Access Tokens (RFC 9068). Informa o formato configurado e, no modo
+ * JWT, lembra que o JWKS precisa ser estável (store persistido) para que os RPs
+ * validem os ATs via jwks_uri através de reinícios/rotação.
+ */
+export function checkAccessTokens(input: DoctorInput): Finding | null {
+  const cfg = input.authkitConfig
+  const at = cfg?.accessTokens
+  if (!at) return null
+  const resources = at.resources ?? {}
+  const resourceCount = Object.keys(resources).length
+  const anyJwt = at.anyJwt ?? (at.format === 'jwt' || Object.values(resources).some((r: any) => r?.format === 'jwt'))
+
+  if (!anyJwt) {
+    return { level: 'ok', message: 'access tokens are opaque (default) — introspect them at the introspection endpoint.' }
+  }
+
+  const detail = resourceCount
+    ? `format=${at.format}, ${resourceCount} resource(s) configured`
+    : `format=jwt, audience=${at.audience}`
+  const jwks = cfg?.jwks
+  if (jwks?.source === 'managed' && !jwks.store) {
+    return {
+      level: 'warn',
+      message: `JWT access tokens (RFC 9068) are on (${detail}), but jwks is managed WITHOUT a store — the signing key changes every boot, so issued JWT ATs stop validating after a restart. Set jwks.store.`,
+    }
+  }
+  return {
+    level: 'ok',
+    message: `JWT access tokens (RFC 9068) are on (${detail}) — signed with the JWKS key, validable via jwks_uri (typ "at+jwt").`,
+  }
 }
 
 /** Roda todos os checks e devolve a lista plana de findings. */
@@ -310,6 +351,8 @@ export function runAllChecks(input: DoctorInput): Finding[] {
   if (passwordPolicy) findings.push(passwordPolicy)
   const jwks = checkJwks(input)
   if (jwks) findings.push(jwks)
+  const accessTokens = checkAccessTokens(input)
+  if (accessTokens) findings.push(accessTokens)
   return findings
 }
 

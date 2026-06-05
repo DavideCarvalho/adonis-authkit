@@ -10,6 +10,8 @@ import {
   checkWebauthn,
   checkRequireVerifiedEmail,
   checkPasswordPolicy,
+  checkJwks,
+  checkAccessTokens,
   type DoctorInput,
 } from '../src/doctor/checks.js'
 
@@ -20,7 +22,7 @@ function baseInput(overrides: Partial<DoctorInput> = {}): DoctorInput {
       mountPath: '/oidc',
       clients: [{ client_id: 'a', redirectUris: ['https://app/cb'] }],
       accountStore: { findById: () => {}, verifyCredentials: () => {} },
-      jwks: { source: 'managed' },
+      jwks: { source: 'managed', store: 'tmp/jwks.json' },
     },
     sessionConfig: { store: 'redis' },
     peers: { session: true, shield: true, ally: true, limiter: true },
@@ -166,5 +168,52 @@ test.group('doctor checks', () => {
   test('session cookie store gera warn de tamanho', ({ assert }) => {
     const findings = runAllChecks(baseInput({ sessionConfig: { store: 'cookie' } }))
     assert.isTrue(findings.some((f) => f.level === 'warn' && f.message.includes('cookie')))
+  })
+
+  test('jwks managed com store → ok e referencia authkit:keys:rotate', ({ assert }) => {
+    const f = checkJwks(baseInput())
+    assert.equal(f!.level, 'ok')
+    assert.include(f!.message, 'authkit:keys:rotate')
+  })
+
+  test('jwks managed SEM store → warn (chave efêmera por boot)', ({ assert }) => {
+    const f = checkJwks(baseInput({ authkitConfig: { jwks: { source: 'managed' } } }))
+    assert.equal(f!.level, 'warn')
+    assert.include(f!.message, 'store')
+  })
+
+  test('accessTokens: sem config → null (silencioso)', ({ assert }) => {
+    const f = checkAccessTokens(baseInput({ authkitConfig: {} }))
+    assert.isNull(f)
+  })
+
+  test('accessTokens: opaque (default) → ok informativo', ({ assert }) => {
+    const f = checkAccessTokens(baseInput({
+      authkitConfig: { accessTokens: { format: 'opaque', resources: {}, anyJwt: false } },
+    }))
+    assert.equal(f!.level, 'ok')
+    assert.include(f!.message, 'opaque')
+  })
+
+  test('accessTokens: jwt com jwks persistido → ok (RFC 9068)', ({ assert }) => {
+    const f = checkAccessTokens(baseInput({
+      authkitConfig: {
+        jwks: { source: 'managed', store: 'tmp/jwks.json' },
+        accessTokens: { format: 'jwt', audience: 'https://idp.test/oidc', resources: {}, anyJwt: true },
+      },
+    }))
+    assert.equal(f!.level, 'ok')
+    assert.include(f!.message, 'RFC 9068')
+  })
+
+  test('accessTokens: jwt mas jwks managed SEM store → warn', ({ assert }) => {
+    const f = checkAccessTokens(baseInput({
+      authkitConfig: {
+        jwks: { source: 'managed' },
+        accessTokens: { format: 'jwt', audience: 'x', resources: {}, anyJwt: true },
+      },
+    }))
+    assert.equal(f!.level, 'warn')
+    assert.include(f!.message, 'store')
   })
 })

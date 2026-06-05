@@ -36,6 +36,7 @@ export type AuditEventType =
   | 'profile.updated'
   | 'account.deleted'
   | 'account.exported'
+  | 'keys.rotated'
 
 /**
  * Evento de auditoria a registrar. O timestamp é definido pelo sink (não aqui).

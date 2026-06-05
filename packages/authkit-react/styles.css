@@ -187,3 +187,44 @@
   color: var(--authkit-muted);
   font-size: 0.9rem;
 }
+
+/* Medidor de força de senha (PasswordStrengthMeter). */
+.authkit-strength {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.authkit-strength__bar {
+  display: flex;
+  gap: 0.25rem;
+}
+.authkit-strength__segment {
+  flex: 1 1 0;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--authkit-border);
+  transition: background-color 0.15s ease;
+}
+/* Cor por score, do mais fraco ao mais forte (via data-score no bar). */
+.authkit-strength__bar[data-score='1'] .authkit-strength__segment--filled {
+  background: var(--authkit-danger);
+}
+.authkit-strength__bar[data-score='2'] .authkit-strength__segment--filled {
+  background: #f5a524;
+}
+.authkit-strength__bar[data-score='3'] .authkit-strength__segment--filled {
+  background: #d6c20a;
+}
+.authkit-strength__bar[data-score='4'] .authkit-strength__segment--filled {
+  background: #2fb344;
+}
+.authkit-strength__label {
+  font-size: 0.8rem;
+  color: var(--authkit-muted);
+}
+.authkit-strength__feedback {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.8rem;
+  color: var(--authkit-muted);
+}

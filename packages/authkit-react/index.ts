@@ -33,6 +33,16 @@ export { useAuthorizedApps } from './src/hooks/use_authorized_apps.js'
 export type { UseAuthorizedAppsResult, AuthorizedApp } from './src/hooks/use_authorized_apps.js'
 export { jsonRequest, useResource } from './src/hooks/use_resource.js'
 export type { ResourceState } from './src/hooks/use_resource.js'
+export {
+  usePasswordStrength,
+  heuristicScorer,
+} from './src/hooks/use_password_strength.js'
+export type {
+  PasswordStrengthScore,
+  PasswordStrengthResult,
+  PasswordScorer,
+  UsePasswordStrengthOptions,
+} from './src/hooks/use_password_strength.js'
 
 // utilitários puros
 export { deriveInitials, currentUrl } from './src/utils.js'
@@ -56,6 +66,8 @@ export { UserProfile } from './src/components/user_profile.js'
 export type { UserProfileProps } from './src/components/user_profile.js'
 export { AuthorizedApps } from './src/components/authorized_apps.js'
 export type { AuthorizedAppsProps } from './src/components/authorized_apps.js'
+export { PasswordStrengthMeter } from './src/components/password_strength_meter.js'
+export type { PasswordStrengthMeterProps } from './src/components/password_strength_meter.js'
 
 // helpers de papéis (puros)
 export {

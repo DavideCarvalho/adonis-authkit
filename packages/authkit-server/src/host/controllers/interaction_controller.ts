@@ -6,7 +6,17 @@ import { attemptPasswordLogin, isEmailUnverifiedBlock } from '../login_attempt.j
 import { notifyLoginSuccess } from '../login_notify.js'
 import { guardBotProtection, resolveEffectiveBotProtection } from '../bot_protection.js'
 import { RuntimeSettings } from '../runtime_settings.js'
+import {
+  resolveEffectiveMaintenanceMode,
+  resolveEffectiveRegistration,
+} from '../runtime_toggles.js'
 import { supportsPasskeys, supportsMagicLink } from '../../accounts/account_store.js'
+import { sendMagicLinkEmail } from '../default_mailer.js'
+import {
+  TRUSTED_DEVICE_COOKIE,
+  buildTrustedDevicePayload,
+  isTrustedDeviceValid,
+} from '../trusted_device.js'
 
 /** Best-effort: returns a RuntimeSettings backed by the container DB, or a no-op fallback. */
 async function getRuntimeSettings(ctx: HttpContext): Promise<RuntimeSettings> {
@@ -18,12 +28,6 @@ async function getRuntimeSettings(ctx: HttpContext): Promise<RuntimeSettings> {
     return new RuntimeSettings({ connection: async () => ({ schema: { async hasTable() { return false } } }), table: () => { throw new Error() } })
   }
 }
-import { sendMagicLinkEmail } from '../default_mailer.js'
-import {
-  TRUSTED_DEVICE_COOKIE,
-  buildTrustedDevicePayload,
-  isTrustedDeviceValid,
-} from '../trusted_device.js'
 
 const SESSION_KEY = 'authkit_login_email'
 /** accountId aguardando o 2º fator depois da senha verificada. */
@@ -42,6 +46,33 @@ export default class AuthInteractionController {
       details.params.client_id as string | undefined,
       details.params.audience as string | undefined
     )
+
+    // Maintenance mode: verifica se é uma conta admin antes de bloquear.
+    // Contas admin continuam podendo logar para que o operador possa desligar a
+    // manutenção via console. Contas comuns veem a tela de manutenção.
+    const runtimeSettingsForMaintenance = await getRuntimeSettings(ctx)
+    const maintenance = await resolveEffectiveMaintenanceMode(runtimeSettingsForMaintenance)
+    if (maintenance.enabled) {
+      // Verifica se já há uma conta admin na sessão (já autenticado) OU
+      // se o prompt não é de login — nesse caso, permite prosseguir.
+      // Para o prompt de login: permite continuar sem bloquear; o guard real
+      // está no POST. Dessa forma o admin pode inserir email/senha normalmente.
+      // A tela de manutenção é exibida apenas para o prompt de login quando
+      // não há indicação de conta admin (antes de autenticar não sabemos a role).
+      // Decisão: exibimos a tela de manutenção SOMENTE se não for conta admin.
+      // Como não sabemos a role antes de autenticar, exibimos a tela com uma nota
+      // de que admins podem continuar — o POST real tem o guard.
+      if (details.prompt.name === 'login') {
+        return render(ctx, 'maintenance', {
+          uid: details.uid,
+          csrfToken: ctx.request.csrfToken,
+          message: maintenance.message ?? translate(cfg.messages, 'maintenance.default_message'),
+          brand,
+          adminLoginAllowed: true,
+          adminLoginNote: translate(cfg.messages, 'maintenance.admin_login_note'),
+        })
+      }
+    }
 
     if (details.prompt.name === 'consent' && isFirstParty(cfg.branding!, details.params.client_id as string | undefined)) {
       // Clients first-party: auto-concede o consent (pula a tela de consent).
@@ -64,11 +95,17 @@ export default class AuthInteractionController {
     const email = ctx.session.get(SESSION_KEY) as string | undefined
 
     if (!email) {
-      // Step 1: identifier (email only)
+      // Step 1: identifier (email only).
+      // Resolve registration enabled to hide "create account" link when closed.
+      const registrationEnabled = await resolveEffectiveRegistration(
+        cfg.registration?.enabled ?? true,
+        runtimeSettingsForMaintenance
+      )
       return render(ctx, 'login', {
         uid: details.uid,
         csrfToken: ctx.request.csrfToken,
         step: 'identifier',
+        registrationEnabled,
         brand,
       })
     }
@@ -135,8 +172,16 @@ export default class AuthInteractionController {
     const ip = ctx.request.ip?.() ?? null
     const clientId = (details.params.client_id as string | undefined) ?? null
 
+    // Resolve runtime settings (reutilizado por bot + maintenance + verifiedEmail).
+    const runtimeSettings = await getRuntimeSettings(ctx)
+
+    // Maintenance mode: verifica se a conta que tenta logar é admin.
+    // Admins CONTINUAM podendo logar (senão o operador se tranca fora).
+    // A verificação de role acontece APÓS as credenciais (senha correta primeiro).
+    const maintenance = await resolveEffectiveMaintenanceMode(runtimeSettings)
+
     // Effective bot protection: may be overridden at runtime via auth_settings.
-    const effectiveBotLogin = await resolveEffectiveBotProtection(cfg.botProtection, await getRuntimeSettings(ctx))
+    const effectiveBotLogin = await resolveEffectiveBotProtection(cfg.botProtection, runtimeSettings)
 
     // Bot protection (plugável): valida o token do widget ANTES de tocar nas
     // credenciais. Fail-safe: erro/timeout no verify do host PERMITE o fluxo.
@@ -165,7 +210,7 @@ export default class AuthInteractionController {
     // ligado precisamos exigir o 2º fator e NÃO podemos chamar interactionFinished
     // ainda. A sequência verificação + lockout + auditoria de falha é centralizada
     // em attemptPasswordLogin; a renderização (lookup p/ personalização) fica aqui.
-    const result = await attemptPasswordLogin(cfg, { email, password, ip, clientId })
+    const result = await attemptPasswordLogin(cfg, { email, password, ip, clientId, settings: runtimeSettings })
 
     if (!result.ok) {
       const found = await cfg.accountStore.findByEmail(email)
@@ -193,6 +238,26 @@ export default class AuthInteractionController {
     }
 
     const acc = result.account
+
+    // Maintenance mode guard: credenciais válidas, mas manutenção ativa.
+    // Contas admin (role em cfg.admin.roles) CONTINUAM podendo logar.
+    // Contas comuns são bloqueadas com a tela de manutenção.
+    if (maintenance.enabled) {
+      const adminRoles: string[] = cfg.admin?.roles ?? ['ADMIN']
+      const accountRoles: string[] = acc.globalRoles ?? []
+      const isAdmin = adminRoles.some((r: string) => accountRoles.includes(r))
+      if (!isAdmin) {
+        return render(ctx, 'maintenance', {
+          uid: details.uid,
+          csrfToken: ctx.request.csrfToken,
+          message: maintenance.message ?? translate(cfg.messages, 'maintenance.default_message'),
+          brand,
+          adminLoginAllowed: true,
+          adminLoginNote: translate(cfg.messages, 'maintenance.admin_login_note'),
+        })
+      }
+      // Admin: prossegue normalmente (sem bloqueio).
+    }
 
     // Step-up auth (acr_values): o client pode EXIGIR MFA nesta requisição
     // solicitando o `mfaAcr` em acr_values, mesmo que a conta tenha MFA opcional.
@@ -489,7 +554,8 @@ export default class AuthInteractionController {
     }
     // E-mail não verificado (LGPD/compliance): mesmo com o link válido, não
     // materializa a sessão se a política exige verificação. Volta ao login com erro.
-    if (await isEmailUnverifiedBlock(cfg, acc.id)) {
+    const magicLinkRuntimeSettings = await getRuntimeSettings(ctx)
+    if (await isEmailUnverifiedBlock(cfg, acc.id, magicLinkRuntimeSettings)) {
       await cfg.audit?.record({
         type: 'login.failure',
         accountId: acc.id,
@@ -606,7 +672,8 @@ export default class AuthInteractionController {
     // E-mail não verificado (LGPD/compliance): bloqueia mesmo com a passkey válida.
     // Relevante sobretudo no passkey-first (a etapa de senha — que também checa —
     // não rodou). Volta à tela de desafio com o erro.
-    if (await isEmailUnverifiedBlock(cfg, accountId)) {
+    const passkeyRuntimeSettings = await getRuntimeSettings(ctx)
+    if (await isEmailUnverifiedBlock(cfg, accountId, passkeyRuntimeSettings)) {
       await cfg.audit?.record({
         type: 'login.failure',
         accountId,

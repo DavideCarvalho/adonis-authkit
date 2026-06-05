@@ -449,6 +449,30 @@ export function resolveLogin(input?: LoginConfigInput): ResolvedLoginConfig {
 }
 
 /**
+ * Configuração de cadastro público (signup). Controla se novos usuários podem
+ * se auto-registrar. Quando `enabled: false`, a tela de signup mostra uma
+ * mensagem de "registro desabilitado" e o POST rejeita. Fluxos administrativos
+ * (admin create + org invite) NÃO são afetados — são fluxos privilegiados.
+ *
+ * O runtime setting `registration` (em `auth_settings`) sobrescreve este valor
+ * em tempo de execução sem necessidade de redeploy.
+ */
+export interface RegistrationConfigInput {
+  /** Permite o cadastro público (signup). Default: true. */
+  enabled?: boolean
+}
+
+export interface ResolvedRegistrationConfig {
+  enabled: boolean
+}
+
+export function resolveRegistration(input?: RegistrationConfigInput): ResolvedRegistrationConfig {
+  return {
+    enabled: input?.enabled ?? true,
+  }
+}
+
+/**
  * Access Tokens (RFC 9068) resolvido. `format` é o formato default; `audience` é a
  * `aud` do JWT no modo simples (default issuer). `resources` é o mapa de Resource
  * Servers (RFC 8707) com defaults já aplicados por entrada. Sempre presente — o
@@ -746,6 +770,12 @@ export interface AuthServerConfigInput {
    */
   login?: LoginConfigInput
   /**
+   * Configuração de cadastro público. Default: `{ enabled: true }` (aberto).
+   * O runtime setting `registration` em `auth_settings` sobrescreve este valor
+   * sem necessidade de redeploy.
+   */
+  registration?: RegistrationConfigInput
+  /**
    * Access Tokens (RFC 9068). Default: `{ format: 'opaque' }` (comportamento atual).
    * `{ format: 'jwt' }` faz TODO AT virar JWT RFC 9068 validável via jwks_uri.
    * `resources` mapeia resource indicators (RFC 8707) para audiences/scopes/formato/TTL por API.
@@ -825,6 +855,8 @@ export interface ResolvedServerConfig {
   passwordless: ResolvedPasswordlessConfig
   /** Política de login resolvida (requireVerifiedEmail; default desligado). */
   login: ResolvedLoginConfig
+  /** Configuração de cadastro público resolvida (enabled; default true). */
+  registration: ResolvedRegistrationConfig
   /** Access Tokens resolvido (RFC 9068; default opaque). */
   accessTokens: ResolvedAccessTokensConfig
   /** Console admin resolvido (sempre presente; default desligado). */
@@ -919,6 +951,7 @@ export function defineConfig(config: AuthServerConfigInput) {
       botProtection: resolveBotProtection(config.botProtection),
       passwordless: resolvePasswordless(config.passwordless),
       login: resolveLogin(config.login),
+      registration: resolveRegistration(config.registration),
       accessTokens: resolveAccessTokens(config.issuer, config.accessTokens),
       admin: resolveAdmin(config.admin),
       adminApi: resolveAdminApi(config.adminApi),

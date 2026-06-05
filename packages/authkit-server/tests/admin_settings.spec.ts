@@ -273,3 +273,202 @@ test.group('Admin REST API — /settings', (group) => {
     assert.isNotNull(ev)
   })
 })
+
+// ---------------------------------------------------------------------------
+// AdminSettingsController — registration + require_verified_email + maintenance
+// ---------------------------------------------------------------------------
+
+test.group('AdminSettingsController — new toggles (registration / require_verified / maintenance)', (group) => {
+  let settingsDb: ReturnType<typeof makeSettingsDb>
+  let service: any
+
+  group.each.setup(() => {
+    service = buildService(false) // no bot protection needed here
+    settingsDb = makeSettingsDb()
+  })
+
+  // ---- registration ----
+
+  test('GET index includes registration state (no setting → configDefault true)', async ({ assert }) => {
+    const ctrl = new AdminSettingsController()
+    const { ctx } = fakeCtx({ service, db: settingsDb })
+    const result: any = await ctrl.index(ctx as any)
+    assert.equal(result.view, 'admin/settings')
+    assert.isTrue(result.data.registrationConfigDefault)
+    assert.isTrue(result.data.registrationEffective)
+    assert.isNull(result.data.currentRegistrationSetting)
+  })
+
+  test('POST /registration saves { enabled: false } and audits', async ({ assert }) => {
+    const ctrl = new AdminSettingsController()
+    const session = fakeSession()
+    const { ctx, captured } = fakeCtx({
+      service,
+      db: settingsDb,
+      inputs: { enabled: '' }, // unchecked checkbox → empty string
+      session,
+    })
+    await ctrl.updateRegistration(ctx as any)
+    assert.equal(captured._redirected, '/admin/settings')
+    const s = new RuntimeSettings(settingsDb as any)
+    const saved: any = await s.getSetting('registration')
+    assert.isFalse(saved.enabled)
+    const ev = service.config.audit.events.find((e: any) => e.metadata?.key === 'registration')
+    assert.isNotNull(ev)
+  })
+
+  test('POST /registration saves { enabled: true }', async ({ assert }) => {
+    const ctrl = new AdminSettingsController()
+    const { ctx } = fakeCtx({ service, db: settingsDb, inputs: { enabled: '1' } })
+    await ctrl.updateRegistration(ctx as any)
+    const s = new RuntimeSettings(settingsDb as any)
+    const saved: any = await s.getSetting('registration')
+    assert.isTrue(saved.enabled)
+  })
+
+  test('POST /registration/reset clears setting', async ({ assert }) => {
+    await settingsDb.table('auth_settings').insert({ key: 'registration', value: JSON.stringify({ enabled: false }), updated_at: new Date(), updated_by: null })
+    const ctrl = new AdminSettingsController()
+    const { ctx } = fakeCtx({ service, db: settingsDb })
+    await ctrl.resetRegistration(ctx as any)
+    const s = new RuntimeSettings(settingsDb as any)
+    const after = await s.getSetting('registration')
+    assert.isNull(after)
+  })
+
+  test('GET index shows effective registration state from setting (enabled: false)', async ({ assert }) => {
+    await settingsDb.table('auth_settings').insert({ key: 'registration', value: JSON.stringify({ enabled: false }), updated_at: new Date(), updated_by: null })
+    const ctrl = new AdminSettingsController()
+    const { ctx } = fakeCtx({ service, db: settingsDb })
+    const result: any = await ctrl.index(ctx as any)
+    assert.isFalse(result.data.registrationEffective)
+    assert.isNotNull(result.data.currentRegistrationSetting)
+  })
+
+  // ---- require_verified_email ----
+
+  test('GET index includes require_verified_email state (no setting → configDefault)', async ({ assert }) => {
+    const ctrl = new AdminSettingsController()
+    const { ctx } = fakeCtx({ service, db: settingsDb })
+    const result: any = await ctrl.index(ctx as any)
+    assert.isFalse(result.data.requireVerifiedConfigDefault) // default from config
+    assert.isFalse(result.data.requireVerifiedEffective)
+    assert.isNull(result.data.currentRequireVerifiedSetting)
+  })
+
+  test('POST /require-verified-email saves { enabled: true }', async ({ assert }) => {
+    const ctrl = new AdminSettingsController()
+    const { ctx, captured } = fakeCtx({ service, db: settingsDb, inputs: { enabled: '1' } })
+    await ctrl.updateRequireVerifiedEmail(ctx as any)
+    assert.equal(captured._redirected, '/admin/settings')
+    const s = new RuntimeSettings(settingsDb as any)
+    const saved: any = await s.getSetting('require_verified_email')
+    assert.isTrue(saved.enabled)
+    const ev = service.config.audit.events.find((e: any) => e.metadata?.key === 'require_verified_email')
+    assert.isNotNull(ev)
+  })
+
+  test('POST /require-verified-email/reset clears setting', async ({ assert }) => {
+    await settingsDb.table('auth_settings').insert({ key: 'require_verified_email', value: JSON.stringify({ enabled: true }), updated_at: new Date(), updated_by: null })
+    const ctrl = new AdminSettingsController()
+    const { ctx } = fakeCtx({ service, db: settingsDb })
+    await ctrl.resetRequireVerifiedEmail(ctx as any)
+    const s = new RuntimeSettings(settingsDb as any)
+    const after = await s.getSetting('require_verified_email')
+    assert.isNull(after)
+  })
+
+  test('GET index shows effective requireVerified from setting', async ({ assert }) => {
+    await settingsDb.table('auth_settings').insert({ key: 'require_verified_email', value: JSON.stringify({ enabled: true }), updated_at: new Date(), updated_by: null })
+    const ctrl = new AdminSettingsController()
+    const { ctx } = fakeCtx({ service, db: settingsDb })
+    const result: any = await ctrl.index(ctx as any)
+    assert.isTrue(result.data.requireVerifiedEffective)
+    assert.isNotNull(result.data.currentRequireVerifiedSetting)
+  })
+
+  // ---- maintenance_mode ----
+
+  test('GET index includes maintenance state (no setting → disabled)', async ({ assert }) => {
+    const ctrl = new AdminSettingsController()
+    const { ctx } = fakeCtx({ service, db: settingsDb })
+    const result: any = await ctrl.index(ctx as any)
+    assert.isFalse(result.data.maintenanceEffective.enabled)
+    assert.isNull(result.data.currentMaintenanceSetting)
+  })
+
+  test('POST /maintenance saves { enabled: true } and audits maintenance.enabled', async ({ assert }) => {
+    const ctrl = new AdminSettingsController()
+    const session = fakeSession()
+    const { ctx, captured } = fakeCtx({
+      service,
+      db: settingsDb,
+      inputs: { enabled: '1', message: '' },
+      session,
+    })
+    await ctrl.updateMaintenance(ctx as any)
+    assert.equal(captured._redirected, '/admin/settings')
+    const s = new RuntimeSettings(settingsDb as any)
+    const saved: any = await s.getSetting('maintenance_mode')
+    assert.isTrue(saved.enabled)
+    assert.isUndefined(saved.message)
+    // Must emit maintenance.enabled
+    const enabledEv = service.config.audit.events.find((e: any) => e.type === 'maintenance.enabled')
+    assert.isNotNull(enabledEv)
+    // Must also emit settings.updated
+    const updatedEv = service.config.audit.events.find((e: any) => e.type === 'settings.updated' && e.metadata?.key === 'maintenance_mode')
+    assert.isNotNull(updatedEv)
+  })
+
+  test('POST /maintenance with custom message saves message', async ({ assert }) => {
+    const ctrl = new AdminSettingsController()
+    const { ctx } = fakeCtx({ service, db: settingsDb, inputs: { enabled: '1', message: 'Upgrading DB.' } })
+    await ctrl.updateMaintenance(ctx as any)
+    const s = new RuntimeSettings(settingsDb as any)
+    const saved: any = await s.getSetting('maintenance_mode')
+    assert.equal(saved.message, 'Upgrading DB.')
+  })
+
+  test('POST /maintenance saves { enabled: false } and audits maintenance.disabled', async ({ assert }) => {
+    const ctrl = new AdminSettingsController()
+    const { ctx } = fakeCtx({ service, db: settingsDb, inputs: { enabled: '' } })
+    await ctrl.updateMaintenance(ctx as any)
+    const disabledEv = service.config.audit.events.find((e: any) => e.type === 'maintenance.disabled')
+    assert.isNotNull(disabledEv)
+  })
+
+  test('POST /maintenance/reset clears setting and audits maintenance.disabled', async ({ assert }) => {
+    await settingsDb.table('auth_settings').insert({ key: 'maintenance_mode', value: JSON.stringify({ enabled: true }), updated_at: new Date(), updated_by: null })
+    const ctrl = new AdminSettingsController()
+    const { ctx } = fakeCtx({ service, db: settingsDb })
+    await ctrl.resetMaintenance(ctx as any)
+    const s = new RuntimeSettings(settingsDb as any)
+    const after = await s.getSetting('maintenance_mode')
+    assert.isNull(after)
+    const disabledEv = service.config.audit.events.find((e: any) => e.type === 'maintenance.disabled')
+    assert.isNotNull(disabledEv)
+  })
+
+  test('GET index shows maintenance effective from setting', async ({ assert }) => {
+    await settingsDb.table('auth_settings').insert({ key: 'maintenance_mode', value: JSON.stringify({ enabled: true, message: 'Down for updates.' }), updated_at: new Date(), updated_by: null })
+    const ctrl = new AdminSettingsController()
+    const { ctx } = fakeCtx({ service, db: settingsDb })
+    const result: any = await ctrl.index(ctx as any)
+    assert.isTrue(result.data.maintenanceEffective.enabled)
+    assert.isNotNull(result.data.currentMaintenanceSetting)
+    assert.equal(result.data.currentMaintenanceSetting.message, 'Down for updates.')
+  })
+
+  test('POST toggles with no table redirect with flash', async ({ assert }) => {
+    const noTableDb = makeSettingsDb().withNoTable()
+    const ctrl = new AdminSettingsController()
+    const session = fakeSession()
+    const { ctx, captured } = fakeCtx({ service, db: noTableDb, inputs: { enabled: '1' }, session })
+    await ctrl.updateRegistration(ctx as any)
+    assert.equal(captured._redirected, '/admin/settings')
+    await ctrl.updateRequireVerifiedEmail(ctx as any)
+    assert.equal(captured._redirected, '/admin/settings')
+    await ctrl.updateMaintenance(ctx as any)
+    assert.equal(captured._redirected, '/admin/settings')
+  })
+})

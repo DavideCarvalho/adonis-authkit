@@ -32,52 +32,95 @@
       </div>
     @else
 
-      {{-- Bot protection card --}}
-      <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
-        <h2 class="mb-1 text-sm font-semibold text-gray-900">{{ t('admin.settings.bot_protection_section') }}</h2>
+      <div class="space-y-6">
 
-        @if(!hasBotConfig)
-          <p class="text-sm text-gray-500">{{ t('admin.settings.bot_protection_no_verify') }}</p>
-        @else
-          <p class="mb-4 text-xs text-gray-500">{{ t('admin.settings.bot_protection_intro') }}</p>
+        {{-- Bot protection card --}}
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+          <h2 class="mb-1 text-sm font-semibold text-gray-900">{{ t('admin.settings.bot_protection_section') }}</h2>
 
-          <form method="POST" action="/admin/settings/bot-protection">
+          @if(!hasBotConfig)
+            <p class="text-sm text-gray-500">{{ t('admin.settings.bot_protection_no_verify') }}</p>
+          @else
+            <p class="mb-4 text-xs text-gray-500">{{ t('admin.settings.bot_protection_intro') }}</p>
+
+            <form method="POST" action="/admin/settings/bot-protection">
+              <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+
+              <label class="flex items-center gap-2 mb-4">
+                <input type="checkbox" name="enabled" value="1" {{ formEnabled ? 'checked' : '' }}
+                  class="h-4 w-4 rounded border-gray-300">
+                <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.enabled_label') }}</span>
+              </label>
+
+              <fieldset class="mb-4">
+                <legend class="mb-2 text-xs font-medium text-gray-500 uppercase tracking-wide">{{ t('admin.settings.actions_label') }}</legend>
+                <div class="flex gap-4">
+                  <label class="flex items-center gap-1 text-sm">
+                    <input type="checkbox" name="on" value="login" {{ formOn.includes('login') ? 'checked' : '' }}
+                      class="h-4 w-4 rounded border-gray-300">
+                    {{ t('admin.settings.action_login') }}
+                  </label>
+                  <label class="flex items-center gap-1 text-sm">
+                    <input type="checkbox" name="on" value="signup" {{ formOn.includes('signup') ? 'checked' : '' }}
+                      class="h-4 w-4 rounded border-gray-300">
+                    {{ t('admin.settings.action_signup') }}
+                  </label>
+                  <label class="flex items-center gap-1 text-sm">
+                    <input type="checkbox" name="on" value="reset" {{ formOn.includes('reset') ? 'checked' : '' }}
+                      class="h-4 w-4 rounded border-gray-300">
+                    {{ t('admin.settings.action_reset') }}
+                  </label>
+                </div>
+              </fieldset>
+
+              <div class="flex items-center gap-3">
+                <button type="submit"
+                  class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
+                  {{ t('admin.settings.save') }}
+                </button>
+                @if(currentSetting !== null)
+                  <form method="POST" action="/admin/settings/bot-protection/reset" class="inline">
+                    <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                    <button type="submit" class="text-sm text-gray-500 hover:underline">
+                      {{ t('admin.settings.reset_to_config') }}
+                    </button>
+                  </form>
+                @end
+              </div>
+            </form>
+          @end
+        </div>
+
+        {{-- Registration card --}}
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+          <div class="mb-1 flex items-center gap-2">
+            <h2 class="text-sm font-semibold text-gray-900">{{ t('admin.settings.registration_section') }}</h2>
+            @if(currentRegistrationSetting !== null)
+              <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                {{ t('admin.settings.registration_from_setting') }}
+              </span>
+            @else
+              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                {{ t('admin.settings.registration_from_config') }}
+              </span>
+            @end
+          </div>
+          <p class="mb-4 text-xs text-gray-500">{{ t('admin.settings.registration_intro') }}</p>
+
+          <form method="POST" action="/admin/settings/registration">
             <input type="hidden" name="_csrf" value="{{ csrfToken }}">
-
             <label class="flex items-center gap-2 mb-4">
-              <input type="checkbox" name="enabled" value="1" {{ formEnabled ? 'checked' : '' }}
+              <input type="checkbox" name="enabled" value="1" {{ registrationEffective ? 'checked' : '' }}
                 class="h-4 w-4 rounded border-gray-300">
               <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.enabled_label') }}</span>
             </label>
-
-            <fieldset class="mb-4">
-              <legend class="mb-2 text-xs font-medium text-gray-500 uppercase tracking-wide">{{ t('admin.settings.actions_label') }}</legend>
-              <div class="flex gap-4">
-                <label class="flex items-center gap-1 text-sm">
-                  <input type="checkbox" name="on" value="login" {{ formOn.includes('login') ? 'checked' : '' }}
-                    class="h-4 w-4 rounded border-gray-300">
-                  {{ t('admin.settings.action_login') }}
-                </label>
-                <label class="flex items-center gap-1 text-sm">
-                  <input type="checkbox" name="on" value="signup" {{ formOn.includes('signup') ? 'checked' : '' }}
-                    class="h-4 w-4 rounded border-gray-300">
-                  {{ t('admin.settings.action_signup') }}
-                </label>
-                <label class="flex items-center gap-1 text-sm">
-                  <input type="checkbox" name="on" value="reset" {{ formOn.includes('reset') ? 'checked' : '' }}
-                    class="h-4 w-4 rounded border-gray-300">
-                  {{ t('admin.settings.action_reset') }}
-                </label>
-              </div>
-            </fieldset>
-
             <div class="flex items-center gap-3">
               <button type="submit"
                 class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
                 {{ t('admin.settings.save') }}
               </button>
-              @if(currentSetting !== null)
-                <form method="POST" action="/admin/settings/bot-protection/reset" class="inline">
+              @if(currentRegistrationSetting !== null)
+                <form method="POST" action="/admin/settings/registration/reset" class="inline">
                   <input type="hidden" name="_csrf" value="{{ csrfToken }}">
                   <button type="submit" class="text-sm text-gray-500 hover:underline">
                     {{ t('admin.settings.reset_to_config') }}
@@ -86,7 +129,104 @@
               @end
             </div>
           </form>
-        @end
+        </div>
+
+        {{-- Require verified email card --}}
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+          <div class="mb-1 flex items-center gap-2">
+            <h2 class="text-sm font-semibold text-gray-900">{{ t('admin.settings.require_verified_email_section') }}</h2>
+            @if(currentRequireVerifiedSetting !== null)
+              <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                {{ t('admin.settings.require_verified_email_from_setting') }}
+              </span>
+            @else
+              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                {{ t('admin.settings.require_verified_email_from_config') }}
+              </span>
+            @end
+          </div>
+          <p class="mb-1 text-xs text-gray-500">{{ t('admin.settings.require_verified_email_intro') }}</p>
+          <p class="mb-4 text-xs text-amber-600">{{ t('admin.settings.require_verified_email_config_note') }}</p>
+
+          <form method="POST" action="/admin/settings/require-verified-email">
+            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+            <label class="flex items-center gap-2 mb-4">
+              <input type="checkbox" name="enabled" value="1" {{ requireVerifiedEffective ? 'checked' : '' }}
+                class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.enabled_label') }}</span>
+            </label>
+            <div class="flex items-center gap-3">
+              <button type="submit"
+                class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
+                {{ t('admin.settings.save') }}
+              </button>
+              @if(currentRequireVerifiedSetting !== null)
+                <form method="POST" action="/admin/settings/require-verified-email/reset" class="inline">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <button type="submit" class="text-sm text-gray-500 hover:underline">
+                    {{ t('admin.settings.reset_to_config') }}
+                  </button>
+                </form>
+              @end
+            </div>
+          </form>
+        </div>
+
+        {{-- Maintenance mode card --}}
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+          <div class="mb-1 flex items-center gap-2">
+            <h2 class="text-sm font-semibold text-gray-900">{{ t('admin.settings.maintenance_section') }}</h2>
+            @if(currentMaintenanceSetting !== null)
+              <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                {{ t('admin.settings.maintenance_from_setting') }}
+              </span>
+            @end
+            @if(maintenanceEffective && maintenanceEffective.enabled)
+              <span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">ON</span>
+            @end
+          </div>
+          <p class="mb-3 text-xs text-gray-500">{{ t('admin.settings.maintenance_intro') }}</p>
+
+          {{-- Lockout warning — always visible for this card. --}}
+          <div class="mb-4 rounded-lg bg-red-50 px-4 py-3 text-xs text-red-800 ring-1 ring-red-200">
+            {{ t('admin.settings.maintenance_warning') }}
+          </div>
+
+          <form method="POST" action="/admin/settings/maintenance">
+            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+            <label class="flex items-center gap-2 mb-4">
+              <input type="checkbox" name="enabled" value="1"
+                {{ maintenanceEffective && maintenanceEffective.enabled ? 'checked' : '' }}
+                class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.enabled_label') }}</span>
+            </label>
+
+            <div class="mb-4">
+              <label class="mb-1 block text-xs font-medium text-gray-500">
+                {{ t('admin.settings.maintenance_message_label') }}
+              </label>
+              <textarea name="message" rows="2"
+                placeholder="{{ t('admin.settings.maintenance_message_placeholder') }}"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900">{{ currentMaintenanceSetting && currentMaintenanceSetting.message ? currentMaintenanceSetting.message : '' }}</textarea>
+            </div>
+
+            <div class="flex items-center gap-3">
+              <button type="submit"
+                class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
+                {{ t('admin.settings.save') }}
+              </button>
+              @if(currentMaintenanceSetting !== null)
+                <form method="POST" action="/admin/settings/maintenance/reset" class="inline">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <button type="submit" class="text-sm text-gray-500 hover:underline">
+                    {{ t('admin.settings.reset_to_config') }}
+                  </button>
+                </form>
+              @end
+            </div>
+          </form>
+        </div>
+
       </div>
     @end
   </div>

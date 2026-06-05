@@ -479,6 +479,29 @@ export const DEFAULT_MESSAGES = {
   'admin.settings.saved': 'Settings saved.',
   'admin.settings.reset_to_config': 'Reset to config',
   'admin.settings.reset_done': 'Runtime setting cleared — config is now the source of truth.',
+  // Registration setting card.
+  'admin.settings.registration_section': 'Open registration',
+  'admin.settings.registration_intro':
+    'Controls whether new users can self-register (public signup). Admin-created accounts and org invitations are never affected.',
+  'admin.settings.registration_from_config': 'Source: static config',
+  'admin.settings.registration_from_setting': 'Source: runtime setting',
+  // require_verified_email setting card.
+  'admin.settings.require_verified_email_section': 'Require verified email',
+  'admin.settings.require_verified_email_intro':
+    'When enabled, login is blocked for accounts whose email has not been verified (applies to password, magic link and passkey-first flows). Overrides the static `login.requireVerifiedEmail` config.',
+  'admin.settings.require_verified_email_config_note':
+    'Note: overrides `login.requireVerifiedEmail` in config/authkit.ts at runtime.',
+  'admin.settings.require_verified_email_from_config': 'Source: static config',
+  'admin.settings.require_verified_email_from_setting': 'Source: runtime setting',
+  // Maintenance mode setting card.
+  'admin.settings.maintenance_section': 'Maintenance mode',
+  'admin.settings.maintenance_intro':
+    'When on, login/signup/forgot/interaction screens show a maintenance page and reject POSTs. Existing OIDC tokens (refresh, userinfo, introspection) continue to work. The Admin API and admin console remain accessible.',
+  'admin.settings.maintenance_message_label': 'Custom message (optional)',
+  'admin.settings.maintenance_message_placeholder': 'We are performing scheduled maintenance. Please try again later.',
+  'admin.settings.maintenance_warning':
+    'LOCKOUT WARNING: If you enable maintenance mode and lose access to the Admin API, you will not be able to disable it remotely. Accounts with an admin role can still log in — but if you are locked out, use the Admin REST API (PUT /api/authkit/v1/settings/maintenance_mode with {\"value\":{\"enabled\":false}}) to disable it without a browser login.',
+  'admin.settings.maintenance_from_setting': 'Source: runtime setting',
 
   // Console admin — paginação compartilhada.
   'admin.pagination.page': 'Page {page} of {total}',
@@ -520,6 +543,15 @@ export const DEFAULT_MESSAGES = {
   'errors.challenge_expired': 'Challenge expired',
   'errors.passkeys_unavailable': 'Passkeys unavailable',
   'errors.no_passkey_registered': 'No passkey registered',
+  'errors.registration_disabled':
+    'Registration is currently disabled. Please contact the administrator to get access.',
+
+  // Manutenção do sistema.
+  'maintenance.title': 'Under Maintenance',
+  'maintenance.default_message':
+    'The service is temporarily unavailable for maintenance. Please try again shortly.',
+  'maintenance.admin_login_note':
+    'If you are an administrator, you may still log in to manage the system.',
 
   // Política de senha (validação ao definir uma senha nova) + vazamento (HIBP).
   'password.policy.min_length': 'Password must be at least {min} characters long.',
@@ -1019,6 +1051,29 @@ export const PT_BR_MESSAGES = {
   'admin.settings.saved': 'Configurações salvas.',
   'admin.settings.reset_to_config': 'Resetar ao config',
   'admin.settings.reset_done': 'Setting em runtime apagado — o config estático voltou a ser a fonte de verdade.',
+  // Cadastro aberto.
+  'admin.settings.registration_section': 'Cadastro aberto',
+  'admin.settings.registration_intro':
+    'Controla se novos usuários podem se auto-registrar (cadastro público). Contas criadas pelo admin e convites de organização não são afetados.',
+  'admin.settings.registration_from_config': 'Fonte: config estático',
+  'admin.settings.registration_from_setting': 'Fonte: setting em runtime',
+  // Exigir e-mail verificado.
+  'admin.settings.require_verified_email_section': 'Exigir e-mail verificado',
+  'admin.settings.require_verified_email_intro':
+    'Quando ativo, o login é bloqueado para contas com e-mail não verificado (aplica-se a senha, magic link e passkey-first). Sobrescreve o `login.requireVerifiedEmail` do config estático.',
+  'admin.settings.require_verified_email_config_note':
+    'Nota: sobrescreve `login.requireVerifiedEmail` em config/authkit.ts em tempo de execução.',
+  'admin.settings.require_verified_email_from_config': 'Fonte: config estático',
+  'admin.settings.require_verified_email_from_setting': 'Fonte: setting em runtime',
+  // Modo de manutenção.
+  'admin.settings.maintenance_section': 'Modo de manutenção',
+  'admin.settings.maintenance_intro':
+    'Quando ativo, as telas de login/cadastro/esqueci-senha/interaction exibem uma página de manutenção e rejeitam POSTs. Tokens OIDC existentes (refresh, userinfo, introspection) continuam funcionando. A Admin API e o console admin permanecem acessíveis.',
+  'admin.settings.maintenance_message_label': 'Mensagem personalizada (opcional)',
+  'admin.settings.maintenance_message_placeholder': 'Estamos em manutenção programada. Por favor, tente novamente em breve.',
+  'admin.settings.maintenance_warning':
+    'ATENÇÃO — BLOQUEIO: Se você ativar o modo de manutenção e perder acesso à Admin API, não conseguirá desativá-lo remotamente. Contas com role admin ainda podem entrar — mas se você ficar bloqueado, use a Admin REST API (PUT /api/authkit/v1/settings/maintenance_mode com {"value":{"enabled":false}}) para desativar sem login no browser.',
+  'admin.settings.maintenance_from_setting': 'Fonte: setting em runtime',
 
   // Console admin — paginação compartilhada.
   'admin.pagination.page': 'Página {page} de {total}',
@@ -1060,6 +1115,15 @@ export const PT_BR_MESSAGES = {
   'errors.challenge_expired': 'Desafio expirado',
   'errors.passkeys_unavailable': 'Passkeys indisponíveis',
   'errors.no_passkey_registered': 'Nenhuma passkey registrada',
+  'errors.registration_disabled':
+    'O cadastro está desabilitado no momento. Entre em contato com o administrador para obter acesso.',
+
+  // Manutenção do sistema.
+  'maintenance.title': 'Em manutenção',
+  'maintenance.default_message':
+    'O serviço está temporariamente indisponível para manutenção. Tente novamente em breve.',
+  'maintenance.admin_login_note':
+    'Se você é administrador, ainda pode entrar para gerenciar o sistema.',
 
   // Política de senha (validação ao definir uma senha nova) + vazamento (HIBP).
   'password.policy.min_length': 'A senha deve ter no mínimo {min} caracteres.',

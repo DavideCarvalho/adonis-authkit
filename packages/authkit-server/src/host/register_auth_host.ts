@@ -279,6 +279,12 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
         router.get('/admin/settings', [C.adminSettings, 'index'])
         router.post('/admin/settings/bot-protection', [C.adminSettings, 'updateBotProtection'])
         router.post('/admin/settings/bot-protection/reset', [C.adminSettings, 'resetBotProtection'])
+        router.post('/admin/settings/registration', [C.adminSettings, 'updateRegistration'])
+        router.post('/admin/settings/registration/reset', [C.adminSettings, 'resetRegistration'])
+        router.post('/admin/settings/require-verified-email', [C.adminSettings, 'updateRequireVerifiedEmail'])
+        router.post('/admin/settings/require-verified-email/reset', [C.adminSettings, 'resetRequireVerifiedEmail'])
+        router.post('/admin/settings/maintenance', [C.adminSettings, 'updateMaintenance'])
+        router.post('/admin/settings/maintenance/reset', [C.adminSettings, 'resetMaintenance'])
       })
       .use([adminGuard])
   }

@@ -7,6 +7,10 @@ import { translate } from '../i18n.js'
 import { PasswordPolicyError } from '../../password/password_manager.js'
 import { guardBotProtection, resolveEffectiveBotProtection } from '../bot_protection.js'
 import { RuntimeSettings } from '../runtime_settings.js'
+import {
+  resolveEffectiveRegistration,
+  resolveEffectiveMaintenanceMode,
+} from '../runtime_toggles.js'
 
 /** Best-effort: returns a RuntimeSettings backed by the container DB, or a no-op fallback. */
 async function getRuntimeSettings(ctx: HttpContext): Promise<RuntimeSettings> {
@@ -26,7 +30,34 @@ export default class AuthRegistrationController {
     const render = cfg.render!
     const details = await service.interactions.details(ctx)
     const brand = brandFor(cfg.branding!, details.params.client_id as string | undefined)
-    const effectiveBot = await resolveEffectiveBotProtection(cfg.botProtection, await getRuntimeSettings(ctx))
+    const runtimeSettings = await getRuntimeSettings(ctx)
+
+    // Maintenance mode: mostra página de manutenção se ativo.
+    const maintenance = await resolveEffectiveMaintenanceMode(runtimeSettings)
+    if (maintenance.enabled) {
+      return render(ctx, 'maintenance', {
+        csrfToken: ctx.request.csrfToken,
+        message: maintenance.message ?? translate(cfg.messages, 'maintenance.default_message'),
+        brand,
+      })
+    }
+
+    // Registration disabled: mostra mensagem clara na tela de signup.
+    const registrationEnabled = await resolveEffectiveRegistration(
+      cfg.registration?.enabled ?? true,
+      runtimeSettings
+    )
+    if (!registrationEnabled) {
+      return render(ctx, 'signup', {
+        uid: details.uid,
+        csrfToken: ctx.request.csrfToken,
+        brand,
+        registrationDisabled: true,
+        registrationDisabledMessage: translate(cfg.messages, 'errors.registration_disabled'),
+      })
+    }
+
+    const effectiveBot = await resolveEffectiveBotProtection(cfg.botProtection, runtimeSettings)
     return render(ctx, 'signup', {
       uid: details.uid,
       csrfToken: ctx.request.csrfToken,
@@ -42,9 +73,35 @@ export default class AuthRegistrationController {
     const render = cfg.render!
     const details = await service.interactions.details(ctx)
     const brand = brandFor(cfg.branding!, details.params.client_id as string | undefined)
+    const runtimeSettings = await getRuntimeSettings(ctx)
+
+    // Maintenance mode: rejeita o POST durante manutenção.
+    const maintenance = await resolveEffectiveMaintenanceMode(runtimeSettings)
+    if (maintenance.enabled) {
+      return render(ctx, 'maintenance', {
+        csrfToken: ctx.request.csrfToken,
+        message: maintenance.message ?? translate(cfg.messages, 'maintenance.default_message'),
+        brand,
+      })
+    }
+
+    // Registration disabled: rejeita o POST — mesmo que alguém bata diretamente.
+    const registrationEnabled = await resolveEffectiveRegistration(
+      cfg.registration?.enabled ?? true,
+      runtimeSettings
+    )
+    if (!registrationEnabled) {
+      return render(ctx, 'signup', {
+        uid: ctx.request.param('uid'),
+        csrfToken: ctx.request.csrfToken,
+        brand,
+        registrationDisabled: true,
+        registrationDisabledMessage: translate(cfg.messages, 'errors.registration_disabled'),
+      })
+    }
 
     // Effective bot protection: may be overridden at runtime via auth_settings.
-    const effectiveBotSignup = await resolveEffectiveBotProtection(cfg.botProtection, await getRuntimeSettings(ctx))
+    const effectiveBotSignup = await resolveEffectiveBotProtection(cfg.botProtection, runtimeSettings)
     const cfgWithEffectiveBotSignup = effectiveBotSignup !== cfg.botProtection
       ? { ...cfg, botProtection: effectiveBotSignup }
       : cfg
@@ -150,7 +207,18 @@ export default class AuthRegistrationController {
     const service = await ctx.containerResolver.make('authkit.server')
     const cfg = service.config
     const render = cfg.render!
-    const effectiveBot = await resolveEffectiveBotProtection(cfg.botProtection, await getRuntimeSettings(ctx))
+    const runtimeSettings = await getRuntimeSettings(ctx)
+
+    // Maintenance mode: mostra página de manutenção.
+    const maintenance = await resolveEffectiveMaintenanceMode(runtimeSettings)
+    if (maintenance.enabled) {
+      return render(ctx, 'maintenance', {
+        csrfToken: ctx.request.csrfToken,
+        message: maintenance.message ?? translate(cfg.messages, 'maintenance.default_message'),
+      })
+    }
+
+    const effectiveBot = await resolveEffectiveBotProtection(cfg.botProtection, runtimeSettings)
     return render(ctx, 'forgot', {
       csrfToken: ctx.request.csrfToken,
       botProtection: effectiveBot?.on.includes('reset') ? effectiveBot.widget : undefined,
@@ -162,9 +230,19 @@ export default class AuthRegistrationController {
     const service = await ctx.containerResolver.make('authkit.server')
     const cfg = service.config
     const render = cfg.render!
+    const runtimeSettings = await getRuntimeSettings(ctx)
+
+    // Maintenance mode: rejeita o POST.
+    const maintenance = await resolveEffectiveMaintenanceMode(runtimeSettings)
+    if (maintenance.enabled) {
+      return render(ctx, 'maintenance', {
+        csrfToken: ctx.request.csrfToken,
+        message: maintenance.message ?? translate(cfg.messages, 'maintenance.default_message'),
+      })
+    }
 
     // Effective bot protection: may be overridden at runtime via auth_settings.
-    const effectiveBotForgot = await resolveEffectiveBotProtection(cfg.botProtection, await getRuntimeSettings(ctx))
+    const effectiveBotForgot = await resolveEffectiveBotProtection(cfg.botProtection, runtimeSettings)
     const cfgWithEffectiveBotForgot = effectiveBotForgot !== cfg.botProtection
       ? { ...cfg, botProtection: effectiveBotForgot }
       : cfg

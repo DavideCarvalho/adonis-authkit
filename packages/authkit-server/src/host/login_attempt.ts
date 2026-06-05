@@ -2,18 +2,30 @@ import type { AuthAccount } from '../accounts/account_store.js'
 import { supportsAccountStatus, supportsEmailVerificationStatus } from '../accounts/account_store.js'
 import type { ResolvedServerConfig } from '../define_config.js'
 import { createAccountLockout } from './account_lockout.js'
+import type { SettingsCapability } from './runtime_settings.js'
+import { resolveEffectiveRequireVerifiedEmail } from './runtime_toggles.js'
 
 /**
- * `requireVerifiedEmail` ligado E o store sabe dizer se o e-mail está verificado
- * E a conta NÃO está verificada → bloqueia. Capability-probed: sem
- * {@link EmailVerificationStatusCapability} a checagem é no-op (não bloqueia).
- * Compartilhado pelos três fluxos de login (senha, magic link, passkey-first).
+ * `requireVerifiedEmail` efetivo (config ou runtime setting) E o store sabe dizer
+ * se o e-mail está verificado E a conta NÃO está verificada → bloqueia.
+ * Capability-probed: sem {@link EmailVerificationStatusCapability} a checagem é
+ * no-op (não bloqueia). Compartilhado pelos três fluxos de login (senha, magic
+ * link, passkey-first).
+ *
+ * @param settings - SettingsCapability para ler o runtime setting. Quando
+ *   ausente (chamadores que ainda não injetam o settings), faz fallback ao config.
  */
 export async function isEmailUnverifiedBlock(
   cfg: ResolvedServerConfig,
-  accountId: string
+  accountId: string,
+  settings?: SettingsCapability
 ): Promise<boolean> {
-  if (!cfg.login?.requireVerifiedEmail) return false
+  // Resolve o valor efetivo: runtime setting sobrescreve o config estático.
+  const requireVerified = settings
+    ? await resolveEffectiveRequireVerifiedEmail(cfg.login?.requireVerifiedEmail ?? false, settings)
+    : (cfg.login?.requireVerifiedEmail ?? false)
+
+  if (!requireVerified) return false
   if (!supportsEmailVerificationStatus(cfg.accountStore)) return false
   return !(await cfg.accountStore.isEmailVerified(accountId))
 }
@@ -29,6 +41,11 @@ export interface PasswordLoginInput {
    * auditoria nos fluxos que o têm (interaction); ausente no console de conta.
    */
   clientId?: string | null
+  /**
+   * SettingsCapability para ler o runtime setting de `require_verified_email`.
+   * Quando ausente, faz fallback ao valor de `cfg.login.requireVerifiedEmail`.
+   */
+  settings?: SettingsCapability
 }
 
 /** Resultado de {@link attemptPasswordLogin}. */
@@ -92,7 +109,7 @@ export async function attemptPasswordLogin(
   // E-mail não verificado (LGPD/compliance): rejeita o login se a política exige
   // verificação E o store sabe responder. Não conta como falha de senha (a senha
   // estava correta) — limpa o contador e emite login.failure com motivo `unverified`.
-  if (await isEmailUnverifiedBlock(cfg, account.id)) {
+  if (await isEmailUnverifiedBlock(cfg, account.id, input.settings)) {
     await lockout.clearFailures(email)
     await cfg.audit?.record(
       input.clientId !== undefined

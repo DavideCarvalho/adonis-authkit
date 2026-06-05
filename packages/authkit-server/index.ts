@@ -267,3 +267,23 @@ export {
   resolveEffectiveBotProtection,
 } from './src/host/bot_protection.js'
 export type { BotProtectionSetting } from './src/host/bot_protection.js'
+
+// Runtime toggles (registration, require_verified_email, maintenance_mode).
+export {
+  SETTING_KEYS,
+  resolveEffectiveRegistration,
+  resolveEffectiveRequireVerifiedEmail,
+  resolveEffectiveMaintenanceMode,
+} from './src/host/runtime_toggles.js'
+export type {
+  SettingKey,
+  RegistrationSetting,
+  RequireVerifiedEmailSetting,
+  MaintenanceModeSetting,
+  ResolvedMaintenanceMode,
+} from './src/host/runtime_toggles.js'
+export { resolveRegistration } from './src/define_config.js'
+export type {
+  RegistrationConfigInput,
+  ResolvedRegistrationConfig,
+} from './src/define_config.js'

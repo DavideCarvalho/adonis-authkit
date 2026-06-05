@@ -1,10 +1,11 @@
 import { test } from '@japa/runner'
-import { attemptPasswordLogin } from '../../src/host/login_attempt.js'
+import { attemptPasswordLogin, isEmailUnverifiedBlock } from '../../src/host/login_attempt.js'
 import { __setLockoutLimiterLoaderForTests } from '../../src/host/account_lockout.js'
 import { resolveLockout } from '../../src/define_config.js'
 import type { ResolvedServerConfig } from '../../src/define_config.js'
 import type { AuditEvent, AuditSink } from '../../src/audit/audit_sink.js'
 import type { AccountStore, AuthAccount } from '../../src/accounts/account_store.js'
+import { RuntimeSettings } from '../../src/host/runtime_settings.js'
 
 /** Limiter stub in-memory (mesma superfície usada pelo account_lockout). */
 function makeLimiterStub() {
@@ -234,6 +235,103 @@ test.group('attemptPasswordLogin', (group) => {
     ;(cfg as any).login = { requireVerifiedEmail: true }
     const res = await attemptPasswordLogin(cfg, { email: 'a@b.com', password: 'secret', ip: null })
     assert.isTrue(res.ok)
+  })
+
+  // ---- require_verified_email via runtime settings ----
+
+  test('runtime setting { require_verified_email: enabled: true } sobrescreve config false → bloqueia', async ({ assert }) => {
+    // Config says requireVerifiedEmail: false, but runtime setting says true.
+    const accountStore = {
+      verifyCredentials: async (email: string) =>
+        email === ACCOUNT.email ? { ...ACCOUNT } : null,
+      isEmailVerified: async () => false,
+    } as unknown as AccountStore
+    const cfg = {
+      accountStore,
+      audit: { record: async () => {} },
+      lockout: resolveLockout({ enabled: true, maxAttempts: 5 }),
+      login: { requireVerifiedEmail: false }, // config OFF
+    } as unknown as ResolvedServerConfig
+
+    // DB with runtime setting enabled = true.
+    const db = {
+      async connection() { return { schema: { async hasTable() { return true } } } },
+      table(_: string) {
+        return {
+          where(_c: string, key: string) {
+            return {
+              async first() {
+                if (key === 'require_verified_email') {
+                  return { key, value: JSON.stringify({ enabled: true }), updated_at: new Date(), updated_by: null }
+                }
+                return null
+              },
+            }
+          },
+        }
+      },
+    }
+    const runtimeSettings = new RuntimeSettings(db as any)
+    const res = await attemptPasswordLogin(cfg, {
+      email: 'a@b.com',
+      password: 'secret',
+      ip: '1.2.3.4',
+      settings: runtimeSettings,
+    })
+    assert.isFalse(res.ok)
+    if (!res.ok) assert.isTrue(res.unverified)
+  })
+
+  test('runtime setting { require_verified_email: enabled: false } sobrescreve config true → permite', async ({ assert }) => {
+    // Config says requireVerifiedEmail: true, but runtime setting says false → login allowed.
+    const accountStore = {
+      verifyCredentials: async (email: string) =>
+        email === ACCOUNT.email ? { ...ACCOUNT } : null,
+      isEmailVerified: async () => false,
+    } as unknown as AccountStore
+    const cfg = {
+      accountStore,
+      audit: { record: async () => {} },
+      lockout: resolveLockout({ enabled: true, maxAttempts: 5 }),
+      login: { requireVerifiedEmail: true }, // config ON
+    } as unknown as ResolvedServerConfig
+
+    const db = {
+      async connection() { return { schema: { async hasTable() { return true } } } },
+      table(_: string) {
+        return {
+          where(_c: string, key: string) {
+            return {
+              async first() {
+                if (key === 'require_verified_email') {
+                  return { key, value: JSON.stringify({ enabled: false }), updated_at: new Date(), updated_by: null }
+                }
+                return null
+              },
+            }
+          },
+        }
+      },
+    }
+    const runtimeSettings = new RuntimeSettings(db as any)
+    const res = await attemptPasswordLogin(cfg, {
+      email: 'a@b.com',
+      password: 'secret',
+      ip: null,
+      settings: runtimeSettings,
+    })
+    assert.isTrue(res.ok)
+  })
+
+  test('isEmailUnverifiedBlock: sem settings → usa config estático', async ({ assert }) => {
+    const accountStore = {
+      isEmailVerified: async () => false,
+    } as unknown as AccountStore
+    const cfg = {
+      accountStore,
+      login: { requireVerifiedEmail: true },
+    } as unknown as ResolvedServerConfig
+    assert.isTrue(await isEmailUnverifiedBlock(cfg, 'u1'))
   })
 
   test('travada: não verifica a senha e devolve { ok: false, locked: true, retryAfterSec }', async ({

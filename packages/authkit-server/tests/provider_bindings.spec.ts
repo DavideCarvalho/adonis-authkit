@@ -4,7 +4,7 @@ import { defineConfig, adapters } from '../index.js'
 import { fakeAccountStore } from './bootstrap.js'
 import AuthkitServerProvider from '../providers/authkit_server_provider.js'
 
-function buildFakeApp(providerValue: any) {
+function buildFakeApp(providerValue: any, loggerWarn?: (msg: string) => void) {
   const singletons: Record<string, () => Promise<any>> = {}
   const app = {
     config: {
@@ -15,7 +15,11 @@ function buildFakeApp(providerValue: any) {
       singleton: (name: string, factory: () => Promise<any>) => {
         singletons[name] = factory
       },
-      make: async () => ({ connection: () => new RedisMock() }),
+      make: async (token: string) => {
+        if (token === 'redis') return { connection: () => new RedisMock() }
+        if (token === 'logger' && loggerWarn) return { warn: loggerWarn }
+        return { connection: () => new RedisMock() }
+      },
     },
   } as any
   return { app, singletons }
@@ -58,5 +62,24 @@ test.group('authkit provider bindings', () => {
     new AuthkitServerProvider(app).register()
 
     await assert.rejects(() => singletons['authkit.patStore']())
+  })
+
+  test('boot sem clients estáticos não emite aviso de deprecação', async ({ assert }) => {
+    const warnMessages: string[] = []
+    const providerValue = defineConfig({
+      issuer: 'https://auth.test',
+      adapter: adapters.redis({ connection: 'main' }),
+      jwks: { source: 'managed' },
+      // clients omitido — zero clients estáticos
+      accountStore: fakeAccountStore(),
+    })
+    const { app, singletons } = buildFakeApp(providerValue, (msg) => warnMessages.push(msg))
+    new AuthkitServerProvider(app).register()
+
+    await singletons['authkit.server']()
+
+    // Nenhum warn de deprecação de clients deve ter sido emitido.
+    const deprecationWarns = warnMessages.filter((m) => m.includes('authkit:clients:import'))
+    assert.lengthOf(deprecationWarns, 0, 'sem clients estáticos, nenhum aviso de deprecação')
   })
 })

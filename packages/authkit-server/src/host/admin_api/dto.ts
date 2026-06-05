@@ -25,6 +25,8 @@ export function clientDto(client: AdminClient) {
     redirectUris: client.redirectUris,
     postLogoutRedirectUris: client.postLogoutRedirectUris,
     tokenEndpointAuthMethod: client.tokenEndpointAuthMethod,
+    backchannelLogoutUri: client.backchannelLogoutUri ?? null,
+    backchannelLogoutSessionRequired: client.backchannelLogoutSessionRequired ?? false,
   }
 }
 

@@ -4,6 +4,7 @@ import {
   hasErrors,
   checkIssuer,
   checkClients,
+  checkAdapterVolatility,
   checkAccountStore,
   checkRateLimit,
   checkAdmin,
@@ -16,6 +17,7 @@ import {
   checkSettings,
   type DoctorInput,
 } from '../src/doctor/checks.js'
+import { DatabaseAdapter } from '../src/adapters/database_adapter.js'
 
 function baseInput(overrides: Partial<DoctorInput> = {}): DoctorInput {
   return {
@@ -269,5 +271,81 @@ test.group('doctor checks', () => {
     }))
     assert.equal(f!.level, 'warn')
     assert.include(f!.message, 'orphan')
+  })
+
+  // --- clients estáticos: deprecação ---
+
+  test('checkClients: zero clients no config → ok (novo modo recomendado)', ({ assert }) => {
+    const f = checkClients(baseInput({ authkitConfig: { clients: [] } }))
+    assert.equal(f.level, 'ok')
+    assert.include(f.message, 'runtime')
+  })
+
+  test('checkClients: clients omitidos → ok (equivale a array vazio)', ({ assert }) => {
+    const f = checkClients(baseInput({ authkitConfig: {} }))
+    assert.equal(f.level, 'ok')
+  })
+
+  test('checkClients: clients estáticos presentes → warn de deprecação', ({ assert }) => {
+    const f = checkClients(baseInput({
+      authkitConfig: { clients: [{ redirectUris: ['https://app/cb'] }] },
+    }))
+    assert.equal(f.level, 'warn')
+    assert.include(f.message, 'deprecated')
+    assert.include(f.message, 'authkit:clients:import')
+  })
+
+  test('checkClients: clients presentes mas sem redirectUris → erro (invariante intacto)', ({ assert }) => {
+    const f = checkClients(baseInput({ authkitConfig: { clients: [{ client_id: 'a' }] } }))
+    assert.equal(f.level, 'error')
+  })
+
+  test('config com zero clients estáticos não produz erros no runAllChecks', ({ assert }) => {
+    const findings = runAllChecks(baseInput({ authkitConfig: { ...baseInput().authkitConfig, clients: [] } }))
+    assert.isFalse(hasErrors(findings))
+  })
+
+  // --- adapter de volatilidade ---
+
+  test('checkAdapterVolatility: DatabaseAdapter (persistente) → ok', ({ assert }) => {
+    // Cria uma subclasse anônima de DatabaseAdapter (como o factory faz).
+    const SubAdapter = class extends DatabaseAdapter {
+      constructor(name: string) {
+        super(name, {} as any)
+      }
+    }
+    const f = checkAdapterVolatility(baseInput({
+      authkitConfig: { clients: [], AdapterClass: SubAdapter },
+      __adapterClasses: { DatabaseAdapter },
+    }))
+    assert.equal(f!.level, 'ok')
+    assert.include(f!.message, 'persistent')
+  })
+
+  test('checkAdapterVolatility: adapter desconhecido sem clients → warn', ({ assert }) => {
+    class CustomAdapter {}
+    const f = checkAdapterVolatility(baseInput({
+      authkitConfig: { clients: [], AdapterClass: CustomAdapter },
+    }))
+    assert.equal(f!.level, 'warn')
+    assert.include(f!.message, 'volatile')
+  })
+
+  test('checkAdapterVolatility: com clients estáticos → null (não relevante)', ({ assert }) => {
+    class CustomAdapter {}
+    const f = checkAdapterVolatility(baseInput({
+      authkitConfig: {
+        clients: [{ redirectUris: ['https://app/cb'] }],
+        AdapterClass: CustomAdapter,
+      },
+    }))
+    assert.isNull(f)
+  })
+
+  test('checkAdapterVolatility: sem AdapterClass → null (silencioso)', ({ assert }) => {
+    const f = checkAdapterVolatility(baseInput({
+      authkitConfig: { clients: [] },
+    }))
+    assert.isNull(f)
   })
 })

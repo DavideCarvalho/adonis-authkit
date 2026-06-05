@@ -30,6 +30,12 @@ export interface DoctorInput {
    * Provided by the doctor command; undefined = not checked (doctor runs old version).
    */
   settingsTablePresent?: boolean
+  /**
+   * Classes de adapter para detecção de volatilidade (injetadas pelo doctor command
+   * em runtime). Quando ausente, o check de volatilidade usa heurística conservadora.
+   * Uso interno — não deve ser definido pelo host.
+   */
+  __adapterClasses?: { DatabaseAdapter?: new (...args: any[]) => any }
 }
 
 /** Type guard estrutural: o store expõe um método (capacidade presente). */
@@ -77,13 +83,21 @@ export function checkIssuer(input: DoctorInput): Finding[] {
   return findings
 }
 
-/** Pelo menos um client com redirectUris. */
+/**
+ * Clients estáticos no config: verifica redirectUris e emite aviso de deprecação.
+ * Zero clients estáticos é agora um estado VÁLIDO — clients são gerenciados via
+ * console/Admin API em runtime.
+ */
 export function checkClients(input: DoctorInput): Finding {
   const cfg = input.authkitConfig
   if (!cfg) return { level: 'error', message: 'no config to validate clients.' }
   const clients = Array.isArray(cfg.clients) ? cfg.clients : []
   if (clients.length === 0) {
-    return { level: 'error', message: 'no client configured in `clients`.' }
+    return {
+      level: 'ok',
+      message:
+        'no static clients in config — clients are managed at runtime via admin console / Admin API (recommended).',
+    }
   }
   const withRedirects = clients.filter(
     (c: any) => Array.isArray(c?.redirectUris) && c.redirectUris.length > 0
@@ -91,10 +105,70 @@ export function checkClients(input: DoctorInput): Finding {
   if (withRedirects.length === 0) {
     return {
       level: 'error',
-      message: `${clients.length} client(s) configured, but none has redirectUris.`,
+      message: `${clients.length} static client(s) configured, but none has redirectUris.`,
     }
   }
-  return { level: 'ok', message: `${withRedirects.length}/${clients.length} client(s) with redirectUris.` }
+  // Clients estáticos presentes — deprecation warn.
+  return {
+    level: 'warn',
+    message:
+      `${withRedirects.length}/${clients.length} static client(s) in config (deprecated) — ` +
+      'manage clients at runtime via admin console / Admin API instead. ' +
+      'Run `node ace authkit:clients:import` to migrate them to the adapter/DB.',
+  }
+}
+
+/**
+ * Aviso de adapter volátil com clients sem configuração estática. Quando o adapter
+ * não é persistente (Redis) ou é desconhecido E não há clients estáticos, os clients
+ * gerenciados via console/API serão perdidos num restart sem aviso prévio visível.
+ *
+ * Detecção de volatilidade: o `AdapterClass` é inspecionado estruturalmente:
+ *   - `DatabaseAdapter` (ou subclasse) → persistente (sem warn)
+ *   - qualquer outra classe → pode ser volátil → warn informativo
+ *
+ * A heurística é conservadora: falso-positivo em Redis personalizado é aceitável
+ * (o Redis com AOF/RDB também perde dados num restart fresh). Falso-negativo em
+ * adapter DB customizado nunca acontece porque DatabaseAdapter é a base.
+ */
+export function checkAdapterVolatility(input: DoctorInput): Finding | null {
+  const cfg = input.authkitConfig
+  if (!cfg) return null
+  // Só relevante quando NÃO há clients estáticos (o novo modo recomendado).
+  const clients = Array.isArray(cfg.clients) ? cfg.clients : []
+  if (clients.length > 0) return null
+
+  const AdapterClass = cfg.AdapterClass
+  if (!AdapterClass) return null
+
+  // Verifica se é um DatabaseAdapter (persistente). Usamos a cadeia de protótipos
+  // para detectar subclasses (o factory retorna uma subclasse anônima de DatabaseAdapter).
+  let isPersistent = false
+  try {
+    const { DatabaseAdapter } = input.__adapterClasses ?? {}
+    if (DatabaseAdapter && AdapterClass.prototype instanceof DatabaseAdapter) {
+      isPersistent = true
+    }
+  } catch {
+    // sem __adapterClasses disponível — trata como desconhecido
+  }
+
+  if (isPersistent) {
+    return {
+      level: 'ok',
+      message:
+        'adapter is DatabaseAdapter (persistent) — clients managed via console/API survive restarts.',
+    }
+  }
+
+  // Adapter desconhecido ou volátil (Redis, memory, custom) — warn informativo.
+  return {
+    level: 'warn',
+    message:
+      'No static clients in config: if the OIDC adapter is volatile (Redis without AOF/RDB, in-memory, etc.), ' +
+      'clients managed via console/API will be lost on restart. ' +
+      'Use a persistent adapter (DatabaseAdapter) or keep static clients as a fallback.',
+  }
 }
 
 /** accountStore presente + quais capacidades implementa. */
@@ -435,6 +509,8 @@ export function runAllChecks(input: DoctorInput): Finding[] {
   findings.push(checkConfigResolves(input))
   findings.push(...checkIssuer(input))
   findings.push(checkClients(input))
+  const volatility = checkAdapterVolatility(input)
+  if (volatility) findings.push(volatility)
   findings.push(...checkAccountStore(input))
   findings.push(...checkSession(input))
   findings.push(checkShield(input))

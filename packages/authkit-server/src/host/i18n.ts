@@ -413,6 +413,15 @@ export const DEFAULT_MESSAGES = {
   'admin.clients.field_post_logout_uris_help': 'One URI per line (optional).',
   'admin.clients.field_grant_types': 'Grant types',
   'admin.clients.field_auth_method': 'Token endpoint auth method',
+  'admin.clients.field_backchannel_uri': 'Back-Channel Logout URI (optional)',
+  'admin.clients.field_backchannel_uri_help':
+    'OIDC Back-Channel Logout endpoint of the RP. Leave blank if not needed.',
+  'admin.clients.field_backchannel_session_required': 'Require sid in logout_token',
+  'admin.clients.field_backchannel_session_required_help':
+    'When checked, the IdP includes the session ID (sid) in every logout_token sent to this client.',
+  'admin.clients.static_deprecated_notice':
+    'These clients are defined statically in config and are deprecated. ' +
+    'Migrate them to the adapter/DB with:',
 
   // Console admin — organizations.
   'admin.orgs.page_title': 'Organizations',
@@ -1022,6 +1031,15 @@ export const PT_BR_MESSAGES = {
   'admin.clients.field_post_logout_uris_help': 'Uma URI por linha (opcional).',
   'admin.clients.field_grant_types': 'Grant types',
   'admin.clients.field_auth_method': 'Token endpoint auth method',
+  'admin.clients.field_backchannel_uri': 'Back-Channel Logout URI (opcional)',
+  'admin.clients.field_backchannel_uri_help':
+    'Endpoint de OIDC Back-Channel Logout do RP. Deixe em branco se não usar.',
+  'admin.clients.field_backchannel_session_required': 'Exigir sid no logout_token',
+  'admin.clients.field_backchannel_session_required_help':
+    'Quando marcado, o IdP inclui o session ID (sid) em cada logout_token enviado a este client.',
+  'admin.clients.static_deprecated_notice':
+    'Estes clients estão definidos estaticamente no config e estão depreciados. ' +
+    'Migre-os para o adapter/DB com:',
 
   // Console admin — auditoria.
   'admin.audit.page_title': 'Auditoria',

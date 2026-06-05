@@ -41,6 +41,12 @@
 
     {{-- Clients estáticos (config, somente leitura). --}}
     <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">{{ t('admin.clients.static_section') }}</h2>
+    @if(staticClients.length > 0)
+      <div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+        {{ t('admin.clients.static_deprecated_notice') }}
+        <span class="ml-1 font-mono text-xs">node ace authkit:clients:import</span>
+      </div>
+    @end
     <div class="mb-8 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-black/5">
       @if(staticClients.length === 0)
         <p class="p-6 text-sm text-gray-500">{{ t('admin.clients.empty') }}</p>

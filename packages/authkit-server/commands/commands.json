@@ -87,6 +87,24 @@
       "filePath": "rotate_keys.js"
     },
     {
+      "commandName": "authkit:clients:import",
+      "description": "Migra clients OIDC do config estático para o adapter/DB (gerenciável via console/API sem redeploy).",
+      "namespace": "authkit",
+      "aliases": [],
+      "flags": [
+        {
+          "name": "dryRun",
+          "flagName": "dry-run",
+          "required": false,
+          "type": "boolean",
+          "description": "Relata o que SERIA feito SEM persistir nada."
+        }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "import_clients.js"
+    },
+    {
       "commandName": "authkit:users:import",
       "description": "Importa usuários de um arquivo JSON/NDJSON pelo account store (hashes entram como estão; lazy rehash no login).",
       "namespace": "authkit",

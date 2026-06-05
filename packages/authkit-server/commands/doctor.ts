@@ -1,6 +1,7 @@
 import { BaseCommand } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import { runAllChecks, hasErrors, type DoctorInput, type Finding } from '../src/doctor/checks.js'
+import { DatabaseAdapter } from '../src/adapters/database_adapter.js'
 
 /** Tenta importar um peer; true se importável. */
 async function canImport(specifier: string): Promise<boolean> {
@@ -40,6 +41,7 @@ export default class AuthkitDoctor extends BaseCommand {
         ally: await canImport('@adonisjs/ally'),
         limiter: await canImport('@adonisjs/limiter'),
       },
+      __adapterClasses: { DatabaseAdapter },
     }
 
     const findings = runAllChecks(input)

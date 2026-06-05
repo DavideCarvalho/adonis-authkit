@@ -72,6 +72,22 @@
         </select>
       </div>
 
+      <div>
+        <label class="block text-sm font-medium text-gray-700">{{ t('admin.clients.field_backchannel_uri') }}</label>
+        <input type="url" name="backchannel_logout_uri" value="{{ client.backchannelLogoutUri ?? '' }}" placeholder="https://app.exemplo.com/backchannel-logout"
+          class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm outline-none focus:border-gray-900" />
+        <p class="mt-1 text-xs text-gray-400">{{ t('admin.clients.field_backchannel_uri_help') }}</p>
+      </div>
+
+      <div>
+        <label class="flex items-center gap-2 text-sm text-gray-700">
+          <input type="checkbox" name="backchannel_logout_session_required" value="on"
+            {{ (client.backchannelLogoutSessionRequired ?? false) ? 'checked' : '' }}>
+          {{ t('admin.clients.field_backchannel_session_required') }}
+        </label>
+        <p class="mt-1 text-xs text-gray-400">{{ t('admin.clients.field_backchannel_session_required_help') }}</p>
+      </div>
+
       <div class="flex items-center justify-end gap-2 pt-2">
         <a href="/admin/clients" class="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">{{ t('admin.clients.cancel') }}</a>
         <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">

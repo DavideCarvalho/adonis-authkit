@@ -15,6 +15,16 @@ export interface ClientInput {
   postLogoutRedirectUris: string[]
   grantTypes: string[]
   tokenEndpointAuthMethod: TokenEndpointAuthMethod
+  /**
+   * Endpoint de OIDC Back-Channel Logout do RP. Quando definido, o IdP envia um
+   * `logout_token` para esta URI ao encerrar a sessão/grant do usuário (RFC 7644).
+   */
+  backchannelLogoutUri?: string
+  /**
+   * Quando `true`, exige que o `logout_token` inclua a claim `sid`. Ignorado quando
+   * `backchannelLogoutUri` não está definido.
+   */
+  backchannelLogoutSessionRequired?: boolean
 }
 
 /** Client persistido, apresentado ao console admin. */
@@ -25,6 +35,10 @@ export interface AdminClient {
   redirectUris: string[]
   postLogoutRedirectUris: string[]
   tokenEndpointAuthMethod: string
+  /** Endpoint de OIDC Back-Channel Logout (opcional). */
+  backchannelLogoutUri?: string
+  /** Exige sid no logout_token (opcional). */
+  backchannelLogoutSessionRequired?: boolean
 }
 
 /** Resultado de uma criação: o client + o secret em claro (mostrado UMA vez). */
@@ -101,6 +115,24 @@ export class AdminClientsService {
   }
 
   /**
+   * Cria um client PRESERVANDO um `clientSecret` fornecido externamente (em vez de
+   * gerar um aleatório). Útil para migração de clients estáticos do config, onde o
+   * secret original deve ser preservado para não quebrar apps já configurados.
+   *
+   * Para clients públicos (auth method `none`), `providedSecret` é ignorado.
+   * Lança se o `clientId` já existir no adapter — chame `find` antes.
+   */
+  async createWithSecret(input: ClientInput, providedSecret: string | undefined): Promise<CreatedClient> {
+    const clientId = (input.clientId ?? '').trim() || randomId()
+    const confidential = !PUBLIC_AUTH_METHODS.has(input.tokenEndpointAuthMethod)
+    const clientSecret = confidential ? (providedSecret ?? randomId()) : undefined
+    const payload = this.#buildPayload(clientId, input, clientSecret)
+    await this.#adapter.upsert(clientId, payload, 0)
+    await this.oidc.evictDynamicClientCache()
+    return { clientId, clientSecret }
+  }
+
+  /**
    * Atualiza metadata editável (redirect/post-logout URIs, grants, auth method)
    * PRESERVANDO o client_secret existente. Lança se o client não existe.
    */
@@ -166,6 +198,12 @@ export class AdminClientsService {
       token_endpoint_auth_method: input.tokenEndpointAuthMethod,
     }
     if (clientSecret) payload.client_secret = clientSecret
+    if (input.backchannelLogoutUri) {
+      payload.backchannel_logout_uri = input.backchannelLogoutUri
+      if (input.backchannelLogoutSessionRequired !== undefined) {
+        payload.backchannel_logout_session_required = input.backchannelLogoutSessionRequired
+      }
+    }
     return payload
   }
 
@@ -173,7 +211,7 @@ export class AdminClientsService {
   #present(row: EnumeratedClient): AdminClient {
     const p = row.payload
     const authMethod = (p.token_endpoint_auth_method as string) ?? 'client_secret_basic'
-    return {
+    const result: AdminClient = {
       clientId: row.clientId,
       confidential: !!p.client_secret,
       grants: (p.grant_types as string[]) ?? ['authorization_code', 'refresh_token'],
@@ -181,5 +219,11 @@ export class AdminClientsService {
       postLogoutRedirectUris: (p.post_logout_redirect_uris as string[]) ?? [],
       tokenEndpointAuthMethod: authMethod,
     }
+    if (p.backchannel_logout_uri) {
+      result.backchannelLogoutUri = p.backchannel_logout_uri as string
+      result.backchannelLogoutSessionRequired =
+        (p.backchannel_logout_session_required as boolean | undefined) ?? false
+    }
+    return result
   }
 }

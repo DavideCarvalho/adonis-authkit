@@ -1,4 +1,10 @@
-/** Registro estático de um client OIDC. */
+/**
+ * Registro estático de um client OIDC.
+ *
+ * @deprecated Gerencie clients pelo console admin ou Admin API em runtime — isso evita
+ * redeploy a cada mudança de client. Migre com `node ace authkit:clients:import` e
+ * remova este campo do config após confirmar que os clients estão no adapter/DB.
+ */
 export interface ClientConfig {
   clientId: string
   clientSecret?: string

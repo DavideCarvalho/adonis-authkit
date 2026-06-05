@@ -17,6 +17,7 @@ function asArray(value: unknown): string[] {
 }
 
 function readInput(ctx: HttpContext): ClientInput {
+  const backchannelUri = (ctx.request.input('backchannelLogoutUri') as string | undefined)?.trim()
   return {
     clientId: (ctx.request.input('clientId') as string | undefined)?.trim() || undefined,
     redirectUris: asArray(ctx.request.input('redirectUris')),
@@ -24,6 +25,10 @@ function readInput(ctx: HttpContext): ClientInput {
     grantTypes: asArray(ctx.request.input('grantTypes')),
     tokenEndpointAuthMethod:
       (ctx.request.input('tokenEndpointAuthMethod', 'client_secret_basic') as TokenEndpointAuthMethod),
+    backchannelLogoutUri: backchannelUri || undefined,
+    backchannelLogoutSessionRequired:
+      ctx.request.input('backchannelLogoutSessionRequired') === true ||
+      ctx.request.input('backchannelLogoutSessionRequired') === 'true',
   }
 }
 

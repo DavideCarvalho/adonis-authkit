@@ -679,7 +679,18 @@ export function resolveWebauthn(
 export interface AuthServerConfigInput {
   issuer: string
   adapter: AdapterFactory
-  clients: ClientConfig[]
+  /**
+   * Lista estática de clients OIDC.
+   *
+   * @deprecated Gerencie clients pelo console admin (`/admin/clients`) ou Admin API
+   * (`/api/authkit/v1/clients`) em runtime — sem necessidade de redeploy.
+   * Migre os clients existentes com `node ace authkit:clients:import` e remova este
+   * campo do config após confirmar que estão no adapter/DB.
+   *
+   * Quando omitido (ou `[]`), o servidor sobe normalmente e clients são gerenciados
+   * exclusivamente via console/API.
+   */
+  clients?: ClientConfig[]
   jwks: JwksConfig
   ttl?: TtlConfig
   /** Nome da CLAIM (não do scope) onde os papéis globais são emitidos. Default: 'roles'. */
@@ -908,7 +919,7 @@ export function defineConfig(config: AuthServerConfigInput) {
     return {
       issuer: config.issuer,
       AdapterClass,
-      clients: config.clients,
+      clients: config.clients ?? [],
       jwks: jwks as { keys: Record<string, any>[] },
       ttl: {
         accessToken: toSeconds(config.ttl?.accessToken, 900),

@@ -43,12 +43,16 @@ function parseAuthMethod(ctx: HttpContext): TokenEndpointAuthMethod {
 }
 
 function readInput(ctx: HttpContext): ClientInput {
+  const backchannelUri = (ctx.request.input('backchannel_logout_uri', '') as string).trim()
   return {
     clientId: (ctx.request.input('client_id', '') as string).trim() || undefined,
     redirectUris: parseLines(ctx.request.input('redirect_uris')),
     postLogoutRedirectUris: parseLines(ctx.request.input('post_logout_redirect_uris')),
     grantTypes: parseGrants(ctx),
     tokenEndpointAuthMethod: parseAuthMethod(ctx),
+    backchannelLogoutUri: backchannelUri || undefined,
+    backchannelLogoutSessionRequired:
+      ctx.request.input('backchannel_logout_session_required') === 'on',
   }
 }
 

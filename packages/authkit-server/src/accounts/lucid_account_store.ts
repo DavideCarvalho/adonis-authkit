@@ -21,6 +21,7 @@ import {
   buildDeletion,
   hasColumn,
 } from './lucid_store/status_profile.js'
+import { buildOrganizations } from './lucid_store/organizations.js'
 import { PasswordManager, type PasswordConfigInput } from '../password/password_manager.js'
 import type { AuditSink } from '../audit/audit_sink.js'
 import type { PwnedLogger, FetchLike } from '../password/pwned.js'
@@ -94,6 +95,17 @@ export interface LucidAccountStoreOptions {
    * `fetch` nativo. Existe para testes — produção não precisa fornecer.
    */
   pwnedFetch?: FetchLike
+  /**
+   * Models Lucid para organizations (multi-tenancy). Quando os três forem fornecidos,
+   * a capacidade `OrganizationsCapability` fica disponível no store. Os models devem
+   * ser tabelas `auth_organizations`, `auth_organization_members` e
+   * `auth_organization_invitations`. Ausente → capability AUSENTE (sem tabelas = desligado).
+   */
+  organizationModels?: {
+    OrgModel: any
+    MemberModel: any
+    InvitationModel: any
+  }
 }
 
 /**
@@ -116,6 +128,7 @@ export function lucidAccountStore(
   const encrypter = options.encrypter
   const ProviderIdentityModel = options.providerIdentityModel
   const WebauthnCredentialModel = options.webauthnCredentialModel
+  const OrgModels = options.organizationModels
   // RP do WebAuthn: usado nas cerimônias. Default do rpName cai no mfaIssuer.
   const webauthn = options.webauthn ?? {
     rpName: mfaIssuer,
@@ -179,6 +192,18 @@ export function lucidAccountStore(
     ...(hasColumn(Model, 'emailVerifiedAt') ? buildEmailVerificationStatus(ctx) : {}),
     // Deleção da conta: sempre disponível (qualquer model Lucid pode deletar).
     ...buildDeletion(ctx),
+    // Organizations (multi-tenancy): só quando os três models foram fornecidos.
+    ...(OrgModels
+      ? buildOrganizations({
+          OrgModel: OrgModels.OrgModel,
+          MemberModel: OrgModels.MemberModel,
+          InvitationModel: OrgModels.InvitationModel,
+          findAccountEmail: async (accountId: string) => {
+            const row = await Model.find(accountId)
+            return row?.email ?? null
+          },
+        })
+      : {}),
     // Config de senha resolvida — exposta (não-enumerável) para o authkit:doctor
     // inspecionar policy/checkPwned. NÃO faz parte do contrato AccountStore.
     __passwordConfig: passwords.config,

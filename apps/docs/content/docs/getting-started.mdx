@@ -1,28 +1,52 @@
 ---
 title: Getting Started
-description: Install the server package, configure it, and mount the host.
+description: Stand up an Authorization Server, wire a relying party, and read the user in your controllers via ctx.auth.
 ---
 
-This guide stands up a minimal Authorization Server. For a relying party, see
-[Client](/docs/client).
+This is the complete happy path: install the packages, write the two config files, mount
+the host, wire login / callback / logout, and read the authenticated user in your
+controllers. By the end you have a working IdP **and** a relying party that knows who's
+logged in.
+
+If you want the two end-to-end topology walkthroughs side by side (everything-in-one-app
+vs. a standalone IdP with separate client apps), see the [Quickstart](/docs/starter)
+instead — this page is the linear single-app path.
 
 ## Install
 
 ```bash
-npm install @dudousxd/adonis-authkit-server
+npm install @dudousxd/adonis-authkit-server @dudousxd/adonis-authkit-client
 node ace configure @dudousxd/adonis-authkit-server
+node ace configure @dudousxd/adonis-authkit-client
 ```
 
-`node ace configure` runs the package's configure hook: it publishes
-`config/authkit_server.ts`, wires the provider into your app, and registers the bundled
-ace commands (including `authkit:eject`).
+Each `node ace configure` runs the package's configure hook: it publishes the config file
+(`config/authkit_server.ts` / `config/authkit_client.ts`), wires the provider into your
+app, publishes the controller stubs, and registers the bundled ace commands (including
+`authkit:eject`).
 
 <Callout type="info">
   AuthKit needs a SQL connection for its adapter and stores. The `database` adapter and
   `lucidAccountStore` use Lucid, so `@adonisjs/lucid` must be installed and configured.
 </Callout>
 
-## Configure
+## The account model
+
+Compose an `AuthUser` from the mixins so the Lucid store has the columns it needs:
+
+```ts title="app/models/auth_user.ts"
+import { BaseModel } from '@adonisjs/lucid/orm'
+import { compose } from '@adonisjs/core/helpers'
+import { withAuthUser, withCredentials } from '@dudousxd/adonis-authkit-server'
+
+export default class AuthUser extends compose(
+  BaseModel,
+  withAuthUser(),
+  withCredentials()
+) {}
+```
+
+## Server config
 
 A minimal `config/authkit_server.ts`:
 
@@ -60,6 +84,40 @@ export default authServerConfig
 The `issuer` is the public URL of the provider and **must end with `mountPath`** — e.g.
 `https://auth.example.com/oidc` for `mountPath: '/oidc'`.
 
+## Client config
+
+`config/authkit_client.ts` declares the issuer, client credentials, the resolver, and how
+to map an IdP identity to your user record:
+
+```ts title="config/authkit_client.ts"
+import env from '#start/env'
+import { defineConfig, resolvers } from '@dudousxd/adonis-authkit-client'
+import type { Identity } from '@dudousxd/adonis-authkit-client'
+import AppUser from '#models/app_user'
+
+const authkitClientConfig = defineConfig({
+  issuer: env.get('AUTHKIT_ISSUER'),
+  clientId: env.get('AUTHKIT_CLIENT_ID'),
+  clientSecret: env.get('AUTHKIT_CLIENT_SECRET'),
+  redirectUri: env.get('AUTHKIT_REDIRECT_URI'),
+  resolver: resolvers.jwt({ tokenSource: 'session' }),
+
+  // Map the IdP identity (claims) to YOUR user record.
+  resolveUser: async (identity: Identity) => {
+    return AppUser.updateOrCreate(
+      { id: identity.userId },
+      { id: identity.userId, email: identity.email, fullName: identity.profile?.name ?? null }
+    )
+  },
+})
+
+export default authkitClientConfig
+```
+
+`resolveUser` runs lazily, only when you call `auth.getUser()`. For the conceptual model —
+the `Identity` shape, resolvers, and reconciling pre-existing rows by email — see
+[Client](/docs/client).
+
 ## Mount the host
 
 `registerAuthHost` mounts everything in one call — the OIDC provider wildcard, the login /
@@ -83,18 +141,263 @@ registerAuthHost(router, {
   happens before the (lazy) config resolves.
 </Callout>
 
-## Environment variables
+## Register the client middleware
 
-The config above reads (validate them in `start/env.ts`):
+`authkit_middleware` is what makes `ctx.auth` exist. Register it as a **router-global**
+middleware so every route gets an authenticator:
 
-```dotenv
-AUTHKIT_ISSUER=http://localhost:3333/oidc
-MY_APP_CLIENT_SECRET=...
-MY_APP_REDIRECT_URI=http://localhost:3000/auth/callback
+```ts title="start/kernel.ts"
+import router from '@adonisjs/core/services/router'
+
+router.use([
+  // ...existing middleware
+  () => import('@dudousxd/adonis-authkit-client/authkit_middleware'),
+])
 ```
 
-That's the whole server. Continue with [Topologies](/docs/topologies) to decide how to
-deploy it, or [Account Store](/docs/account-store) to point AuthKit at your user table.
+Per request it proactively refreshes the token set (`maybeRefresh`, see
+[Refresh Tokens](/docs/refresh-tokens)) and then attaches the authenticator
+(`ctx.auth = await manager.createAuthenticator(ctx)`).
 
-To wire a relying party and read the user in your controllers via `ctx.auth`, see
-[Using Auth in AdonisJS](/docs/using-auth).
+<Callout type="info">
+  `ctx.auth` is **always present** after the middleware runs — it never throws on an
+  anonymous request. Whether someone is actually logged in is decided by `getIdentity()`
+  resolving to a non-`null` value. Use `authenticate()` / `check()` for that (below).
+</Callout>
+
+You can register it as a **named** middleware instead if you'd rather opt routes in
+explicitly:
+
+```ts title="start/kernel.ts"
+export const middleware = router.named({
+  // ...
+  authkit: () => import('@dudousxd/adonis-authkit-client/authkit_middleware'),
+})
+```
+
+```ts title="start/routes.ts"
+router.get('/dashboard', [DashboardController]).use(middleware.authkit())
+```
+
+## Login, callback, logout
+
+Login is OIDC authorization-code + PKCE. The bundled `OidcSessionController` stub
+(published on configure) is the whole flow — three short methods over the client helpers:
+
+```ts title="app/controllers/oidc_session_controller.ts"
+import type { HttpContext } from '@adonisjs/core/http'
+import {
+  buildAuthorizeUrl,
+  exchangeCode,
+  generatePkce,
+  buildEndSessionUrl,
+} from '@dudousxd/adonis-authkit-client'
+import { randomUUID } from 'node:crypto'
+
+export default class OidcSessionController {
+  async login(ctx: HttpContext) {
+    const manager = await ctx.containerResolver.make('authkit.client')
+    const cfg = manager.clientConfig
+    const { verifier, challenge } = await generatePkce()
+    const state = randomUUID()
+    // Stash PKCE verifier + state so we can verify the callback.
+    ctx.session.put('authkit_pkce', { verifier, state })
+    const url = buildAuthorizeUrl({
+      issuer: cfg.issuer, clientId: cfg.clientId, redirectUri: cfg.redirectUri,
+      scopes: cfg.scopes, state, codeChallenge: challenge,
+    })
+    return ctx.response.redirect(url)
+  }
+
+  async callback(ctx: HttpContext) {
+    const manager = await ctx.containerResolver.make('authkit.client')
+    const cfg = manager.clientConfig
+    const { code, state } = ctx.request.qs()
+    const pkce = ctx.session.get('authkit_pkce')
+    if (!pkce || pkce.state !== state) return ctx.response.badRequest({ error: 'state inválido' })
+    const tokenSet = await exchangeCode({
+      issuer: cfg.issuer, clientId: cfg.clientId, clientSecret: cfg.clientSecret,
+      redirectUri: cfg.redirectUri, code, codeVerifier: pkce.verifier,
+    })
+    // Persist the token set under the configured sessionKey — this is what
+    // resolvers.jwt({ tokenSource: 'session' }) reads on later requests.
+    ctx.session.put(cfg.sessionKey, tokenSet)
+    ctx.session.forget('authkit_pkce')
+    return ctx.response.redirect('/')
+  }
+
+  async logout(ctx: HttpContext) {
+    const manager = await ctx.containerResolver.make('authkit.client')
+    const cfg = manager.clientConfig
+    // RP-initiated logout: end the IdP session, then drop the local one.
+    // id_token_hint lets the IdP skip its confirmation page.
+    const idToken = manager.getIdToken(ctx)
+    ctx.session.forget(cfg.sessionKey)
+    return ctx.response.redirect(
+      buildEndSessionUrl({
+        issuer: cfg.issuer,
+        idToken,
+        clientId: cfg.clientId,
+        postLogoutRedirectUri: 'http://localhost:3333/',
+      })
+    )
+  }
+}
+```
+
+Wire the routes (the `/auth/callback` path is the `redirectUri` you registered for the
+client):
+
+```ts title="start/routes.ts"
+const OidcSessionController = () => import('#controllers/oidc_session_controller')
+
+router.get('/auth/login', [OidcSessionController, 'login']).as('auth.login')
+router.get('/auth/callback', [OidcSessionController, 'callback']).as('auth.callback')
+router.post('/auth/logout', [OidcSessionController, 'logout']).as('auth.logout')
+```
+
+The sequence: `login` redirects the browser to the IdP's `/authorize`; the user
+authenticates there and is bounced back to `redirectUri` with `code` + `state`; `callback`
+verifies `state`, swaps the code for a token set via `exchangeCode`, and stores it with
+`session.put(cfg.sessionKey, tokenSet)`. **The stored token set is the login** — there's
+nothing else to persist on the RP. For the simpler local-only logout and the full
+end-session details, see [Security](/docs/security#logout) and
+[Back-Channel Logout](/docs/back-channel-logout) for IdP-initiated termination.
+
+## Environment variables
+
+```dotenv title=".env"
+AUTHKIT_ISSUER=http://localhost:3333/oidc
+AUTHKIT_CLIENT_ID=my-app
+AUTHKIT_CLIENT_SECRET=super-secret
+AUTHKIT_REDIRECT_URI=http://localhost:3333/auth/callback
+# the server reads the same client back through these:
+MY_APP_CLIENT_SECRET=super-secret
+MY_APP_REDIRECT_URI=http://localhost:3333/auth/callback
+```
+
+## Using it in controllers
+
+This is the part you'll use every day. After the middleware runs, `ctx.auth` is an
+`Authenticator`; destructure it from the context. You don't have to import or declare
+anything — the client package ships a module augmentation
+(`interface HttpContext { auth: Authenticator }`) via its `adonisjs.types` entry, so once
+configured `ctx.auth` is typed everywhere.
+
+**Identity vs User.** Two distinct things come out of the authenticator:
+
+- **Identity** — the OIDC claims, app-agnostic (`userId` = `sub`, `email`, `globalRoles`,
+  `profile`, `sessionId`, `raw`). Same shape for every resolver.
+- **User** — *your* domain model, produced by `resolveUser(identity)`. The Identity says
+  *who* the IdP authenticated; `resolveUser` turns that into the row your app works with.
+
+### Require a login — `authenticate()`
+
+`authenticate()` resolves the identity and **throws** if there isn't one. Use it where
+anonymous access is a programming error:
+
+```ts title="app/controllers/dashboard_controller.ts"
+import type { HttpContext } from '@adonisjs/core/http'
+
+export default class DashboardController {
+  async handle({ auth, inertia }: HttpContext) {
+    const identity = await auth.authenticate() // throws if not logged in
+    return inertia.render('dashboard', { email: identity.email })
+  }
+}
+```
+
+### Get your user — `getUser()`
+
+`getUser()` returns whatever `resolveUser` produced (or `null` if not authenticated) — the
+usual entry point, since you almost always want your model rather than raw claims. It
+returns `unknown`, so pass a type argument:
+
+```ts
+async handle({ auth, response }: HttpContext) {
+  const user = await auth.getUser<AppUser>()
+  if (!user) return response.unauthorized({ message: 'Não autenticado' })
+  return user
+}
+```
+
+### Optional auth — `check()`
+
+`check()` returns a boolean and never throws — for pages that render differently for guests
+vs. members:
+
+```ts
+async handle({ auth, inertia }: HttpContext) {
+  if (await auth.check()) {
+    return inertia.render('home', { user: await auth.getUser<AppUser>() })
+  }
+  return inertia.render('home', { user: null })
+}
+```
+
+### Raw claims — `getIdentity()`
+
+When you need the claims directly (the `sub`, `sessionId`, anything in `raw`) without
+hitting your DB, use `getIdentity()` — it returns `Identity | null`:
+
+```ts
+const identity = await auth.getIdentity()
+if (identity) console.log(identity.userId, identity.sessionId, identity.raw)
+```
+
+### Roles — `hasGlobalRole` / `hasAppRole`
+
+Two role surfaces, mirroring Identity vs User:
+
+- **`hasGlobalRole(role)`** is synchronous and checks `identity.globalRoles` (IdP claims).
+  It only sees roles after the identity is resolved — call `authenticate()` / `check()` /
+  `getIdentity()` first.
+- **`hasAppRole(role)`** is `async`, consults `resolveAppRoles(identity)` (your app-local
+  roles), and resolves the identity for you.
+
+```ts
+async handle({ auth, response }: HttpContext) {
+  await auth.authenticate()                 // ensure identity is resolved
+  if (!auth.hasGlobalRole('admin')) {       // sync, from claims
+    return response.forbidden({ message: 'Acesso negado' })
+  }
+  if (await auth.hasAppRole('billing.manager')) {
+    // app-local capability
+  }
+}
+```
+
+### Protecting a route group
+
+For browser routes you usually want a redirect to login, not a 500. Centralize the check in
+a small middleware and apply it to a group:
+
+```ts title="app/middleware/require_auth_middleware.ts"
+import type { HttpContext } from '@adonisjs/core/http'
+import type { NextFn } from '@adonisjs/core/types/http'
+
+export default class RequireAuthMiddleware {
+  async handle(ctx: HttpContext, next: NextFn) {
+    if (!(await ctx.auth.check())) {
+      return ctx.response.redirect().toRoute('auth.login')
+    }
+    return next()
+  }
+}
+```
+
+```ts title="start/routes.ts"
+router
+  .group(() => {
+    router.get('/dashboard', [DashboardController]).as('dashboard')
+    router.get('/settings', [SettingsController]).as('settings')
+  })
+  .prefix('/app')
+  .as('app')
+  .use(middleware.requireAuth())
+```
+
+That's the whole single-app setup — provider, relying party, and `ctx.auth` all wired.
+Continue with [Topologies](/docs/topologies) to decide how to deploy it,
+[Account Store](/docs/account-store) to point AuthKit at your user table, or
+[Client](/docs/client) for the deeper resolver model.

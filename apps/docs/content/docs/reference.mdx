@@ -185,6 +185,7 @@ if (supportsSettings(store)) {
 | `registration` | `{ enabled: boolean }` | Open or close public sign-up at runtime. Fallback: `config.registration.enabled` (default `true`). See [Security — Registration toggle](/docs/security#registration-toggle). |
 | `require_verified_email` | `{ enabled: boolean }` | Override `login.requireVerifiedEmail` for all login flows at runtime. Capability-probed. See [Security — Require verified email toggle](/docs/security#require-verified-email-toggle). |
 | `maintenance_mode` | `{ enabled: boolean; message?: string }` | Block login/sign-up/forgot for non-admin users. Admin accounts and the Admin API bypass the gate. See [Security — Maintenance mode](/docs/security#maintenance-mode). |
+| `auth_methods` | `{ password?: boolean; magicLink?: boolean; passkey?: boolean; social?: string[]; forgotPassword?: boolean }` | Filter which login methods the sign-in screen shows at runtime. All fields optional; absent fields use config-derived defaults. `forgotPassword` is auto-forced off when `password` is off. `social` is intersected with the static config providers. Fail-safe: all-off reverts to defaults. See [Security — Authentication methods](/docs/security#authentication-methods). |
 
 ## Ace commands
 

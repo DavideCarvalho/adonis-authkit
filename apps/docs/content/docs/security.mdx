@@ -338,8 +338,82 @@ curl -X PUT https://idp.acme.com/api/authkit/v1/settings/maintenance_mode \
 1. `auth_settings` table absent or error → `{ enabled: false }` (system is up; fail-safe).
 2. Setting present → uses the stored value.
 
-The toggle is surfaced in the admin console at `/admin/settings` alongside the other
+The toggle is surfaced in the admin console at `{prefix}/settings` alongside the other
 runtime setting cards.
+
+## Authentication methods
+
+Controls which login methods the sign-in screen offers at runtime — without a redeploy.
+All fields are optional; absent fields fall back to the config / capability defaults.
+
+**Setting key:** `auth_methods`
+
+```json
+{
+  "password": true,
+  "magicLink": false,
+  "passkey": true,
+  "social": ["google"],
+  "forgotPassword": true
+}
+```
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `password` | `boolean?` | Show the email + password form. Default: `true`. |
+| `magicLink` | `boolean?` | Show the magic-link button. Default: `true` when the store and mail capability support it. |
+| `passkey` | `boolean?` | Show passkey-first sign-in. Default: `true` when WebAuthn is configured. |
+| `social` | `string[]?` | Provider ids to display (e.g. `["google", "github"]`). Default: all configured providers. The setting can only **filter**; it cannot activate a provider the code does not have wired up. |
+| `forgotPassword` | `boolean?` | Show the "forgot my password" link. Default: `true`. **Auto-derived:** always `false` when `password` is effectively off — there is nothing to reset without a password. |
+
+**Precedence rules:**
+
+1. `auth_settings` table absent or DB error → config-derived defaults (fail-safe).
+2. Setting present, field set → the field's value overrides the default.
+3. Setting present, field absent → the config-derived default for that field is used.
+4. `forgotPassword` → computed as `(setting.forgotPassword ?? true) && passwordEnabled`.
+   Turning off `password` silently turns off `forgotPassword` as well, regardless of the
+   stored value.
+5. `social` → intersection of the stored list with `config.social.providers`. Providers
+   not wired in the static config are silently dropped; the UI never shows a button it
+   cannot handle.
+
+**Fail-safe all-off:** if the resolved value would leave every method off (no password, no
+magic link, no passkey, and an empty social list), AuthKit logs a warning and falls back to
+the config-derived defaults. An empty login screen is never surfaced to users.
+
+**Effect on the UI / endpoints:**
+
+- `password: false` — the password input and submit button are removed from the login form.
+- `forgotPassword: false` (or auto-derived) — the "forgot my password" link is removed and
+  the `GET /auth/forgot-password` + `POST /auth/forgot-password` endpoints return 404.
+- `magicLink: false` — the magic-link button is hidden and the magic-link endpoints are
+  gated (404).
+- `passkey: false` — the passkey-first button is hidden.
+- `social` filtered — only the listed provider buttons are rendered; buttons for providers
+  outside the list are not rendered.
+
+**`authkit:doctor` checks:**
+
+- Shape invalid (e.g. `social` is not an array, `password` is not a boolean) → `warn`.
+- All methods effectively off (all-off scenario) → `warn`.
+- Provider in the stored `social` list not present in `config.social.providers` → `warn`.
+
+The toggle is surfaced in the admin console at `{prefix}/settings` (see
+[Admin Console — Authentication methods card](/docs/admin-console#authentication-methods-card))
+and via the Admin REST API:
+
+```bash
+# Disable magic link and limit social to Google only
+curl -X PUT https://idp.acme.com/api/authkit/v1/settings/auth_methods \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "value": { "magicLink": false, "social": ["google"] } }'
+
+# Reset — returns to config-derived defaults
+curl -X DELETE https://idp.acme.com/api/authkit/v1/settings/auth_methods \
+  -H "Authorization: Bearer $KEY"
+```
 
 ## Audit logging
 

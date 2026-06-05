@@ -3,10 +3,9 @@ title: Admin Console
 description: The opt-in IdP admin console — dashboard, users, sessions, organizations, clients, audit, and impersonation.
 ---
 
-AuthKit ships an opt-in **admin console** mounted under `/admin/*`: a metrics dashboard,
-user/role management, session context, organization management, the OAuth client list, the
-audit log, and an impersonation panel. It is **off by default** — existing hosts don't
-change behaviour.
+AuthKit ships an opt-in **admin console**: a metrics dashboard, user/role management,
+session context, organization management, the OAuth client list, the audit log, and an
+impersonation panel. It is **off by default** — existing hosts don't change behaviour.
 
 ## Enabling it
 
@@ -26,15 +25,58 @@ defineConfig({
 ```ts title="start/routes.ts"
 registerAuthHost(router, {
   mountPath: '/oidc',
-  admin: true, // mirror admin.enabled here
+  admin: true, // mirror admin.enabled here; console mounts under /admin
 })
 ```
 
 | Field | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `enabled` | `boolean` | `false` | Mounts the `/admin/*` group behind the admin guard. |
+| `enabled` | `boolean` | `false` | Mounts the admin console group behind the admin guard. |
 | `roles` | `string[]` | `['ADMIN']` | Global roles that grant access to the console. |
 | `impersonation` | `boolean` | `false` | Show the impersonation panel on user detail pages. |
+
+### Configurable admin prefix
+
+By default the console is mounted under `/admin`. You can move it to any path by passing
+`{ prefix: '...' }` instead of `true` in `registerAuthHost`:
+
+```ts title="start/routes.ts"
+// Default — console under /admin (backward-compatible)
+registerAuthHost(router, {
+  mountPath: '/oidc',
+  admin: true,
+})
+
+// Custom prefix — console under /auth/admin
+registerAuthHost(router, {
+  mountPath: '/oidc',
+  admin: { prefix: '/auth/admin' },
+})
+```
+
+The prefix is normalised automatically: it always starts with `/` and never has a trailing
+slash. All console routes, internal redirects, and views follow the effective prefix — no
+further configuration is required. The Admin REST API (`/api/authkit/v1`) is **not** affected
+by this option.
+
+**Acme example** — Acme mounts the console at `/auth/admin` to avoid collisions with an
+existing `/admin` route in their main app:
+
+```ts title="start/routes.ts"
+registerAuthHost(router, {
+  mountPath: '/oidc',
+  admin: { prefix: '/auth/admin' },
+  adminApi: true,
+})
+```
+
+The dashboard is then at `https://auth.acme.com/auth/admin`, users at
+`/auth/admin/users`, settings at `/auth/admin/settings`, and so on.
+
+<Callout type="info">
+  When `prefix` is omitted inside the object form (`admin: {}`), the default `/admin` is
+  used — identical to `admin: true`.
+</Callout>
 
 ## The guard
 
@@ -51,31 +93,34 @@ The allowed roles are resolved at runtime from the `authkit.server` config. See
 
 ## Routes
 
+All routes below are relative to the configured admin prefix (default `/admin`; denoted
+`{prefix}` here).
+
 | Route | Action |
 | --- | --- |
-| `GET /admin` | Dashboard — MAU, daily sign-ins, daily sign-ups (SVG charts), total users |
-| `GET /admin/users` | List/search users |
-| `POST /admin/users` | Create a user (with a password, or invite via password-reset email) |
-| `POST /admin/users/:id/roles` | Replace a user's global roles (`AccountStore.setGlobalRoles`) |
-| `POST /admin/users/:id/reset-password` | Issue a reset token and email it to the user |
-| `POST /admin/users/:id/disable` | Disable the account (blocks login) — needs `AccountStatusCapability` |
-| `POST /admin/users/:id/enable` | Re-enable a disabled account |
-| `POST /admin/users/:id/delete` | Delete a user and cascade (LGPD/GDPR) |
-| `GET /admin/users/:id/sessions` | List the account's active sessions + grants (with browser/OS/IP/location) |
-| `POST /admin/users/:id/revoke-sessions` | Revoke all of the account's sessions + grants |
-| `GET /admin/clients` | List OAuth clients (static config + adapter-stored) |
-| `POST /admin/clients` | Create a dynamic client |
-| `POST /admin/clients/:id/edit` | Edit a dynamic client |
-| `POST /admin/clients/:id/regenerate-secret` | Regenerate a confidential client's secret |
-| `POST /admin/clients/:id/delete` | Delete a dynamic client |
-| `GET /admin/audit` | Browse the audit log (when the sink supports `list`) |
-| `GET /admin/orgs` | List organizations (when tables exist) |
-| `POST /admin/orgs` | Create an organization |
-| `GET /admin/orgs/:id` | View org detail: members + pending invitations |
-| `POST /admin/orgs/:id/delete` | Delete an organization and cascade |
-| `POST /admin/orgs/:id/members` | Add a member |
-| `POST /admin/orgs/:id/members/:accountId/remove` | Remove a member |
-| `POST /admin/orgs/:id/invitations/:invId/revoke` | Revoke an invitation |
+| `GET {prefix}` | Dashboard — MAU, daily sign-ins, daily sign-ups (SVG charts), total users |
+| `GET {prefix}/users` | List/search users |
+| `POST {prefix}/users` | Create a user (with a password, or invite via password-reset email) |
+| `POST {prefix}/users/:id/roles` | Replace a user's global roles (`AccountStore.setGlobalRoles`) |
+| `POST {prefix}/users/:id/reset-password` | Issue a reset token and email it to the user |
+| `POST {prefix}/users/:id/disable` | Disable the account (blocks login) — needs `AccountStatusCapability` |
+| `POST {prefix}/users/:id/enable` | Re-enable a disabled account |
+| `POST {prefix}/users/:id/delete` | Delete a user and cascade (LGPD/GDPR) |
+| `GET {prefix}/users/:id/sessions` | List the account's active sessions + grants (with browser/OS/IP/location) |
+| `POST {prefix}/users/:id/revoke-sessions` | Revoke all of the account's sessions + grants |
+| `GET {prefix}/clients` | List OAuth clients (static config + adapter-stored) |
+| `POST {prefix}/clients` | Create a dynamic client |
+| `POST {prefix}/clients/:id/edit` | Edit a dynamic client |
+| `POST {prefix}/clients/:id/regenerate-secret` | Regenerate a confidential client's secret |
+| `POST {prefix}/clients/:id/delete` | Delete a dynamic client |
+| `GET {prefix}/audit` | Browse the audit log (when the sink supports `list`) |
+| `GET {prefix}/orgs` | List organizations (when tables exist) |
+| `POST {prefix}/orgs` | Create an organization |
+| `GET {prefix}/orgs/:id` | View org detail: members + pending invitations |
+| `POST {prefix}/orgs/:id/delete` | Delete an organization and cascade |
+| `POST {prefix}/orgs/:id/members` | Add a member |
+| `POST {prefix}/orgs/:id/members/:accountId/remove` | Remove a member |
+| `POST {prefix}/orgs/:id/invitations/:invId/revoke` | Revoke an invitation |
 
 The console reads through the same contracts as the rest of the host kit:
 `AccountStore.listAccounts` / `setGlobalRoles` for users, the OIDC adapter + static
@@ -232,22 +277,24 @@ the full route table and behaviour.
 
 ## Settings page
 
-`GET /admin/settings` shows a **Runtime Settings** panel with four cards: bot protection,
-registration, require verified email, and maintenance mode.
+`GET {prefix}/settings` shows a **Runtime Settings** panel with five cards: bot protection,
+registration, require verified email, maintenance mode, and authentication methods.
 
 | Route | Action |
 | --- | --- |
-| `GET /admin/settings` | Render the settings page. |
-| `POST /admin/settings/bot-protection` | Save (upsert) the `bot_protection` setting. |
-| `POST /admin/settings/bot-protection/reset` | Delete the setting — reverts to static config. |
-| `POST /admin/settings/registration` | Save (upsert) the `registration` setting. |
-| `POST /admin/settings/registration/reset` | Delete the setting — reverts to static config. |
-| `POST /admin/settings/require-verified-email` | Save (upsert) the `require_verified_email` setting. |
-| `POST /admin/settings/require-verified-email/reset` | Delete the setting — reverts to static config. |
-| `POST /admin/settings/maintenance-mode` | Save (upsert) the `maintenance_mode` setting. |
-| `POST /admin/settings/maintenance-mode/reset` | Delete the setting — disables maintenance mode. |
+| `GET {prefix}/settings` | Render the settings page. |
+| `POST {prefix}/settings/bot-protection` | Save (upsert) the `bot_protection` setting. |
+| `POST {prefix}/settings/bot-protection/reset` | Delete the setting — reverts to static config. |
+| `POST {prefix}/settings/registration` | Save (upsert) the `registration` setting. |
+| `POST {prefix}/settings/registration/reset` | Delete the setting — reverts to static config. |
+| `POST {prefix}/settings/require-verified-email` | Save (upsert) the `require_verified_email` setting. |
+| `POST {prefix}/settings/require-verified-email/reset` | Delete the setting — reverts to static config. |
+| `POST {prefix}/settings/maintenance-mode` | Save (upsert) the `maintenance_mode` setting. |
+| `POST {prefix}/settings/maintenance-mode/reset` | Delete the setting — disables maintenance mode. |
+| `POST {prefix}/settings/auth-methods` | Save (upsert) the `auth_methods` setting. |
+| `POST {prefix}/settings/auth-methods/reset` | Delete the setting — reverts to config-derived defaults. |
 
-All four cards share the same state model: each shows a **badge** indicating whether the
+All five cards share the same state model: each shows a **badge** indicating whether the
 effective value comes from the runtime setting (`from setting`) or falls back to the static
 config (`from config`). When the `auth_settings` table is absent, a notice appears on every
 card with the `CREATE TABLE` snippet and the submit buttons are disabled.
@@ -316,3 +363,27 @@ curl -X PUT https://idp.acme.com/api/authkit/v1/settings/maintenance_mode \
 ```
 
 See [Security — Maintenance mode](/docs/security#maintenance-mode) for the full behaviour.
+
+### Authentication methods card
+
+Controls which login methods the sign-in screen offers at runtime — without a redeploy.
+
+The card lists checkboxes for each method with contextual dependency hints:
+
+- **Password** — the standard email + password form.
+- **Magic link** — "send me a login link"; shown only when the mail capability and store
+  support it. The checkbox is disabled with a hint when the capability is absent.
+- **Passkey** — passkey-first sign-in; shown only when WebAuthn is configured.
+- **Forgot password** — the "forgot my password" link. The checkbox is automatically
+  disabled (and unchecked) when **Password** is off — there is nothing to reset without a
+  password.
+- **Social providers** — one checkbox per configured provider (e.g. Google, GitHub). Only
+  providers present in the static config are listed; the setting cannot activate a provider
+  the code does not have wired up.
+
+Submitting saves the `auth_methods` runtime setting. A **Reset to config** button deletes
+the row and returns to the config-derived defaults. Every write emits a `settings.updated`
+audit event with `metadata.key = "auth_methods"`.
+
+See [Security — Authentication methods](/docs/security#authentication-methods) for the full
+shape, precedence rules, and fail-safe behaviour.

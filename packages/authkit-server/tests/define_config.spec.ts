@@ -299,4 +299,93 @@ test.group('defineConfig (server)', () => {
     })
     await assert.rejects(() => configProvider.resolve(fakeApp, provider))
   })
+
+  test('accessTokens default → opaque (anyJwt false), preserva comportamento atual', async ({ assert }) => {
+    const RedisMock = (await import('ioredis-mock')).default
+    const { configProvider } = await import('@adonisjs/core')
+    const { fakeAccountStore } = await import('./bootstrap.js')
+    const fakeApp = { container: { make: async () => ({ connection: () => new RedisMock() }) } } as any
+    const provider = defineConfig({
+      issuer: 'https://auth.test',
+      adapter: adapters.redis({ connection: 'main' }),
+      jwks: { source: 'managed' },
+      clients: [{ clientId: 'app1', redirectUris: ['https://app1/cb'] }],
+      accountStore: fakeAccountStore(),
+    })
+    const resolved = await configProvider.resolve(fakeApp, provider)
+    assert.equal(resolved.accessTokens.format, 'opaque')
+    assert.isFalse(resolved.accessTokens.anyJwt)
+    assert.equal(resolved.accessTokens.audience, 'https://auth.test')
+  })
+
+  test('accessTokens jwt é materializado na config resolvida', async ({ assert }) => {
+    const RedisMock = (await import('ioredis-mock')).default
+    const { configProvider } = await import('@adonisjs/core')
+    const { fakeAccountStore } = await import('./bootstrap.js')
+    const fakeApp = { container: { make: async () => ({ connection: () => new RedisMock() }) } } as any
+    const provider = defineConfig({
+      issuer: 'https://auth.test',
+      adapter: adapters.redis({ connection: 'main' }),
+      jwks: { source: 'managed' },
+      clients: [{ clientId: 'app1', redirectUris: ['https://app1/cb'] }],
+      accountStore: fakeAccountStore(),
+      accessTokens: { format: 'jwt', resources: { 'https://api.test': { format: 'jwt' } } },
+    })
+    const resolved = await configProvider.resolve(fakeApp, provider)
+    assert.equal(resolved.accessTokens.format, 'jwt')
+    assert.isTrue(resolved.accessTokens.anyJwt)
+    assert.equal(resolved.accessTokens.resources['https://api.test'].format, 'jwt')
+  })
+})
+
+test.group('resolveAccessTokens', () => {
+  test('default = opaque sem resources e anyJwt false (comportamento atual)', async ({ assert }) => {
+    const { resolveAccessTokens } = await import('../src/define_config.js')
+    const r = resolveAccessTokens('https://auth.test')
+    assert.equal(r.format, 'opaque')
+    assert.equal(r.audience, 'https://auth.test') // audience default = issuer
+    assert.isFalse(r.anyJwt)
+    assert.deepEqual(r.resources, {})
+  })
+
+  test('format jwt (modo simples) → anyJwt true, audience default = issuer', async ({ assert }) => {
+    const { resolveAccessTokens } = await import('../src/define_config.js')
+    const r = resolveAccessTokens('https://auth.test', { format: 'jwt' })
+    assert.equal(r.format, 'jwt')
+    assert.isTrue(r.anyJwt)
+    assert.equal(r.audience, 'https://auth.test')
+  })
+
+  test('audience explícito sobrescreve o issuer', async ({ assert }) => {
+    const { resolveAccessTokens } = await import('../src/define_config.js')
+    const r = resolveAccessTokens('https://auth.test', { format: 'jwt', audience: 'my-api' })
+    assert.equal(r.audience, 'my-api')
+  })
+
+  test('resources herdam format raiz; audience default = a chave (resource indicator)', async ({ assert }) => {
+    const { resolveAccessTokens } = await import('../src/define_config.js')
+    const r = resolveAccessTokens('https://auth.test', {
+      format: 'jwt',
+      resources: {
+        'https://api.acme.test': { scopes: ['read'] },
+        'https://other.test': { format: 'opaque', audience: 'other-aud', expiresIn: 120 },
+      },
+    })
+    assert.equal(r.resources['https://api.acme.test'].format, 'jwt') // herdou
+    assert.equal(r.resources['https://api.acme.test'].audience, 'https://api.acme.test') // = a chave
+    assert.deepEqual(r.resources['https://api.acme.test'].scopes, ['read'])
+    assert.equal(r.resources['https://other.test'].format, 'opaque') // override
+    assert.equal(r.resources['https://other.test'].audience, 'other-aud')
+    assert.equal(r.resources['https://other.test'].expiresIn, 120)
+    assert.isTrue(r.anyJwt)
+  })
+
+  test('root opaque + resource jwt → anyJwt true', async ({ assert }) => {
+    const { resolveAccessTokens } = await import('../src/define_config.js')
+    const r = resolveAccessTokens('https://auth.test', {
+      format: 'opaque',
+      resources: { 'https://api.test': { format: 'jwt' } },
+    })
+    assert.isTrue(r.anyJwt)
+  })
 })

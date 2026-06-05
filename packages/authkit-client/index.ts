@@ -39,6 +39,14 @@ export {
   dpopJwkThumbprint,
 } from './src/dpop.js'
 export type { DpopKeyPair, CreateDpopProofInput } from './src/dpop.js'
+export {
+  verifyJwtAccessToken,
+  clearJwksCache,
+} from './src/verify_access_token.js'
+export type {
+  VerifyJwtAccessTokenOptions,
+  JwtAccessTokenClaims,
+} from './src/verify_access_token.js'
 export type { TokenSet } from './src/types.js'
 export type { Identity } from '@dudousxd/adonis-authkit-core'
 export { configure } from './commands/configure.js'

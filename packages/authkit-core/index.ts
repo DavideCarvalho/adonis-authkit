@@ -5,6 +5,9 @@ export type {
   JwksConfig,
   ObservabilityConfig,
   ResolvedAuthServerConfig,
+  AccessTokenFormat,
+  AccessTokenResourceConfig,
+  AccessTokensConfig,
 } from './src/types/server_config.js'
 export { AUTHKIT_METRICS } from './src/metrics.js'
 export type { AuthkitMetricName } from './src/metrics.js'

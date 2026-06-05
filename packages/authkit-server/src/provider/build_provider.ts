@@ -46,6 +46,51 @@ export function buildProvider(config: ResolvedServerConfig, options: BuildProvid
       }
     : {}
 
+  // Access Tokens RFC 9068 (JWT) via Resource Indicators (RFC 8707). Só montamos a
+  // feature quando ALGUM AT deve ser JWT — caso contrário (default opaque) o
+  // oidc-provider mantém o comportamento atual (AT opaco introspecionável) intocado.
+  //
+  // Um JWT AT no oidc-provider SEMPRE exige um resource indicator com `aud`: o
+  // `defaultResource` injeta a resource default (o `audience`, default issuer) quando
+  // o client não pede `resource` explicitamente, e o `getResourceServerInfo` descreve
+  // a API (scope/audience/formato/TTL) — onde `accessTokenFormat: 'jwt'` faz o token
+  // sair como JWS `typ: at+jwt` assinado com a chave corrente do JWKS.
+  const at = config.accessTokens
+  const allScopes = ['openid', 'profile', 'email', 'offline_access', 'roles']
+  const resourceIndicatorFeatures = at.anyJwt
+    ? {
+        resourceIndicators: {
+          enabled: true,
+          defaultResource: async (_ctx: any, _client: any, oneOf?: string[]) => {
+            // Nas trocas (code/refresh/device), o provider passa `oneOf` com as
+            // resources já concedidas — devolvemos para não falhar a request.
+            if (oneOf) return oneOf
+            // Authorize/sem resource explícito: liga ao resource default (modo simples).
+            return at.audience
+          },
+          useGrantedResource: async () => true,
+          getResourceServerInfo: (_ctx: any, resourceIndicator: string, _client: any) => {
+            const rc = at.resources[resourceIndicator]
+            const format = rc?.format ?? (resourceIndicator === at.audience ? at.format : 'opaque')
+            const audience = rc?.audience ?? resourceIndicator
+            const scope = (rc?.scopes ?? allScopes).join(' ')
+            const info: Record<string, any> = {
+              scope,
+              audience,
+              accessTokenFormat: format,
+            }
+            const ttl = rc?.expiresIn
+            if (ttl !== undefined) info.accessTokenTTL = ttl
+            if (format === 'jwt') {
+              // Assina com a chave de assinatura corrente do keystore (mesma do JWKS).
+              info.jwt = { sign: { alg: config.jwks.keys[0]?.alg ?? 'RS256' } }
+            }
+            return info
+          },
+        },
+      }
+    : {}
+
   const provider = new oidc.Provider(config.issuer, {
     adapter: config.AdapterClass as any,
     clients: config.clients.map((c) => ({
@@ -113,6 +158,7 @@ export function buildProvider(config: ResolvedServerConfig, options: BuildProvid
       ...deviceFlowFeatures,
       ...dpopFeatures,
       ...parFeatures,
+      ...resourceIndicatorFeatures,
     },
     // Step-up auth (acr_values): anuncia os acr suportados para que clients possam
     // solicitá-los. A exigência efetiva do 2º fator acontece na interaction de login.

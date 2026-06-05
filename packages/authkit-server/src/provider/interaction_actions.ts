@@ -67,6 +67,19 @@ export function createInteractionActions(provider: any, deps: InteractionDeps): 
         clientId: details.params.client_id,
       })
       grant.addOIDCScope(String(details.params.scope ?? 'openid'))
+      // Resource Indicators (RFC 8707): quando o authorize/token pede um `resource`
+      // (ex.: JWT Access Tokens RFC 9068), o provider sinaliza os scopes faltantes
+      // por resource em `prompt.details.missingResourceScopes`. Concedemos cada um
+      // para que o resume materialize o AT vinculado àquela API; sem isto o provider
+      // re-emite o prompt de consent num laço.
+      const missingResourceScopes = (details.prompt?.details as any)?.missingResourceScopes as
+        | Record<string, string[]>
+        | undefined
+      if (missingResourceScopes) {
+        for (const [resource, scopes] of Object.entries(missingResourceScopes)) {
+          grant.addResourceScope(resource, (scopes ?? []).join(' '))
+        }
+      }
       const grantId = await grant.save()
       return provider.interactionFinished(
         ctx.request.request,

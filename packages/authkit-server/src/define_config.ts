@@ -1,7 +1,14 @@
 import { configProvider } from '@adonisjs/core'
 import type { ApplicationService } from '@adonisjs/core/types'
 import type { HttpContext } from '@adonisjs/core/http'
-import type { ClientConfig, JwksConfig, ObservabilityConfig, TtlConfig } from '@dudousxd/adonis-authkit-core'
+import type {
+  AccessTokenFormat,
+  AccessTokensConfig,
+  ClientConfig,
+  JwksConfig,
+  ObservabilityConfig,
+  TtlConfig,
+} from '@dudousxd/adonis-authkit-core'
 import { generateJwks } from './keys/jwks_manager.js'
 import { ensureKeystore } from './keys/keystore.js'
 import { adapters, type AdapterFactory, type OidcAdapterClass } from './adapters/factory.js'
@@ -402,6 +409,54 @@ export function resolveLogin(input?: LoginConfigInput): ResolvedLoginConfig {
 }
 
 /**
+ * Access Tokens (RFC 9068) resolvido. `format` é o formato default; `audience` é a
+ * `aud` do JWT no modo simples (default issuer). `resources` é o mapa de Resource
+ * Servers (RFC 8707) com defaults já aplicados por entrada. Sempre presente — o
+ * default (`opaque`, sem resources) preserva 100% o comportamento atual.
+ */
+export interface ResolvedAccessTokensConfig {
+  format: AccessTokenFormat
+  /** `aud` do JWT no modo simples e resource indicator default. */
+  audience: string
+  /** Indica se ALGUM AT deve ser JWT (modo simples jwt OU alguma resource jwt). */
+  anyJwt: boolean
+  resources: Record<
+    string,
+    { audience: string; scopes?: string[]; format: AccessTokenFormat; expiresIn?: number }
+  >
+}
+
+/**
+ * Resolve a config de access tokens. No modo simples (`format: 'jwt'` sem
+ * `resources`), o `audience` default vira o próprio issuer e materializamos uma
+ * resource implícita com essa URI para que o oidc-provider emita o JWT (um JWT AT
+ * SEMPRE exige um resource indicator com `aud`). Cada entrada de `resources`
+ * herda o `format` raiz quando não especifica o seu.
+ */
+export function resolveAccessTokens(
+  issuer: string,
+  input?: AccessTokensConfig
+): ResolvedAccessTokensConfig {
+  const format: AccessTokenFormat = input?.format ?? 'opaque'
+  const audience = input?.audience ?? issuer
+  const resources: ResolvedAccessTokensConfig['resources'] = {}
+
+  for (const [indicator, rc] of Object.entries(input?.resources ?? {})) {
+    resources[indicator] = {
+      audience: rc.audience ?? indicator,
+      scopes: rc.scopes,
+      format: rc.format ?? format,
+      expiresIn: rc.expiresIn,
+    }
+  }
+
+  const anyResourceJwt = Object.values(resources).some((r) => r.format === 'jwt')
+  const anyJwt = format === 'jwt' || anyResourceJwt
+
+  return { format, audience, anyJwt, resources }
+}
+
+/**
  * Console admin opt-in do IdP (B6). Quando habilitado, monta o grupo `/admin/*`
  * (dashboard, usuários/papéis, clients, audit) atrás de um guard que exige sessão
  * de conta E que a conta tenha pelo menos um dos `roles` nas suas roles globais.
@@ -583,6 +638,12 @@ export interface AuthServerConfigInput {
    */
   login?: LoginConfigInput
   /**
+   * Access Tokens (RFC 9068). Default: `{ format: 'opaque' }` (comportamento atual).
+   * `{ format: 'jwt' }` faz TODO AT virar JWT RFC 9068 validável via jwks_uri.
+   * `resources` mapeia resource indicators (RFC 8707) para audiences/scopes/formato/TTL por API.
+   */
+  accessTokens?: AccessTokensConfig
+  /**
    * Console admin do IdP (B6). Default: desligado. Quando ligado, o host também
    * deve passar `admin: true` em {@link AuthHostOptions} no registro de rotas
    * (a montagem das rotas acontece antes do config resolver).
@@ -641,6 +702,8 @@ export interface ResolvedServerConfig {
   passwordless: ResolvedPasswordlessConfig
   /** Política de login resolvida (requireVerifiedEmail; default desligado). */
   login: ResolvedLoginConfig
+  /** Access Tokens resolvido (RFC 9068; default opaque). */
+  accessTokens: ResolvedAccessTokensConfig
   /** Console admin resolvido (sempre presente; default desligado). */
   admin: ResolvedAdminConfig
   /** Admin REST API resolvida (sempre presente; default desligada). */
@@ -672,7 +735,9 @@ export function defineConfig(config: AuthServerConfigInput) {
         // keystore persistido em arquivo: chaves sobrevivem a restarts + rotacionáveis.
         const storePath = app.makePath(config.jwks.store)
         const store = await ensureKeystore(storePath, alg)
-        jwks = { keys: store.keys }
+        // Remove o metadado interno `iat` (idade da chave) antes de entregar ao
+        // oidc-provider — não é membro JWK, fica só no arquivo do keystore.
+        jwks = { keys: store.keys.map(({ iat: _iat, ...jwk }) => jwk) }
       } else {
         // managed efêmero: uma chave nova por boot.
         jwks = await generateJwks(alg)
@@ -726,6 +791,7 @@ export function defineConfig(config: AuthServerConfigInput) {
       trustedDevices: resolveTrustedDevices(config.trustedDevices),
       passwordless: resolvePasswordless(config.passwordless),
       login: resolveLogin(config.login),
+      accessTokens: resolveAccessTokens(config.issuer, config.accessTokens),
       admin: resolveAdmin(config.admin),
       adminApi: resolveAdminApi(config.adminApi),
       messages: resolveMessages(config.i18n),

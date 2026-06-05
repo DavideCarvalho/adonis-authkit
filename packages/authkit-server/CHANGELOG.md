@@ -1,5 +1,13 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.12.0
+
+### Minor Changes
+
+- Embedding & login-surface control:
+  - **Configurable admin console prefix**: `registerAuthHost(router, { admin: { prefix: '/auth/admin' } })` mounts every console route, view link and redirect under a custom prefix (default `/admin`; `admin: true` unchanged). Admin REST API path is unaffected.
+  - **`auth_methods` runtime setting**: choose from the admin UI which login methods the screens offer — password, magic link, passkey and which configured social providers. `forgotPassword` is auto-derived (no password method → no forgot-password link/endpoints), the social list intersects with code-configured providers, and an all-off setting fail-safes back to config defaults. New "Authentication methods" card in `/admin/settings` with dependency hints, plus doctor checks.
+
 ## 0.11.2
 
 ### Patch Changes

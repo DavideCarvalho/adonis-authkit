@@ -4,21 +4,34 @@ import type {
   AuthkitClient,
   AuthkitCreatedClient,
   AuthkitCreatedUser,
+  AuthkitOrganization,
+  AuthkitOrganizationDetail,
+  AuthkitOrgInvitation,
   AuthkitStats,
   AuthkitUser,
+  AddedOrgMember,
+  AddOrgMemberInput,
   ClientInput,
+  CreateOrgInvitationInput,
+  CreateOrganizationInput,
   CreateUserInput,
   DeletedClient,
+  DeletedOrganization,
   DeletedUser,
   ListAuditParams,
   ListAuditResult,
   ListClientsResult,
+  ListOrganizationsResult,
   ListSessionsResult,
   ListUsersParams,
   ListUsersResult,
   RegeneratedSecret,
+  RemovedOrgMember,
   ResetPasswordResult,
   RevokeSessionsResult,
+  RevokedOrgInvitation,
+  UpdatedOrgMemberRole,
+  UpdateOrganizationInput,
   UpdateUserInput,
   UserStatusResult,
   VerifyTokenResult,
@@ -173,6 +186,47 @@ export function createRemoteAuthkit(opts: RemoteOptions): Authkit {
     tokens: {
       verify(token: string) {
         return request<VerifyTokenResult>('POST', '/tokens/verify', { token })
+      },
+    },
+    organizations: {
+      list() {
+        return request<ListOrganizationsResult>('GET', '/organizations')
+      },
+      create(input: CreateOrganizationInput) {
+        return request<AuthkitOrganization>('POST', '/organizations', input)
+      },
+      get(id: string) {
+        return request<AuthkitOrganizationDetail>('GET', `/organizations/${encodeURIComponent(id)}`)
+      },
+      update(id: string, input: UpdateOrganizationInput) {
+        return request<AuthkitOrganization>('PATCH', `/organizations/${encodeURIComponent(id)}`, input)
+      },
+      delete(id: string) {
+        return request<DeletedOrganization>('DELETE', `/organizations/${encodeURIComponent(id)}`)
+      },
+      members: {
+        list(orgId: string) {
+          return request<AuthkitOrganizationDetail>('GET', `/organizations/${encodeURIComponent(orgId)}`).then(
+            (d) => d.members
+          )
+        },
+        add(orgId: string, input: AddOrgMemberInput) {
+          return request<AddedOrgMember>('POST', `/organizations/${encodeURIComponent(orgId)}/members`, input)
+        },
+        remove(orgId: string, accountId: string) {
+          return request<RemovedOrgMember>('DELETE', `/organizations/${encodeURIComponent(orgId)}/members/${encodeURIComponent(accountId)}`)
+        },
+        updateRole(orgId: string, accountId: string, role: string) {
+          return request<UpdatedOrgMemberRole>('PATCH', `/organizations/${encodeURIComponent(orgId)}/members/${encodeURIComponent(accountId)}`, { role })
+        },
+      },
+      invitations: {
+        create(orgId: string, input: CreateOrgInvitationInput) {
+          return request<AuthkitOrgInvitation>('POST', `/organizations/${encodeURIComponent(orgId)}/invitations`, input)
+        },
+        revoke(orgId: string, invitationId: string) {
+          return request<RevokedOrgInvitation>('DELETE', `/organizations/${encodeURIComponent(orgId)}/invitations/${encodeURIComponent(invitationId)}`)
+        },
       },
     },
   }

@@ -4,21 +4,35 @@ import type {
   AuthkitClient,
   AuthkitCreatedClient,
   AuthkitCreatedUser,
+  AuthkitOrganization,
+  AuthkitOrganizationDetail,
+  AuthkitOrgInvitation,
+  AuthkitOrgMember,
   AuthkitStats,
   AuthkitUser,
+  AddedOrgMember,
+  AddOrgMemberInput,
   ClientInput,
+  CreateOrgInvitationInput,
+  CreateOrganizationInput,
   CreateUserInput,
   DeletedClient,
+  DeletedOrganization,
   DeletedUser,
   ListAuditParams,
   ListAuditResult,
   ListClientsResult,
+  ListOrganizationsResult,
   ListSessionsResult,
   ListUsersParams,
   ListUsersResult,
   RegeneratedSecret,
+  RemovedOrgMember,
   ResetPasswordResult,
   RevokeSessionsResult,
+  RevokedOrgInvitation,
+  UpdatedOrgMemberRole,
+  UpdateOrganizationInput,
   UpdateUserInput,
   UserStatusResult,
   VerifyTokenResult,
@@ -77,6 +91,7 @@ export async function createEmbeddedAuthkit(opts: EmbeddedOptions): Promise<Auth
     AdminUsersService,
     AdminClientsService,
     AdminSessionsService,
+    AdminOrgsService,
     TokenVerifyService,
     enrichSessionsWithContext,
     computeAdminStats,
@@ -84,6 +99,7 @@ export async function createEmbeddedAuthkit(opts: EmbeddedOptions): Promise<Auth
     AdminUsersService: any
     AdminClientsService: any
     AdminSessionsService: any
+    AdminOrgsService: any
     TokenVerifyService: any
     enrichSessionsWithContext: (cfg: any, accountId: string, sessions: any[]) => Promise<any[]>
     computeAdminStats: (cfg: any, sessionsService: any) => Promise<AuthkitStats>
@@ -340,5 +356,112 @@ export async function createEmbeddedAuthkit(opts: EmbeddedOptions): Promise<Auth
         return verifier.verify(token)
       },
     },
+    organizations: (function () {
+      const orgsService = new AdminOrgsService(cfg)
+      const ACTOR = { actorId: null, ip: null, source: 'admin-api' as const }
+      const origin = (cfg.issuer ?? '').replace(/\/+$/, '')
+
+      function orgDto(org: any): AuthkitOrganization {
+        return {
+          id: org.id,
+          name: org.name,
+          slug: org.slug,
+          logoUrl: org.logoUrl ?? null,
+          metadata: org.metadata ?? null,
+          createdAt: org.createdAt,
+          memberCount: org.memberCount,
+        }
+      }
+      function memberDto(m: any): AuthkitOrgMember {
+        return { accountId: m.accountId, email: m.email ?? null, role: m.role, joinedAt: m.joinedAt }
+      }
+      function invitationDto(inv: any): AuthkitOrgInvitation {
+        return {
+          id: inv.id,
+          organizationId: inv.organizationId,
+          email: inv.email,
+          role: inv.role,
+          invitedBy: inv.invitedBy,
+          expiresAt: inv.expiresAt,
+          acceptedAt: inv.acceptedAt ?? null,
+          createdAt: inv.createdAt,
+        }
+      }
+
+      return {
+        async list(): Promise<ListOrganizationsResult> {
+          const result = await orgsService.listOrgs()
+          if (!Array.isArray(result)) throw new Error('Organizations não é suportado nesta instalação.')
+          return { data: result.map(orgDto) }
+        },
+        async create(input: CreateOrganizationInput): Promise<AuthkitOrganization> {
+          const result = await orgsService.createOrg(input, ACTOR)
+          if ('ok' in result && result.ok === false) {
+            throw new Error(result.reason === 'not_supported' ? 'Organizations não suportado.' : 'Slug já em uso.')
+          }
+          return orgDto(result)
+        },
+        async get(id: string): Promise<AuthkitOrganizationDetail> {
+          const result = await orgsService.getOrg(id)
+          if ('ok' in result && result.ok === false) {
+            throw new Error(result.reason === 'not_supported' ? 'Organizations não suportado.' : 'Organização não encontrada.')
+          }
+          const detail = result as any
+          return { ...orgDto(detail), members: detail.members.map(memberDto), pendingInvitations: detail.pendingInvitations.map(invitationDto) }
+        },
+        async update(id: string, input: UpdateOrganizationInput): Promise<AuthkitOrganization> {
+          const result = await orgsService.updateOrg(id, input, ACTOR)
+          if ('ok' in result && result.ok === false) {
+            throw new Error('Organização não encontrada ou slug já em uso.')
+          }
+          return orgDto(result)
+        },
+        async delete(id: string): Promise<DeletedOrganization> {
+          const result = await orgsService.deleteOrg(id, ACTOR)
+          if (!result.ok) throw new Error('Organização não encontrada.')
+          return { id, deleted: true }
+        },
+        members: {
+          async list(orgId: string): Promise<AuthkitOrgMember[]> {
+            const result = await orgsService.getOrg(orgId)
+            if ('ok' in result && result.ok === false) throw new Error('Organização não encontrada.')
+            return (result as any).members.map(memberDto)
+          },
+          async add(orgId: string, input: AddOrgMemberInput): Promise<AddedOrgMember> {
+            const result = await orgsService.addMember(orgId, input, ACTOR)
+            if (!result.ok) throw new Error('Não foi possível adicionar membro.')
+            return { orgId, accountId: input.accountId, role: input.role, added: true }
+          },
+          async remove(orgId: string, accountId: string): Promise<RemovedOrgMember> {
+            const result = await orgsService.removeMember(orgId, accountId, ACTOR)
+            if (!result.ok) {
+              if ((result as any).reason === 'last_owner') throw new Error('Não é possível remover o último owner.')
+              throw new Error('Membro não encontrado.')
+            }
+            return { orgId, accountId, removed: true }
+          },
+          async updateRole(orgId: string, accountId: string, role: string): Promise<UpdatedOrgMemberRole> {
+            const result = await orgsService.updateMemberRole(orgId, accountId, role, ACTOR)
+            if (!result.ok) {
+              if ((result as any).reason === 'last_owner') throw new Error('Não é possível rebaixar o último owner.')
+              throw new Error('Membro não encontrado.')
+            }
+            return { orgId, accountId, role, updated: true }
+          },
+        },
+        invitations: {
+          async create(orgId: string, input: CreateOrgInvitationInput): Promise<AuthkitOrgInvitation> {
+            const result = await orgsService.createInvitation(orgId, input, ACTOR, origin)
+            if (!result.ok) throw new Error('Organização não encontrada.')
+            return invitationDto(result.invitation)
+          },
+          async revoke(orgId: string, invitationId: string): Promise<RevokedOrgInvitation> {
+            const result = await orgsService.revokeInvitation(orgId, invitationId, ACTOR)
+            if (!result.ok) throw new Error('Convite não encontrado.')
+            return { orgId, invitationId, revoked: true }
+          },
+        },
+      }
+    })(),
   }
 }

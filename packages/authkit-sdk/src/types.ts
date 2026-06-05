@@ -227,6 +227,102 @@ export interface DeletedUser {
   avatarDeleted: boolean
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// Organizations
+// ──────────────────────────────────────────────────────────────────────────
+
+/** An organization as returned by the Admin API. */
+export interface AuthkitOrganization {
+  id: string
+  name: string
+  slug: string
+  logoUrl: string | null
+  metadata: Record<string, unknown> | null
+  createdAt: string
+  memberCount?: number
+}
+
+/** An organization with full members and pending invitations (GET /:id). */
+export interface AuthkitOrganizationDetail extends AuthkitOrganization {
+  members: AuthkitOrgMember[]
+  pendingInvitations: AuthkitOrgInvitation[]
+}
+
+export interface AuthkitOrgMember {
+  accountId: string
+  email: string | null
+  role: string
+  joinedAt: string
+}
+
+export interface AuthkitOrgInvitation {
+  id: string
+  organizationId: string
+  email: string
+  role: string
+  invitedBy: string
+  expiresAt: string
+  acceptedAt: string | null
+  createdAt: string
+}
+
+export interface ListOrganizationsResult {
+  data: AuthkitOrganization[]
+}
+
+export interface CreateOrganizationInput {
+  name: string
+  slug: string
+  ownerAccountId: string
+  logoUrl?: string | null
+}
+
+export interface UpdateOrganizationInput {
+  name?: string
+  logoUrl?: string | null
+}
+
+export interface AddOrgMemberInput {
+  accountId: string
+  role: string
+}
+
+export interface CreateOrgInvitationInput {
+  email: string
+  role: string
+}
+
+export interface DeletedOrganization {
+  id: string
+  deleted: boolean
+}
+
+export interface AddedOrgMember {
+  orgId: string
+  accountId: string
+  role: string
+  added: boolean
+}
+
+export interface RemovedOrgMember {
+  orgId: string
+  accountId: string
+  removed: boolean
+}
+
+export interface UpdatedOrgMemberRole {
+  orgId: string
+  accountId: string
+  role: string
+  updated: boolean
+}
+
+export interface RevokedOrgInvitation {
+  orgId: string
+  invitationId: string
+  revoked: boolean
+}
+
 /** The shared SDK interface, implemented identically by both drivers. */
 export interface Authkit {
   users: {
@@ -259,5 +355,22 @@ export interface Authkit {
   stats(): Promise<AuthkitStats>
   tokens: {
     verify(token: string): Promise<VerifyTokenResult>
+  }
+  organizations: {
+    list(): Promise<ListOrganizationsResult>
+    create(input: CreateOrganizationInput): Promise<AuthkitOrganization>
+    get(id: string): Promise<AuthkitOrganizationDetail>
+    update(id: string, input: UpdateOrganizationInput): Promise<AuthkitOrganization>
+    delete(id: string): Promise<DeletedOrganization>
+    members: {
+      list(orgId: string): Promise<AuthkitOrgMember[]>
+      add(orgId: string, input: AddOrgMemberInput): Promise<AddedOrgMember>
+      remove(orgId: string, accountId: string): Promise<RemovedOrgMember>
+      updateRole(orgId: string, accountId: string, role: string): Promise<UpdatedOrgMemberRole>
+    }
+    invitations: {
+      create(orgId: string, input: CreateOrgInvitationInput): Promise<AuthkitOrgInvitation>
+      revoke(orgId: string, invitationId: string): Promise<RevokedOrgInvitation>
+    }
   }
 }

@@ -284,3 +284,137 @@ test.group('remote driver — clients + tokens', () => {
     )
   })
 })
+
+test.group('remote driver — organizations', () => {
+  const fakeOrg = {
+    id: 'org-1',
+    name: 'Acme',
+    slug: 'acme',
+    logoUrl: null,
+    metadata: null,
+    createdAt: '2024-01-01T00:00:00.000Z',
+    memberCount: 2,
+  }
+  const fakeMember = { accountId: 'u1', email: 'a@b.com', role: 'owner', joinedAt: '2024-01-01T00:00:00.000Z' }
+  const fakeInv = {
+    id: 'inv-1', organizationId: 'org-1', email: 'inv@b.com', role: 'member',
+    invitedBy: 'u1', expiresAt: '2024-12-31T00:00:00.000Z', acceptedAt: null,
+    createdAt: '2024-01-01T00:00:00.000Z',
+  }
+
+  test('organizations.list hits GET /organizations', async ({ assert }) => {
+    await withApi(
+      () => ({ status: 200, body: { data: [fakeOrg] } }),
+      async (sdk, api) => {
+        const res = await sdk.organizations.list()
+        assert.lengthOf(res.data, 1)
+        assert.equal(res.data[0].slug, 'acme')
+        assert.equal(api.last!.url, '/api/authkit/v1/organizations')
+        assert.equal(api.last!.method, 'GET')
+      }
+    )
+  })
+
+  test('organizations.create posts to /organizations (201)', async ({ assert }) => {
+    await withApi(
+      () => ({ status: 201, body: fakeOrg }),
+      async (sdk, api) => {
+        const res = await sdk.organizations.create({ name: 'Acme', slug: 'acme', ownerAccountId: 'u1' })
+        assert.equal(res.name, 'Acme')
+        assert.equal(api.last!.method, 'POST')
+        assert.equal(api.last!.url, '/api/authkit/v1/organizations')
+      }
+    )
+  })
+
+  test('organizations.get hits GET /organizations/:id', async ({ assert }) => {
+    await withApi(
+      () => ({ status: 200, body: { ...fakeOrg, members: [fakeMember], pendingInvitations: [] } }),
+      async (sdk, api) => {
+        const res = await sdk.organizations.get('org-1')
+        assert.equal(res.id, 'org-1')
+        assert.isArray(res.members)
+        assert.equal(api.last!.url, '/api/authkit/v1/organizations/org-1')
+      }
+    )
+  })
+
+  test('organizations.update patches /organizations/:id', async ({ assert }) => {
+    await withApi(
+      () => ({ status: 200, body: { ...fakeOrg, name: 'Acme Updated' } }),
+      async (sdk, api) => {
+        const res = await sdk.organizations.update('org-1', { name: 'Acme Updated' })
+        assert.equal(res.name, 'Acme Updated')
+        assert.equal(api.last!.method, 'PATCH')
+      }
+    )
+  })
+
+  test('organizations.delete uses DELETE', async ({ assert }) => {
+    await withApi(
+      () => ({ status: 200, body: { id: 'org-1', deleted: true } }),
+      async (sdk, api) => {
+        const res = await sdk.organizations.delete('org-1')
+        assert.isTrue(res.deleted)
+        assert.equal(api.last!.method, 'DELETE')
+      }
+    )
+  })
+
+  test('organizations.members.add posts to /members (201)', async ({ assert }) => {
+    await withApi(
+      () => ({ status: 201, body: { orgId: 'org-1', accountId: 'u2', role: 'member', added: true } }),
+      async (sdk, api) => {
+        const res = await sdk.organizations.members.add('org-1', { accountId: 'u2', role: 'member' })
+        assert.isTrue(res.added)
+        assert.equal(api.last!.url, '/api/authkit/v1/organizations/org-1/members')
+      }
+    )
+  })
+
+  test('organizations.members.remove uses DELETE', async ({ assert }) => {
+    await withApi(
+      () => ({ status: 200, body: { orgId: 'org-1', accountId: 'u2', removed: true } }),
+      async (sdk, api) => {
+        const res = await sdk.organizations.members.remove('org-1', 'u2')
+        assert.isTrue(res.removed)
+        assert.equal(api.last!.method, 'DELETE')
+        assert.equal(api.last!.url, '/api/authkit/v1/organizations/org-1/members/u2')
+      }
+    )
+  })
+
+  test('organizations.members.updateRole patches /members/:accountId', async ({ assert }) => {
+    await withApi(
+      () => ({ status: 200, body: { orgId: 'org-1', accountId: 'u2', role: 'admin', updated: true } }),
+      async (sdk, api) => {
+        const res = await sdk.organizations.members.updateRole('org-1', 'u2', 'admin')
+        assert.equal(res.role, 'admin')
+        assert.equal(api.last!.method, 'PATCH')
+      }
+    )
+  })
+
+  test('organizations.invitations.create posts to /invitations', async ({ assert }) => {
+    await withApi(
+      () => ({ status: 201, body: fakeInv }),
+      async (sdk, api) => {
+        const res = await sdk.organizations.invitations.create('org-1', { email: 'inv@b.com', role: 'member' })
+        assert.equal(res.email, 'inv@b.com')
+        assert.equal(api.last!.url, '/api/authkit/v1/organizations/org-1/invitations')
+      }
+    )
+  })
+
+  test('organizations.invitations.revoke uses DELETE', async ({ assert }) => {
+    await withApi(
+      () => ({ status: 200, body: { orgId: 'org-1', invitationId: 'inv-1', revoked: true } }),
+      async (sdk, api) => {
+        const res = await sdk.organizations.invitations.revoke('org-1', 'inv-1')
+        assert.isTrue(res.revoked)
+        assert.equal(api.last!.method, 'DELETE')
+        assert.equal(api.last!.url, '/api/authkit/v1/organizations/org-1/invitations/inv-1')
+      }
+    )
+  })
+})

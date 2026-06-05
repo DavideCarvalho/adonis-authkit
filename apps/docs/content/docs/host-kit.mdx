@@ -52,10 +52,13 @@ users self-serve:
 | `POST /account/security/password` | Change password — requires the **current** password (verified via `verifyCredentials`) and a new one (min 8 chars, same rule as signup). Emits `password.changed`. |
 | `POST /account/security/email` | Request an email change — requires the current password; sends a confirmation link to the **new** address. Emits `email.change_requested`. |
 | `POST /account/security/profile` | Update display name + avatar (file **upload** via the app's `@adonisjs/drive`, or an avatar URL) — backed by the optional `ProfileCapability` (`updateProfile`). Emits `profile.updated` with `{ via: 'upload' \| 'url' }`. Hidden when unsupported. |
+| `GET /account/security/export` | Download a JSON export of all personal data (portability). Emits `account.exported`. Rate-throttled. |
+| `POST /account/security/delete` | Delete the account (danger zone) — cascade + audit anonymization. Emits `account.deleted`. |
 | `GET /account/email/confirm?token=…` | Consume the confirmation token and apply the new email (standalone, no session required — openable on another device). Emits `email.changed`. |
 | `GET /account/apps` | List the apps (OIDC clients) you have authorized, grouped by client, with live access/refresh token counts |
 | `POST /account/apps/:clientId/revoke` | Revoke one app's access — destroys that client's grants + tokens for your account (reuses `AdminSessionsService`). Emits `grant.revoked_by_user`. |
 | `GET /account/mfa` | Enroll / disable TOTP and manage passkeys |
+| `GET /account/orgs` | List and manage the user's organizations (requires org tables). |
 
 The change-password and change-email flows are backed by the optional
 `AccountSecurityCapability` of the `AccountStore` (`changePassword`, `requestEmailChange`,

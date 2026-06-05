@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   Terminal,
   UserCog,
+  Users,
   Workflow,
 } from 'lucide-react'
 
@@ -79,9 +80,10 @@ function Hero() {
 
         <p className="mt-6 max-w-2xl text-pretty text-lg text-fd-muted-foreground">
           A drop-in OpenID Connect authorization server plus a client kit —
-          personal access tokens, impersonation, MFA, audit logging, and
-          RP-initiated logout. Run it standalone as a hosted IdP, or embed it
-          right inside your AdonisJS app.
+          organizations, JWT access tokens, LGPD/GDPR compliance, MFA, bot
+          protection, impersonation, audit logging, and RP-initiated logout.
+          Run it standalone as a hosted IdP, or embed it right inside your
+          AdonisJS app.
         </p>
 
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
@@ -372,21 +374,27 @@ const FEATURES: readonly Feature[] = [
     accent: 'text-sky-400',
   },
   {
+    icon: Users,
+    title: 'Organizations & multi-tenancy',
+    body: 'Capability-probed multi-org support: member roles, email invitations, org claims in tokens, and full Admin API / SDK / React hooks.',
+    accent: 'text-violet-400',
+  },
+  {
     icon: Terminal,
     title: 'Admin API & SDK',
-    body: 'A versioned admin REST API (users, clients, sessions, audit) secured by API keys, plus a typed SDK that runs remote or in-process.',
+    body: 'A versioned admin REST API (users, orgs, clients, sessions, stats, audit) secured by API keys, plus a typed SDK that runs remote or in-process.',
     accent: 'text-indigo-400',
   },
   {
     icon: KeyRound,
-    title: 'Personal access tokens',
-    body: 'Long-lived, scoped tokens for CI and machine clients, issued and revoked through the same kit your users authenticate against.',
+    title: 'JWT ATs, compliance & hygiene',
+    body: 'RFC 9068 JWT access tokens, LGPD/GDPR account deletion and data export, password policy with HIBP breach detection, lazy rehash, and bulk import.',
     accent: 'text-amber-400',
   },
   {
     icon: UserCog,
     title: 'Impersonation & admin',
-    body: 'Safely act-as another user for support, with a full admin surface and dynamic client registration built in.',
+    body: 'Safely act-as another user for support, with a full admin surface, bot protection, new-device notifications, and dynamic client registration.',
     accent: 'text-emerald-400',
   },
   {

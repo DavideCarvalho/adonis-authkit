@@ -1,6 +1,6 @@
 ---
 title: Security
-description: Rate-limiting, audit logging, RP-initiated logout, and mail hooks.
+description: Rate-limiting, audit logging, bot protection, RP-initiated logout, JWT access tokens, key rotation, and mail hooks.
 ---
 
 AuthKit bundles the security plumbing an Authorization Server needs — most of it opt-in.
@@ -36,6 +36,38 @@ On by default (no-op without the limiter), it emits an `account.locked` audit ev
 locked. See [Account Lockout](/docs/account-lockout) for the config (`maxAttempts`,
 `windowSec`, `baseLockoutSec`, `maxLockoutSec`).
 
+## New-device login notification
+
+On a successful login **without a trusted-device cookie** (the same signal GitHub uses),
+the host kit sends a **"new device login"** email to the account owner. The trigger is the
+absence of a valid trusted-device cookie — it works whether or not the trusted-devices
+feature is otherwise enabled.
+
+It is **on by default** and opt-out via config:
+
+```ts title="config/authkit.ts"
+defineConfig({
+  // …
+  notifications: { newDeviceEmail: false }, // default: true
+})
+```
+
+Override the email template:
+
+```ts
+mail: {
+  onNewDeviceLogin: async ({ account, ip, userAgent, timestamp }) => {
+    await mailer.send((m) =>
+      m.from(env.get('EMAIL_FROM')).to(account.email!)
+        .subject('New sign-in to your account')
+        .text(`New login from ${ip ?? 'unknown'} at ${timestamp}`)
+    )
+  },
+}
+```
+
+When it fires it emits a `login.new_device` audit event.
+
 ## New-login email
 
 On a successful login, the host kit can send a **"new access to your account"** email when
@@ -57,6 +89,71 @@ The notification is **fail-safe**: it runs fire-and-forget *after* the login com
 never blocks or throws into the login path. When it fires, it emits a
 `login.new_ip_notified` audit event (alongside the usual `login.success`).
 
+## Bot protection
+
+Pluggable CAPTCHA/challenge protection for the login, signup, and reset flows. AuthKit is
+vendor-agnostic: you supply a `verify` function; the lib injects the widget HTML into the
+affected pages and calls `verify` before processing credentials.
+
+```ts title="config/authkit.ts"
+botProtection: {
+  on: ['login', 'signup'],  // default; 'reset' also available
+  widget: {
+    scriptUrl: 'https://challenges.cloudflare.com/turnstile/v0/api.js',
+    html: '<div class="cf-turnstile" data-sitekey="0xAAA..."></div>',
+  },
+  async verify({ token, ip, action }) {
+    if (!token) return false
+    const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        secret: process.env.TURNSTILE_SECRET!,
+        response: token,
+        ...(ip ? { remoteip: ip } : {}),
+      }),
+    })
+    const data = await res.json() as { success: boolean }
+    return data.success === true
+  },
+},
+```
+
+hCaptcha example:
+
+```ts
+botProtection: {
+  tokenFields: ['h-captcha-response'], // override the default field list
+  widget: {
+    scriptUrl: 'https://js.hcaptcha.com/1/api.js',
+    html: '<div class="h-captcha" data-sitekey="YOUR_SITE_KEY"></div>',
+  },
+  async verify({ token, ip }) {
+    if (!token) return false
+    const res = await fetch('https://api.hcaptcha.com/siteverify', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ secret: process.env.HCAPTCHA_SECRET!, response: token }),
+    })
+    const data = await res.json() as { success: boolean }
+    return data.success === true
+  },
+},
+```
+
+| Option | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `verify` | `(input) => Promise<boolean>` | — | Required. Return `true` = human, `false` = reject. |
+| `on` | `('login' \| 'signup' \| 'reset')[]` | `['login','signup']` | Which flows to protect. |
+| `widget.scriptUrl` | `string` | — | External script loaded async on the affected pages. |
+| `widget.html` | `string` | — | Container injected raw into the form. |
+| `tokenFields` | `string[]` | `['cf-turnstile-response', 'h-captcha-response', 'g-recaptcha-response', 'authkit-bot-token']` | Body fields checked in order for the token. |
+| `timeoutMs` | `number` | `5000` | Abort `verify` after this many ms. |
+
+**Fail-safe:** if `verify` throws or times out the request is **allowed** and a warning is
+logged. Only an explicit `false` return rejects. A rejection emits a `bot_protection.rejected`
+audit event.
+
 ## Audit logging
 
 Provide an `AuditSink` to capture security-relevant events. It is best-effort — `record`
@@ -70,14 +167,7 @@ import { lucidAuditSink } from '@dudousxd/adonis-authkit-server'
 audit: lucidAuditSink(AuditLog),
 ```
 
-Emitted `AuditEventType`s:
-
-`login.success`, `login.failure`, `signup`, `password_reset.issued`,
-`password_reset.consumed`, `pat.issued`, `pat.revoked`, `pat.used`, `impersonation`,
-`mfa.enabled`, `mfa.disabled`, `account.locked`, `passkey.registered`, `passkey.removed`,
-`email_verification.issued`, `email_verification.consumed`, `client.created`,
-`client.updated`, `client.deleted`, `session.revoked_all`, `password.changed`,
-`email.change_requested`, `email.changed`, `login.new_ip_notified`.
+For the full list of audit event types see [Events & Webhooks](/docs/events#event-types).
 
 Each `AuditEvent` carries `accountId`, `email`, `clientId`, `actorId` (impersonation),
 `ip`, and free-form `metadata`. The timestamp is set by the sink.
@@ -156,6 +246,87 @@ mail: {
 
 Each hook receives the destination `email`, the fully-built URL (`resetUrl` / `verifyUrl`),
 and the raw `token`.
+
+## JWT access tokens (RFC 9068)
+
+By default AuthKit emits **opaque** access tokens. Switch to self-contained JWTs that a
+resource server can verify locally without calling `/introspect`:
+
+```ts title="config/authkit.ts"
+accessTokens: {
+  format: 'jwt',       // all ATs become JWT RFC 9068
+  audience: 'https://api.acme.com', // aud claim; default: the issuer
+},
+```
+
+For **per-API configuration** use `resources` (RFC 8707 resource indicators):
+
+```ts
+accessTokens: {
+  format: 'opaque',    // default for unlabeled requests
+  resources: {
+    'https://api.acme.com': {
+      audience: 'https://api.acme.com',
+      scopes: ['read:items', 'write:items'],
+      format: 'jwt',
+      expiresIn: 900, // 15 min
+    },
+    'https://admin.acme.com': {
+      audience: 'https://admin.acme.com',
+      format: 'jwt',
+    },
+  },
+},
+```
+
+JWT ATs carry: `iss`, `sub`, `aud`, `exp`, `iat`, `jti`, `client_id`, `scope`, and
+`typ: at+jwt` (RFC 9068 §2.1). Verify them on a resource server with
+`verifyJwtAccessToken` from the client package — see [Client](/docs/client#jwt-access-token-verification).
+
+| Option | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `format` | `'opaque' \| 'jwt'` | `'opaque'` | Default format for all ATs. |
+| `audience` | `string` | issuer URL | `aud` claim for the simple mode. |
+| `resources` | `Record<uri, config>` | `{}` | Per-resource-server overrides. |
+| `resources[*].format` | `'opaque' \| 'jwt'` | inherits `format` | Per-API format. |
+| `resources[*].audience` | `string` | resource indicator URI | Per-API `aud`. |
+| `resources[*].scopes` | `string[]` | all scopes | Allowed scopes for this API. |
+| `resources[*].expiresIn` | `number` | `ttl.accessToken` | Per-API TTL in seconds. |
+
+## Signing key rotation
+
+When the JWKS is **managed with a store file** (`jwks: { source: 'managed', store: 'storage/authkit-keys.json' }`),
+use the `authkit:keys:rotate` command to rotate without downtime:
+
+```bash
+# Generate a new signing key; keep the last 2 (grace period, default)
+node ace authkit:keys:rotate
+
+# Keep 3 previous keys (tokens signed with them keep validating)
+node ace authkit:keys:rotate --keep=3
+
+# Retire all old keys immediately (only the new key validates)
+node ace authkit:keys:rotate --retire
+
+# Preview the rotation plan without touching the file
+node ace authkit:keys:rotate --dry-run
+```
+
+| Flag | Default | Notes |
+| --- | --- | --- |
+| `--keep=N` | `2` | Number of keys (including the new one) to keep in JWKS. |
+| `--retire` | — | Keep only the new key; retire all previous immediately. |
+| `--dry-run` | — | Print the plan without writing. |
+
+The new key is placed **first** (the provider signs with the first matching key). Older keys
+remain in the JWKS so tokens signed before the rotation continue to validate during the grace
+period. The rotation emits a `keys.rotated` audit event.
+
+<Callout type="warn">
+  Rotating without a grace period (`--retire`) immediately invalidates all tokens signed
+  with previous keys — active sessions will require re-authentication. Use
+  `--keep=2` (default) in production.
+</Callout>
 
 ## DPoP
 

@@ -96,6 +96,57 @@ function verify(rawBody: string, header: string, secret: string): boolean {
 
 ## Event types
 
-The `type` field is one of the [`AuditEventType`](/docs/security#audit-logging) values
-(`login.success`, `login.failure`, `signup`, `mfa.enabled`, `pat.issued`, `client.created`,
-`impersonation`, …). The same enum drives both persistence and the events stream.
+Every `AuditEvent` carries `accountId`, `email`, `clientId`, `actorId` (impersonation),
+`ip`, and free-form `metadata`. The timestamp is set by the sink.
+
+| Event type | When |
+| --- | --- |
+| `login.success` | A login completed successfully. |
+| `login.failure` | A login attempt failed (wrong credentials). |
+| `login.new_ip_notified` | New-IP email sent after a successful login. |
+| `login.new_device` | New-device notification email sent (no trusted-device cookie). |
+| `signup` | A new account was created. |
+| `password_reset.issued` | A password-reset token was generated and emailed. |
+| `password_reset.consumed` | A password was reset using the token. |
+| `password.changed` | A user changed their own password. |
+| `password.rehashed` | A hash was transparently upgraded on login (lazy rehash). |
+| `pat.issued` | A Personal Access Token was created. |
+| `pat.revoked` | A PAT was revoked. |
+| `pat.used` | A PAT was used in an introspection request. |
+| `impersonation` | Impersonation was performed (RFC 8693 token exchange). |
+| `impersonation.started` | An admin viewed the impersonation panel for a user. |
+| `mfa.enabled` | TOTP was enrolled. |
+| `mfa.disabled` | TOTP was disabled. |
+| `account.locked` | An account was locked out after repeated login failures. |
+| `passkey.registered` | A WebAuthn passkey was registered. |
+| `passkey.removed` | A WebAuthn passkey was removed. |
+| `email_verification.issued` | An email verification token was sent. |
+| `email_verification.consumed` | An email address was verified. |
+| `email.change_requested` | A user requested an email address change. |
+| `email.changed` | An email address change was confirmed. |
+| `client.created` | An OIDC client was created. |
+| `client.updated` | An OIDC client was updated. |
+| `client.deleted` | An OIDC client was deleted. |
+| `session.revoked_all` | All sessions/grants for an account were revoked. |
+| `grant.revoked_by_user` | A user revoked one app's access grant. |
+| `profile.updated` | A user updated their display name or avatar. |
+| `user.created` | An admin created a user. |
+| `user.password_reset_sent` | An admin sent a password-reset email for a user. |
+| `user.disabled` | An admin disabled a user account. |
+| `user.enabled` | An admin re-enabled a user account. |
+| `user.deleted` | An admin deleted a user (cascade + anonymize audit). |
+| `account.deleted` | A user deleted their own account (self-service, cascade). |
+| `account.exported` | A user downloaded their data export. |
+| `bot_protection.rejected` | A bot-protection check returned `false`. |
+| `keys.rotated` | Signing keys were rotated via `authkit:keys:rotate`. |
+| `organization.created` | An organization was created. |
+| `organization.updated` | Organization metadata was updated. |
+| `organization.deleted` | An organization was deleted. |
+| `organization.member_added` | A member was added to an organization. |
+| `organization.member_removed` | A member was removed from an organization. |
+| `organization.member_role_updated` | A member's role was changed. |
+| `organization.switched` | A user switched their active organization. |
+| `organization.deactivated` | A user deactivated their active org. |
+| `organization.invitation_sent` | An org invitation was sent by email. |
+| `organization.invitation_accepted` | An org invitation was accepted. |
+| `organization.invitation_revoked` | An org invitation was revoked. |

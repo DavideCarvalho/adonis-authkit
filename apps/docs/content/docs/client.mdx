@@ -129,6 +129,36 @@ set (`maybeRefresh` — see [Refresh Tokens](/docs/refresh-tokens)), and attache
   `manager.handleBackchannelLogout(ctx)`. See
   [Back-Channel Logout](/docs/back-channel-logout).
 
+## JWT access token verification
+
+When the IdP emits [JWT access tokens](/docs/security#jwt-access-tokens-rfc-9068), a
+**resource server** can verify them locally without calling `/introspect`:
+
+```ts
+import { verifyJwtAccessToken } from '@dudousxd/adonis-authkit-client'
+
+const claims = await verifyJwtAccessToken(bearerToken, {
+  issuer: 'https://idp.acme.com/oidc',
+  jwksUri: 'https://idp.acme.com/oidc/jwks',
+  audience: 'https://api.acme.com',
+})
+// claims.sub, claims.scope, claims.client_id, claims.exp, …
+```
+
+The function uses `jose`'s `createRemoteJWKSet` (JWKS cached and re-fetched on new `kid`).
+It validates the signature, `iss`, `aud`, and enforces `typ: at+jwt` (RFC 9068 §2.1).
+
+| Option | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `issuer` | `string` | — | Expected `iss` claim. |
+| `jwksUri` | `string` | — | The IdP's JWKS endpoint (`${issuer}/jwks` or from discovery). |
+| `audience` | `string \| string[]` | — | Expected `aud` claim — your API's URI. |
+| `algorithms` | `string[]` | all asymmetric | Accepted signing algorithms. |
+| `allowAnyTyp` | `boolean` | `false` | Skip the `typ: at+jwt` check. |
+
+Throws a `JWTVerifyError` (from `jose`) when the token is invalid. Calling this function is
+**stateless** — no round-trip to the IdP per request.
+
 ## The login / callback / logout flow
 
 The flow is OIDC authorization-code + PKCE. The exported helpers do the heavy lifting:

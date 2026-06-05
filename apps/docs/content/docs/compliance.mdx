@@ -1,0 +1,120 @@
+---
+title: Compliance (LGPD / GDPR)
+description: Account deletion with cascade, data export, and email verification gate.
+---
+
+AuthKit ships a lightweight but complete compliance surface covering the three most common
+GDPR/LGPD obligations: **data portability** (export), **right to erasure** (account
+deletion), and access control via **verified-email gate**.
+
+## Email verification gate
+
+Block unverified accounts from authenticating. When `login.requireVerifiedEmail` is `true`,
+any login attempt (password, magic link, or passkey-first) for an account whose email has
+**not** been verified is rejected with an instruction to check the inbox first.
+
+```ts title="config/authkit_server.ts"
+defineConfig({
+  // …
+  login: {
+    requireVerifiedEmail: true, // default: false
+  },
+})
+```
+
+<Callout type="info">
+  **Capability-probed.** The check requires the account store to expose `isEmailVerified`.
+  The bundled `lucidAccountStore` supports it when your user model has an
+  `email_verified_at` column. Without the capability the feature degrades to a no-op and
+  `authkit:doctor` emits a warning.
+</Callout>
+
+## Data export
+
+Users can download all their personal data from `/account/security`. The export is a JSON
+file containing: account metadata (id, email, name, avatar), audit log entries, personal
+access tokens, linked provider identities, and organization memberships. Secrets (password
+hash, raw tokens, private keys) are **never included**.
+
+The endpoint is:
+
+```
+GET /account/security/export
+```
+
+It is behind the account session guard (requires login) and — when rate-limiting is on —
+applies the login throttle bucket to prevent abuse. On success it emits an
+`account.exported` audit event.
+
+## Account deletion (self-service)
+
+The **Danger zone** section on `/account/security` lets a user delete their own account.
+The deletion is a transactional cascade that removes:
+
+- OIDC sessions and grants (access tokens, refresh tokens)
+- Personal access tokens
+- WebAuthn / passkey credentials
+- Linked provider identities (social login)
+- MFA secrets and recovery codes
+- The avatar file (when stored via `@adonisjs/drive`)
+- Organization memberships and pending invitations
+
+Audit records are **anonymized, not deleted**: the `accountId` is replaced with a stable
+pseudonym (`anon:<sha256>`) and the personal fields (`email`, `ip`) are cleared. The audit
+trail is preserved for forensics without retaining personal data. The `anonymizeAccount`
+method on `AuditSink` is called if the sink implements it (the bundled `lucidAuditSink`
+does).
+
+The endpoint is:
+
+```
+POST /account/security/delete
+```
+
+On completion it emits an `account.deleted` audit event.
+
+## Admin deletion (via the admin console or API)
+
+Administrators can delete any account from the admin console (`POST /admin/users/:id/delete`)
+or the Admin REST API (`DELETE /api/authkit/v1/users/:id`). The cascade and anonymization are
+identical to the self-service flow. The operation emits a `user.deleted` audit event (not
+`account.deleted`, to distinguish actor).
+
+```bash
+curl -X DELETE https://idp.example.com/api/authkit/v1/users/acc-42 \
+  -H "Authorization: Bearer $KEY"
+```
+
+```json
+{
+  "id": "acc-42",
+  "deleted": true,
+  "sessions": 2,
+  "grants": 3,
+  "accessTokens": 5,
+  "refreshTokens": 2,
+  "pats": 1,
+  "passkeys": 0,
+  "providerIdentities": 1,
+  "auditAnonymized": 14,
+  "avatarDeleted": true
+}
+```
+
+The response includes the cascade counts so callers can verify what was removed.
+
+### SDK
+
+```ts
+const result = await authkit.users.delete('acc-42')
+// result.deleted === true
+// result.auditAnonymized — how many audit rows were pseudonymized
+```
+
+## Audit events
+
+| Event | When |
+| --- | --- |
+| `account.deleted` | A user deletes their own account (self-service). |
+| `account.exported` | A user downloads their data export. |
+| `user.deleted` | An admin deletes a user via the console or API. |

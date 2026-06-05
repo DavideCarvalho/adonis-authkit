@@ -31,8 +31,18 @@ of registration helpers.
 - **MFA / TOTP & WebAuthn passkeys** — opt-in authenticator enrollment (QR), a login-time
   challenge, single-use recovery codes, and passwordless passkey sign-in.
 - **Passwordless** — magic-link email sign-in alongside passwords.
-- **Admin REST API** — a versioned `/admin/api/v1` (users / clients / sessions / audit /
-  token-verify) secured by API keys, plus a server-rendered admin console.
+- **Organizations (multi-tenancy)** — capability-probed multi-org support with member roles,
+  email invitations, org-claim tokens, and a full Admin API. See [Organizations](/docs/organizations).
+- **LGPD / GDPR compliance** — self-service account deletion with full cascade and anonymized
+  audit trail, data export, and a verified-email gate. See [Compliance](/docs/compliance).
+- **JWT access tokens (RFC 9068)** — switch to self-contained JWTs verifiable without
+  introspection; per-resource-server audience/scope/TTL via RFC 8707. See [Security](/docs/security#jwt-access-tokens-rfc-9068).
+- **Password hygiene** — configurable policy, HaveIBeenPwned breach detection, lazy rehash on
+  login, legacy hash verifier, and bulk user import. See [Passwords & Migration](/docs/passwords-and-migration).
+- **Bot protection** — pluggable CAPTCHA/challenge (Turnstile, hCaptcha, reCAPTCHA) with
+  fail-safe semantics. See [Security](/docs/security#bot-protection).
+- **Admin REST API** — a versioned `/api/authkit/v1` (users / clients / sessions / orgs /
+  stats / audit / token-verify) secured by API keys, plus a server-rendered admin console.
 - **SDK** — `@dudousxd/adonis-authkit-sdk`, a typed client for the Admin API that runs in
   remote (HTTP) or embedded (in-process) mode.
 - **Device flow, DPoP, PAR & step-up** — OAuth device authorization grant, sender-constrained
@@ -41,7 +51,7 @@ of registration helpers.
   clients self-register via RFC 7591.
 - **Events & webhooks** — subscribe to lifecycle events in-process or via outbound webhooks.
 - **React frontend** — `@dudousxd/adonis-authkit-react` with `useAuth()`, headless hooks,
-  and pre-built components (see [React](/docs/react)).
+  organization hooks, `PasswordStrengthMeter`, and pre-built components (see [React](/docs/react)).
 - **Audit logging** — a pluggable `AuditSink` receives security-relevant events
   (`login.success`, `pat.issued`, `impersonation`, `mfa.enabled`, …).
 - **Rate-limiting** — opt-in anti-brute-force throttles on the sensitive routes, backed

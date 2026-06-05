@@ -42,6 +42,12 @@ description: The full defineConfig option tables for server and client.
 | `trustedDevices` | `{ enabled?: boolean; days?: number }` | enabled, 30 days | Skip MFA on a trusted device via an encrypted cookie. See [MFA](/docs/mfa#trusted-devices). |
 | `uploads` | `{ avatars?: { disk?: string; directory?: string; maxSizeMb?: number } }` | app's default drive disk, `authkit/avatars`, 5MB | Avatar upload via the app's `@adonisjs/drive`; degrades to URL input when drive is absent. See [Host Kit](/docs/host-kit#avatar-uploads). |
 | `passwordless` | `{ magicLink?: boolean; passkeyFirst?: boolean }` | both disabled | Magic-link email login and/or passkey-first login. See [Passwordless](/docs/passwordless). |
+| `login` | `{ requireVerifiedEmail?: boolean }` | `false` | Block logins for unverified emails. Capability-probed. See [Compliance](/docs/compliance). |
+| `accessTokens` | `AccessTokensConfig` | `{ format: 'opaque' }` | JWT access tokens (RFC 9068) and per-resource config. See [Security](/docs/security#jwt-access-tokens-rfc-9068). |
+| `botProtection` | `BotProtectionConfigInput` | disabled | Pluggable CAPTCHA/challenge for login, signup, reset. See [Security](/docs/security#bot-protection). |
+| `notifications` | `{ newLoginEmail?: boolean; newDeviceEmail?: boolean }` | both `true` | Security email notifications. See [Security](/docs/security#new-device-login-notification). |
+| `resolveGeo` | `(ip: string) => Promise<string \| null>` | — | Pluggable IP → location lookup for session context. See [Admin Console](/docs/admin-console#session-context). |
+| `organizations` | `OrganizationsConfigInput` | auto | Multi-tenancy. See [Organizations](/docs/organizations). |
 
 ### `ttl` defaults
 
@@ -121,3 +127,31 @@ description: The full defineConfig option tables for server and client.
 | `AuthkitApiError` | Error thrown by the remote driver (`status`, `code`, `message`). |
 
 See the [SDK guide](/docs/sdk) for the full method table.
+
+## Ace commands
+
+Commands provided by `@dudousxd/adonis-authkit-server`:
+
+| Command | Notes |
+| --- | --- |
+| `node ace authkit:doctor` | Validate the config and peer dependencies; emits findings with `ok`/`warn`/`error` levels. |
+| `node ace authkit:eject` | Copy the bundled host-kit controllers/pages into your project for customization. |
+| `node ace authkit:users:import --file <path> [--dry-run]` | Bulk-import users from a JSON array or NDJSON file, preserving hashes as-is for lazy rehash on login. |
+| `node ace authkit:keys:rotate [--keep=N] [--retire] [--dry-run]` | Rotate signing keys in a managed keystore file; keeps a grace-period window of N previous keys (default 2). |
+
+### `authkit:users:import`
+
+See [Passwords & Migration](/docs/passwords-and-migration#user-import-command) for the file format and field list.
+
+### `authkit:keys:rotate`
+
+See [Security — Signing key rotation](/docs/security#signing-key-rotation) for the flag reference and rotation strategy.
+
+## Client helpers — `@dudousxd/adonis-authkit-client`
+
+Additional exports beyond the resolver factories:
+
+| Export | Purpose |
+| --- | --- |
+| `verifyJwtAccessToken(token, options)` | Verify a JWT AT (RFC 9068) locally against the IdP's JWKS. See [Client](/docs/client#jwt-access-token-verification). |
+| `clearJwksCache()` | Clear the in-process JWKS cache (useful in tests). |

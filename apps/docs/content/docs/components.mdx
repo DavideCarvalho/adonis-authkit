@@ -1,6 +1,6 @@
 ---
 title: React Components
-description: Pre-built, themeable Clerk-style components — SignInButton, SignOutButton, UserButton, UserProfile, AuthorizedApps, Avatar.
+description: Pre-built, themeable components — SignInButton, SignOutButton, UserButton, UserProfile, AuthorizedApps, Avatar, PasswordStrengthMeter, OrganizationSwitcher, OrganizationProfile.
 ---
 
 `@dudousxd/adonis-authkit-react` ships a small set of accessible, themeable components built
@@ -21,6 +21,9 @@ import {
   UserProfile,
   AuthorizedApps,
   Avatar,
+  PasswordStrengthMeter,
+  OrganizationSwitcher,
+  OrganizationProfile,
 } from '@dudousxd/adonis-authkit-react'
 ```
 
@@ -121,6 +124,61 @@ function Me() {
   const { user } = useAuth()
   return user ? <Avatar user={user} size={48} /> : null
 }
+```
+
+## PasswordStrengthMeter
+
+A visual progress bar (0–4) for password strength feedback, built on
+[`usePasswordStrength`](/docs/passwords-and-migration#react-usepasswordstrength--passwordstrengthmeter).
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `score` | `0 \| 1 \| 2 \| 3 \| 4` | — | Strength score from `usePasswordStrength`. |
+| `className` | `string` | — | Appended to `authkit-strength-meter`. |
+
+```tsx
+import { usePasswordStrength, PasswordStrengthMeter } from '@dudousxd/adonis-authkit-react'
+
+function PasswordField() {
+  const [password, setPassword] = useState('')
+  const { score } = usePasswordStrength(password)
+  return (
+    <>
+      <input type="password" value={password} onChange={e => setPassword(e.target.value)} />
+      <PasswordStrengthMeter score={score} />
+    </>
+  )
+}
+```
+
+## OrganizationSwitcher
+
+A dropdown to switch the active organization. Reads from `useOrganizations()` and calls
+`useSwitchOrganization()` on selection. Optionally shows a "create" button when
+`allowSelfCreate: true` is configured server-side.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `allowCreate` | `boolean` | `false` | Show a "Create organization" option. |
+| `createLabel` | `string` | `'New organization'` | Label of the create option. |
+| `className` | `string` | — | Appended to `authkit-org-switcher`. |
+
+```tsx
+<OrganizationSwitcher allowCreate={false} />
+```
+
+## OrganizationProfile
+
+A card showing the current organization's name, members, and pending invitations, with
+inline controls to invite members, change roles, and remove members.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `orgId` | `string` | — | The organization to display (required). |
+| `className` | `string` | — | Appended to `authkit-card authkit-org-profile`. |
+
+```tsx
+<OrganizationProfile orgId={activeOrg.id} />
 ```
 
 ## Theming

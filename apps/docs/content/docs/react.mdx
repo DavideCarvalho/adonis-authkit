@@ -152,6 +152,11 @@ import {
   useProfile,
   useSessions,
   useAuthorizedApps,
+  useOrganizations,
+  useOrganization,
+  useSwitchOrganization,
+  useOrgInvitations,
+  usePasswordStrength,
 } from '@dudousxd/adonis-authkit-react'
 
 // OIDC is redirect-based — these navigate the browser.
@@ -174,7 +179,25 @@ await sessions.actions.refetch()
 
 const apps = useAuthorizedApps()
 await apps.actions.revoke(clientId)
+
+// Organizations (multi-tenancy) — see Organizations for the full API
+const orgs = useOrganizations()
+const org  = useOrganization(orgId)
+const sw   = useSwitchOrganization()
+await sw.activate(orgId)
+await sw.deactivate()
+
+const invitations = useOrgInvitations()
+await invitations.actions.accept(token)
+
+// Password strength (signup / change-password forms)
+const { score, feedback } = usePasswordStrength(password)
+// score: 0–4 (4 = very strong)
+// feedback: string[] | undefined (improvement tips)
 ```
+
+The password strength hook uses a built-in lightweight heuristic by default. Provide a custom
+`scorer` to plug in a library like zxcvbn. See [Passwords & Migration](/docs/passwords-and-migration#react-usepasswordstrength--passwordstrengthmeter).
 
 The data hooks fetch JSON against the endpoints configured in `AuthkitProvider`, with
 `credentials: 'same-origin'` and the optional `X-CSRF-TOKEN` header.
@@ -182,8 +205,9 @@ The data hooks fetch JSON against the endpoints configured in `AuthkitProvider`,
 ## 7. Pre-built components
 
 The kit also ships small, accessible, themeable components built on the hooks above —
-`SignInButton`, `SignOutButton`, `UserButton`, `UserProfile`, `AuthorizedApps`, and
-`Avatar` — with `--authkit-*` CSS-variable theming. They have their own page:
+`SignInButton`, `SignOutButton`, `UserButton`, `UserProfile`, `AuthorizedApps`, `Avatar`,
+`PasswordStrengthMeter`, `OrganizationSwitcher`, and `OrganizationProfile` — with
+`--authkit-*` CSS-variable theming. They have their own page:
 **[React Components](/docs/components)**.
 
 ## Pure helpers

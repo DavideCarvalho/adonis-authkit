@@ -1,11 +1,12 @@
 ---
 title: Admin Console
-description: The opt-in IdP admin console — users, roles, clients, audit.
+description: The opt-in IdP admin console — dashboard, users, sessions, organizations, clients, audit, and impersonation.
 ---
 
-AuthKit ships an opt-in **admin console** mounted under `/admin/*`: a dashboard, user/role
-management, the OAuth client list, and the audit log. It is **off by default** — existing
-hosts don't change behaviour.
+AuthKit ships an opt-in **admin console** mounted under `/admin/*`: a metrics dashboard,
+user/role management, session context, organization management, the OAuth client list, the
+audit log, and an impersonation panel. It is **off by default** — existing hosts don't
+change behaviour.
 
 ## Enabling it
 
@@ -33,6 +34,7 @@ registerAuthHost(router, {
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | `false` | Mounts the `/admin/*` group behind the admin guard. |
 | `roles` | `string[]` | `['ADMIN']` | Global roles that grant access to the console. |
+| `impersonation` | `boolean` | `false` | Show the impersonation panel on user detail pages. |
 
 ## The guard
 
@@ -51,26 +53,71 @@ The allowed roles are resolved at runtime from the `authkit.server` config. See
 
 | Route | Action |
 | --- | --- |
-| `GET /admin` | Dashboard (counts + recent audit events) |
+| `GET /admin` | Dashboard — MAU, daily sign-ins, daily sign-ups (SVG charts), total users |
 | `GET /admin/users` | List/search users |
 | `POST /admin/users` | Create a user (with a password, or invite via password-reset email) |
 | `POST /admin/users/:id/roles` | Replace a user's global roles (`AccountStore.setGlobalRoles`) |
 | `POST /admin/users/:id/reset-password` | Issue a reset token and email it to the user |
 | `POST /admin/users/:id/disable` | Disable the account (blocks login) — needs `AccountStatusCapability` |
 | `POST /admin/users/:id/enable` | Re-enable a disabled account |
-| `GET /admin/users/:id/sessions` | List the account's active sessions + grants |
+| `POST /admin/users/:id/delete` | Delete a user and cascade (LGPD/GDPR) |
+| `GET /admin/users/:id/sessions` | List the account's active sessions + grants (with browser/OS/IP/location) |
 | `POST /admin/users/:id/revoke-sessions` | Revoke all of the account's sessions + grants |
 | `GET /admin/clients` | List OAuth clients (static config + adapter-stored) |
 | `POST /admin/clients` | Create a dynamic client |
-| `POST /admin/clients/:id` | Edit a dynamic client (redirect/post-logout URIs, grants, auth method) |
+| `POST /admin/clients/:id/edit` | Edit a dynamic client |
 | `POST /admin/clients/:id/regenerate-secret` | Regenerate a confidential client's secret |
 | `POST /admin/clients/:id/delete` | Delete a dynamic client |
 | `GET /admin/audit` | Browse the audit log (when the sink supports `list`) |
+| `GET /admin/orgs` | List organizations (when tables exist) |
+| `POST /admin/orgs` | Create an organization |
+| `GET /admin/orgs/:id` | View org detail: members + pending invitations |
+| `POST /admin/orgs/:id/delete` | Delete an organization and cascade |
+| `POST /admin/orgs/:id/members` | Add a member |
+| `POST /admin/orgs/:id/members/:accountId/remove` | Remove a member |
+| `POST /admin/orgs/:id/invitations/:invId/revoke` | Revoke an invitation |
 
 The console reads through the same contracts as the rest of the host kit:
 `AccountStore.listAccounts` / `setGlobalRoles` for users, the OIDC adapter + static
 `clients` for the client list, and `AuditSink.list` for audit. A write-only audit sink
 degrades gracefully — the audit page shows "query not supported".
+
+## Dashboard
+
+`GET /admin` shows a metrics overview built from the audit sink:
+
+- **Total users** — count from the account store.
+- **Active sessions** — count of current sessions (when the adapter supports enumeration).
+- **MAU (Monthly Active Users)** — unique accounts with a `login.success` in the last 30 days.
+- **Daily sign-ins / sign-ups** — server-side SVG line charts for the last 30 days.
+
+When the audit sink does not support `list`, the charts are omitted and only the static
+counts are shown.
+
+## Session context
+
+Every session displayed in the console (user detail page) carries rich context captured
+at login time:
+
+| Field | Source |
+| --- | --- |
+| Browser | Parsed from the User-Agent string (e.g. `Chrome 124`) |
+| OS | Parsed from the User-Agent string (e.g. `macOS`) |
+| IP address | Request IP at login |
+| Location | Resolved via the host's `resolveGeo` hook (optional) |
+
+To add geolocation, plug in a `resolveGeo` hook in `defineConfig`:
+
+```ts title="config/authkit.ts"
+resolveGeo: async (ip) => {
+  // example: return 'São Paulo, BR'
+  const geo = await myGeoLookup(ip)
+  return geo ? `${geo.city}, ${geo.countryCode}` : null
+},
+```
+
+The lookup is **fail-safe with a 1.5 s timeout**: an error or timeout returns `null` (no
+location shown) and never delays the listing.
 
 ## Sessions & revocation
 
@@ -92,14 +139,39 @@ Like the client list, enumeration relies on the adapter's **optional** `list?()`
 page **degrades gracefully** with a notice instead of erroring. Both the database adapter's
 table query and the Redis adapter's `SCAN` are scoped per model, so the lookup is cheap.
 
-## User management (create / invite / reset / disable)
+## Impersonation panel
+
+When `admin.impersonation: true`, a user's detail page shows an **Impersonation** panel
+with the exact `token_exchange` parameters needed to assume that user's identity (RFC 8693).
+This surfaces the `subject_token_type`, `requested_token_type`, and a ready-to-run
+`curl` snippet — it does **not** perform the exchange itself.
+
+```ts title="config/authkit.ts"
+admin: {
+  enabled: true,
+  roles: ['ADMIN'],
+  impersonation: true, // default: false
+},
+```
+
+<Callout type="warn">
+  The exchange requires a confidential client with the `urn:ietf:params:oauth:grant-type:token-exchange`
+  grant and a valid admin access token as `subject_token`. The panel shows the parameters;
+  your client performs the actual request. Viewing the panel emits an
+  `impersonation.started` audit event.
+</Callout>
+
+## User management (create / invite / reset / disable / delete)
 
 The users page has a **create** form (email + optional name + optional password). When you
 leave the password blank the account is created with a throwaway password and a
 **password-reset email** is sent — the user sets their own password (the "invite" flow).
 Each row also exposes **Send password reset** and, when the store supports it,
-**Disable** / **Enable** buttons. The operations emit `user.created`,
-`user.password_reset_sent`, `user.disabled` and `user.enabled` audit events.
+**Disable** / **Enable** buttons. The operations emit `user.created`, `user.password_reset_sent`, `user.disabled`,
+`user.enabled`, and `user.deleted` audit events. The **Delete** action runs the same cascade
+as the self-service flow: sessions, grants, PATs, passkeys, provider identities, and org
+memberships are removed; audit records are anonymized. See [Compliance](/docs/compliance)
+for the full cascade details.
 
 Disabling requires the optional **`AccountStatusCapability`** on the account store (see
 [Account store](/docs/account-store)). The Lucid store implements it via a
@@ -141,3 +213,9 @@ adapter implements neither, the service's `canList` is `false` and the page **de
 gracefully** — static clients still render and the create form still works, but the
 adapter-stored list is hidden with a notice rather than erroring. Statically-configured
 clients are always read-only (they live in your config, not the adapter).
+
+## Organizations
+
+When the three organization tables are present, an **Organizations** tab appears at
+`/admin/orgs`. See [Organizations](/docs/organizations#admin-console----adminorgs) for
+the full route table and behaviour.

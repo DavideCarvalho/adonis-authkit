@@ -188,16 +188,26 @@ accounts with an "account disabled" message, even with a correct password.
 
 ## Client CRUD
 
-The clients page lists **both** the statically-configured `clients` (read-only) and the
-**dynamically-registered** ones stored in the OIDC adapter (see
-[Dynamic Registration](/docs/dynamic-registration)). Adapter-stored clients are fully
-manageable from the console via `AdminClientsService`:
+<Callout type="warn">
+  **Static clients are deprecated.** The recommended workflow is to create and manage all
+  clients through this console (or the [Admin REST API](/docs/admin-api#clients)) — no config
+  change or redeploy needed. When your `config/authkit.ts` still has a `clients: [...]` block,
+  a **deprecation banner** appears at the top of this page reminding you to migrate. Run
+  `node ace authkit:clients:import` to copy the static clients to the adapter/DB (see
+  [Reference — authkit:clients:import](/docs/reference#authkitclientsimport)).
+</Callout>
+
+The clients page lists **both** the statically-configured `clients` (read-only, shown with
+a "static — managed in config" label) and the **adapter-stored** ones created via the
+console or [Dynamic Registration](/docs/dynamic-registration). Adapter-stored clients are
+fully manageable via `AdminClientsService`:
 
 - **Create** — generates a `client_id` when omitted; for confidential clients
   (`tokenEndpointAuthMethod !== 'none'`) it generates a `client_secret` and shows it **once**
   (it isn't recoverable afterwards). Public clients get no secret.
 - **Edit** — updates the editable metadata (redirect URIs, post-logout redirect URIs,
-  grants, token-endpoint auth method) while **preserving** the existing secret.
+  grants, token-endpoint auth method, backchannel logout URI, `session_required`) while
+  **preserving** the existing secret.
 - **Regenerate secret** — issues a fresh `client_secret` for a confidential client (shown
   once); rejected for public clients.
 - **Delete** — removes the client from the adapter.
@@ -222,14 +232,25 @@ the full route table and behaviour.
 
 ## Settings page
 
-`GET /admin/settings` shows a **Runtime Settings** panel. Currently it controls the
-bot-protection toggle; future settings will appear here as they are added.
+`GET /admin/settings` shows a **Runtime Settings** panel with four cards: bot protection,
+registration, require verified email, and maintenance mode.
 
 | Route | Action |
 | --- | --- |
 | `GET /admin/settings` | Render the settings page. |
 | `POST /admin/settings/bot-protection` | Save (upsert) the `bot_protection` setting. |
 | `POST /admin/settings/bot-protection/reset` | Delete the setting — reverts to static config. |
+| `POST /admin/settings/registration` | Save (upsert) the `registration` setting. |
+| `POST /admin/settings/registration/reset` | Delete the setting — reverts to static config. |
+| `POST /admin/settings/require-verified-email` | Save (upsert) the `require_verified_email` setting. |
+| `POST /admin/settings/require-verified-email/reset` | Delete the setting — reverts to static config. |
+| `POST /admin/settings/maintenance-mode` | Save (upsert) the `maintenance_mode` setting. |
+| `POST /admin/settings/maintenance-mode/reset` | Delete the setting — disables maintenance mode. |
+
+All four cards share the same state model: each shows a **badge** indicating whether the
+effective value comes from the runtime setting (`from setting`) or falls back to the static
+config (`from config`). When the `auth_settings` table is absent, a notice appears on every
+card with the `CREATE TABLE` snippet and the submit buttons are disabled.
 
 ### Bot-protection card
 
@@ -256,3 +277,42 @@ Every write emits a `settings.updated` audit event with `metadata.key = "bot_pro
 
 See [Security — Runtime toggle](/docs/security#runtime-toggle) for the full precedence
 rules and setting shape.
+
+### Registration card
+
+Controls whether public sign-up is open. The static fallback is `config.registration.enabled`
+(default `true`). Disabling closes the sign-up page and rejects new registrations; org
+invitations and admin-created accounts are unaffected. A **Reset to config** button
+removes the runtime setting and returns to the static default.
+
+See [Security — Registration toggle](/docs/security#registration-toggle) for the full
+behaviour and escape hatch.
+
+### Require verified email card
+
+Overrides `config.login.requireVerifiedEmail` at runtime for all three login flows. When
+the `accountStore` lacks the `isEmailVerified` capability the card shows a notice that the
+guard is a no-op. A **Reset to config** button removes the runtime override.
+
+See [Security — Require verified email toggle](/docs/security#require-verified-email-toggle)
+for the full precedence rules.
+
+### Maintenance mode card
+
+Activates a maintenance screen that blocks login / sign-up / forgot-password for
+non-admin users. An optional custom message is shown on the maintenance page; leave it
+blank to use the built-in i18n string. Admin accounts (roles matching `admin.roles`)
+bypass the gate.
+
+A **Reset** button removes the setting and takes the IdP out of maintenance mode. If the
+console is unreachable during an incident, the Admin REST API escape hatch lets you disable
+maintenance without a session:
+
+```bash
+curl -X PUT https://idp.acme.com/api/authkit/v1/settings/maintenance_mode \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "value": { "enabled": false } }'
+```
+
+See [Security — Maintenance mode](/docs/security#maintenance-mode) for the full behaviour.

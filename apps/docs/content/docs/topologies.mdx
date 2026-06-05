@@ -16,30 +16,32 @@ const authServerConfig = defineConfig({
   issuer: env.get('AUTHKIT_ISSUER'), // https://auth.acme.com/oidc
   adapter: adapters.database({ connection: 'auth' }),
   jwks: { source: 'managed', algorithm: 'RS256' },
-  clients: [
-    {
-      clientId: 'acme-web',
-      clientSecret: env.get('WEB_CLIENT_SECRET'),
-      redirectUris: [env.get('WEB_REDIRECT_URI')],
-      postLogoutRedirectUris: [webPostLogout],
-      grants: ['authorization_code', 'refresh_token'],
-    },
-    {
-      clientId: 'acme-admin',
-      clientSecret: env.get('ADMIN_CLIENT_SECRET'),
-      redirectUris: [env.get('ADMIN_REDIRECT_URI')],
-      postLogoutRedirectUris: [adminPostLogout],
-      grants: ['authorization_code', 'refresh_token'],
-    },
-  ],
   accountStore: lucidAccountStore(AuthUser),
   mountPath: '/oidc',
   render: inertiaRenderer({ prefix: 'authkit' }),
+  admin: { enabled: true },
+  adminApi: { enabled: true, apiKeys: [env.get('AUTHKIT_ADMIN_API_KEY')] },
 })
 ```
 
-The IdP owns the user identities; each product app gets its own `clientId`/`clientSecret`
-and registered redirect URIs.
+The IdP owns the user identities. After first boot, create each client (`acme-web`,
+`acme-admin`, …) in the admin console at `/admin/clients` or via the Admin REST API:
+
+```bash
+curl -X POST https://auth.acme.com/api/authkit/v1/clients \
+  -H "Authorization: Bearer $AUTHKIT_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "clientId": "acme-web",
+        "redirectUris": ["https://web.acme.com/auth/callback"],
+        "postLogoutRedirectUris": ["https://web.acme.com/"],
+        "grantTypes": ["authorization_code", "refresh_token"],
+        "tokenEndpointAuthMethod": "client_secret_basic"
+      }'
+```
+
+Each client gets its own `clientId`/`clientSecret` and registered redirect URIs. The
+secret is shown **once** in the response — save it in the client app's `.env`.
 
 ## Embedded
 
@@ -47,26 +49,23 @@ The provider runs **inside** an existing product app, and that app is also one o
 clients (host-is-its-own-client). This is the `acme-web` example: the same process
 serves the product *and* the OIDC endpoints.
 
-The server config is essentially identical — the host app simply lists itself in
-`clients` alongside the other relying parties:
-
 ```ts title="config/authkit_server.ts (embedded)"
 const authServerConfig = defineConfig({
   issuer: env.get('AUTHKIT_ISSUER'),
   adapter: adapters.database({ connection: 'auth' }),
   jwks: { source: 'managed', algorithm: 'RS256' },
-  clients: [
-    { clientId: 'acme-web', /* the host itself */ ... },
-    { clientId: 'acme-admin', ... },
-  ],
   accountStore: lucidAccountStore(AuthUser),
   mountPath: '/oidc',
   render: inertiaRenderer({ prefix: 'authkit' }),
+  admin: { enabled: true },
+  adminApi: { enabled: true, apiKeys: [env.get('AUTHKIT_ADMIN_API_KEY')] },
 })
 ```
 
-Alongside it, the host adds a `config/authkit_client.ts` pointing at its own issuer (it
-authenticates against itself). See [Client](/docs/client).
+After first boot, create the host app's own client (`acme-web`) in the admin console or
+API, then copy the returned `clientSecret` to `.env`. Alongside the server config, add a
+`config/authkit_client.ts` pointing at the same issuer — the host authenticates against
+itself. See [Client](/docs/client).
 
 ## mountPath, issuer & cookies
 

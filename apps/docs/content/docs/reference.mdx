@@ -11,7 +11,7 @@ description: The full defineConfig option tables for server and client.
 | --- | --- | --- | --- |
 | `issuer` | `string` | — | Public provider URL; must end with `mountPath`. |
 | `adapter` | `AdapterFactory` | — | Storage adapter, e.g. `adapters.database({ connection })`. |
-| `clients` | `ClientConfig[]` | — | Registered OIDC clients (see below). |
+| `clients` | `ClientConfig[]` | — | **@deprecated** — static client list. Prefer creating clients via the admin console or Admin API; migrate existing ones with `node ace authkit:clients:import`. Omitting this field (or passing `[]`) is the recommended approach going forward. |
 | `jwks` | `JwksConfig` | — | `{ source: 'managed' \| 'jwks', algorithm?, rotationDays?, keys? }`. |
 | `ttl` | `TtlConfig` | see below | Token/session lifetimes; accepts `'15m'`, `'30d'`, or seconds. |
 | `globalRolesClaim` | `string` | `'roles'` | Claim name where global roles are emitted. |
@@ -42,7 +42,8 @@ description: The full defineConfig option tables for server and client.
 | `trustedDevices` | `{ enabled?: boolean; days?: number }` | enabled, 30 days | Skip MFA on a trusted device via an encrypted cookie. See [MFA](/docs/mfa#trusted-devices). |
 | `uploads` | `{ avatars?: { disk?: string; directory?: string; maxSizeMb?: number } }` | app's default drive disk, `authkit/avatars`, 5MB | Avatar upload via the app's `@adonisjs/drive`; degrades to URL input when drive is absent. See [Host Kit](/docs/host-kit#avatar-uploads). |
 | `passwordless` | `{ magicLink?: boolean; passkeyFirst?: boolean }` | both disabled | Magic-link email login and/or passkey-first login. See [Passwordless](/docs/passwordless). |
-| `login` | `{ requireVerifiedEmail?: boolean }` | `false` | Block logins for unverified emails. Capability-probed. See [Compliance](/docs/compliance). |
+| `login` | `{ requireVerifiedEmail?: boolean }` | `false` | Block logins for unverified emails. Capability-probed. Overridable at runtime via the `require_verified_email` setting. See [Compliance](/docs/compliance) and [Security — Require verified email toggle](/docs/security#require-verified-email-toggle). |
+| `registration` | `{ enabled?: boolean }` | `{ enabled: true }` | Allow public sign-up. `enabled: false` closes registration statically. Overridable at runtime via the `registration` setting. See [Security — Registration toggle](/docs/security#registration-toggle). |
 | `accessTokens` | `AccessTokensConfig` | `{ format: 'opaque' }` | JWT access tokens (RFC 9068) and per-resource config. See [Security](/docs/security#jwt-access-tokens-rfc-9068). |
 | `botProtection` | `BotProtectionConfigInput` | disabled | Pluggable CAPTCHA/challenge for login, signup, reset. Runtime-toggleable via `auth_settings`. See [Security](/docs/security#bot-protection). |
 | `notifications` | `{ newLoginEmail?: boolean; newDeviceEmail?: boolean }` | both `true` | Security email notifications. See [Security](/docs/security#new-device-login-notification). |
@@ -181,6 +182,9 @@ if (supportsSettings(store)) {
 | Key | Shape | Notes |
 | --- | --- | --- |
 | `bot_protection` | `{ enabled: boolean; on?: ('login' \| 'signup' \| 'reset')[] }` | Runtime toggle for bot protection. See [Security — Runtime toggle](/docs/security#runtime-toggle). |
+| `registration` | `{ enabled: boolean }` | Open or close public sign-up at runtime. Fallback: `config.registration.enabled` (default `true`). See [Security — Registration toggle](/docs/security#registration-toggle). |
+| `require_verified_email` | `{ enabled: boolean }` | Override `login.requireVerifiedEmail` for all login flows at runtime. Capability-probed. See [Security — Require verified email toggle](/docs/security#require-verified-email-toggle). |
+| `maintenance_mode` | `{ enabled: boolean; message?: string }` | Block login/sign-up/forgot for non-admin users. Admin accounts and the Admin API bypass the gate. See [Security — Maintenance mode](/docs/security#maintenance-mode). |
 
 ## Ace commands
 
@@ -188,10 +192,11 @@ Commands provided by `@dudousxd/adonis-authkit-server`:
 
 | Command | Notes |
 | --- | --- |
-| `node ace authkit:doctor` | Validate the config and peer dependencies; emits findings with `ok`/`warn`/`error` levels. Includes a `checkSettings` probe (see below). |
+| `node ace authkit:doctor` | Validate the config and peer dependencies; emits findings with `ok`/`warn`/`error` levels. Includes a `checkSettings` probe (see below). Warns when static `clients` are present in config (deprecated). |
 | `node ace authkit:eject` | Copy the bundled host-kit controllers/pages into your project for customization. |
 | `node ace authkit:users:import --file <path> [--dry-run]` | Bulk-import users from a JSON array or NDJSON file, preserving hashes as-is for lazy rehash on login. |
 | `node ace authkit:keys:rotate [--keep=N] [--retire] [--dry-run]` | Rotate signing keys in a managed keystore file; keeps a grace-period window of N previous keys (default 2). |
+| `node ace authkit:clients:import [--dry-run]` | Copy the static `clients` from `config/authkit.ts` into the adapter/DB. Idempotent — existing clients (matched by `client_id`) are skipped. The original `client_secret` is preserved for confidential clients. After confirming the import, remove the `clients` block from config. See [below](#authkitclientsimport). |
 
 ### `authkit:doctor` — `checkSettings`
 
@@ -204,6 +209,12 @@ When the doctor command probes the `auth_settings` table:
   `bot_protection` row in `auth_settings` is an orphan and has no effect. Either configure
   `botProtection.verify` in `config/authkit.ts` or drop the row.
 
+The doctor also emits a `warn` when `static clients` are present in `config.clients`
+(deprecated), reminding you to migrate them with `node ace authkit:clients:import`.
+Additionally, it emits a `warn` when `maintenance_mode` or `registration` settings are
+stored but the `auth_settings` table is absent, or when `require_verified_email: true` is
+set but the `accountStore` lacks the `isEmailVerified` capability.
+
 ### `authkit:users:import`
 
 See [Passwords & Migration](/docs/passwords-and-migration#user-import-command) for the file format and field list.
@@ -211,6 +222,41 @@ See [Passwords & Migration](/docs/passwords-and-migration#user-import-command) f
 ### `authkit:keys:rotate`
 
 See [Security — Signing key rotation](/docs/security#signing-key-rotation) for the flag reference and rotation strategy.
+
+### `authkit:clients:import`
+
+Migrates the static `clients` list from `config/authkit.ts` into the adapter/DB so they can
+be managed at runtime via the admin console or Admin REST API.
+
+```bash
+# Preview what would be created (no writes)
+node ace authkit:clients:import --dry-run
+
+# Run the migration
+node ace authkit:clients:import
+```
+
+**Behaviour:**
+
+- Each entry in `config.clients` is attempted in order.
+- If a client with the same `client_id` **already exists** in the adapter, the entry is
+  **skipped** (idempotent — the existing secret is preserved).
+- Confidential clients (`clientSecret` set) have their original secret preserved during
+  import. The secret is printed **once** for each newly created client — save it before the
+  command exits.
+- Public clients (no `clientSecret`) are imported without a secret.
+- The command prints a per-client `created` / `skipped` / `error` report and exits non-zero
+  if any entry failed.
+
+**After the import:**
+
+1. Verify the clients appear in the admin console (`/admin/clients`) or Admin API.
+2. Remove the `clients: [...]` block from `config/authkit.ts` (or leave it empty: `clients: []`).
+3. Re-run `node ace authkit:doctor` — the deprecation warning should be gone.
+
+**Requirement:** the adapter must be persistent (e.g. `adapters.database(...)`). If a
+volatile adapter (Redis without AOF/RDB, in-memory) is used, `authkit:doctor` will warn
+that clients managed at runtime will be lost on restart.
 
 ## Client helpers — `@dudousxd/adonis-authkit-client`
 

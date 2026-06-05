@@ -25,9 +25,29 @@ defineConfig({
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | `false` | Exposes `device_authorization_endpoint` and the user-code screens. |
 
-The client must be granted the device-code grant type:
+The client must be granted the device-code grant type. Create or update the client via the
+admin console or Admin REST API:
 
-```ts
+```bash
+curl -X POST https://auth.acme.com/api/authkit/v1/clients \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "clientId": "tv-app",
+        "redirectUris": ["https://tv-app/cb"],
+        "grantTypes": [
+          "authorization_code",
+          "refresh_token",
+          "urn:ietf:params:oauth:grant-type:device_code"
+        ],
+        "tokenEndpointAuthMethod": "client_secret_basic"
+      }'
+```
+
+If you are still using the legacy static `clients` config block:
+
+```ts title="config/authkit_server.ts (legacy — prefer runtime management)"
+// @deprecated: manage clients via admin console / Admin API instead
 clients: [
   {
     clientId: 'tv-app',

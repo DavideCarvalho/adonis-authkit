@@ -25,18 +25,18 @@
 - [Compliance](/docs/compliance): LGPD/GDPR — account deletion, data export, verified-email gate.
 - [Passwords & Migration](/docs/passwords-and-migration): Policy, HIBP breach check, lazy rehash, legacy verifier, users:import.
 - [Customizing Auth](/docs/customizing-auth): Extend or override the bundled flows.
-- [Security](/docs/security): Rate-limiting, bot protection (with runtime toggle via auth_settings), JWT ATs, key rotation, DPoP, PAR, step-up, audit, mail hooks.
+- [Security](/docs/security): Rate-limiting, bot protection, registration toggle, require-verified-email toggle, maintenance mode (all runtime-toggleable via auth_settings), JWT ATs, key rotation, DPoP, PAR, step-up, audit, mail hooks.
 - [React (Frontend)](/docs/react): useAuth, gating components, organization hooks, usePasswordStrength.
 - [React Components](/docs/components): Pre-built components — SignInButton, UserButton, OrganizationSwitcher, PasswordStrengthMeter.
 - [Host Kit](/docs/host-kit): registerAuthHost, the render seam, account console routes, branding, ejecting.
 - [Client](/docs/client): Wire a relying party; JWT/PAT/opaque resolvers; verifyJwtAccessToken.
 - [Account Store](/docs/account-store): AccountStore interface, capabilities, lucidAccountStore.
 - [Resolvers](/docs/resolvers): jwt, pat, and opaque resolver factories.
-- [Admin Console](/docs/admin-console): Dashboard, users, session context, impersonation, organizations, clients, audit, runtime settings (bot-protection toggle).
-- [Admin REST API](/docs/admin-api): Machine-to-machine API — users, orgs, clients, stats, audit, settings CRUD, token verify.
+- [Admin Console](/docs/admin-console): Dashboard, users, session context, impersonation, organizations, clients (runtime-managed, static clients deprecated), audit, runtime settings (bot-protection, registration, require-verified-email, maintenance mode).
+- [Admin REST API](/docs/admin-api): Machine-to-machine API — users, orgs, clients (canonical client management path), stats, audit, settings CRUD (runtime toggles), token verify.
 - [Backend SDK](/docs/sdk): createAuthkit — remote (HTTP) and embedded (in-process) drivers.
 - [Events & Webhooks](/docs/events): Full event type list; in-process callbacks and HMAC-signed webhooks.
 - [Internationalization](/docs/i18n): Built-in pt-BR and English; how to add a locale.
 - [Observability](/docs/observability): OpenTelemetry instrumentation, metrics routes, Grafana dashboard.
-- [Reference](/docs/reference): Full defineConfig option tables, ace commands, client/SDK exports.
+- [Reference](/docs/reference): Full defineConfig option tables (clients field deprecated), known runtime setting keys, ace commands (authkit:clients:import), client/SDK exports.
 - [Changelog](/docs/changelog): Version history and migration notes.

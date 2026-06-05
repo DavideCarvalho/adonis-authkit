@@ -9,17 +9,32 @@ browser never visits the RP again. AuthKit implements both sides.
 
 ## Server: declare the logout URI per client
 
-Add `backchannelLogoutUri` to the client's `ClientConfig`. When set, the IdP sends a signed
-`logout_token` to that URI on session/grant termination:
+Set `backchannelLogoutUri` on the client. The recommended way is through the admin console
+(`/admin/clients` → Edit) or the Admin REST API:
 
-```ts title="config/authkit_server.ts"
+```bash
+curl -X PATCH https://auth.acme.com/api/authkit/v1/clients/acme-web \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "backchannelLogoutUri": "https://web.acme.com/auth/backchannel-logout",
+        "backchannelLogoutSessionRequired": true
+      }'
+```
+
+Both fields are also editable in the admin console client form.
+
+If you are still using the legacy static `clients` block in config, the equivalent is:
+
+```ts title="config/authkit_server.ts (legacy — prefer runtime management)"
+// @deprecated: manage clients via admin console / Admin API instead
 clients: [
   {
     clientId: 'acme-web',
     clientSecret: env.get('WEB_CLIENT_SECRET'),
     redirectUris: [env.get('WEB_REDIRECT_URI')],
     backchannelLogoutUri: 'https://web.acme.com/auth/backchannel-logout',
-    backchannelLogoutSessionRequired: true, // require the `sid` claim
+    backchannelLogoutSessionRequired: true,
   },
 ]
 ```

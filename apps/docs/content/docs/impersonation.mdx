@@ -9,9 +9,26 @@ implements this with **OAuth 2.0 Token Exchange (RFC 8693)**.
 
 ## Enabling the grant
 
-The acting client must be allowed the token-exchange grant in its registration:
+The acting client must be allowed the token-exchange grant in its registration. Update the
+client via the admin console (`/admin/clients` → Edit) or the Admin REST API:
 
-```ts title="config/authkit_server.ts"
+```bash
+curl -X PATCH https://auth.acme.com/api/authkit/v1/clients/acme-admin \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "grantTypes": [
+          "authorization_code",
+          "refresh_token",
+          "urn:ietf:params:oauth:grant-type:token-exchange"
+        ]
+      }'
+```
+
+If you are still using the legacy static `clients` config block:
+
+```ts title="config/authkit_server.ts (legacy — prefer runtime management)"
+// @deprecated: manage clients via admin console / Admin API instead
 clients: [
   {
     clientId: 'acme-admin',

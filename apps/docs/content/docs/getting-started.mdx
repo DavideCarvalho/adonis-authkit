@@ -54,8 +54,9 @@ prompt) — and then:
 #### Tune the server config (manual)
 
 The published `config/authkit.ts` is a Redis-adapter starter. For the Lucid-backed
-single-app path in this guide, edit it to use the `database` adapter, declare your client,
-point at the `AuthUser` store, and set the `mountPath`/renderer:
+single-app path in this guide, edit it to use the `database` adapter, point at the
+`AuthUser` store, and set the `mountPath`/renderer. **Clients are no longer declared
+here** — create them in the admin console after first boot (see below):
 
 ```ts title="config/authkit.ts"
 import env from '#start/env'
@@ -72,17 +73,14 @@ const authServerConfig = defineConfig({
   adapter: adapters.database({ connection: 'auth' }),
   jwks: { source: 'managed', algorithm: 'RS256' },
   ttl: { accessToken: '15m', refreshToken: '30d' },
-  clients: [
-    {
-      clientId: 'my-app',
-      clientSecret: env.get('MY_APP_CLIENT_SECRET'),
-      redirectUris: [env.get('MY_APP_REDIRECT_URI')],
-      grants: ['authorization_code', 'refresh_token'],
-    },
-  ],
   accountStore: lucidAccountStore(AuthUser),
   mountPath: '/oidc',
   render: inertiaRenderer({ prefix: 'authkit' }),
+  admin: { enabled: true },    // enables the admin console
+  adminApi: {
+    enabled: true,
+    apiKeys: [env.get('AUTHKIT_ADMIN_API_KEY')],
+  },
 })
 
 export default authServerConfig
@@ -91,6 +89,12 @@ export default authServerConfig
 The `issuer` is the public URL of the provider and **must end with `mountPath`** — e.g.
 `https://auth.example.com/oidc` for `mountPath: '/oidc'`. The published model already
 composes the mixins the Lucid store needs; add columns to it as your domain grows.
+
+<Callout type="info">
+  **No `clients:` block needed at boot.** The server starts fine with zero static clients.
+  You register your first client through the admin console or the Admin API after the first
+  start (see [Registering your first client](#registering-your-first-client)).
+</Callout>
 
 ### What the client `add` scaffolds
 
@@ -293,16 +297,53 @@ nothing else to persist on the RP. For the simpler local-only logout and the ful
 end-session details, see [Security](/docs/security#logout) and
 [Back-Channel Logout](/docs/back-channel-logout) for IdP-initiated termination.
 
+## Registering your first client
+
+After the first boot, open the admin console at `/admin/clients` (log in with an account
+that has the `ADMIN` role) and click **Create client**. Alternatively, use the Admin REST
+API directly — no browser session required:
+
+```bash
+# Create a confidential client for your app
+curl -X POST http://localhost:3333/api/authkit/v1/clients \
+  -H "Authorization: Bearer $AUTHKIT_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "clientId": "my-app",
+        "redirectUris": ["http://localhost:3333/auth/callback"],
+        "postLogoutRedirectUris": ["http://localhost:3333/"],
+        "grantTypes": ["authorization_code", "refresh_token"],
+        "tokenEndpointAuthMethod": "client_secret_basic"
+      }'
+```
+
+The response includes `clientSecret` — **save it now**, it is not recoverable afterwards:
+
+```json
+{ "clientId": "my-app", "clientSecret": "s3cr3t-shown-once" }
+```
+
+Set the credentials in `.env` and wire them into your client config:
+
+```dotenv title=".env"
+AUTHKIT_CLIENT_ID=my-app
+AUTHKIT_CLIENT_SECRET=s3cr3t-shown-once
+AUTHKIT_REDIRECT_URI=http://localhost:3333/auth/callback
+```
+
+From this point the client is stored in the adapter/DB and survives restarts. You can
+update its redirect URIs, regenerate its secret, or delete it at any time from the console
+or API — no config change or redeploy required.
+
 ## Environment variables
 
 ```dotenv title=".env"
 AUTHKIT_ISSUER=http://localhost:3333/oidc
+AUTHKIT_ADMIN_API_KEY=high-entropy-key-here
+# set after creating the first client (see above):
 AUTHKIT_CLIENT_ID=my-app
 AUTHKIT_CLIENT_SECRET=super-secret
 AUTHKIT_REDIRECT_URI=http://localhost:3333/auth/callback
-# the server reads the same client back through these:
-MY_APP_CLIENT_SECRET=super-secret
-MY_APP_REDIRECT_URI=http://localhost:3333/auth/callback
 ```
 
 ## Using it in controllers

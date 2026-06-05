@@ -198,6 +198,149 @@ CREATE TABLE auth_settings (
 The toggle is surfaced in the admin console at `/admin/settings` (see [Admin Console — Settings page](/docs/admin-console#settings-page))
 and via the Admin REST API / SDK (`settings.set('bot_protection', { ... })`).
 
+## Registration toggle
+
+Controls whether public sign-up is open or closed at runtime — without a redeploy. The
+static fallback is `registration.enabled` in `defineConfig` (defaults to `true`).
+
+```ts title="config/authkit.ts"
+defineConfig({
+  // …
+  registration: { enabled: true }, // static default; overridable at runtime
+})
+```
+
+**Setting key:** `registration`
+
+```json
+{ "enabled": false }
+```
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `enabled` | `boolean` | `false` closes public sign-up at runtime. |
+
+**Behaviour when closed:**
+
+- The sign-up page displays a "Registration is currently closed" message.
+- `POST /auth/signup` rejects the submission.
+- The sign-up link is hidden from the login screen.
+- Org invitations and admin-created accounts are **not** affected — those are privileged
+  flows that bypass the registration guard.
+
+**Precedence rules:**
+
+1. `auth_settings` table absent or error → uses `config.registration.enabled` (fail-safe).
+2. Setting present → overrides the static config value.
+
+The toggle is surfaced in the admin console at `/admin/settings` and via the Admin REST API:
+
+```bash
+# Close registration at runtime
+curl -X PUT https://idp.acme.com/api/authkit/v1/settings/registration \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "value": { "enabled": false } }'
+
+# Re-open
+curl -X DELETE https://idp.acme.com/api/authkit/v1/settings/registration \
+  -H "Authorization: Bearer $KEY"
+```
+
+## Require verified email toggle
+
+Overrides `login.requireVerifiedEmail` for all three login flows (password, magic link,
+passkey-first) at runtime.
+
+```ts title="config/authkit.ts"
+defineConfig({
+  // …
+  login: { requireVerifiedEmail: false }, // static default; overridable at runtime
+})
+```
+
+**Setting key:** `require_verified_email`
+
+```json
+{ "enabled": true }
+```
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `enabled` | `boolean` | `true` blocks logins for accounts whose email is unverified. |
+
+**Precedence rules:**
+
+1. `auth_settings` table absent or error → uses `config.login.requireVerifiedEmail` (fail-safe).
+2. Setting present → overrides the static config value for all three login flows.
+
+**Note:** the check is capability-probed — when the `accountStore` does not implement
+`isEmailVerified`, the guard is a no-op regardless of the setting value. `authkit:doctor`
+warns when the setting is `true` but the capability is absent.
+
+The toggle is surfaced in the admin console at `/admin/settings` and via the Admin REST API:
+
+```bash
+curl -X PUT https://idp.acme.com/api/authkit/v1/settings/require_verified_email \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "value": { "enabled": true } }'
+```
+
+## Maintenance mode
+
+Puts the IdP into maintenance mode at runtime: login, sign-up, and forgot-password flows
+are blocked for non-admin users, showing a custom maintenance page. **Admin accounts
+continue to log in normally** — the operator is never locked out.
+
+**Setting key:** `maintenance_mode`
+
+```json
+{
+  "enabled": true,
+  "message": "We are upgrading our systems. Back in a few minutes."
+}
+```
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `enabled` | `boolean` | `true` activates maintenance mode. |
+| `message` | `string?` | Optional custom message shown on the maintenance page. Defaults to the built-in i18n string. |
+
+**Behaviour during maintenance:**
+
+- The login, sign-up, forgot-password, and interaction pages redirect to a maintenance screen.
+- `POST` submissions on those flows are rejected.
+- Existing sessions and refresh / introspection / userinfo flows continue to work — active
+  sessions are not disrupted.
+- Accounts whose global roles include any value in `admin.roles` bypass the maintenance gate
+  and can still log in.
+- The Admin Console and Admin REST API are never blocked by maintenance mode.
+
+**Escape hatch — Admin REST API:**
+
+If the admin console is unreachable from the browser (e.g. during an infrastructure
+incident), disable maintenance mode directly via the API key-authenticated Admin REST API
+without needing an active session:
+
+```bash
+curl -X PUT https://idp.acme.com/api/authkit/v1/settings/maintenance_mode \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "value": { "enabled": false } }'
+```
+
+**Audit:** enabling and disabling maintenance mode emits `maintenance.enabled` and
+`maintenance.disabled` audit events respectively.
+
+**Precedence rules:**
+
+1. `auth_settings` table absent or error → `{ enabled: false }` (system is up; fail-safe).
+2. Setting present → uses the stored value.
+
+The toggle is surfaced in the admin console at `/admin/settings` alongside the other
+runtime setting cards.
+
 ## Audit logging
 
 Provide an `AuditSink` to capture security-relevant events. It is best-effort — `record`

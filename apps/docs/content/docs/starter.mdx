@@ -56,7 +56,7 @@ export default class AuthUser extends compose(
 ) {}
 ```
 
-### A3. Server config — list the host as its own client
+### A3. Server config
 
 ```ts title="config/authkit_server.ts"
 import env from '#start/env'
@@ -73,17 +73,11 @@ const authServerConfig = defineConfig({
   adapter: adapters.database({ connection: 'auth' }),
   jwks: { source: 'managed', algorithm: 'RS256' },
   ttl: { accessToken: '15m', refreshToken: '30d' },
-  clients: [
-    {
-      clientId: 'acme-web', // the host itself
-      clientSecret: env.get('WEB_CLIENT_SECRET'),
-      redirectUris: [env.get('WEB_REDIRECT_URI')],
-      grants: ['authorization_code', 'refresh_token'],
-    },
-  ],
   accountStore: lucidAccountStore(AuthUser),
   mountPath: '/oidc',
   render: inertiaRenderer({ prefix: 'authkit' }),
+  admin: { enabled: true },
+  adminApi: { enabled: true, apiKeys: [env.get('AUTHKIT_ADMIN_API_KEY')] },
 })
 
 export default authServerConfig
@@ -93,6 +87,37 @@ export default authServerConfig
   `issuer` is the public provider URL and **must end with `mountPath`** — here `…/oidc` for
   `mountPath: '/oidc'`. In this topology the issuer host is the host app's own origin.
 </Callout>
+
+<Callout type="info">
+  **No `clients:` block.** Boot the server, then register the host app's own client in the
+  admin console at `/admin/clients` or via the Admin REST API (see [A3a](#a3a-register-the-host-client)).
+</Callout>
+
+### A3a. Register the host client
+
+After the first boot, create the `acme-web` client (the host authenticating against
+itself):
+
+```bash
+curl -X POST http://localhost:3333/api/authkit/v1/clients \
+  -H "Authorization: Bearer $AUTHKIT_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "clientId": "acme-web",
+        "redirectUris": ["http://localhost:3333/auth/callback"],
+        "postLogoutRedirectUris": ["http://localhost:3333/"],
+        "grantTypes": ["authorization_code", "refresh_token"],
+        "tokenEndpointAuthMethod": "client_secret_basic"
+      }'
+```
+
+Save the `clientSecret` from the response — it is shown only once. Put it in `.env`:
+
+```dotenv title=".env (additions)"
+AUTHKIT_CLIENT_ID=acme-web
+AUTHKIT_CLIENT_SECRET=<secret from response>
+AUTHKIT_REDIRECT_URI=http://localhost:3333/auth/callback
+```
 
 ### A4. Client config — point at your own issuer
 
@@ -204,12 +229,11 @@ router.get('/logout', async ({ session, response }) => {
 
 ```dotenv title=".env"
 AUTHKIT_ISSUER=http://localhost:3333/oidc
+AUTHKIT_ADMIN_API_KEY=high-entropy-key-here
+# set after registering the client (step A3a):
 AUTHKIT_CLIENT_ID=acme-web
-AUTHKIT_CLIENT_SECRET=super-secret
+AUTHKIT_CLIENT_SECRET=<from admin API response>
 AUTHKIT_REDIRECT_URI=http://localhost:3333/auth/callback
-# the server reads the same client back through these:
-WEB_CLIENT_SECRET=super-secret
-WEB_REDIRECT_URI=http://localhost:3333/auth/callback
 ```
 
 That's the whole single-app setup — the provider and the relying party are the same process.
@@ -237,7 +261,7 @@ node ace configure @dudousxd/adonis-authkit-server
 Identical to [A2](#a2-the-account-model) — compose `AuthUser` from `withAuthUser()` and
 `withCredentials()`. The IdP owns the user identities.
 
-#### B3. Server config — register every client
+#### B3. Server config
 
 ```ts title="config/authkit_server.ts (IdP)"
 import env from '#start/env'
@@ -254,27 +278,11 @@ const authServerConfig = defineConfig({
   adapter: adapters.database({ connection: 'auth' }),
   jwks: { source: 'managed', algorithm: 'RS256' },
   ttl: { accessToken: '15m', refreshToken: '30d' },
-  clients: [
-    {
-      clientId: 'acme-web',
-      clientSecret: env.get('WEB_CLIENT_SECRET'),
-      redirectUris: [env.get('WEB_REDIRECT_URI')],
-      postLogoutRedirectUris: ['https://web.acme.com/'],
-      // optional: server-to-server logout pointer (see Back-channel Logout)
-      backchannelLogoutUri: 'https://web.acme.com/auth/backchannel-logout',
-      grants: ['authorization_code', 'refresh_token'],
-    },
-    {
-      clientId: 'acme-admin',
-      clientSecret: env.get('ADMIN_CLIENT_SECRET'),
-      redirectUris: [env.get('ADMIN_REDIRECT_URI')],
-      postLogoutRedirectUris: ['https://admin.acme.com/'],
-      grants: ['authorization_code', 'refresh_token'],
-    },
-  ],
   accountStore: lucidAccountStore(AuthUser),
   mountPath: '/oidc',
   render: inertiaRenderer({ prefix: 'authkit' }),
+  admin: { enabled: true },
+  adminApi: { enabled: true, apiKeys: [env.get('AUTHKIT_ADMIN_API_KEY')] },
 })
 
 export default authServerConfig
@@ -288,6 +296,7 @@ import { registerAuthHost } from '@dudousxd/adonis-authkit-server'
 
 registerAuthHost(router, {
   mountPath: '/oidc',
+  adminApi: true,
 })
 ```
 
@@ -296,11 +305,42 @@ email verification, and the account console.
 
 ```dotenv title=".env (IdP)"
 AUTHKIT_ISSUER=https://auth.acme.com/oidc
-WEB_CLIENT_SECRET=web-super-secret
-WEB_REDIRECT_URI=https://web.acme.com/auth/callback
-ADMIN_CLIENT_SECRET=admin-super-secret
-ADMIN_REDIRECT_URI=https://admin.acme.com/auth/callback
+AUTHKIT_ADMIN_API_KEY=high-entropy-key-here
 ```
+
+#### B3a. Register the clients
+
+After the first boot, register `acme-web` and `acme-admin` via the Admin REST API:
+
+```bash
+# acme-web
+curl -X POST https://auth.acme.com/api/authkit/v1/clients \
+  -H "Authorization: Bearer $AUTHKIT_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "clientId": "acme-web",
+        "redirectUris": ["https://web.acme.com/auth/callback"],
+        "postLogoutRedirectUris": ["https://web.acme.com/"],
+        "grantTypes": ["authorization_code", "refresh_token"],
+        "tokenEndpointAuthMethod": "client_secret_basic"
+      }'
+
+# acme-admin
+curl -X POST https://auth.acme.com/api/authkit/v1/clients \
+  -H "Authorization: Bearer $AUTHKIT_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "clientId": "acme-admin",
+        "redirectUris": ["https://admin.acme.com/auth/callback"],
+        "postLogoutRedirectUris": ["https://admin.acme.com/"],
+        "grantTypes": ["authorization_code", "refresh_token"],
+        "tokenEndpointAuthMethod": "client_secret_basic"
+      }'
+```
+
+Each response includes a `clientSecret` shown **once** — copy it into each client app's
+`.env`. Back-channel logout URIs and other per-client settings can be edited in the admin
+console at any time.
 
 ### The client side (`acme-web` and `acme-admin`)
 

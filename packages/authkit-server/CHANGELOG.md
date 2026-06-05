@@ -1,5 +1,11 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.8.0
+
+### Minor Changes
+
+- 93bfc4f: Admin REST API (/api/authkit/v1) com API keys — base do SDK
+
 ## 0.7.0
 
 ### Minor Changes

@@ -210,6 +210,18 @@ export type {
 export { TokenVerifyService } from './src/host/admin_api/token_verify_service.js'
 export type { VerifyResult } from './src/host/admin_api/token_verify_service.js'
 
+// Contexto de sessão (user-agent/geo) + métricas do dashboard.
+export { enrichSessionsWithContext } from './src/host/session_context.js'
+export { parseUserAgent } from './src/host/user_agent.js'
+export type { ParsedUserAgent } from './src/host/user_agent.js'
+export { resolveGeoSafe, GEO_RESOLVE_TIMEOUT_MS } from './src/host/geo.js'
+export type { ResolveGeo } from './src/host/geo.js'
+export { computeAdminStats } from './src/host/admin_stats_service.js'
+export type { AdminStats, DailyPoint } from './src/host/admin_stats_service.js'
+export { barChartSvg } from './src/host/svg_chart.js'
+export { buildImpersonationPanel } from './src/host/impersonation.js'
+export type { ImpersonationPanel } from './src/host/impersonation.js'
+
 /**
  * Configure hook + stubsRoot resolvidos pelo `node ace configure @dudousxd/adonis-authkit-server`.
  * O comando do AdonisJS importa o entrypoint principal e procura por estes exports.

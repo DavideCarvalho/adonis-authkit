@@ -35,14 +35,19 @@ export async function notifyLoginSuccess(
 ): Promise<void> {
   const { accountId, email, ip, clientId, metadata, trustedDevice } = input
 
-  // 1) Audit do login.success (mesmo formato de antes).
+  // User-agent da request: anexado ao `login.success` em `metadata.userAgent` para
+  // dar contexto de dispositivo às sessões (o admin/account o lê via join por
+  // accountId+loginTs). Sem migração — usa a coluna JSON `metadata` já existente.
+  const ua = ctx.request.header?.('user-agent') ?? null
+
+  // 1) Audit do login.success (mesmo formato de antes + userAgent em metadata).
   await cfg.audit?.record({
     type: 'login.success',
     accountId,
     email: email ?? null,
     ip: ip ?? null,
     clientId: clientId ?? null,
-    metadata,
+    metadata: ua ? { ...(metadata ?? {}), userAgent: ua } : metadata,
   })
 
   // 2) Sinal de DISPOSITIVO NOVO: login sem cookie de confiança válido para a
@@ -61,7 +66,7 @@ export async function notifyLoginSuccess(
     })
   }
 
-  const userAgent = ctx.request.header?.('user-agent') ?? null
+  const userAgent = ua
 
   // 3) Alertas por e-mail (fire-and-forget): nunca propaga erro pro login.
   if (!cfg.notifications.newLoginEmail && !(onNewDevice && cfg.notifications.newDeviceEmail)) return

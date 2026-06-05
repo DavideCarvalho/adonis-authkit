@@ -40,6 +40,11 @@ export function sessionDto(session: AdminSession) {
     accountId: session.accountId,
     loginTs: session.loginTs ?? null,
     amr: session.amr ?? [],
+    userAgent: session.userAgent ?? null,
+    browser: session.browser ?? null,
+    os: session.os ?? null,
+    ip: session.ip ?? null,
+    location: session.location ?? null,
   }
 }
 

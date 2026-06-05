@@ -163,6 +163,9 @@ export const DEFAULT_MESSAGES = {
   'account.security.trusted_devices_revoke': 'Stop trusting this device',
   'account.security.trusted_devices_revoked':
     'This device is no longer trusted. Two-factor will be required here again.',
+  'account.security.sessions_section': 'Active sessions',
+  'account.security.sessions_intro': 'Devices and locations where your account is currently signed in.',
+  'account.security.sessions_empty': 'No active sessions.',
 
   // Console de conta — perfil (seção em account/security).
   'account.profile.section': 'Profile',
@@ -261,6 +264,10 @@ export const DEFAULT_MESSAGES = {
   'admin.dashboard.clients_count': 'Clients',
   'admin.dashboard.audit_count': 'Audit events',
   'admin.dashboard.recent_title': 'Recent events',
+  'admin.dashboard.mau': 'Active users (30d)',
+  'admin.dashboard.active_sessions': 'Active sessions',
+  'admin.dashboard.signins_title': 'Sign-ins (last {days}d)',
+  'admin.dashboard.signups_title': 'Sign-ups (last {days}d)',
 
   // Console admin — usuários.
   'admin.users.page_title': 'Users',
@@ -303,6 +310,9 @@ export const DEFAULT_MESSAGES = {
   'admin.sessions.sessions_empty': 'No active sessions.',
   'admin.sessions.session_login_ts': 'Login: {date}',
   'admin.sessions.session_amr': 'Methods: {amr}',
+  'admin.sessions.session_device': '{browser} on {os}',
+  'admin.sessions.session_ip': 'IP: {ip}',
+  'admin.sessions.session_ip_geo': 'IP: {ip} · {location}',
   'admin.sessions.grants_section': 'Grants (per-client authorizations)',
   'admin.sessions.grants_empty': 'No active grants.',
   'admin.sessions.grant_client': 'Client: {clientId}',
@@ -310,6 +320,16 @@ export const DEFAULT_MESSAGES = {
   'admin.sessions.revoke_all': 'Revoke all sessions and grants',
   'admin.sessions.revoke_confirm':
     'Revoke all sessions and grants for this account? The user will need to log in again and issued tokens will stop working.',
+
+  // Console admin — impersonation (RFC 8693 token exchange).
+  'admin.impersonation.title': 'Impersonate this user',
+  'admin.impersonation.help':
+    'Token Exchange (RFC 8693) lets an admin act as this user. There is no auth bypass: you exchange YOUR OWN admin access token for one scoped to the target.',
+  'admin.impersonation.curl_label': 'Ready-to-run request',
+  'admin.impersonation.note':
+    'Replace <ADMIN_ACCESS_TOKEN> with a current admin access token. The resulting id_token carries act={sub: admin}; the event is audited as impersonation.started.',
+  'admin.impersonation.no_client':
+    'No client has the token-exchange grant enabled. Add "urn:ietf:params:oauth:grant-type:token-exchange" to a client to enable impersonation.',
 
   // Console admin — clients.
   'admin.clients.page_title': 'OAuth clients',
@@ -587,6 +607,9 @@ export const PT_BR_MESSAGES = {
   'account.security.trusted_devices_revoke': 'Deixar de confiar neste dispositivo',
   'account.security.trusted_devices_revoked':
     'Este dispositivo não é mais confiável. A verificação em duas etapas voltará a ser exigida aqui.',
+  'account.security.sessions_section': 'Sessões ativas',
+  'account.security.sessions_intro': 'Dispositivos e locais onde sua conta está logada agora.',
+  'account.security.sessions_empty': 'Nenhuma sessão ativa.',
 
   // Console de conta — perfil (seção em account/security).
   'account.profile.section': 'Perfil',
@@ -685,6 +708,10 @@ export const PT_BR_MESSAGES = {
   'admin.dashboard.clients_count': 'Clients',
   'admin.dashboard.audit_count': 'Eventos de auditoria',
   'admin.dashboard.recent_title': 'Eventos recentes',
+  'admin.dashboard.mau': 'Usuários ativos (30d)',
+  'admin.dashboard.active_sessions': 'Sessões ativas',
+  'admin.dashboard.signins_title': 'Logins (últimos {days}d)',
+  'admin.dashboard.signups_title': 'Cadastros (últimos {days}d)',
 
   // Console admin — usuários.
   'admin.users.page_title': 'Usuários',
@@ -727,6 +754,9 @@ export const PT_BR_MESSAGES = {
   'admin.sessions.sessions_empty': 'Nenhuma sessão ativa.',
   'admin.sessions.session_login_ts': 'Login: {date}',
   'admin.sessions.session_amr': 'Métodos: {amr}',
+  'admin.sessions.session_device': '{browser} em {os}',
+  'admin.sessions.session_ip': 'IP: {ip}',
+  'admin.sessions.session_ip_geo': 'IP: {ip} · {location}',
   'admin.sessions.grants_section': 'Grants (autorizações por client)',
   'admin.sessions.grants_empty': 'Nenhum grant ativo.',
   'admin.sessions.grant_client': 'Client: {clientId}',
@@ -734,6 +764,16 @@ export const PT_BR_MESSAGES = {
   'admin.sessions.revoke_all': 'Revogar todas as sessões e grants',
   'admin.sessions.revoke_confirm':
     'Revogar todas as sessões e grants desta conta? O usuário precisará entrar novamente e os tokens emitidos deixarão de funcionar.',
+
+  // Console admin — impersonation (RFC 8693 token exchange).
+  'admin.impersonation.title': 'Personificar este usuário',
+  'admin.impersonation.help':
+    'O Token Exchange (RFC 8693) permite que um admin aja como este usuário. Não há bypass de auth: você troca o SEU PRÓPRIO access token de admin por um escopado ao alvo.',
+  'admin.impersonation.curl_label': 'Requisição pronta para rodar',
+  'admin.impersonation.note':
+    'Troque <ADMIN_ACCESS_TOKEN> por um access token de admin válido. O id_token resultante carrega act={sub: admin}; o evento é auditado como impersonation.started.',
+  'admin.impersonation.no_client':
+    'Nenhum client tem o grant token-exchange habilitado. Adicione "urn:ietf:params:oauth:grant-type:token-exchange" a um client para habilitar a personificação.',
 
   // Console admin — clients.
   'admin.clients.page_title': 'Clients OAuth',

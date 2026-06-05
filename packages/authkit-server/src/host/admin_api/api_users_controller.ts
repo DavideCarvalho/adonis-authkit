@@ -3,6 +3,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import type { AuthAccount } from '../../accounts/account_store.js'
 import { AdminUsersService } from './admin_users_service.js'
 import { AdminSessionsService } from '../admin_sessions_service.js'
+import { enrichSessionsWithContext } from '../session_context.js'
 import { userDto, sessionDto, grantDto, apiError } from './dto.js'
 
 const PAGE_SIZE = 20
@@ -143,12 +144,12 @@ export default class ApiUsersController {
     return { id, sent: true }
   }
 
-  /** GET /users/:id/sessions — sessões + grants ativos. */
+  /** GET /users/:id/sessions — sessões (enriquecidas com contexto) + grants ativos. */
   async sessions(ctx: HttpContext) {
-    const { service } = await ctxBits(ctx)
+    const { service, cfg } = await ctxBits(ctx)
     const id = ctx.request.param('id')
     const admin = new AdminSessionsService(service)
-    const sessions = await admin.listSessions(id)
+    const sessions = await enrichSessionsWithContext(cfg, id, await admin.listSessions(id))
     const grants = await admin.listGrants(id)
     return {
       canList: admin.canList,

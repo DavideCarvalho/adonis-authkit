@@ -2,6 +2,8 @@ import '../../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import { ACCOUNT_SESSION_KEY } from '../../middleware/account_auth.js'
 import { AdminSessionsService } from '../../admin_sessions_service.js'
+import { enrichSessionsWithContext } from '../../session_context.js'
+import { buildImpersonationPanel } from '../../impersonation.js'
 
 /**
  * Inspeção/revogação das sessões e grants ativos de uma conta no console admin.
@@ -22,12 +24,29 @@ export default class AdminSessionsController {
     const sessions = new AdminSessionsService(service)
     const supported = sessions.canList
 
-    const sessionList = supported ? await sessions.listSessions(accountId) : []
+    const rawSessions = supported ? await sessions.listSessions(accountId) : []
+    // Enriquece com contexto (UA→browser/SO + IP + geo) via join com o audit.
+    const sessionList = await enrichSessionsWithContext(cfg, accountId, rawSessions)
     const grantList = supported ? await sessions.listGrants(accountId) : []
 
     const revoked = ctx.session.flashMessages.get('sessionsRevoked') as
       | { sessions: number; grants: number; accessTokens: number; refreshTokens: number }
       | undefined
+
+    // Painel de impersonation (RFC 8693), só quando ligado no config (default OFF).
+    // Acessar o painel é uma intenção de impersonation → audita `impersonation.started`.
+    const impersonationEnabled = cfg.admin.impersonation
+    let impersonation: ReturnType<typeof buildImpersonationPanel> = null
+    if (impersonationEnabled) {
+      impersonation = buildImpersonationPanel(cfg, accountId)
+      await cfg.audit?.record({
+        type: 'impersonation.started',
+        accountId,
+        actorId: (ctx.session.get(ACCOUNT_SESSION_KEY) as string) ?? null,
+        ip: ctx.request.ip?.() ?? null,
+        metadata: { clientId: impersonation?.clientId ?? null, channel: 'admin-panel' },
+      })
+    }
 
     return render(ctx, 'admin/sessions', {
       csrfToken: ctx.request.csrfToken,
@@ -35,10 +54,16 @@ export default class AdminSessionsController {
       accountId,
       email: account?.email ?? '',
       revoked: revoked ?? null,
+      impersonationEnabled,
+      impersonation,
       sessions: sessionList.map((s) => ({
         id: s.id,
         loginTs: s.loginTs ? new Date(s.loginTs * 1000).toISOString() : '',
         amr: (s.amr ?? []).join(', '),
+        browser: s.browser ?? '',
+        os: s.os ?? '',
+        ip: s.ip ?? '',
+        location: s.location ?? '',
       })),
       grants: grantList.map((g) => ({
         id: g.id,

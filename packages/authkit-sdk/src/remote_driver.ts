@@ -4,6 +4,7 @@ import type {
   AuthkitClient,
   AuthkitCreatedClient,
   AuthkitCreatedUser,
+  AuthkitStats,
   AuthkitUser,
   ClientInput,
   CreateUserInput,
@@ -165,6 +166,9 @@ export function createRemoteAuthkit(opts: RemoteOptions): Authkit {
       list(params: ListAuditParams = {}) {
         return request<ListAuditResult>('GET', `/audit${buildQuery({ ...params })}`)
       },
+    },
+    stats() {
+      return request<AuthkitStats>('GET', '/stats')
     },
     tokens: {
       verify(token: string) {

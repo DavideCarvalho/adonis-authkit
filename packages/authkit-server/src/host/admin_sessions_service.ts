@@ -10,6 +10,20 @@ export interface AdminSession {
   loginTs?: number
   /** Métodos de autenticação registrados na sessão (amr), quando presentes. */
   amr?: string[]
+  /**
+   * User-agent bruto do login, recuperado do audit `login.success` por join
+   * accountId+loginTs ({@link enrichSessionsWithContext}). Ausente quando o sink de
+   * auditoria não consulta ou não há evento correlacionável.
+   */
+  userAgent?: string | null
+  /** Família do browser derivada do user-agent (ex.: 'Chrome'). */
+  browser?: string | null
+  /** Sistema operacional derivado do user-agent (ex.: 'macOS'). */
+  os?: string | null
+  /** IP do login (do mesmo audit `login.success`). */
+  ip?: string | null
+  /** Localização legível resolvida via o hook `resolveGeo` (null sem hook/resolução). */
+  location?: string | null
 }
 
 /** Um grant (autorização concedida a um client), com a contagem de tokens vivos. */
@@ -65,6 +79,15 @@ export class AdminSessionsService {
     const adapter = this.#adapter(model)
     if (!adapter.list) return []
     return adapter.list()
+  }
+
+  /**
+   * Conta TODAS as sessões ativas do IdP (todas as contas). 0 quando o adapter não
+   * enumera. Usado pelo dashboard de métricas.
+   */
+  async countActiveSessions(): Promise<number> {
+    const rows = await this.#listModel('Session')
+    return rows.length
   }
 
   /** Lista as sessões ativas da conta (vazio quando o adapter não enumera). */

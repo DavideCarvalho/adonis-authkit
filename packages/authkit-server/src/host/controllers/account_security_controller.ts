@@ -18,6 +18,8 @@ import { translate } from '../i18n.js'
 import { TRUSTED_DEVICE_COOKIE } from '../trusted_device.js'
 import { AccountDeletionService } from '../account_deletion_service.js'
 import { AccountExportService } from '../account_export_service.js'
+import { AdminSessionsService } from '../admin_sessions_service.js'
+import { enrichSessionsWithContext } from '../session_context.js'
 import { PasswordPolicyError } from '../../password/password_manager.js'
 
 /**
@@ -36,6 +38,14 @@ export default class AccountSecurityController {
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
     const account = await cfg.accountStore.findById(userId)
 
+    // Sessões ativas da PRÓPRIA conta (enriquecidas com contexto de dispositivo),
+    // capability-probed: só quando o adapter OIDC enumera.
+    const adminSessions = new AdminSessionsService(service)
+    const sessionsSupported = adminSessions.canList
+    const ownSessions = sessionsSupported
+      ? await enrichSessionsWithContext(cfg, userId, await adminSessions.listSessions(userId))
+      : []
+
     return render(ctx, 'account/security', {
       csrfToken: ctx.request.csrfToken,
       supported: supportsAccountSecurity(cfg.accountStore),
@@ -52,6 +62,14 @@ export default class AccountSecurityController {
       error: ctx.session.flashMessages.get('securityError') ?? null,
       trustedDevicesEnabled: cfg.trustedDevices.enabled,
       trustedDevicesRevoked: ctx.session.flashMessages.get('trustedDevicesRevoked') ?? null,
+      sessionsSupported,
+      sessions: ownSessions.map((s) => ({
+        loginTs: s.loginTs ? new Date(s.loginTs * 1000).toISOString() : '',
+        browser: s.browser ?? '',
+        os: s.os ?? '',
+        ip: s.ip ?? '',
+        location: s.location ?? '',
+      })),
       // Export de dados (portabilidade) sempre disponível para a conta logada.
       exportSupported: true,
       // Deleção de conta (LGPD): só quando o store suporta hard delete.

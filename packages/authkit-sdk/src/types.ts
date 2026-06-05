@@ -55,6 +55,16 @@ export interface AuthkitSession {
   accountId: string
   loginTs: number | null
   amr: string[]
+  /** Raw user-agent of the login (joined from the audit log). */
+  userAgent: string | null
+  /** Browser family parsed from the user-agent (e.g. 'Chrome'). */
+  browser: string | null
+  /** Operating system parsed from the user-agent (e.g. 'macOS'). */
+  os: string | null
+  /** IP address of the login. */
+  ip: string | null
+  /** Human-readable location resolved via the host `resolveGeo` hook (null without one). */
+  location: string | null
 }
 
 /** A grant with live token counts (`grantDto`). */
@@ -148,6 +158,28 @@ export interface ListAuditResult {
   limit: number
 }
 
+/** A daily series point (ISO `YYYY-MM-DD` day + count). */
+export interface AuthkitDailyPoint {
+  date: string
+  count: number
+}
+
+/** IdP summary metrics (`computeAdminStats`). */
+export interface AuthkitStats {
+  totalUsers: number
+  /** Active sessions; null when the OIDC adapter does not enumerate. */
+  activeSessions: number | null
+  /** Monthly Active Users: unique accounts with a login.success in the last 30 days. */
+  mau: number
+  signInsPerDay: AuthkitDailyPoint[]
+  signUpsPerDay: AuthkitDailyPoint[]
+  signInsTotal: number
+  signUpsTotal: number
+  /** Whether the audit sink supports querying (series are empty when false). */
+  auditSupported: boolean
+  windowDays: number
+}
+
 /** Generic token introspection result (`VerifyResult`). */
 export type VerifyTokenResult =
   | { active: false }
@@ -223,6 +255,8 @@ export interface Authkit {
   audit: {
     list(params?: ListAuditParams): Promise<ListAuditResult>
   }
+  /** IdP summary metrics for dashboards (totals + MAU + 30-day series). */
+  stats(): Promise<AuthkitStats>
   tokens: {
     verify(token: string): Promise<VerifyTokenResult>
   }

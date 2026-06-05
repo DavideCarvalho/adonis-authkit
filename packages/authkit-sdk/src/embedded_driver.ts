@@ -4,6 +4,7 @@ import type {
   AuthkitClient,
   AuthkitCreatedClient,
   AuthkitCreatedUser,
+  AuthkitStats,
   AuthkitUser,
   ClientInput,
   CreateUserInput,
@@ -72,13 +73,21 @@ export async function createEmbeddedAuthkit(opts: EmbeddedOptions): Promise<Auth
   const { app } = opts
   // Lazy import: only remote-mode consumers may not have the server installed.
   const server = await import('@dudousxd/adonis-authkit-server')
-  const { AdminUsersService, AdminClientsService, AdminSessionsService, TokenVerifyService } =
-    server as unknown as {
-      AdminUsersService: any
-      AdminClientsService: any
-      AdminSessionsService: any
-      TokenVerifyService: any
-    }
+  const {
+    AdminUsersService,
+    AdminClientsService,
+    AdminSessionsService,
+    TokenVerifyService,
+    enrichSessionsWithContext,
+    computeAdminStats,
+  } = server as unknown as {
+    AdminUsersService: any
+    AdminClientsService: any
+    AdminSessionsService: any
+    TokenVerifyService: any
+    enrichSessionsWithContext: (cfg: any, accountId: string, sessions: any[]) => Promise<any[]>
+    computeAdminStats: (cfg: any, sessionsService: any) => Promise<AuthkitStats>
+  }
 
   const service = await app.container.make('authkit.server')
   const cfg = (service as any).config
@@ -110,7 +119,17 @@ export async function createEmbeddedAuthkit(opts: EmbeddedOptions): Promise<Auth
   }
 
   function sessionDto(s: any) {
-    return { id: s.id, accountId: s.accountId, loginTs: s.loginTs ?? null, amr: s.amr ?? [] }
+    return {
+      id: s.id,
+      accountId: s.accountId,
+      loginTs: s.loginTs ?? null,
+      amr: s.amr ?? [],
+      userAgent: s.userAgent ?? null,
+      browser: s.browser ?? null,
+      os: s.os ?? null,
+      ip: s.ip ?? null,
+      location: s.location ?? null,
+    }
   }
   function grantDto(g: any) {
     return {
@@ -222,7 +241,7 @@ export async function createEmbeddedAuthkit(opts: EmbeddedOptions): Promise<Auth
     sessions: {
       async list(userId: string): Promise<ListSessionsResult> {
         const admin = new AdminSessionsService(service)
-        const sessions = await admin.listSessions(userId)
+        const sessions = await enrichSessionsWithContext(cfg, userId, await admin.listSessions(userId))
         const grants = await admin.listGrants(userId)
         return { canList: admin.canList, sessions: sessions.map(sessionDto), grants: grants.map(grantDto) }
       },
@@ -310,6 +329,10 @@ export async function createEmbeddedAuthkit(opts: EmbeddedOptions): Promise<Auth
         const result = await sink.list({ page, limit, type, subject })
         return { data: result.data.map(auditDto), total: result.total, page, limit }
       },
+    },
+    async stats(): Promise<AuthkitStats> {
+      const sessions = new AdminSessionsService(service)
+      return computeAdminStats(cfg, sessions)
     },
     tokens: {
       async verify(token: string): Promise<VerifyTokenResult> {

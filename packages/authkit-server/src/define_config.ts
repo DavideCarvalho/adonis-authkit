@@ -28,6 +28,7 @@ import {
   type BotProtectionConfigInput,
   type ResolvedBotProtectionConfig,
 } from './host/bot_protection.js'
+import type { ResolveGeo } from './host/geo.js'
 
 export { adapters }
 export type { AuthAccount }
@@ -496,17 +497,28 @@ export interface AdminConfigInput {
   enabled: boolean
   /** Roles globais que dão acesso ao /admin. Default: ['ADMIN']. */
   roles?: string[]
+  /**
+   * Liga o PAINEL DE IMPERSONATION na página do usuário do console (RFC 8693 Token
+   * Exchange). Default: false — superfície sensível, opt-in. Quando ligado, o admin
+   * vê um painel com os parâmetros do token-exchange prontos (+ curl) para assumir a
+   * identidade do alvo. NÃO faz bypass de auth: o exchange real exige um access token
+   * do admin como `subject_token` e um client com o grant token-exchange. Acessar o
+   * painel audita `impersonation.started`.
+   */
+  impersonation?: boolean
 }
 
 export interface ResolvedAdminConfig {
   enabled: boolean
   roles: string[]
+  impersonation: boolean
 }
 
 export function resolveAdmin(input?: AdminConfigInput): ResolvedAdminConfig {
   return {
     enabled: input?.enabled ?? false,
     roles: input?.roles && input.roles.length > 0 ? input.roles : ['ADMIN'],
+    impersonation: input?.impersonation ?? false,
   }
 }
 
@@ -691,6 +703,13 @@ export interface AuthServerConfigInput {
    * montagem das rotas acontece antes do config resolver). Autenticação por API key.
    */
   adminApi?: AdminApiConfigInput
+  /**
+   * Resolução de geolocalização PLUGÁVEL para o IP das sessões (console + Admin
+   * API). A lib NÃO embute banco de geo: o host pluga (ex.: MaxMind/ipapi). Default:
+   * ausente → as sessões mostram só o IP (sem localização). Fail-safe com timeout
+   * curto: erro/timeout → sem localização.
+   */
+  resolveGeo?: ResolveGeo
 }
 
 export interface ResolvedServerConfig {
@@ -746,6 +765,8 @@ export interface ResolvedServerConfig {
   admin: ResolvedAdminConfig
   /** Admin REST API resolvida (sempre presente; default desligada). */
   adminApi: ResolvedAdminApiConfig
+  /** Resolver de geo plugável (undefined quando o host não plugou). */
+  resolveGeo?: ResolveGeo
   /** Catálogo de mensagens ativo (locale resolvido), pronto para os renderers. */
   messages: AuthMessages
   /** Locale ativo (default 'pt-BR'). */
@@ -833,6 +854,7 @@ export function defineConfig(config: AuthServerConfigInput) {
       accessTokens: resolveAccessTokens(config.issuer, config.accessTokens),
       admin: resolveAdmin(config.admin),
       adminApi: resolveAdminApi(config.adminApi),
+      resolveGeo: config.resolveGeo,
       messages: resolveMessages(config.i18n),
       locale: config.i18n?.locale ?? 'pt-BR',
     }

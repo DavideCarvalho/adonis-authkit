@@ -128,6 +128,32 @@
       </div>
     @end
 
+    @if(sessionsSupported)
+      <div class="mt-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+        <h2 class="mb-1 text-sm font-semibold text-gray-900">{{ t('account.security.sessions_section') }}</h2>
+        <p class="mb-4 text-xs text-gray-500">{{ t('account.security.sessions_intro') }}</p>
+        @if(sessions.length === 0)
+          <p class="text-sm text-gray-500">{{ t('account.security.sessions_empty') }}</p>
+        @else
+          <ul class="divide-y divide-gray-100">
+            @each(session in sessions)
+              <li class="py-3">
+                @if(session.browser || session.os)
+                  <p class="text-sm font-medium text-gray-900">{{ t('admin.sessions.session_device', { browser: session.browser || '—', os: session.os || '—' }) }}</p>
+                @end
+                @if(session.ip)
+                  <p class="text-xs text-gray-500">{{ session.location ? t('admin.sessions.session_ip_geo', { ip: session.ip, location: session.location }) : t('admin.sessions.session_ip', { ip: session.ip }) }}</p>
+                @end
+                @if(session.loginTs)
+                  <p class="text-xs text-gray-400">{{ t('admin.sessions.session_login_ts', { date: session.loginTs }) }}</p>
+                @end
+              </li>
+            @end
+          </ul>
+        @end
+      </div>
+    @end
+
     @if(trustedDevicesEnabled)
       @if(trustedDevicesRevoked)
         <div class="mt-6 rounded-lg border border-emerald-300 bg-emerald-50 p-4">

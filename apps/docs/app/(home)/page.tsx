@@ -367,9 +367,15 @@ const FEATURES: readonly Feature[] = [
   },
   {
     icon: Fingerprint,
-    title: 'MFA & WebAuthn',
-    body: 'TOTP second factor, passkeys, lockout protection, and account linking — strong auth without wiring it together yourself.',
+    title: 'MFA, passkeys & passwordless',
+    body: 'TOTP second factor, WebAuthn passkeys, magic-link sign-in, lockout protection, and account linking — strong auth without wiring it together yourself.',
     accent: 'text-sky-400',
+  },
+  {
+    icon: Terminal,
+    title: 'Admin API & SDK',
+    body: 'A versioned admin REST API (users, clients, sessions, audit) secured by API keys, plus a typed SDK that runs remote or in-process.',
+    accent: 'text-indigo-400',
   },
   {
     icon: KeyRound,

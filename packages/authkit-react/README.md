@@ -108,6 +108,32 @@ import { AuthProvider } from '@dudousxd/adonis-authkit-react'
 </AuthProvider>
 ```
 
+## 5. Config + componentes prontos
+
+Envolva a app com `<AuthkitProvider>` para configurar URLs/endpoints e use os
+hooks headless e componentes prontos:
+
+```tsx
+import '@dudousxd/adonis-authkit-react/styles.css'
+import {
+  AuthkitProvider,
+  useSignIn, useSignOut, useUser, useProfile, useSessions, useAuthorizedApps,
+  SignInButton, SignOutButton, UserButton, UserProfile, AuthorizedApps,
+} from '@dudousxd/adonis-authkit-react'
+
+<AuthkitProvider config={{ csrfToken: page.props.csrfToken }}>
+  <UserButton />
+  <UserProfile />
+  <AuthorizedApps />
+</AuthkitProvider>
+```
+
+Defaults dos endpoints apontam para as rotas reais do host-kit
+(`/auth/login`, `/account/logout`, `/account/security`, `/account/security/profile`,
+`/account/apps`, …). Numa topologia de *client app*, aponte-os para rotas locais que
+redirecionam para o IdP. Temável via CSS vars `--authkit-*`. Veja a
+[doc de React](https://...) para detalhes.
+
 ## Helpers puros
 
 Para uso fora de componentes, as funções de papéis são exportadas e livres de React:

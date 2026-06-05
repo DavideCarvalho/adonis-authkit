@@ -29,11 +29,13 @@
   "main": "./build/index.js",
   "types": "./build/index.d.ts",
   "files": [
-    "build"
+    "build",
+    "styles.css"
   ],
   "exports": {
     ".": "./build/index.js",
-    "./types": "./build/index.js"
+    "./types": "./build/index.js",
+    "./styles.css": "./styles.css"
   },
   "scripts": {
     "build": "tsc",

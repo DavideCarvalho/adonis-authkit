@@ -1,0 +1,189 @@
+/**
+ * Estilos prontos dos componentes do @dudousxd/adonis-authkit-react.
+ * Temáveis via CSS vars `--authkit-*` (defaults Adonis-violet).
+ * Importe em algum ponto da app: `import '@dudousxd/adonis-authkit-react/styles.css'`
+ */
+:root {
+  --authkit-primary: #5a45ff;
+  --authkit-primary-contrast: #ffffff;
+  --authkit-danger: #e5484d;
+  --authkit-fg: #1a1523;
+  --authkit-muted: #6f6e77;
+  --authkit-bg: #ffffff;
+  --authkit-border: #e4e2e8;
+  --authkit-radius: 8px;
+  --authkit-gap: 0.5rem;
+}
+
+.authkit-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  font: inherit;
+  font-weight: 500;
+  border-radius: var(--authkit-radius);
+  border: 1px solid transparent;
+  cursor: pointer;
+  line-height: 1.2;
+}
+.authkit-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.authkit-button--primary {
+  background: var(--authkit-primary);
+  color: var(--authkit-primary-contrast);
+}
+.authkit-button--ghost {
+  background: transparent;
+  color: var(--authkit-fg);
+  border-color: var(--authkit-border);
+}
+.authkit-button--danger {
+  background: transparent;
+  color: var(--authkit-danger);
+  border-color: var(--authkit-border);
+}
+
+.authkit-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--authkit-primary);
+  color: var(--authkit-primary-contrast);
+  font-weight: 600;
+  font-size: 0.85rem;
+  object-fit: cover;
+  overflow: hidden;
+}
+
+.authkit-userbutton {
+  position: relative;
+  display: inline-block;
+}
+.authkit-userbutton__trigger {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.authkit-userbutton__menu {
+  position: absolute;
+  right: 0;
+  margin-top: 0.4rem;
+  min-width: 12rem;
+  background: var(--authkit-bg);
+  border: 1px solid var(--authkit-border);
+  border-radius: var(--authkit-radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 0.3rem;
+  z-index: 50;
+}
+.authkit-userbutton__header {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--authkit-border);
+  margin-bottom: 0.3rem;
+}
+.authkit-userbutton__name {
+  font-weight: 600;
+  color: var(--authkit-fg);
+}
+.authkit-userbutton__email {
+  font-size: 0.8rem;
+  color: var(--authkit-muted);
+}
+.authkit-userbutton__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--authkit-fg);
+  text-decoration: none;
+  font: inherit;
+  cursor: pointer;
+}
+.authkit-userbutton__item:hover {
+  background: rgba(90, 69, 255, 0.08);
+}
+
+.authkit-card {
+  background: var(--authkit-bg);
+  border: 1px solid var(--authkit-border);
+  border-radius: var(--authkit-radius);
+  padding: 1rem;
+}
+.authkit-profile__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.authkit-profile__name {
+  font-weight: 600;
+  color: var(--authkit-fg);
+}
+.authkit-profile__email {
+  font-size: 0.85rem;
+  color: var(--authkit-muted);
+}
+.authkit-profile__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--authkit-gap);
+}
+.authkit-label {
+  font-size: 0.85rem;
+  color: var(--authkit-muted);
+}
+.authkit-input {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--authkit-border);
+  border-radius: var(--authkit-radius);
+  font: inherit;
+}
+.authkit-error {
+  color: var(--authkit-danger);
+  font-size: 0.85rem;
+}
+
+.authkit-apps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--authkit-gap);
+}
+.authkit-apps__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--authkit-border);
+  border-radius: var(--authkit-radius);
+}
+.authkit-apps__info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.authkit-apps__logo {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+}
+.authkit-apps__name {
+  font-weight: 500;
+  color: var(--authkit-fg);
+}
+.authkit-apps__empty,
+.authkit-apps__loading {
+  color: var(--authkit-muted);
+  font-size: 0.9rem;
+}

@@ -109,6 +109,127 @@ import { AuthProvider } from '@dudousxd/adonis-authkit-react'
 </AuthProvider>
 ```
 
+## 5. AuthkitProvider (config)
+
+Wrap your app once to configure the URLs and JSON endpoints the headless data hooks and
+pre-built components use. Every field is optional — the defaults point at the **host-kit's
+real routes**. In a *client-app* topology (the app is not the IdP), point these at local app
+routes that redirect/proxy to the IdP.
+
+```tsx
+import { AuthkitProvider } from '@dudousxd/adonis-authkit-react'
+
+<AuthkitProvider
+  config={{
+    loginUrl: '/auth/login',          // default
+    logoutUrl: '/account/logout',     // default
+    profileUrl: '/account/security',  // default
+    csrfToken: page.props.csrfToken,  // sent as X-CSRF-TOKEN on JSON mutations
+    endpoints: {
+      profile: '/account/security/profile', // GET user / POST update
+      sessions: '/account/security',         // GET sessions / trusted devices
+      apps: '/account/apps',                  // GET apps; revoke at `${apps}/:clientId/revoke`
+      passkeys: '/account/mfa/passkeys',
+    },
+  }}
+>
+  <App />
+</AuthkitProvider>
+```
+
+`AuthkitProvider` also accepts an optional `value` prop to inject the auth state directly
+(same as `AuthProvider`), if you are not using Inertia shared props.
+
+## 6. Headless hooks
+
+Composable hooks with no UI and no `react-query` dependency (plain `useState`/`useEffect`).
+
+```tsx
+import {
+  useSignIn,
+  useSignOut,
+  useUser,
+  useProfile,
+  useSessions,
+  useAuthorizedApps,
+} from '@dudousxd/adonis-authkit-react'
+
+// OIDC is redirect-based — these navigate the browser.
+const { signIn } = useSignIn()
+signIn() // returnTo defaults to the current URL
+signIn({ returnTo: '/dashboard' })
+
+const { signOut } = useSignOut()
+signOut({ returnTo: '/' })
+
+const { user, isAuthenticated } = useUser() // alias over useAuth
+
+// Data hooks → { data, loading, error, actions }
+const profile = useProfile()
+await profile.actions.update({ name: 'New name' })
+
+const sessions = useSessions()
+await sessions.actions.revoke(sessionId)
+await sessions.actions.refetch()
+
+const apps = useAuthorizedApps()
+await apps.actions.revoke(clientId)
+```
+
+The data hooks fetch JSON against the endpoints configured in `AuthkitProvider`, with
+`credentials: 'same-origin'` and the optional `X-CSRF-TOKEN` header.
+
+## 7. Pre-built components
+
+Small, accessible, themeable components that consume the hooks above. They render nothing
+when unauthenticated where it makes sense (`SignOutButton`, `UserButton`, `UserProfile`).
+Import the stylesheet once:
+
+```tsx
+import '@dudousxd/adonis-authkit-react/styles.css'
+
+import {
+  SignInButton,
+  SignOutButton,
+  UserButton,
+  UserProfile,
+  AuthorizedApps,
+  Avatar,
+} from '@dudousxd/adonis-authkit-react'
+
+<SignInButton returnTo="/dashboard">Sign in</SignInButton>
+<SignOutButton />
+
+{/* avatar (initials or img) + dropdown: profile link + sign out */}
+<UserButton />
+
+{/* name/avatar/email card + edit form posting to the profile endpoint */}
+<UserProfile />
+
+{/* list of authorized OAuth/OIDC apps with per-item revoke */}
+<AuthorizedApps />
+```
+
+All components are SSR-safe (no `window` access at module load).
+
+### Theming
+
+Components ship inline `authkit-*` class names. Override the CSS variables (Adonis-violet
+defaults) to theme them:
+
+```css
+:root {
+  --authkit-primary: #5a45ff;
+  --authkit-primary-contrast: #ffffff;
+  --authkit-danger: #e5484d;
+  --authkit-fg: #1a1523;
+  --authkit-muted: #6f6e77;
+  --authkit-bg: #ffffff;
+  --authkit-border: #e4e2e8;
+  --authkit-radius: 8px;
+}
+```
+
 ## Pure helpers
 
 For use outside components, the role functions are exported and React-free:

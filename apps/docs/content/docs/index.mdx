@@ -9,12 +9,14 @@ built on top of [`oidc-provider`](https://github.com/panva/node-oidc-provider) a
 AdonisJS HTTP layer, but you only ever touch a typed `defineConfig` surface and a handful
 of registration helpers.
 
-## The three packages
+## The packages
 
 <Cards>
-  <Card title="@dudousxd/adonis-authkit-server" description="The Authorization Server: OIDC provider, host-kit routes/pages, account store, PAT, MFA, audit, rate-limit." />
+  <Card title="@dudousxd/adonis-authkit-server" description="The Authorization Server: OIDC provider, host-kit routes/pages, account store, PAT, MFA, admin API/console, audit, rate-limit." />
   <Card title="@dudousxd/adonis-authkit-client" description="The relying-party kit: defineConfig, JWT/PAT resolvers, login/callback/logout flow, per-request Identity middleware." />
   <Card title="@dudousxd/adonis-authkit-core" description="Shared, transport-agnostic types (Identity, ClientConfig, TtlConfig, JwksConfig) and the metrics contracts." />
+  <Card title="@dudousxd/adonis-authkit-sdk" description="A typed client for the Admin API, in remote (HTTP) or embedded (in-process) mode." />
+  <Card title="@dudousxd/adonis-authkit-react" description="Frontend kit for Inertia + React: useAuth(), headless hooks, and pre-built components." />
 </Cards>
 
 ## Key features
@@ -25,8 +27,20 @@ of registration helpers.
   machine-to-machine access, validated by a server-to-server introspection endpoint.
 - **Impersonation** — RFC 8693 token-exchange so an admin can act *as* another user,
   recorded in the `act` claim.
-- **MFA / TOTP** — opt-in authenticator enrollment (QR), a login-time challenge, and
-  single-use recovery codes.
+- **MFA / TOTP & WebAuthn passkeys** — opt-in authenticator enrollment (QR), a login-time
+  challenge, single-use recovery codes, and passwordless passkey sign-in.
+- **Passwordless** — magic-link email sign-in alongside passwords.
+- **Admin REST API** — a versioned `/admin/api/v1` (users / clients / sessions / audit /
+  token-verify) secured by API keys, plus a server-rendered admin console.
+- **SDK** — `@dudousxd/adonis-authkit-sdk`, a typed client for the Admin API that runs in
+  remote (HTTP) or embedded (in-process) mode.
+- **Device flow, DPoP, PAR & step-up** — OAuth device authorization grant, sender-constrained
+  tokens, pushed authorization requests, and re-authentication for sensitive actions.
+- **Account linking & dynamic registration** — link multiple identity providers and let
+  clients self-register via RFC 7591.
+- **Events & webhooks** — subscribe to lifecycle events in-process or via outbound webhooks.
+- **React frontend** — `@dudousxd/adonis-authkit-react` with `useAuth()`, headless hooks,
+  and pre-built components (see [React](/docs/react)).
 - **Audit logging** — a pluggable `AuditSink` receives security-relevant events
   (`login.success`, `pat.issued`, `impersonation`, `mfa.enabled`, …).
 - **Rate-limiting** — opt-in anti-brute-force throttles on the sensitive routes, backed

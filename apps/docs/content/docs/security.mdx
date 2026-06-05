@@ -154,6 +154,50 @@ botProtection: {
 logged. Only an explicit `false` return rejects. A rejection emits a `bot_protection.rejected`
 audit event.
 
+### Runtime toggle
+
+When the optional `auth_settings` table is present (see [Reference — Runtime Settings](/docs/reference#runtime-settings)),
+an admin can enable or disable bot protection and override which flows are protected **without
+redeploying**. The effective config is resolved on every request with a 15-second in-memory cache.
+
+**Setting key:** `bot_protection`
+
+```json
+{
+  "enabled": true,
+  "on": ["login", "signup", "reset"]
+}
+```
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `enabled` | `boolean` | `true` = use config as-is (with optional `on` override). `false` = disable at runtime. |
+| `on` | `('login' \| 'signup' \| 'reset')[]` | Optional. When present and `enabled: true`, replaces `config.on`. Omit to keep the config value. |
+
+**Precedence rules:**
+
+1. `botProtection.verify` **absent in config** — the feature does not exist; any stored setting is ignored.
+2. `auth_settings` table **absent or error** — falls back to config (zero breaking change; fail-safe).
+3. Setting present, `enabled: false` — bot protection is off at runtime regardless of config.
+4. Setting present, `enabled: true`, `on` provided — uses `on` from the setting, `verify`/`widget`/`tokenFields`/`timeoutMs` from config.
+5. Setting present, `enabled: true`, `on` absent — uses `on` from config unchanged.
+
+Note: `verify` always comes from your config (`config/authkit.ts`). It is code, not serialisable data, and the setting cannot replace it.
+
+**Table schema** (create with a migration of your own — the table is optional):
+
+```sql
+CREATE TABLE auth_settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,        -- JSON
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_by TEXT                  -- nullable account id of the admin who wrote it
+);
+```
+
+The toggle is surfaced in the admin console at `/admin/settings` (see [Admin Console — Settings page](/docs/admin-console#settings-page))
+and via the Admin REST API / SDK (`settings.set('bot_protection', { ... })`).
+
 ## Audit logging
 
 Provide an `AuditSink` to capture security-relevant events. It is best-effort — `record`

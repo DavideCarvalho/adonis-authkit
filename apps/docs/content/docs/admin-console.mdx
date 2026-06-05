@@ -219,3 +219,40 @@ clients are always read-only (they live in your config, not the adapter).
 When the three organization tables are present, an **Organizations** tab appears at
 `/admin/orgs`. See [Organizations](/docs/organizations#admin-console----adminorgs) for
 the full route table and behaviour.
+
+## Settings page
+
+`GET /admin/settings` shows a **Runtime Settings** panel. Currently it controls the
+bot-protection toggle; future settings will appear here as they are added.
+
+| Route | Action |
+| --- | --- |
+| `GET /admin/settings` | Render the settings page. |
+| `POST /admin/settings/bot-protection` | Save (upsert) the `bot_protection` setting. |
+| `POST /admin/settings/bot-protection/reset` | Delete the setting — reverts to static config. |
+
+### Bot-protection card
+
+The card shows the current effective state and lets an admin:
+
+- **Enable / disable** bot protection for the whole IdP without a redeploy.
+- **Override the protected flows** (`login`, `signup`, `reset`) independently of the
+  config value.
+
+**States:**
+
+- **Config absent (`botProtection.verify` not set)** — the card is rendered in a disabled
+  state with a notice that bot protection has not been wired up in `config/authkit.ts`. The
+  form controls are non-interactive.
+- **`auth_settings` table absent** — a notice explains that the `auth_settings` table is
+  required for runtime toggles and shows the `CREATE TABLE` snippet. The form still
+  renders so the admin can see the static-config values, but submit buttons are disabled.
+- **Table present** — the form is live. Submitting it writes (or deletes) the
+  `bot_protection` row and every subsequent request picks up the change within 15 s (the
+  TTL of the in-process cache). A **Reset to config** button deletes the row and returns
+  control to the static config.
+
+Every write emits a `settings.updated` audit event with `metadata.key = "bot_protection"`.
+
+See [Security — Runtime toggle](/docs/security#runtime-toggle) for the full precedence
+rules and setting shape.

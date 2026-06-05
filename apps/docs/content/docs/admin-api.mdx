@@ -212,6 +212,55 @@ curl "https://idp.example.com/api/authkit/v1/audit?type=user.created&limit=50" \
   -H "Authorization: Bearer $KEY"
 ```
 
+## Settings
+
+CRUD for entries in the `auth_settings` table. All routes return **`404`** with
+`{ "error": { "code": "capability_unsupported", ... } }` when the table is absent.
+
+| Method | Path | Body | Notes |
+| --- | --- | --- | --- |
+| `GET` | `/settings` | — | List all stored settings. Empty array when the table has no rows. `404` when the table is absent. |
+| `GET` | `/settings/:key` | — | Get a single setting by key. `404` when absent or table missing. |
+| `PUT` | `/settings/:key` | `{ "value": any }` | Create or update a setting (upsert). `400` when `value` is missing. Invalidates the in-process cache. Emits `settings.updated`. |
+| `DELETE` | `/settings/:key` | — | Delete a setting. Returns `{ key, deleted: true }`. Emits `settings.updated`. |
+
+### Bot-protection toggle example
+
+```bash
+# Enable bot protection and override the protected flows
+curl -X PUT https://idp.example.com/api/authkit/v1/settings/bot_protection \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "value": { "enabled": true, "on": ["login", "signup", "reset"] } }'
+```
+
+```json
+{
+  "key": "bot_protection",
+  "value": { "enabled": true, "on": ["login", "signup", "reset"] },
+  "updatedAt": "2026-06-05T12:00:00.000Z",
+  "updatedBy": null
+}
+```
+
+```bash
+# Disable bot protection at runtime
+curl -X PUT https://idp.example.com/api/authkit/v1/settings/bot_protection \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "value": { "enabled": false } }'
+
+# Reset to static config (delete the row)
+curl -X DELETE https://idp.example.com/api/authkit/v1/settings/bot_protection \
+  -H "Authorization: Bearer $KEY"
+```
+
+```json
+{ "key": "bot_protection", "deleted": true }
+```
+
+See [Security — Runtime toggle](/docs/security#runtime-toggle) for the full precedence rules and setting shape.
+
 ## Token verify
 
 | Method | Path | Body | Notes |

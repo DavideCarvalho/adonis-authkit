@@ -92,9 +92,51 @@ config when sending invite/reset e-mails.
 | `organizations.members` | `updateRole(orgId, accountId, role)` | `{ orgId, accountId, role, updated }` |
 | `organizations.invitations` | `create(orgId, { email, role })` | the invitation |
 | `organizations.invitations` | `revoke(orgId, invitationId)` | `{ orgId, invitationId, revoked }` |
+| `settings` | `list()` | `{ data: AuthkitSetting[] }` |
+| `settings` | `get(key)` | `AuthkitSetting` — `404` / `Error` when absent |
+| `settings` | `set(key, value)` | `AuthkitSetting` — upserts the row |
+| `settings` | `delete(key)` | `{ key, deleted: true }` |
 
 The `clientSecret` from `create`/`regenerateSecret` is the **only** time the secret is
 returned in clear text — store it immediately.
+
+### `settings`
+
+Read and write entries in the `auth_settings` table. All methods return `404` (remote) or
+throw `Error` (embedded) when the table is absent. `get` also throws when the key does not
+exist.
+
+```ts
+// Toggle bot protection off at runtime
+await authkit.settings.set('bot_protection', { enabled: false })
+
+// Override which flows are protected (keep verify from config)
+await authkit.settings.set('bot_protection', {
+  enabled: true,
+  on: ['login', 'signup', 'reset'],
+})
+
+// Inspect the current stored value
+const setting = await authkit.settings.get('bot_protection')
+console.log(setting.value, setting.updatedAt)
+
+// Remove the row — reverts to static config
+await authkit.settings.delete('bot_protection')
+
+// List all settings
+const { data } = await authkit.settings.list()
+```
+
+`AuthkitSetting` shape:
+
+```ts
+interface AuthkitSetting {
+  key: string
+  value: unknown        // parsed JSON
+  updatedAt: string | null
+  updatedBy: string | null
+}
+```
 
 ### `stats()`
 

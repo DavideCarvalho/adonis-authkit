@@ -44,7 +44,7 @@ description: The full defineConfig option tables for server and client.
 | `passwordless` | `{ magicLink?: boolean; passkeyFirst?: boolean }` | both disabled | Magic-link email login and/or passkey-first login. See [Passwordless](/docs/passwordless). |
 | `login` | `{ requireVerifiedEmail?: boolean }` | `false` | Block logins for unverified emails. Capability-probed. See [Compliance](/docs/compliance). |
 | `accessTokens` | `AccessTokensConfig` | `{ format: 'opaque' }` | JWT access tokens (RFC 9068) and per-resource config. See [Security](/docs/security#jwt-access-tokens-rfc-9068). |
-| `botProtection` | `BotProtectionConfigInput` | disabled | Pluggable CAPTCHA/challenge for login, signup, reset. See [Security](/docs/security#bot-protection). |
+| `botProtection` | `BotProtectionConfigInput` | disabled | Pluggable CAPTCHA/challenge for login, signup, reset. Runtime-toggleable via `auth_settings`. See [Security](/docs/security#bot-protection). |
 | `notifications` | `{ newLoginEmail?: boolean; newDeviceEmail?: boolean }` | both `true` | Security email notifications. See [Security](/docs/security#new-device-login-notification). |
 | `resolveGeo` | `(ip: string) => Promise<string \| null>` | — | Pluggable IP → location lookup for session context. See [Admin Console](/docs/admin-console#session-context). |
 | `organizations` | `OrganizationsConfigInput` | auto | Multi-tenancy. See [Organizations](/docs/organizations). |
@@ -128,16 +128,81 @@ description: The full defineConfig option tables for server and client.
 
 See the [SDK guide](/docs/sdk) for the full method table.
 
+## Runtime Settings
+
+An optional, capability-probed mechanism for persisting configuration at runtime in the
+`auth_settings` table. The table is detected on first access; all operations degrade
+gracefully when it is absent (fail-safe).
+
+### `auth_settings` schema
+
+```sql
+CREATE TABLE auth_settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,        -- JSON
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_by TEXT                  -- nullable account id of the admin
+);
+```
+
+Create the table with a migration of your own. AuthKit never creates it automatically —
+it is an opt-in capability.
+
+### `RuntimeSettings`
+
+Class from `@dudousxd/adonis-authkit-server` (internal, used by the admin console and
+API controllers). Accepts a Lucid `Database` instance and an optional `ttlMs` (default
+`15_000` — 15 s). Implements `SettingsCapability`.
+
+| Method | Notes |
+| --- | --- |
+| `getSetting(key)` | Returns `unknown \| null`. Null = table absent or key not found. Cached with TTL. |
+| `setSetting(key, value, updatedBy?)` | Upsert. Invalidates cache. No-op when the table is absent. |
+| `deleteSetting(key)` | Delete. Invalidates cache. No-op when the table is absent. |
+| `listSettings()` | Returns `SettingRow[]`. No cache (low-frequency). Empty array when the table is absent. |
+| `isTablePresent()` | Returns `boolean`. Result is memoised (probed once per instance). |
+| `invalidate(key?)` | Manually clear the in-memory cache (all keys when called without argument). |
+
+### `SettingsCapability` and `supportsSettings`
+
+```ts
+import { supportsSettings } from '@dudousxd/adonis-authkit-server'
+
+if (supportsSettings(store)) {
+  const raw = await store.getSetting('bot_protection')
+}
+```
+
+`supportsSettings(obj)` is a type guard that returns `true` when `obj` exposes a
+`getSetting` function (i.e. implements `SettingsCapability`).
+
+### Known setting keys
+
+| Key | Shape | Notes |
+| --- | --- | --- |
+| `bot_protection` | `{ enabled: boolean; on?: ('login' \| 'signup' \| 'reset')[] }` | Runtime toggle for bot protection. See [Security — Runtime toggle](/docs/security#runtime-toggle). |
+
 ## Ace commands
 
 Commands provided by `@dudousxd/adonis-authkit-server`:
 
 | Command | Notes |
 | --- | --- |
-| `node ace authkit:doctor` | Validate the config and peer dependencies; emits findings with `ok`/`warn`/`error` levels. |
+| `node ace authkit:doctor` | Validate the config and peer dependencies; emits findings with `ok`/`warn`/`error` levels. Includes a `checkSettings` probe (see below). |
 | `node ace authkit:eject` | Copy the bundled host-kit controllers/pages into your project for customization. |
 | `node ace authkit:users:import --file <path> [--dry-run]` | Bulk-import users from a JSON array or NDJSON file, preserving hashes as-is for lazy rehash on login. |
 | `node ace authkit:keys:rotate [--keep=N] [--retire] [--dry-run]` | Rotate signing keys in a managed keystore file; keeps a grace-period window of N previous keys (default 2). |
+
+### `authkit:doctor` — `checkSettings`
+
+When the doctor command probes the `auth_settings` table:
+
+- **Table absent** — silently ok (the feature is opt-in, nothing to warn about).
+- **Table present + `botProtection.verify` present in config** — `ok`: runtime settings and
+  the bot-protection toggle are active.
+- **Table present + `botProtection.verify` absent from config** — `warn`: the
+  `bot_protection` row in `auth_settings` is an orphan and has no effect. Either configure
+  `botProtection.verify` in `config/authkit.ts` or drop the row.
 
 ### `authkit:users:import`
 

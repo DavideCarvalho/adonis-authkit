@@ -112,9 +112,11 @@ const C = {
   adminSessions: () => import('./controllers/admin/admin_sessions_controller.js'),
   adminClients: () => import('./controllers/admin/admin_clients_controller.js'),
   adminAudit: () => import('./controllers/admin/admin_audit_controller.js'),
+  adminOrgs: () => import('./controllers/admin/admin_orgs_controller.js'),
   apiUsers: () => import('./admin_api/api_users_controller.js'),
   apiClients: () => import('./admin_api/api_clients_controller.js'),
   apiMisc: () => import('./admin_api/api_misc_controller.js'),
+  apiOrgs: () => import('./admin_api/api_orgs_controller.js'),
 }
 
 /**
@@ -231,6 +233,10 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
       router.post('/account/orgs/:id/invite', [C.accountOrgs, 'invite'])
       router.post('/account/orgs/:id/members/:accountId/remove', [C.accountOrgs, 'removeMember'])
       router.post('/account/orgs/:id/invitations/:invId/revoke', [C.accountOrgs, 'revokeInvitation'])
+      // JSON endpoints for React hooks (authkit-react).
+      router.get('/account/orgs/json', [C.accountOrgs, 'listJson'])
+      router.get('/account/orgs/invitations/json', [C.accountOrgs, 'listInvitationsJson'])
+      router.get('/account/orgs/:id/json', [C.accountOrgs, 'showJson'])
     })
     .use([accountGuard])
 
@@ -259,6 +265,14 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
         router.post('/admin/clients/:id/regenerate-secret', [C.adminClients, 'regenerateSecret'])
         router.post('/admin/clients/:id/delete', [C.adminClients, 'destroy'])
         router.get('/admin/audit', [C.adminAudit, 'index'])
+        // Organizations (opt-in — capability-gated inside the controller).
+        router.get('/admin/orgs', [C.adminOrgs, 'index'])
+        router.post('/admin/orgs', [C.adminOrgs, 'store'])
+        router.get('/admin/orgs/:id', [C.adminOrgs, 'show'])
+        router.post('/admin/orgs/:id/delete', [C.adminOrgs, 'destroy'])
+        router.post('/admin/orgs/:id/members', [C.adminOrgs, 'addMember'])
+        router.post('/admin/orgs/:id/members/:accountId/remove', [C.adminOrgs, 'removeMember'])
+        router.post('/admin/orgs/:id/invitations/:invId/revoke', [C.adminOrgs, 'revokeInvitation'])
       })
       .use([adminGuard])
   }
@@ -291,6 +305,17 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
         withApiThrottle(router.patch('/clients/:id', [C.apiClients, 'update']))
         withApiThrottle(router.post('/clients/:id/regenerate-secret', [C.apiClients, 'regenerateSecret']))
         withApiThrottle(router.delete('/clients/:id', [C.apiClients, 'destroy']))
+        // Organizações.
+        withApiThrottle(router.get('/organizations', [C.apiOrgs, 'index']))
+        withApiThrottle(router.post('/organizations', [C.apiOrgs, 'store']))
+        withApiThrottle(router.get('/organizations/:id', [C.apiOrgs, 'show']))
+        withApiThrottle(router.patch('/organizations/:id', [C.apiOrgs, 'update']))
+        withApiThrottle(router.delete('/organizations/:id', [C.apiOrgs, 'destroy']))
+        withApiThrottle(router.post('/organizations/:id/members', [C.apiOrgs, 'addMember']))
+        withApiThrottle(router.delete('/organizations/:id/members/:accountId', [C.apiOrgs, 'removeMember']))
+        withApiThrottle(router.patch('/organizations/:id/members/:accountId', [C.apiOrgs, 'updateMemberRole']))
+        withApiThrottle(router.post('/organizations/:id/invitations', [C.apiOrgs, 'createInvitation']))
+        withApiThrottle(router.delete('/organizations/:id/invitations/:invitationId', [C.apiOrgs, 'revokeInvitation']))
         // Auditoria + métricas + verificação de token.
         withApiThrottle(router.get('/audit', [C.apiMisc, 'audit']))
         withApiThrottle(router.get('/stats', [C.apiMisc, 'stats']))

@@ -181,6 +181,15 @@ export type { AuthThrottles, ThrottleMiddleware } from './src/host/rate_limit.js
  * e pelo driver `embedded` do @dudousxd/adonis-authkit-sdk (in-process).
  */
 export { AdminUsersService } from './src/host/admin_api/admin_users_service.js'
+export { AdminOrgsService } from './src/host/admin_api/admin_orgs_service.js'
+export type {
+  OrgWithMemberCount,
+  OrgDetail,
+  CreateOrgInput as AdminCreateOrgInput,
+  UpdateOrgInput as AdminUpdateOrgInput,
+  AddMemberInput as AdminAddMemberInput,
+  CreateInvitationInput as AdminCreateInvitationInput,
+} from './src/host/admin_api/admin_orgs_service.js'
 export type {
   AdminActor,
   CreateUserInput as AdminCreateUserInput,

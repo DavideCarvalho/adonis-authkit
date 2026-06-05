@@ -1,4 +1,6 @@
 import type { AuthAccount } from '../../accounts/account_store.js'
+import type { OrgSummary, OrgMember, OrgInvitation } from '../../accounts/account_store.js'
+import type { OrgDetail } from './admin_orgs_service.js'
 import type { AdminClient, CreatedClient } from '../admin_clients_service.js'
 import type { AdminSession, AdminGrant } from '../admin_sessions_service.js'
 import type { StoredAuditEvent } from '../../audit/audit_sink.js'
@@ -69,6 +71,48 @@ export function auditDto(event: StoredAuditEvent) {
     ip: event.ip ?? null,
     metadata: event.metadata ?? null,
     createdAt: event.createdAt instanceof Date ? event.createdAt.toISOString() : event.createdAt,
+  }
+}
+
+export function orgDto(org: OrgSummary & { memberCount?: number }) {
+  return {
+    id: org.id,
+    name: org.name,
+    slug: org.slug,
+    logoUrl: org.logoUrl ?? null,
+    metadata: org.metadata ?? null,
+    createdAt: org.createdAt,
+    ...(org.memberCount !== undefined ? { memberCount: org.memberCount } : {}),
+  }
+}
+
+export function orgMemberDto(member: OrgMember) {
+  return {
+    accountId: member.accountId,
+    email: member.email ?? null,
+    role: member.role,
+    joinedAt: member.joinedAt,
+  }
+}
+
+export function orgInvitationDto(inv: OrgInvitation) {
+  return {
+    id: inv.id,
+    organizationId: inv.organizationId,
+    email: inv.email,
+    role: inv.role,
+    invitedBy: inv.invitedBy,
+    expiresAt: inv.expiresAt,
+    acceptedAt: inv.acceptedAt ?? null,
+    createdAt: inv.createdAt,
+  }
+}
+
+export function orgDetailDto(detail: OrgDetail) {
+  return {
+    ...orgDto(detail),
+    members: detail.members.map(orgMemberDto),
+    pendingInvitations: detail.pendingInvitations.map(orgInvitationDto),
   }
 }
 

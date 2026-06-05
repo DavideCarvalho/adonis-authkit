@@ -18,6 +18,10 @@ export interface AuthkitEndpoints {
   apps: string
   /** GET lista passkeys. Default: `/account/mfa/passkeys` */
   passkeys: string
+  /** GET lista orgs do usuário (JSON). Default: `/account/orgs/json` */
+  orgs: string
+  /** GET lista convites pendentes para o e-mail do usuário (JSON). Default: `/account/orgs/invitations/json` */
+  orgInvitations: string
 }
 
 /**
@@ -58,6 +62,8 @@ export const DEFAULT_CONFIG: ResolvedAuthkitConfig = {
     sessions: '/account/security',
     apps: '/account/apps',
     passkeys: '/account/mfa/passkeys',
+    orgs: '/account/orgs/json',
+    orgInvitations: '/account/orgs/invitations/json',
   },
 }
 
@@ -75,6 +81,8 @@ export function resolveConfig(config?: AuthkitConfig): ResolvedAuthkitConfig {
       sessions: config?.endpoints?.sessions ?? DEFAULT_CONFIG.endpoints.sessions,
       apps: config?.endpoints?.apps ?? DEFAULT_CONFIG.endpoints.apps,
       passkeys: config?.endpoints?.passkeys ?? DEFAULT_CONFIG.endpoints.passkeys,
+      orgs: config?.endpoints?.orgs ?? DEFAULT_CONFIG.endpoints.orgs,
+      orgInvitations: config?.endpoints?.orgInvitations ?? DEFAULT_CONFIG.endpoints.orgInvitations,
     },
     csrfToken: config?.csrfToken,
   }

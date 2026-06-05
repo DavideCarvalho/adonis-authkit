@@ -228,3 +228,67 @@
   font-size: 0.8rem;
   color: var(--authkit-muted);
 }
+
+/* ─── OrganizationSwitcher ─────────────────────────────────────────────── */
+.authkit-orgswitcher {
+  position: relative;
+  display: inline-block;
+}
+.authkit-orgswitcher__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  background: var(--authkit-bg);
+  border: 1px solid var(--authkit-border);
+  border-radius: var(--authkit-radius);
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--authkit-fg);
+}
+.authkit-orgswitcher__trigger:disabled { opacity: 0.6; cursor: default; }
+.authkit-orgswitcher__chevron { font-size: 0.65rem; color: var(--authkit-muted); }
+.authkit-orgswitcher__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 180px;
+  background: var(--authkit-bg);
+  border: 1px solid var(--authkit-border);
+  border-radius: var(--authkit-radius);
+  box-shadow: 0 4px 16px rgba(0,0,0,.1);
+  z-index: 50;
+  overflow: hidden;
+}
+.authkit-orgswitcher__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--authkit-fg);
+  text-align: left;
+}
+.authkit-orgswitcher__item:hover { background: color-mix(in srgb, var(--authkit-primary) 8%, transparent); }
+.authkit-orgswitcher__item--active { font-weight: 600; }
+.authkit-orgswitcher__item-name { flex: 1; }
+.authkit-orgswitcher__item-role { font-size: 0.75rem; color: var(--authkit-muted); margin-left: 0.5rem; }
+
+/* ─── OrganizationProfile ──────────────────────────────────────────────── */
+.authkit-org-profile { display: flex; flex-direction: column; gap: var(--authkit-gap); }
+.authkit-org-profile__header { margin-bottom: 0.5rem; }
+.authkit-org-profile__name { font-weight: 600; font-size: 1rem; color: var(--authkit-fg); }
+.authkit-org-profile__slug { font-size: 0.8rem; color: var(--authkit-muted); }
+.authkit-org-profile__section-title { font-size: 0.85rem; font-weight: 600; color: var(--authkit-fg); margin-bottom: 0.4rem; }
+.authkit-org-profile__members { display: flex; flex-direction: column; gap: 0.25rem; }
+.authkit-org-profile__member { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; border-bottom: 1px solid var(--authkit-border); }
+.authkit-org-profile__member:last-child { border-bottom: none; }
+.authkit-org-profile__member-info { display: flex; flex-direction: column; }
+.authkit-org-profile__member-email { font-size: 0.875rem; color: var(--authkit-fg); }
+.authkit-org-profile__member-role { font-size: 0.75rem; color: var(--authkit-muted); }
+.authkit-org-profile__invite-form { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.75rem; }
+.authkit-org-profile__empty { font-size: 0.875rem; color: var(--authkit-muted); }

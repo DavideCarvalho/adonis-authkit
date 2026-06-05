@@ -28,6 +28,10 @@ interface EmailTemplateInput {
   ctaUrl: string
   /** Linha auxiliar abaixo do botão (ex.: validade do link). */
   footnote?: string
+  /** Texto que precede o link de fallback (i18n). Default em inglês. */
+  linkFallback?: string
+  /** Locale do documento HTML (atributo `lang`). Default: 'en'. */
+  locale?: string
 }
 
 /** Escapa texto para interpolação segura em HTML. */
@@ -47,9 +51,13 @@ export function renderTransactionalEmail(input: EmailTemplateInput): EmailConten
   const accent = input.brand.accent || FALLBACK_ACCENT
   const company = input.brand.company || appName
   const year = '©' // ano resolvido fora (sem Date.* aqui); rodapé usa só o nome.
+  const lang = input.locale || 'en'
+  const linkFallback =
+    input.linkFallback ||
+    'If the button does not work, copy and paste this link into your browser:'
 
   const html = `<!doctype html>
-<html lang="pt-BR">
+<html lang="${esc(lang)}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -69,7 +77,7 @@ export function renderTransactionalEmail(input: EmailTemplateInput): EmailConten
 <a href="${esc(input.ctaUrl)}" style="display:inline-block;padding:12px 24px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">${esc(input.ctaLabel)}</a>
 </td></tr></table>
 ${input.footnote ? `<p style="margin:24px 0 0;font-size:13px;line-height:1.5;color:#6b7280;">${esc(input.footnote)}</p>` : ''}
-<p style="margin:24px 0 0;font-size:13px;line-height:1.5;color:#6b7280;">Se o botão não funcionar, copie e cole este link no navegador:<br><a href="${esc(input.ctaUrl)}" style="color:${esc(accent)};word-break:break-all;">${esc(input.ctaUrl)}</a></p>
+<p style="margin:24px 0 0;font-size:13px;line-height:1.5;color:#6b7280;">${esc(linkFallback)}<br><a href="${esc(input.ctaUrl)}" style="color:${esc(accent)};word-break:break-all;">${esc(input.ctaUrl)}</a></p>
 </td></tr>
 <tr><td style="padding:24px 28px 28px;border-top:1px solid #f3f4f6;">
 <p style="margin:0;font-size:12px;line-height:1.5;color:#9ca3af;">${esc(company)} ${year}</p>

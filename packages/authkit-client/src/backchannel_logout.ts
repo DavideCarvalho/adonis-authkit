@@ -78,18 +78,18 @@ export async function validateLogoutToken(
     payload = verified.payload
   } catch (err) {
     throw new InvalidLogoutTokenError(
-      `logout_token inválido (assinatura/iss/aud): ${(err as Error).message}`
+      `Invalid logout_token (signature/iss/aud): ${(err as Error).message}`
     )
   }
 
   // `iat` é obrigatório no logout_token.
   if (typeof payload.iat !== 'number') {
-    throw new InvalidLogoutTokenError('logout_token sem claim iat')
+    throw new InvalidLogoutTokenError('logout_token is missing the iat claim')
   }
 
   // `nonce` é PROIBIDO no logout_token (evita confusão com id_token).
   if ('nonce' in payload) {
-    throw new InvalidLogoutTokenError('logout_token não pode conter a claim nonce')
+    throw new InvalidLogoutTokenError('logout_token must not contain the nonce claim')
   }
 
   // `events` deve ser objeto contendo a chave do evento de back-channel logout.
@@ -110,7 +110,7 @@ export async function validateLogoutToken(
 
   // Pelo menos um de sid/sub deve estar presente.
   if (!sid && !sub) {
-    throw new InvalidLogoutTokenError('logout_token deve conter ao menos sid ou sub')
+    throw new InvalidLogoutTokenError('logout_token must contain at least sid or sub')
   }
 
   return { sid, sub }

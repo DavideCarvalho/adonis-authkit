@@ -1,21 +1,44 @@
 ---
 title: Internationalization
-description: Translate the host-kit screens — pt-BR by default, zero config.
+description: Translate the host-kit screens — English by default, pt-BR built in, zero config.
 ---
 
 Every user-visible string in the host-kit screens (and the flash / error messages the
 controllers produce) lives in a flat catalog of dotted keys. The built-in default is
-**pt-BR**, so apps work with **no configuration**. You can override individual keys or
-provide whole locales via `i18n`.
+**English** (`en`), so apps work with **no configuration**. **pt-BR** ships as a built-in
+locale: flip it on with `i18n: { locale: 'pt-BR' }`. You can also override individual keys
+or provide whole new locales via `i18n`.
 
 ## The default catalog
 
-`DEFAULT_MESSAGES` (exported) is the pt-BR catalog — it covers every screen: `login.*`,
+`DEFAULT_MESSAGES` (exported) is the English catalog — it covers every screen: `login.*`,
 `signup.*`, `forgot.*`, `reset.*`, `verify_email.*`, `mfa_challenge.*`, `consent.*`,
-`account.*`, `admin.*`, plus the controller errors under `errors.*`. `DEFAULT_LOCALE` is
-`'pt-BR'`.
+`account.*`, `admin.*`, `device.*`, the transactional `mail.*` strings, plus the controller
+errors under `errors.*`. `DEFAULT_LOCALE` is `'en'`.
 
-## Configuring
+`PT_BR_MESSAGES` (also exported) is the built-in pt-BR catalog — it mirrors every key. The
+two built-in catalogs are registered in `BUILTIN_MESSAGES` (`{ en, 'pt-BR' }`).
+
+## Built-in pt-BR (zero config)
+
+To run the screens in pt-BR, just set the locale — you do **not** need to provide any
+messages:
+
+```ts title="config/authkit_server.ts"
+import { defineConfig } from '@dudousxd/adonis-authkit-server'
+
+export default defineConfig({
+  // ...
+  i18n: { locale: 'pt-BR' },
+})
+```
+
+<Callout type="warn">
+  As of the English-default release, hosts that relied on the previous pt-BR default must
+  set `i18n: { locale: 'pt-BR' }` explicitly to keep Portuguese screens.
+</Callout>
+
+## Overriding keys / adding locales
 
 ```ts title="config/authkit_server.ts"
 import { defineConfig } from '@dudousxd/adonis-authkit-server'
@@ -24,12 +47,17 @@ import type { I18nConfig } from '@dudousxd/adonis-authkit-server'
 const i18n: I18nConfig = {
   locale: 'en',
   messages: {
+    // Override individual keys of the active (default) locale.
     en: {
       'login.title': 'Sign in',
-      'login.submit': 'Sign in',
-      'login.email_label': 'Email',
-      'errors.invalid_credentials': 'Invalid credentials',
-      // omitted keys fall back to the pt-BR default
+      'errors.invalid_credentials': 'Those credentials did not match.',
+      // omitted keys fall back to the English default
+    },
+    // Or ship a whole new locale.
+    fr: {
+      'login.title': 'Connexion',
+      'login.submit': 'Se connecter',
+      // omitted keys fall back to the English default
     },
   },
 }
@@ -40,23 +68,43 @@ export default defineConfig({
 })
 ```
 
+You can also override a few keys on top of the built-in pt-BR catalog:
+
+```ts
+const i18n: I18nConfig = {
+  locale: 'pt-BR',
+  messages: {
+    'pt-BR': { 'login.title': 'Acessar' }, // rest stays pt-BR
+  },
+}
+```
+
 | Field | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `locale` | `string?` | `'pt-BR'` | The active locale. |
-| `messages` | `Record<string, Partial<AuthMessages>>?` | — | Extra locales and/or per-key overrides; the active locale is merged **over** the pt-BR default. |
+| `locale` | `string?` | `'en'` | The active locale. Built-in: `en`, `pt-BR`. |
+| `messages` | `Record<string, Partial<AuthMessages>>?` | — | Extra locales and/or per-key overrides; the active locale is merged **over** the built-in catalog (or over the English default for non-built-in locales). |
 
 ## How resolution works
 
-`resolveMessages(i18n)` merges the active locale's overrides over the pt-BR base. Keys the
-chosen locale omits fall back to pt-BR (so partial locales still render fully). The resolved
-catalog is exposed on the server config as `messages` (and `locale`), ready for the
-renderers.
+`resolveMessages(i18n)` starts from the active locale's built-in catalog (or the English
+default when the locale is not built in), then merges the host's overrides on top. Keys the
+chosen locale omits fall back to English (so partial locales still render fully). The
+resolved catalog is exposed on the server config as `messages` (and `locale`), ready for the
+renderers and the transactional mailer.
 
 ```ts
-import { resolveMessages, translate, DEFAULT_MESSAGES } from '@dudousxd/adonis-authkit-server'
+import {
+  resolveMessages,
+  translate,
+  DEFAULT_MESSAGES,
+  PT_BR_MESSAGES,
+} from '@dudousxd/adonis-authkit-server'
+
+resolveMessages() // English defaults
+resolveMessages({ locale: 'pt-BR' }) // built-in pt-BR, no messages needed
 
 const messages = resolveMessages({ locale: 'en', messages: { en: { 'login.title': 'Sign in' } } })
-translate(messages, 'login.greeting', { name: 'Ada' }) // "Olá, Ada" (pt-BR fallback) or your override
+translate(messages, 'login.greeting', { name: 'Ada' }) // "Hi, Ada"
 ```
 
 `translate(messages, key, params?)` returns the string for `key` (falling back to the key

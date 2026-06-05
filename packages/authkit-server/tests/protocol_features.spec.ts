@@ -131,8 +131,8 @@ test.group('B1 Device Authorization Grant (RFC 8628)', () => {
       assert.equal(res.status, 200)
       const html = await res.text()
       assert.include(html, 'op.deviceInputForm')
-      // String i18n pt-BR da nossa source customizada.
-      assert.include(html, 'Entrar no dispositivo')
+      // String i18n (default em inglês) da nossa source customizada.
+      assert.include(html, 'Sign in to the device')
     } finally {
       await new Promise<void>((r) => server.close(() => r()))
     }

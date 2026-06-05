@@ -46,7 +46,9 @@ export default class AccountMfaController {
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
     const generated = await cfg.accountStore.generatePasskeyRegistrationOptions?.(userId)
     if (!generated) {
-      return ctx.response.notFound({ message: 'Passkeys indisponíveis' })
+      return ctx.response.notFound({
+        message: translate(cfg.messages, 'errors.passkeys_unavailable'),
+      })
     }
     ctx.session.put(PASSKEY_REG_CHALLENGE_KEY, generated.challenge)
     return generated.options
@@ -62,7 +64,9 @@ export default class AccountMfaController {
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
     const challenge = ctx.session.get(PASSKEY_REG_CHALLENGE_KEY) as string | undefined
     if (!challenge) {
-      return ctx.response.badRequest({ message: 'Desafio expirado' })
+      return ctx.response.badRequest({
+        message: translate(cfg.messages, 'errors.challenge_expired'),
+      })
     }
     const body = ctx.request.input('response', ctx.request.body())
     const ok =

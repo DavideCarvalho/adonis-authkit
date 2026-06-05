@@ -283,11 +283,15 @@ export default class AuthInteractionController {
     const cfg = service.config
     const accountId = ctx.session.get(MFA_PENDING_KEY) as string | undefined
     if (!accountId) {
-      return ctx.response.badRequest({ message: 'Sessão expirada' })
+      return ctx.response.badRequest({
+        message: translate(cfg.messages, 'errors.session_expired'),
+      })
     }
     const generated = await cfg.accountStore.generatePasskeyAuthenticationOptions?.(accountId)
     if (!generated) {
-      return ctx.response.notFound({ message: 'Nenhuma passkey registrada' })
+      return ctx.response.notFound({
+        message: translate(cfg.messages, 'errors.no_passkey_registered'),
+      })
     }
     ctx.session.put(PASSKEY_AUTH_CHALLENGE_KEY, generated.challenge)
     return generated.options

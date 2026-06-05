@@ -68,7 +68,14 @@ export { inertiaRenderer } from './src/host/renderers/inertia_renderer.js'
 export { edgeRenderer } from './src/host/renderers/edge_renderer.js'
 export { brandFor, isFirstParty } from './src/host/branding.js'
 export type { BrandingConfig, ClientBrand } from './src/host/branding.js'
-export { resolveMessages, translate, DEFAULT_MESSAGES, DEFAULT_LOCALE } from './src/host/i18n.js'
+export {
+  resolveMessages,
+  translate,
+  DEFAULT_MESSAGES,
+  PT_BR_MESSAGES,
+  BUILTIN_MESSAGES,
+  DEFAULT_LOCALE,
+} from './src/host/i18n.js'
 export type { I18nConfig, AuthMessages } from './src/host/i18n.js'
 export type { AuthHostRenderer, AuthSocialConfig } from './src/define_config.js'
 export { registerAuthHost } from './src/host/register_auth_host.js'

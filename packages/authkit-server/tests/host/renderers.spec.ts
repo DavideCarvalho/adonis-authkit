@@ -20,9 +20,9 @@ test.group('renderers', () => {
     await edgeRenderer()(ctx, 'account/tokens', { a: 1 })
     assert.equal(calls[0][0], 'authkit::account/tokens')
     assert.equal(calls[0][1].a, 1)
-    // `t` é exposto às views e traduz a partir do default pt-BR.
+    // `t` é exposto às views e traduz a partir do default em inglês.
     assert.isFunction(calls[0][1].t)
-    assert.equal(calls[0][1].t('account.tokens.create'), 'Criar')
-    assert.equal(calls[0][1].t('login.greeting', { name: 'Ana' }), 'Olá, Ana')
+    assert.equal(calls[0][1].t('account.tokens.create'), 'Create')
+    assert.equal(calls[0][1].t('login.greeting', { name: 'Ana' }), 'Hi, Ana')
   })
 })

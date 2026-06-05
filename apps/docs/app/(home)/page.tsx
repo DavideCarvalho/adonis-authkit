@@ -140,31 +140,31 @@ const AUDIT_ROWS: readonly AuditRow[] = [
     type: 'login.success',
     typeColor: 'text-emerald-400',
     detail: 'jane@acme.dev · acc_8f3a · web-app · 187.0.12.4',
-    time: 'há 2 min',
+    time: '2 min ago',
   },
   {
     type: 'mfa.enabled',
     typeColor: 'text-sky-400',
     detail: 'jane@acme.dev · acc_8f3a · 187.0.12.4',
-    time: 'há 14 min',
+    time: '14 min ago',
   },
   {
     type: 'pat.issued',
     typeColor: 'text-amber-400',
     detail: 'ci-runner · acc_2b1c · 10.0.4.7',
-    time: 'há 1 h',
+    time: '1 h ago',
   },
   {
     type: 'client.created',
     typeColor: 'text-[#9a8bff]',
     detail: 'mobile-app · acc_1a9f · 187.0.12.4',
-    time: 'há 3 h',
+    time: '3 h ago',
   },
   {
     type: 'session.revoked_all',
     typeColor: 'text-rose-400',
     detail: 'sam@acme.dev · acc_77de · 201.55.9.2',
-    time: 'há 5 h',
+    time: '5 h ago',
   },
   {
     type: 'login.failure',
@@ -189,7 +189,7 @@ function ConsolePreview() {
         </div>
 
         <p className="mt-5 text-center font-mono text-xs text-fd-muted-foreground">
-          Telas reais do host-kit: login + console admin
+          Real host-kit screens: login + admin console
         </p>
       </div>
     </section>
@@ -216,35 +216,35 @@ function LoginScreenMock() {
           <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9a8bff]">
             Acme
           </p>
-          <h3 className="mt-1 text-lg font-semibold text-zinc-100">Entrar</h3>
-          <p className="mt-1 text-sm text-zinc-500">Informe seu e-mail para continuar.</p>
+          <h3 className="mt-1 text-lg font-semibold text-zinc-100">Login</h3>
+          <p className="mt-1 text-sm text-zinc-500">Enter your email to continue.</p>
 
           <div className="mt-5">
-            <label className="mb-1 block text-sm font-medium text-zinc-300">E-mail</label>
+            <label className="mb-1 block text-sm font-medium text-zinc-300">Email</label>
             <div className="w-full rounded-lg border border-zinc-700 bg-[#0d0d10] px-3 py-2 text-sm text-zinc-300">
               jane@acme.dev
             </div>
           </div>
 
           <div className="mt-4">
-            <label className="mb-1 block text-sm font-medium text-zinc-300">Senha</label>
+            <label className="mb-1 block text-sm font-medium text-zinc-300">Password</label>
             <div className="w-full rounded-lg border border-zinc-700 bg-[#0d0d10] px-3 py-2 text-sm tracking-widest text-zinc-500">
               ••••••••••
             </div>
           </div>
 
           <div className="mt-5 w-full rounded-lg bg-[#625fff] py-2.5 text-center text-sm font-semibold text-white">
-            Entrar
+            Log in
           </div>
 
           <div className="mt-4 flex justify-between text-sm text-zinc-500">
-            <span className="hover:underline">Criar conta</span>
-            <span className="hover:underline">Esqueci a senha</span>
+            <span className="hover:underline">Create account</span>
+            <span className="hover:underline">Forgot password</span>
           </div>
 
           <div className="my-5 flex items-center gap-3 text-xs text-zinc-600">
             <span className="h-px flex-1 bg-zinc-800" />
-            ou
+            or
             <span className="h-px flex-1 bg-zinc-800" />
           </div>
 
@@ -267,7 +267,7 @@ function LoginScreenMock() {
                 d="M12 4.75c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 1.46 14.97.5 12 .5A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.3 9.14 4.75 12 4.75Z"
               />
             </svg>
-            Entrar com Google
+            Sign in with Google
           </div>
         </div>
       </div>
@@ -297,27 +297,27 @@ function AdminAuditMock() {
           <div className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500">
             Auth
           </div>
-          <h3 className="text-lg font-semibold text-zinc-100">Log de auditoria</h3>
+          <h3 className="text-lg font-semibold text-zinc-100">Audit log</h3>
         </div>
 
         {/* admin nav */}
         <nav className="mb-4 flex gap-4 text-sm font-medium">
-          <span className="text-zinc-500">Painel</span>
-          <span className="text-zinc-500">Usuários</span>
+          <span className="text-zinc-500">Dashboard</span>
+          <span className="text-zinc-500">Users</span>
           <span className="text-zinc-500">Clients</span>
-          <span className="text-zinc-100 underline">Auditoria</span>
+          <span className="text-zinc-100 underline">Audit</span>
         </nav>
 
         {/* filter form */}
         <div className="mb-4 flex gap-2">
           <div className="flex-1 rounded-lg border border-zinc-700 bg-[#16161b]/60 px-3 py-2 text-sm text-zinc-600">
-            Filtrar por tipo
+            Filter by type
           </div>
           <div className="flex-1 rounded-lg border border-zinc-700 bg-[#16161b]/60 px-3 py-2 text-sm text-zinc-600">
-            Filtrar por subject (accountId)
+            Filter by subject (accountId)
           </div>
           <div className="rounded-lg bg-[#625fff] px-4 py-2 text-sm font-semibold text-white">
-            Filtrar
+            Filter
           </div>
         </div>
 
@@ -336,10 +336,10 @@ function AdminAuditMock() {
 
         {/* pagination */}
         <div className="mt-4 flex items-center justify-between text-sm text-zinc-500">
-          <span>Página 1 de 8</span>
+          <span>Page 1 of 8</span>
           <div className="flex gap-2">
-            <span className="rounded border border-zinc-700 px-3 py-1">Anterior</span>
-            <span className="rounded border border-zinc-700 px-3 py-1">Próxima</span>
+            <span className="rounded border border-zinc-700 px-3 py-1">Previous</span>
+            <span className="rounded border border-zinc-700 px-3 py-1">Next</span>
           </div>
         </div>
       </div>

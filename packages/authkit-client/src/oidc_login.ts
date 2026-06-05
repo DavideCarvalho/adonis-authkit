@@ -91,7 +91,7 @@ async function tokenEndpoint(
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
   })
-  if (!res.ok) throw new Error(`Token endpoint retornou ${res.status}`)
+  if (!res.ok) throw new Error(`Token endpoint returned ${res.status}`)
 
   const json = (await res.json()) as TokenEndpointResponse
   return {

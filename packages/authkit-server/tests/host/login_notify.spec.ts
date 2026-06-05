@@ -118,7 +118,7 @@ test.group('notifyLoginSuccess (alerta de novo acesso)', (group) => {
 
     assert.lengthOf(sent, 1)
     assert.equal(sent[0]._to, 'u1@x.com')
-    assert.equal(sent[0]._subject, 'Novo acesso à sua conta')
+    assert.equal(sent[0]._subject, 'New login to your account')
     assert.include(sent[0]._text, '1.1.1.1')
     // Auditou login.success + login.new_ip_notified.
     assert.isOk(sink.events.find((e) => e.type === 'login.success'))

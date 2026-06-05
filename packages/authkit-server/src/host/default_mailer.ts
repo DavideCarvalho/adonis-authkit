@@ -1,6 +1,12 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import type { BrandingConfig } from './branding.js'
 import { renderTransactionalEmail, type EmailContent } from './email_templates.js'
+import {
+  resolveMessages,
+  translate,
+  type AuthMessages,
+  type I18nConfig,
+} from './i18n.js'
 
 /**
  * Envio de e-mail default do host-kit, usando o mailer `default` do host via
@@ -100,6 +106,24 @@ function resolveBrand(ctx: HttpContext): {
   return { appName: 'AuthKit' }
 }
 
+/**
+ * Resolve o catálogo de mensagens i18n a partir do `config/authkit.ts` (i18n).
+ * Cai no default (`en`) se a config não for resolvível. Usado para localizar
+ * os e-mails transacionais (assunto/cabeçalho/corpo).
+ */
+function resolveMailMessages(ctx: HttpContext): { messages: AuthMessages; locale: string } {
+  try {
+    const resolver = ctx.containerResolver as unknown as {
+      app?: { config?: { get?: (key: string) => { i18n?: I18nConfig } | undefined } }
+    }
+    const i18n = resolver.app?.config?.get?.('authkit')?.i18n
+    return { messages: resolveMessages(i18n), locale: i18n?.locale ?? 'en' }
+  } catch {
+    // sem config authkit resolvível — usa o default `en`.
+    return { messages: resolveMessages(), locale: 'en' }
+  }
+}
+
 async function sendEmail(ctx: HttpContext, to: string, content: EmailContent): Promise<boolean> {
   const mail = await loadMail()
   if (!mail) return false
@@ -121,14 +145,17 @@ export async function sendPasswordResetEmail(
 ): Promise<void> {
   try {
     const brand = resolveBrand(ctx)
+    const { messages: t, locale } = resolveMailMessages(ctx)
     const content = renderTransactionalEmail({
       brand,
-      subject: 'Redefinição de senha',
-      heading: 'Redefinição de senha',
-      intro: `Recebemos um pedido para redefinir a senha da sua conta em ${brand.appName}. Clique no botão abaixo para escolher uma nova senha. Se não foi você, ignore este e-mail.`,
-      ctaLabel: 'Redefinir senha',
+      locale,
+      linkFallback: translate(t, 'mail.common.link_fallback'),
+      subject: translate(t, 'mail.reset.subject'),
+      heading: translate(t, 'mail.reset.heading'),
+      intro: translate(t, 'mail.reset.intro'),
+      ctaLabel: translate(t, 'mail.reset.cta'),
       ctaUrl: data.resetUrl,
-      footnote: 'Por segurança, este link expira em breve e só pode ser usado uma vez.',
+      footnote: translate(t, 'mail.reset.fallback'),
     })
     const sent = await sendEmail(ctx, data.email, content)
     if (!sent) {
@@ -155,14 +182,17 @@ export async function sendEmailChangeConfirmationEmail(
 ): Promise<void> {
   try {
     const brand = resolveBrand(ctx)
+    const { messages: t, locale } = resolveMailMessages(ctx)
     const content = renderTransactionalEmail({
       brand,
-      subject: 'Confirme seu novo e-mail',
-      heading: 'Confirme seu novo e-mail',
-      intro: `Recebemos um pedido para alterar o e-mail da sua conta em ${brand.appName} para este endereço. Clique no botão abaixo para confirmar a alteração. Se não foi você, ignore este e-mail — nada será alterado.`,
-      ctaLabel: 'Confirmar novo e-mail',
+      locale,
+      linkFallback: translate(t, 'mail.common.link_fallback'),
+      subject: translate(t, 'mail.email_change.subject'),
+      heading: translate(t, 'mail.email_change.heading'),
+      intro: translate(t, 'mail.email_change.intro'),
+      ctaLabel: translate(t, 'mail.email_change.cta'),
       ctaUrl: data.confirmUrl,
-      footnote: 'Por segurança, este link expira em breve e só pode ser usado uma vez.',
+      footnote: translate(t, 'mail.email_change.fallback'),
     })
     const sent = await sendEmail(ctx, data.email, content)
     if (!sent) {
@@ -189,15 +219,23 @@ export async function sendNewLoginEmail(
 ): Promise<void> {
   try {
     const brand = resolveBrand(ctx)
+    const { messages: t, locale } = resolveMailMessages(ctx)
     const origin = `${ctx.request.protocol()}://${ctx.request.host()}`
+    const intro = [
+      translate(t, 'mail.new_login.intro'),
+      translate(t, 'mail.new_login.when', { date: data.when }),
+      translate(t, 'mail.new_login.ip', { ip: data.ip }),
+    ].join(' ')
     const content = renderTransactionalEmail({
       brand,
-      subject: 'Novo acesso à sua conta',
-      heading: 'Novo acesso à sua conta',
-      intro: `Detectamos um novo acesso à sua conta em ${brand.appName} a partir do IP ${data.ip} em ${data.when}. Se foi você, nenhuma ação é necessária. Se não reconhece este acesso, altere sua senha imediatamente.`,
-      ctaLabel: 'Acessar minha conta',
+      locale,
+      linkFallback: translate(t, 'mail.common.link_fallback'),
+      subject: translate(t, 'mail.new_login.subject'),
+      heading: translate(t, 'mail.new_login.heading'),
+      intro,
+      ctaLabel: translate(t, 'account.security.title'),
       ctaUrl: `${origin}/account/security`,
-      footnote: 'Você está recebendo este alerta porque um login foi feito de um endereço de IP não visto antes.',
+      footnote: translate(t, 'mail.new_login.fallback'),
     })
     const sent = await sendEmail(ctx, data.email, content)
     if (!sent) {
@@ -224,12 +262,15 @@ export async function sendEmailVerificationEmail(
 ): Promise<void> {
   try {
     const brand = resolveBrand(ctx)
+    const { messages: t, locale } = resolveMailMessages(ctx)
     const content = renderTransactionalEmail({
       brand,
-      subject: 'Verifique seu e-mail',
-      heading: 'Confirme seu e-mail',
-      intro: `Bem-vindo(a) ao ${brand.appName}! Confirme seu endereço de e-mail clicando no botão abaixo para ativar sua conta.`,
-      ctaLabel: 'Verificar e-mail',
+      locale,
+      linkFallback: translate(t, 'mail.common.link_fallback'),
+      subject: translate(t, 'mail.verify.subject'),
+      heading: translate(t, 'mail.verify.heading'),
+      intro: translate(t, 'mail.verify.intro'),
+      ctaLabel: translate(t, 'mail.verify.cta'),
       ctaUrl: data.verifyUrl,
     })
     const sent = await sendEmail(ctx, data.email, content)

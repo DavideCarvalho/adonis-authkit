@@ -54,7 +54,7 @@ export class Authenticator {
 
   async authenticate(): Promise<Identity> {
     const identity = await this.getIdentity()
-    if (!identity) throw new Error('Não autenticado')
+    if (!identity) throw new Error('Not authenticated')
     return identity
   }
 

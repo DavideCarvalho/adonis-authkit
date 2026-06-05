@@ -72,7 +72,7 @@ test.group('default_mailer', (group) => {
 
     assert.lengthOf(sent, 1)
     assert.equal(sent[0]._to, 'a@b.com')
-    assert.equal(sent[0]._subject, 'Redefinição de senha')
+    assert.equal(sent[0]._subject, 'Reset your password')
     assert.include(sent[0]._text, 'https://host/auth/reset-password?token=x')
     // HTML branded com o link no botão de CTA.
     assert.include(sent[0]._html, '<!doctype html>')
@@ -119,7 +119,7 @@ test.group('default_mailer', (group) => {
     })
 
     assert.lengthOf(sent, 1)
-    assert.equal(sent[0]._subject, 'Verifique seu e-mail')
+    assert.equal(sent[0]._subject, 'Verify your email')
     assert.include(sent[0]._text, 'https://host/auth/verify-email?token=y')
     assert.include(sent[0]._html, 'https://host/auth/verify-email?token=y')
   })

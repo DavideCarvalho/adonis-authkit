@@ -33,7 +33,7 @@ export function useAuth(): AuthState {
   if (!resolved && typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
     // eslint-disable-next-line no-console
     console.warn(
-      '[authkit] useAuth(): nenhum <AuthProvider> nem shared-prop `authkit` encontrado — retornando estado não-autenticado.'
+      '[authkit] useAuth(): no <AuthProvider> nor shared-prop `authkit` found — returning unauthenticated state.'
     )
   }
   const authkit = resolved ?? UNAUTHENTICATED

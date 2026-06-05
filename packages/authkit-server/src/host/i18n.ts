@@ -3,33 +3,369 @@
  *
  * Todas as strings visíveis ao usuário das views Edge (e as mensagens de
  * flash/erro produzidas pelos controllers) vivem num catálogo achatado de
- * chaves pontilhadas. O default embutido é pt-BR — os apps continuam
- * funcionando SEM nenhuma configuração. O host pode sobrescrever chaves
- * pontuais ou fornecer locales inteiros (ex.: `en`) via `I18nConfig`.
+ * chaves pontilhadas. O default embutido é inglês (`en`) — os apps continuam
+ * funcionando SEM nenhuma configuração. O pt-BR é um locale embutido: basta
+ * `i18n: { locale: 'pt-BR' }`. O host também pode sobrescrever chaves pontuais
+ * ou fornecer locales inteiros (ex.: `fr`) via `I18nConfig`.
  */
 
 /** Catálogo achatado de chaves de mensagem → strings. */
 export type AuthMessages = Record<string, string>
 
 export interface I18nConfig {
-  /** Locale ativo. Default: 'pt-BR'. */
+  /** Locale ativo. Default: 'en'. Locale embutido extra: 'pt-BR'. */
   locale?: string
   /**
    * Locales adicionais e/ou overrides pontuais. As chaves do locale ativo são
-   * mescladas SOBRE o default pt-BR — então o host pode trocar só algumas
-   * chaves ou trazer um locale novo por completo.
+   * mescladas SOBRE o catálogo embutido do locale (ou sobre o default `en`
+   * quando o locale não é embutido) — então o host pode trocar só algumas
+   * chaves, complementar um locale embutido, ou trazer um locale novo por
+   * completo.
    */
   messages?: Record<string, Partial<AuthMessages>>
 }
 
 /** Locale default do host-kit. */
-export const DEFAULT_LOCALE = 'pt-BR'
+export const DEFAULT_LOCALE = 'en'
 
 /**
- * Catálogo default (pt-BR) — cobre TODAS as strings visíveis ao usuário das
+ * Catálogo default (inglês) — cobre TODAS as strings visíveis ao usuário das
  * views e as mensagens de flash/erro dos controllers. Chaves agrupadas por tela.
  */
 export const DEFAULT_MESSAGES = {
+  // Comum / fallback de marca.
+  'common.app_fallback': 'Auth',
+  'common.brand_eyebrow': 'Auth',
+
+  // Tela de login (interaction OIDC: identifier + password).
+  'login.page_title': 'Login',
+  'login.title': 'Login',
+  'login.identifier_intro': 'Enter your email to continue.',
+  'login.email_label': 'Email',
+  'login.identifier_submit': 'Continue',
+  'login.create_account': 'Create account',
+  'login.forgot_password': 'Forgot password',
+  'login.divider_or': 'or',
+  'login.google': 'Sign in with Google',
+  'login.greeting': 'Hi, {name}',
+  'login.switch_account': 'Switch account',
+  'login.password_label': 'Password',
+  'login.submit': 'Log in',
+
+  // Tela de cadastro (signup).
+  'signup.page_title': 'Create account',
+  'signup.title': 'Create account',
+  'signup.intro': 'Fill in your details to get started.',
+  'signup.name_label': 'Name',
+  'signup.email_label': 'Email',
+  'signup.password_label': 'Password',
+  'signup.submit': 'Create account',
+  'signup.have_account': 'I already have an account',
+
+  // Recuperação de senha (forgot).
+  'forgot.page_title': 'Reset password',
+  'forgot.sent_title': 'Email sent',
+  'forgot.sent_body': 'If the email exists, we will send reset instructions.',
+  'forgot.title': 'Reset password',
+  'forgot.intro': 'We will send you a link to reset your password.',
+  'forgot.email_label': 'Email',
+  'forgot.submit': 'Send link',
+
+  // Redefinição de senha (reset).
+  'reset.page_title': 'Reset password',
+  'reset.done_title': 'Password reset',
+  'reset.done_body': 'You can now log in with your new password.',
+  'reset.title': 'New password',
+  'reset.intro': 'Choose a new password for your account.',
+  'reset.password_label': 'Password',
+  'reset.submit': 'Reset',
+
+  // Verificação de e-mail (verify-email).
+  'verify_email.page_title': 'Verify email',
+  'verify_email.verified_title': 'Email verified',
+  'verify_email.verified_body': 'Your email was confirmed successfully.',
+  'verify_email.invalid_title': 'Invalid link',
+  'verify_email.invalid_body': 'The verification link is invalid or has already been used.',
+
+  // Desafio de MFA no fluxo de login (mfa-challenge).
+  'mfa_challenge.page_title': 'Two-factor verification',
+  'mfa_challenge.title': 'Two-factor verification',
+  'mfa_challenge.intro': 'Open your authenticator app and enter the 6-digit code.',
+  'mfa_challenge.code_label': 'Code',
+  'mfa_challenge.submit': 'Verify',
+  'mfa_challenge.recovery_summary': 'Use a recovery code',
+  'mfa_challenge.recovery_submit': 'Log in with a recovery code',
+  'mfa_challenge.passkey_button': 'Use passkey',
+  'mfa_challenge.passkey_error': 'Could not authenticate with the passkey. Please try again.',
+
+  // Consent (autorização de cliente OIDC).
+  'consent.page_title': 'Authorize',
+  'consent.title': 'Authorize access',
+  // `{app}` é interpolado com o nome do app já envolto em <strong> (renderizado
+  // raw na view). O nome vem do branding (config-trusted).
+  'consent.body': 'The app <strong>{app}</strong> wants to access your account.',
+  'consent.submit': 'Authorize',
+
+  // Console de conta — login (account/login).
+  'account.login.page_title': 'My account',
+  'account.login.title': 'My account',
+  'account.login.intro': 'Manage your access tokens.',
+  'account.login.email_label': 'Email',
+  'account.login.password_label': 'Password',
+  'account.login.submit': 'Log in',
+
+  // Console de conta — tokens (account/tokens).
+  'account.tokens.page_title': 'Access tokens',
+  'account.tokens.title': 'Access tokens',
+  'account.tokens.logout': 'Log out',
+  'account.tokens.security': 'Security',
+  'account.tokens.created_notice': 'Token created — copy it now, it will not be shown again:',
+  'account.tokens.name_placeholder': 'Token name (e.g. CI deploy)',
+  'account.tokens.create': 'Create',
+  'account.tokens.empty': 'No tokens yet.',
+  'account.tokens.created_at': 'Created on {date}',
+  'account.tokens.last_used': '· last used {date}',
+  'account.tokens.never_used': '· never used',
+  'account.tokens.scopes': 'Scopes: {scopes}',
+  'account.tokens.audience': 'Audience: {audience}',
+  'account.tokens.revoke': 'Revoke',
+
+  // Console de conta — segurança (account/security): senha + e-mail.
+  'account.security.page_title': 'Account security',
+  'account.security.title': 'Account security',
+  'account.security.logout': 'Log out',
+  'account.security.current_email': 'Current email: {email}',
+  'account.security.not_supported':
+    'Changing password and email is not available in this installation.',
+  'account.security.password_section': 'Change password',
+  'account.security.current_password_label': 'Current password',
+  'account.security.new_password_label': 'New password',
+  'account.security.change_password_submit': 'Change password',
+  'account.security.password_changed': 'Password changed successfully.',
+  'account.security.email_section': 'Change email',
+  'account.security.email_intro':
+    'We will send a confirmation link to the new address. The change only takes effect after confirmation.',
+  'account.security.new_email_label': 'New email',
+  'account.security.email_password_label': 'Current password',
+  'account.security.change_email_submit': 'Request email change',
+  'account.security.email_change_requested':
+    'We sent a confirmation link to {email}. Click it to complete the change.',
+  'account.security.email_changed': 'Email changed successfully.',
+
+  // Confirmação de troca de e-mail (account/email-confirmed).
+  'account.email_confirmed.page_title': 'Email confirmation',
+  'account.email_confirmed.ok_title': 'Email changed',
+  'account.email_confirmed.ok_body': 'Your new email has been confirmed and is now active.',
+  'account.email_confirmed.invalid_title': 'Invalid link',
+  'account.email_confirmed.invalid_body':
+    'The confirmation link is invalid or has already been used.',
+
+  // Console de conta — MFA (account/mfa).
+  'account.mfa.page_title': 'Two-factor verification',
+  'account.mfa.title': 'Two-factor verification',
+  'account.mfa.logout': 'Log out',
+  'account.mfa.recovery_codes_notice':
+    'Save your recovery codes — they will not be shown again:',
+  'account.mfa.enroll_intro':
+    'Scan the QR code with your authenticator app (Google Authenticator, 1Password, etc.).',
+  'account.mfa.qr_alt': 'TOTP QR code',
+  'account.mfa.manual_intro': 'Or enter it manually:',
+  'account.mfa.confirm_code_label': 'Confirmation code',
+  'account.mfa.activate': 'Enable two-factor verification',
+  'account.mfa.enabled_html':
+    'Two-factor verification is <span class="font-semibold text-emerald-700">enabled</span> on this account.',
+  'account.mfa.disable': 'Disable',
+  'account.mfa.disabled_intro':
+    'Two-factor verification is disabled. Enable it to protect your account with an authenticator app.',
+  'account.mfa.enable': 'Enable two-factor verification',
+
+  // Console de conta — passkeys (WebAuthn) na tela de MFA.
+  'mfa.passkey.section_title': 'Passkeys',
+  'mfa.passkey.section_intro':
+    'Use a passkey (biometrics, device PIN, or security key) as a second factor, without typing codes.',
+  'mfa.passkey.add': 'Add passkey',
+  'mfa.passkey.remove': 'Remove',
+  'mfa.passkey.empty': 'No passkeys registered.',
+  'mfa.passkey.unnamed': 'Passkey',
+  'mfa.passkey.created_at': 'Created on {date}',
+  'mfa.passkey.register_error': 'Could not register the passkey. Please try again.',
+  'mfa.passkey.unsupported': 'Your browser does not support passkeys.',
+
+  // Console admin (B6) — navegação compartilhada.
+  'admin.nav.dashboard': 'Dashboard',
+  'admin.nav.users': 'Users',
+  'admin.nav.clients': 'Clients',
+  'admin.nav.audit': 'Audit',
+  'admin.nav.logout': 'Log out',
+
+  // Console admin — dashboard.
+  'admin.dashboard.page_title': 'Admin dashboard',
+  'admin.dashboard.title': 'Admin dashboard',
+  'admin.dashboard.users_count': 'Users',
+  'admin.dashboard.clients_count': 'Clients',
+  'admin.dashboard.audit_count': 'Audit events',
+  'admin.dashboard.recent_title': 'Recent events',
+
+  // Console admin — usuários.
+  'admin.users.page_title': 'Users',
+  'admin.users.title': 'Users',
+  'admin.users.search_placeholder': 'Search by email',
+  'admin.users.search': 'Search',
+  'admin.users.empty': 'No users found.',
+  'admin.users.roles_placeholder': 'Roles (comma-separated)',
+  'admin.users.save_roles': 'Save roles',
+  'admin.users.sessions': 'Sessions',
+
+  // Console admin — sessões/grants ativos de uma conta.
+  'admin.sessions.page_title': 'Active sessions',
+  'admin.sessions.title': 'Active sessions',
+  'admin.sessions.account': 'Account: {email}',
+  'admin.sessions.back': 'Back to users',
+  'admin.sessions.not_supported':
+    'The configured OIDC adapter does not support enumeration — session inspection is unavailable.',
+  'admin.sessions.revoked_notice':
+    'Revoked: {sessions} session(s), {grants} grant(s), {accessTokens} access token(s), {refreshTokens} refresh token(s).',
+  'admin.sessions.sessions_section': 'Sessions (IdP login)',
+  'admin.sessions.sessions_empty': 'No active sessions.',
+  'admin.sessions.session_login_ts': 'Login: {date}',
+  'admin.sessions.session_amr': 'Methods: {amr}',
+  'admin.sessions.grants_section': 'Grants (per-client authorizations)',
+  'admin.sessions.grants_empty': 'No active grants.',
+  'admin.sessions.grant_client': 'Client: {clientId}',
+  'admin.sessions.grant_tokens': '{accessTokens} access · {refreshTokens} refresh',
+  'admin.sessions.revoke_all': 'Revoke all sessions and grants',
+  'admin.sessions.revoke_confirm':
+    'Revoke all sessions and grants for this account? The user will need to log in again and issued tokens will stop working.',
+
+  // Console admin — clients.
+  'admin.clients.page_title': 'OAuth clients',
+  'admin.clients.title': 'OAuth clients',
+  'admin.clients.empty': 'No clients configured.',
+  'admin.clients.confidential': 'Confidential',
+  'admin.clients.public': 'Public',
+  'admin.clients.grants': 'Grants: {grants}',
+  'admin.clients.redirect_uris': 'Redirects: {uris}',
+  'admin.clients.dynamic_notice':
+    'Dynamic client registration (RFC 7591) is on — clients registered via /reg are persisted in the adapter and appear in the dynamic section below.',
+  'admin.clients.static_section': 'Static clients (config)',
+  'admin.clients.dynamic_section': 'Dynamic clients (adapter)',
+  'admin.clients.dynamic_empty': 'No dynamic clients persisted.',
+  'admin.clients.dynamic_not_supported':
+    'The configured OIDC adapter does not support client enumeration — dynamic management is unavailable.',
+  'admin.clients.new': 'New client',
+  'admin.clients.new_title': 'New OIDC client',
+  'admin.clients.edit_title': 'Edit OIDC client',
+  'admin.clients.edit': 'Edit',
+  'admin.clients.delete': 'Delete',
+  'admin.clients.delete_confirm': 'Delete this client? This action cannot be undone.',
+  'admin.clients.regenerate_secret': 'Regenerate secret',
+  'admin.clients.regenerate_confirm':
+    'Regenerate the secret? The current secret will stop working immediately.',
+  'admin.clients.back': 'Back',
+  'admin.clients.cancel': 'Cancel',
+  'admin.clients.save': 'Save',
+  'admin.clients.create': 'Create client',
+  'admin.clients.secret_once_title': 'Save the client_secret now',
+  'admin.clients.secret_once_notice':
+    'This is the only time the secret is shown. Copy it now — it cannot be retrieved later.',
+  'admin.clients.field_client_id': 'Client ID',
+  'admin.clients.field_client_id_placeholder': 'leave blank to generate automatically',
+  'admin.clients.field_client_id_help':
+    'Optional. If empty, a random identifier will be generated.',
+  'admin.clients.field_redirect_uris': 'Redirect URIs',
+  'admin.clients.field_redirect_uris_help': 'One URI per line.',
+  'admin.clients.field_post_logout_uris': 'Post-logout redirect URIs',
+  'admin.clients.field_post_logout_uris_help': 'One URI per line (optional).',
+  'admin.clients.field_grant_types': 'Grant types',
+  'admin.clients.field_auth_method': 'Token endpoint auth method',
+
+  // Console admin — auditoria.
+  'admin.audit.page_title': 'Audit',
+  'admin.audit.title': 'Audit log',
+  'admin.audit.type_placeholder': 'Filter by type',
+  'admin.audit.subject_placeholder': 'Filter by subject (accountId)',
+  'admin.audit.filter': 'Filter',
+  'admin.audit.empty': 'No events found.',
+  'admin.audit.not_supported': 'The configured audit sink does not support querying.',
+
+  // Console admin — paginação compartilhada.
+  'admin.pagination.page': 'Page {page} of {total}',
+  'admin.pagination.prev': 'Previous',
+  'admin.pagination.next': 'Next',
+
+  // Device Authorization Grant (RFC 8628) — telas servidas pelo oidc-provider.
+  'device.input.title': 'Sign in to the device',
+  'device.input.intro': 'Enter the code shown on your device.',
+  'device.input.submit': 'Continue',
+  'device.input.error_invalid': 'The code you entered is incorrect. Please try again.',
+  'device.input.error_aborted': 'The login request was aborted.',
+  'device.input.error_generic': 'An error occurred while processing your request.',
+  'device.confirm.title': 'Confirm device',
+  'device.confirm.body':
+    'The code below should be displayed on your device. Confirm only if you recognize it.',
+  'device.confirm.submit': 'Continue',
+  'device.confirm.abort': 'Cancel',
+  'device.success.title': 'Login complete',
+  'device.success.body': 'You are signed in. You can return to your device.',
+
+  // Step-up auth (acr_values): cliente exige MFA mas a conta não tem MFA enrolado.
+  'mfa_challenge.required_no_enrollment':
+    'This client requires two-factor verification. Set up MFA in your account console to continue.',
+
+  // Mensagens de erro/flash produzidas pelos controllers.
+  'errors.invalid_credentials': 'Invalid credentials',
+  'errors.invalid_code': 'Invalid code',
+  'errors.email_taken': 'Email already registered',
+  'errors.signup_failed': 'Could not create the account',
+  'errors.invalid_or_expired_token': 'Invalid or expired token',
+  'errors.account_locked':
+    'Account temporarily locked due to too many attempts. Try again in {seconds}s.',
+  'errors.session_expired': 'Session expired',
+  'errors.challenge_expired': 'Challenge expired',
+  'errors.passkeys_unavailable': 'Passkeys unavailable',
+  'errors.no_passkey_registered': 'No passkey registered',
+
+  // Assuntos/corpos de e-mail transacional (default_mailer).
+  'mail.common.link_fallback':
+    "If the button does not work, copy and paste this link into your browser:",
+
+  'mail.reset.subject': 'Reset your password',
+  'mail.reset.heading': 'Reset your password',
+  'mail.reset.intro': 'We received a request to reset the password for your account.',
+  'mail.reset.cta': 'Reset password',
+  'mail.reset.fallback': 'If you did not request this, you can ignore this email.',
+  'mail.reset.expires': 'This link expires in {minutes} minutes.',
+
+  'mail.verify.subject': 'Verify your email',
+  'mail.verify.heading': 'Verify your email',
+  'mail.verify.intro': 'Confirm your email address to finish setting up your account.',
+  'mail.verify.cta': 'Verify email',
+  'mail.verify.fallback': 'If you did not create this account, you can ignore this email.',
+  'mail.verify.expires': 'This link expires in {minutes} minutes.',
+
+  'mail.new_login.subject': 'New login to your account',
+  'mail.new_login.heading': 'New login detected',
+  'mail.new_login.intro': 'We detected a new login to your account.',
+  'mail.new_login.when': 'When: {date}',
+  'mail.new_login.ip': 'IP address: {ip}',
+  'mail.new_login.device': 'Device: {device}',
+  'mail.new_login.fallback':
+    'If this was you, no action is needed. If not, reset your password right away.',
+
+  'mail.email_change.subject': 'Confirm your new email',
+  'mail.email_change.heading': 'Confirm your new email',
+  'mail.email_change.intro':
+    'We received a request to change the email address on your account. Confirm the new address below.',
+  'mail.email_change.cta': 'Confirm new email',
+  'mail.email_change.fallback': 'If you did not request this, you can ignore this email.',
+  'mail.email_change.expires': 'This link expires in {minutes} minutes.',
+} satisfies AuthMessages
+
+/**
+ * Catálogo embutido pt-BR. Espelha TODAS as chaves do default `en`. Ativado
+ * com `i18n: { locale: 'pt-BR' }` sem nenhuma config extra de mensagens.
+ */
+export const PT_BR_MESSAGES = {
   // Comum / fallback de marca.
   'common.app_fallback': 'Auth',
   'common.brand_eyebrow': 'Auth',
@@ -98,8 +434,6 @@ export const DEFAULT_MESSAGES = {
   // Consent (autorização de cliente OIDC).
   'consent.page_title': 'Autorizar',
   'consent.title': 'Autorizar acesso',
-  // `{app}` é interpolado com o nome do app já envolto em <strong> (renderizado
-  // raw na view). O nome vem do branding (config-trusted).
   'consent.body': 'O app <strong>{app}</strong> quer acessar sua conta.',
   'consent.submit': 'Autorizar',
 
@@ -283,8 +617,7 @@ export const DEFAULT_MESSAGES = {
   'admin.audit.subject_placeholder': 'Filtrar por subject (accountId)',
   'admin.audit.filter': 'Filtrar',
   'admin.audit.empty': 'Nenhum evento encontrado.',
-  'admin.audit.not_supported':
-    'O sink de auditoria configurado não suporta consulta.',
+  'admin.audit.not_supported': 'O sink de auditoria configurado não suporta consulta.',
 
   // Console admin — paginação compartilhada.
   'admin.pagination.page': 'Página {page} de {total}',
@@ -318,20 +651,72 @@ export const DEFAULT_MESSAGES = {
   'errors.invalid_or_expired_token': 'Token inválido ou expirado',
   'errors.account_locked':
     'Conta temporariamente bloqueada por excesso de tentativas. Tente novamente em {seconds}s.',
+  'errors.session_expired': 'Sessão expirada',
+  'errors.challenge_expired': 'Desafio expirado',
+  'errors.passkeys_unavailable': 'Passkeys indisponíveis',
+  'errors.no_passkey_registered': 'Nenhuma passkey registrada',
+
+  // Assuntos/corpos de e-mail transacional (default_mailer).
+  'mail.common.link_fallback':
+    'Se o botão não funcionar, copie e cole este link no navegador:',
+
+  'mail.reset.subject': 'Redefinição de senha',
+  'mail.reset.heading': 'Redefinição de senha',
+  'mail.reset.intro': 'Recebemos um pedido para redefinir a senha da sua conta.',
+  'mail.reset.cta': 'Redefinir senha',
+  'mail.reset.fallback': 'Se você não solicitou isso, pode ignorar este e-mail.',
+  'mail.reset.expires': 'Este link expira em {minutes} minutos.',
+
+  'mail.verify.subject': 'Verifique seu e-mail',
+  'mail.verify.heading': 'Verifique seu e-mail',
+  'mail.verify.intro': 'Confirme seu endereço de e-mail para concluir a configuração da conta.',
+  'mail.verify.cta': 'Verificar e-mail',
+  'mail.verify.fallback': 'Se você não criou esta conta, pode ignorar este e-mail.',
+  'mail.verify.expires': 'Este link expira em {minutes} minutos.',
+
+  'mail.new_login.subject': 'Novo login na sua conta',
+  'mail.new_login.heading': 'Novo login detectado',
+  'mail.new_login.intro': 'Detectamos um novo login na sua conta.',
+  'mail.new_login.when': 'Quando: {date}',
+  'mail.new_login.ip': 'Endereço IP: {ip}',
+  'mail.new_login.device': 'Dispositivo: {device}',
+  'mail.new_login.fallback':
+    'Se foi você, nenhuma ação é necessária. Caso contrário, redefina sua senha imediatamente.',
+
+  'mail.email_change.subject': 'Confirme seu novo e-mail',
+  'mail.email_change.heading': 'Confirme seu novo e-mail',
+  'mail.email_change.intro':
+    'Recebemos um pedido para trocar o e-mail da sua conta. Confirme o novo endereço abaixo.',
+  'mail.email_change.cta': 'Confirmar novo e-mail',
+  'mail.email_change.fallback': 'Se você não solicitou isso, pode ignorar este e-mail.',
+  'mail.email_change.expires': 'Este link expira em {minutes} minutos.',
 } satisfies AuthMessages
 
 /**
- * Resolve o catálogo ativo: mescla os overrides do locale selecionado SOBRE o
- * default pt-BR. Sem config, retorna os defaults intactos. Chaves omitidas pelo
- * locale escolhido caem no default pt-BR (fallback de cobertura).
+ * Locales embutidos no host-kit. O `en` é o default; o `pt-BR` está disponível
+ * com `i18n: { locale: 'pt-BR' }` sem nenhuma config de mensagens extra. Os
+ * overrides/locales do host (via `I18nConfig.messages`) são mesclados por cima.
+ */
+export const BUILTIN_MESSAGES: Record<string, AuthMessages> = {
+  en: DEFAULT_MESSAGES,
+  'pt-BR': PT_BR_MESSAGES,
+}
+
+/**
+ * Resolve o catálogo ativo. Começa do catálogo embutido do locale selecionado
+ * (ou do default `en` quando o locale não é embutido), depois mescla os
+ * overrides do host por cima. Sem config, retorna o default `en` intacto.
+ * Chaves omitidas caem no default `en` (fallback de cobertura).
  */
 export function resolveMessages(i18n?: I18nConfig): AuthMessages {
-  const base: AuthMessages = { ...DEFAULT_MESSAGES }
   const locale = i18n?.locale ?? DEFAULT_LOCALE
+  // Base: sempre o default `en` para garantir cobertura total das chaves; o
+  // catálogo embutido do locale (ex.: pt-BR) é mesclado por cima.
+  const base: AuthMessages = { ...DEFAULT_MESSAGES, ...(BUILTIN_MESSAGES[locale] ?? {}) }
   const overrides = i18n?.messages?.[locale]
   if (!overrides) return base
   // Mescla só valores definidos (o `Partial` permite undefined); chaves omitidas
-  // seguem caindo no default pt-BR.
+  // seguem caindo no catálogo base.
   for (const [key, value] of Object.entries(overrides)) {
     if (value !== undefined) base[key] = value
   }

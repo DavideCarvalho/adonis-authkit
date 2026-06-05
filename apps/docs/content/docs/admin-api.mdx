@@ -4,10 +4,17 @@ description: The machine-to-machine management API — users, clients, sessions,
 ---
 
 AuthKit ships an opt-in **Admin REST API** mounted under `/api/authkit/v1`: a JSON,
-machine-to-machine management surface meant to be consumed by automation and a future
-SDK. It is **off by default** and authenticates with **API keys** (no session). It is
-independent of the [Admin Console](/docs/admin-console) — you can enable either, both, or
-neither.
+machine-to-machine management surface meant to be consumed by automation and the
+[backend SDK](/docs/sdk). It is **off by default** and authenticates with **API keys** (no
+session). It is independent of the [Admin Console](/docs/admin-console) — you can enable
+either, both, or neither.
+
+<Callout type="info">
+  **Prefer the [SDK](/docs/sdk).** Instead of hand-rolling `fetch` calls against this API,
+  use [`@dudousxd/adonis-authkit-sdk`](/docs/sdk) — a typed client with the same surface,
+  typed errors (`AuthkitApiError`), and an `embedded` driver that skips HTTP entirely when
+  the IdP runs in the same app. This reference documents the underlying wire contract.
+</Callout>
 
 ## Enabling it
 

@@ -26,6 +26,9 @@ It is built as an idiomatic wrapper around
   and `authkit:rotate-keys` commands, and a `@dudousxd/adonis-authkit-testing` helper package.
 - **Client & React** — typed OIDC client resolvers (JWT/opaque/PAT) and a React
   `useAuth()` hook with role-gating components.
+- **Backend SDK** — `@dudousxd/adonis-authkit-sdk`: one typed interface with `remote`
+  (HTTP Admin API) and `embedded` (in-process) drivers for managing users, clients,
+  sessions, audit, and token verification.
 
 ## Packages
 
@@ -35,6 +38,7 @@ It is built as an idiomatic wrapper around
 | [`@dudousxd/adonis-authkit-server`](./packages/authkit-server) | AdonisJS OIDC/OAuth2 Authorization Server (Identity Provider): ejectable auth server with sessions, rate-limiting, MFA/TOTP, audit log, federated logout, and OpenTelemetry metrics. |
 | [`@dudousxd/adonis-authkit-client`](./packages/authkit-client) | OIDC relying-party (client) adapter: session-based authentication against an OpenID Connect identity provider, with JWT/PAT user resolvers and OpenTelemetry metrics. |
 | [`@dudousxd/adonis-authkit-react`](./packages/authkit-react) | Frontend ergonomics for AdonisJS + Inertia + React apps: a typed `useAuth()` hook, role-gating hooks, and gating components. |
+| [`@dudousxd/adonis-authkit-sdk`](./packages/authkit-sdk) | Backend SDK over the Admin API with one typed interface and two drivers: `remote` (HTTP/Bearer) and `embedded` (in-process). |
 
 ## Install
 

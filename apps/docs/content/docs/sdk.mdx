@@ -1,0 +1,129 @@
+---
+title: Backend SDK
+description: One typed interface, two drivers — remote (HTTP Admin API) and embedded (in-process).
+---
+
+`@dudousxd/adonis-authkit-sdk` is a **backend SDK** for managing AuthKit from server-side
+code: users, sessions, OIDC clients, the audit log, and token verification. It exposes a
+single typed interface backed by two interchangeable drivers:
+
+- **`remote`** — HTTP against the [Admin REST API](/docs/admin-api) (`/api/authkit/v1`),
+  authenticated with a Bearer API key. Use it from any backend service, even one that has
+  nothing else to do with AuthKit.
+- **`embedded`** — in-process calls that resolve the server services straight from the
+  AdonisJS container. Use it when the IdP runs in the **same** app: zero HTTP, zero API
+  key, same return shapes.
+
+Both drivers implement the **exact same interface and return the same shapes**, so you can
+start embedded and split out to remote later without touching call sites.
+
+## Install
+
+```bash
+pnpm add @dudousxd/adonis-authkit-sdk
+```
+
+The server package (`@dudousxd/adonis-authkit-server`) is an **optional** peer dependency —
+only the `embedded` driver needs it (it is imported lazily). Remote-only consumers can skip
+it entirely and carry zero AdonisJS server dependency.
+
+## Creating a client
+
+`createAuthkit` always returns a `Promise<Authkit>` (the embedded driver lazy-loads the
+server kit).
+
+### Remote
+
+```ts
+import { createAuthkit } from '@dudousxd/adonis-authkit-sdk'
+
+const authkit = await createAuthkit({
+  mode: 'remote',
+  baseUrl: 'https://idp.example.com', // host root; /api/authkit/v1 is appended
+  apiKey: process.env.AUTHKIT_ADMIN_API_KEY!,
+  // fetchImpl: customFetch, // optional — defaults to global fetch
+})
+```
+
+### Embedded
+
+```ts
+import { createAuthkit } from '@dudousxd/adonis-authkit-sdk'
+import type { ApplicationService } from '@adonisjs/core/types'
+
+export async function makeAuthkit(app: ApplicationService) {
+  return createAuthkit({ mode: 'embedded', app })
+}
+```
+
+The embedded driver derives the password-reset link origin from your `authkit.issuer`
+config when sending invite/reset e-mails.
+
+## Methods
+
+| Resource | Method | Returns |
+| --- | --- | --- |
+| `users` | `list({ search?, page?, limit? })` | `{ data, total, page, limit }` |
+| `users` | `get(id)` | the user |
+| `users` | `create({ email, name?, password?, invite? })` | the user + `invited` |
+| `users` | `update(id, { globalRoles?, name?, avatarUrl? })` | the updated user |
+| `users` | `disable(id)` / `enable(id)` | `{ id, disabled }` |
+| `users` | `resetPassword(id)` | `{ id, sent }` |
+| `sessions` | `list(userId)` | `{ canList, sessions, grants }` |
+| `sessions` | `revokeAll(userId)` | `{ sessions, grants, accessTokens, refreshTokens }` |
+| `clients` | `list()` | `{ data, canList }` |
+| `clients` | `get(id)` | the client |
+| `clients` | `create(input)` | `{ clientId, clientSecret }` — secret shown **once** |
+| `clients` | `update(id, input)` | the updated client |
+| `clients` | `regenerateSecret(id)` | `{ clientId, clientSecret }` — new secret **once** |
+| `clients` | `delete(id)` | `{ clientId, deleted }` |
+| `audit` | `list({ type?, subject?, page?, limit? })` | `{ data, total, page, limit }` |
+| `tokens` | `verify(token)` | introspection result (PAT or opaque access token) |
+
+The `clientSecret` from `create`/`regenerateSecret` is the **only** time the secret is
+returned in clear text — store it immediately.
+
+## Example
+
+```ts
+const created = await authkit.users.create({ email: 'ana@example.com', invite: true })
+// created.invited === true → reset/invite e-mail dispatched
+
+await authkit.users.update(created.id, { globalRoles: ['ADMIN'] })
+
+const intro = await authkit.tokens.verify(bearerToken)
+if (intro.active) {
+  console.log(intro.sub, intro.scopes)
+}
+```
+
+## Error handling
+
+The **remote** driver throws `AuthkitApiError` for any non-2xx response, parsed from the
+API's `{ error: { code, message } }` envelope. Network/parse failures throw the same error
+with code `network_error` and `status: 0`.
+
+```ts
+import { AuthkitApiError } from '@dudousxd/adonis-authkit-sdk'
+
+try {
+  await authkit.users.create({ email: 'dup@example.com' })
+} catch (err) {
+  if (err instanceof AuthkitApiError) {
+    // err.status (e.g. 409), err.code (e.g. 'email_taken'), err.message
+  }
+}
+```
+
+The **embedded** driver throws plain `Error` for the equivalent failure conditions
+(not found, e-mail taken, unsupported capability), since there is no HTTP status to map.
+
+## Which driver should I use?
+
+- **Same app as the IdP?** Use `embedded` — no HTTP hop, no API key to manage, and it works
+  even when the Admin REST API is not enabled.
+- **Separate service / different deploy?** Use `remote` and enable the
+  [Admin REST API](/docs/admin-api) with an API key.
+
+Both speak the identical interface — see the [Admin REST API reference](/docs/admin-api)
+for the underlying wire contract.

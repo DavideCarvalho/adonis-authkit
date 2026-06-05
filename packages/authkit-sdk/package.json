@@ -1,0 +1,64 @@
+{
+  "name": "@dudousxd/adonis-authkit-sdk",
+  "version": "0.1.0",
+  "description": "Backend SDK for the AuthKit Admin API with one typed interface and two drivers: remote (HTTP/Bearer) and embedded (in-process when the IdP runs in the same AdonisJS app).",
+  "license": "MIT",
+  "author": "dudousxd",
+  "homepage": "https://github.com/DavideCarvalho/streaming-educacao/tree/main/packages/authkit-sdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DavideCarvalho/streaming-educacao.git",
+    "directory": "packages/authkit-sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/DavideCarvalho/streaming-educacao/issues"
+  },
+  "keywords": [
+    "adonisjs",
+    "authkit",
+    "sdk",
+    "admin-api",
+    "oidc",
+    "authentication"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "./build/index.js",
+  "types": "./build/index.d.ts",
+  "files": [
+    "build"
+  ],
+  "exports": {
+    ".": "./build/index.js",
+    "./types": "./build/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import=@poppinss/ts-exec bin/test.ts"
+  },
+  "peerDependencies": {
+    "@adonisjs/core": "catalog:adonis",
+    "@dudousxd/adonis-authkit-server": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@adonisjs/core": {
+      "optional": true
+    },
+    "@dudousxd/adonis-authkit-server": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@adonisjs/core": "catalog:adonis",
+    "@dudousxd/adonis-authkit-server": "workspace:*",
+    "@adonisjs/tsconfig": "catalog:adonis",
+    "@japa/assert": "catalog:",
+    "@japa/runner": "catalog:",
+    "@poppinss/ts-exec": "catalog:",
+    "@types/node": "catalog:adonis",
+    "typescript": "catalog:frontend"
+  }
+}

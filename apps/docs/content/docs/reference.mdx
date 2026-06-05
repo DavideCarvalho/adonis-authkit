@@ -109,3 +109,15 @@ description: The full defineConfig option tables for server and client.
 | `refreshTokens(params)` | `grant_type=refresh_token` refresh (handles rotation). See [Refresh Tokens](/docs/refresh-tokens). |
 | `exchangeToken(params)` | RFC 8693 token-exchange (impersonation). |
 | `buildEndSessionUrl(params)` | `${issuer}/session/end` RP-initiated logout URL. |
+
+## SDK — `createAuthkit` (`@dudousxd/adonis-authkit-sdk`)
+
+`createAuthkit(options): Promise<Authkit>` builds the [backend SDK](/docs/sdk).
+
+| Export | Purpose |
+| --- | --- |
+| `createAuthkit({ mode: 'remote', baseUrl, apiKey, fetchImpl? })` | HTTP driver over the [Admin REST API](/docs/admin-api). |
+| `createAuthkit({ mode: 'embedded', app })` | In-process driver resolving server services from the AdonisJS container. |
+| `AuthkitApiError` | Error thrown by the remote driver (`status`, `code`, `message`). |
+
+See the [SDK guide](/docs/sdk) for the full method table.

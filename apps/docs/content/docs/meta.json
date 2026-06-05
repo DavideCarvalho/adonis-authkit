@@ -24,6 +24,7 @@
     "device-flow",
     "admin-console",
     "admin-api",
+    "sdk",
     "events",
     "i18n",
     "---Frontend---",

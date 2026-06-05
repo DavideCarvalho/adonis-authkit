@@ -1,0 +1,309 @@
+import type { ApplicationService } from '@adonisjs/core/types'
+import type {
+  Authkit,
+  AuthkitClient,
+  AuthkitCreatedClient,
+  AuthkitCreatedUser,
+  AuthkitUser,
+  ClientInput,
+  CreateUserInput,
+  DeletedClient,
+  ListAuditParams,
+  ListAuditResult,
+  ListClientsResult,
+  ListSessionsResult,
+  ListUsersParams,
+  ListUsersResult,
+  RegeneratedSecret,
+  ResetPasswordResult,
+  RevokeSessionsResult,
+  UpdateUserInput,
+  UserStatusResult,
+  VerifyTokenResult,
+} from './types.js'
+
+export interface EmbeddedOptions {
+  /** The AdonisJS application service (e.g. injected `app`). */
+  app: ApplicationService
+}
+
+/** Audit actor used for SDK-originated writes — mirrors the REST `admin-api` source. */
+const ACTOR = { actorId: null, ip: null, source: 'admin-api' as const }
+
+/**
+ * Builds a minimal HttpContext-shaped object good enough for the server
+ * services that only touch `request.protocol()`/`request.host()` (used when
+ * composing the password-reset URL) and `request.ip()`. We deliberately do NOT
+ * import `@adonisjs/core/http` here — out-of-band SDK calls have no real request.
+ */
+function fakeCtx(app: ApplicationService): any {
+  const origin = (app.config.get<string>('authkit.issuer', '') || '').replace(/\/+$/, '')
+  let protocol = 'https'
+  let host = 'localhost'
+  if (origin) {
+    try {
+      const url = new URL(origin)
+      protocol = url.protocol.replace(/:$/, '')
+      host = url.host
+    } catch {
+      /* keep defaults */
+    }
+  }
+  return {
+    request: {
+      protocol: () => protocol,
+      host: () => host,
+      ip: () => null,
+    },
+  }
+}
+
+/**
+ * Embedded driver: when the IdP runs IN-PROCESS in the same AdonisJS app, this
+ * resolves the server services from the container (`authkit.server`) and calls
+ * the SAME underlying services the Admin API controllers use
+ * (`AdminUsersService`, `AdminClientsService`, `AdminSessionsService`,
+ * `TokenVerifyService`), producing identical return shapes. The
+ * `@dudousxd/adonis-authkit-server` package is imported LAZILY so remote-mode
+ * users never need it installed (it's an optional peer dependency).
+ */
+export async function createEmbeddedAuthkit(opts: EmbeddedOptions): Promise<Authkit> {
+  const { app } = opts
+  // Lazy import: only remote-mode consumers may not have the server installed.
+  const server = await import('@dudousxd/adonis-authkit-server')
+  const { AdminUsersService, AdminClientsService, AdminSessionsService, TokenVerifyService } =
+    server as unknown as {
+      AdminUsersService: any
+      AdminClientsService: any
+      AdminSessionsService: any
+      TokenVerifyService: any
+    }
+
+  const service = await app.container.make('authkit.server')
+  const cfg = (service as any).config
+  const ctx = fakeCtx(app)
+
+  // ---- DTO projections (mirror admin_api/dto.ts) ----
+  const usersService = new AdminUsersService(cfg)
+
+  async function userDto(account: any): Promise<AuthkitUser> {
+    return {
+      id: account.id,
+      email: account.email,
+      name: account.name ?? null,
+      avatarUrl: account.avatarUrl ?? null,
+      globalRoles: account.globalRoles ?? [],
+      disabled: await usersService.isDisabled(account.id),
+    }
+  }
+
+  function clientDto(client: any): AuthkitClient {
+    return {
+      clientId: client.clientId,
+      confidential: client.confidential,
+      grants: client.grants,
+      redirectUris: client.redirectUris,
+      postLogoutRedirectUris: client.postLogoutRedirectUris,
+      tokenEndpointAuthMethod: client.tokenEndpointAuthMethod,
+    }
+  }
+
+  function sessionDto(s: any) {
+    return { id: s.id, accountId: s.accountId, loginTs: s.loginTs ?? null, amr: s.amr ?? [] }
+  }
+  function grantDto(g: any) {
+    return {
+      id: g.id,
+      accountId: g.accountId,
+      clientId: g.clientId ?? null,
+      accessTokens: g.accessTokens,
+      refreshTokens: g.refreshTokens,
+    }
+  }
+  function auditDto(e: any) {
+    return {
+      id: e.id,
+      type: e.type,
+      accountId: e.accountId ?? null,
+      email: e.email ?? null,
+      clientId: e.clientId ?? null,
+      actorId: e.actorId ?? null,
+      ip: e.ip ?? null,
+      metadata: e.metadata ?? null,
+      createdAt: e.createdAt instanceof Date ? e.createdAt.toISOString() : e.createdAt,
+    }
+  }
+
+  function normalizeClientInput(input: ClientInput) {
+    return {
+      clientId: input.clientId?.trim() || undefined,
+      redirectUris: input.redirectUris ?? [],
+      postLogoutRedirectUris: input.postLogoutRedirectUris ?? [],
+      grantTypes: input.grantTypes ?? [],
+      tokenEndpointAuthMethod: input.tokenEndpointAuthMethod ?? 'client_secret_basic',
+    }
+  }
+
+  return {
+    users: {
+      async list(params: ListUsersParams = {}): Promise<ListUsersResult> {
+        const search = (params.search ?? '').trim()
+        const page = Math.max(1, params.page ?? 1)
+        const limit = Math.max(1, Math.min(100, params.limit ?? 20))
+        const result = await cfg.accountStore.listAccounts({ search, page, limit })
+        const data = await Promise.all(result.data.map((u: any) => userDto(u)))
+        return { data, total: result.total, page, limit }
+      },
+      async get(id: string): Promise<AuthkitUser> {
+        const account = await cfg.accountStore.findById(id)
+        if (!account) throw new Error('Usuário não encontrado.')
+        return userDto(account)
+      },
+      async create(input: CreateUserInput): Promise<AuthkitCreatedUser> {
+        const result = await usersService.create(
+          ctx,
+          {
+            email: input.email.trim(),
+            name: input.name ?? null,
+            password: input.password ?? null,
+            invite: input.invite === true,
+          },
+          ACTOR
+        )
+        if (!result.ok) throw new Error('Já existe uma conta com este e-mail.')
+        return { ...(await userDto(result.account)), invited: result.invited }
+      },
+      async update(id: string, input: UpdateUserInput): Promise<AuthkitUser> {
+        const account = await cfg.accountStore.findById(id)
+        if (!account) throw new Error('Usuário não encontrado.')
+        if (Array.isArray(input.globalRoles)) {
+          const normalized = Array.from(
+            new Set(input.globalRoles.map((r) => String(r).trim()).filter(Boolean))
+          )
+          await usersService.setGlobalRoles(id, normalized)
+        }
+        if (input.name !== undefined || input.avatarUrl !== undefined) {
+          const patch: { name?: string | null; avatarUrl?: string | null } = {}
+          if (input.name !== undefined) patch.name = input.name
+          if (input.avatarUrl !== undefined) patch.avatarUrl = input.avatarUrl
+          await usersService.updateProfile(id, patch)
+        }
+        const updated = await cfg.accountStore.findById(id)
+        return userDto(updated)
+      },
+      async disable(id: string): Promise<UserStatusResult> {
+        const applied = await usersService.setStatus(id, true, ACTOR)
+        if (!applied) throw new Error('O store de contas não suporta habilitar/desabilitar.')
+        return { id, disabled: true }
+      },
+      async enable(id: string): Promise<UserStatusResult> {
+        const applied = await usersService.setStatus(id, false, ACTOR)
+        if (!applied) throw new Error('O store de contas não suporta habilitar/desabilitar.')
+        return { id, disabled: false }
+      },
+      async resetPassword(id: string): Promise<ResetPasswordResult> {
+        const account = await usersService.resetPassword(ctx, id, ACTOR)
+        if (!account) throw new Error('Usuário não encontrado.')
+        return { id, sent: true }
+      },
+    },
+    sessions: {
+      async list(userId: string): Promise<ListSessionsResult> {
+        const admin = new AdminSessionsService(service)
+        const sessions = await admin.listSessions(userId)
+        const grants = await admin.listGrants(userId)
+        return { canList: admin.canList, sessions: sessions.map(sessionDto), grants: grants.map(grantDto) }
+      },
+      async revokeAll(userId: string): Promise<RevokeSessionsResult> {
+        const result = await new AdminSessionsService(service).revokeAll(userId)
+        await cfg.audit?.record({
+          type: 'session.revoked_all',
+          accountId: userId,
+          actorId: ACTOR.actorId,
+          ip: ACTOR.ip,
+          metadata: { actor: ACTOR.source, ...result },
+        })
+        return result
+      },
+    },
+    clients: {
+      async list(): Promise<ListClientsResult> {
+        const svc = new AdminClientsService(service)
+        if (!svc.canList) return { data: [], canList: false }
+        const clients = await svc.list()
+        return { data: clients.map(clientDto), canList: true }
+      },
+      async get(id: string): Promise<AuthkitClient> {
+        const client = await new AdminClientsService(service).find(id)
+        if (!client) throw new Error('Client não encontrado.')
+        return clientDto(client)
+      },
+      async create(input: ClientInput): Promise<AuthkitCreatedClient> {
+        const svc = new AdminClientsService(service)
+        const created = await svc.create(normalizeClientInput(input))
+        await cfg.audit?.record({
+          type: 'client.created',
+          clientId: created.clientId,
+          ip: null,
+          metadata: { actor: 'admin-api' },
+        })
+        return { clientId: created.clientId, clientSecret: created.clientSecret ?? null }
+      },
+      async update(id: string, input: ClientInput): Promise<AuthkitClient> {
+        const svc = new AdminClientsService(service)
+        const existing = await svc.find(id)
+        if (!existing) throw new Error('Client não encontrado.')
+        await svc.update(id, normalizeClientInput(input))
+        await cfg.audit?.record({
+          type: 'client.updated',
+          clientId: id,
+          ip: null,
+          metadata: { actor: 'admin-api' },
+        })
+        return clientDto(await svc.find(id))
+      },
+      async regenerateSecret(id: string): Promise<RegeneratedSecret> {
+        const svc = new AdminClientsService(service)
+        const secret = await svc.regenerateSecret(id)
+        await cfg.audit?.record({
+          type: 'client.updated',
+          clientId: id,
+          ip: null,
+          metadata: { actor: 'admin-api', action: 'regenerate_secret' },
+        })
+        return { clientId: id, clientSecret: secret }
+      },
+      async delete(id: string): Promise<DeletedClient> {
+        const svc = new AdminClientsService(service)
+        await svc.delete(id)
+        await cfg.audit?.record({
+          type: 'client.deleted',
+          clientId: id,
+          ip: null,
+          metadata: { actor: 'admin-api' },
+        })
+        return { clientId: id, deleted: true }
+      },
+    },
+    audit: {
+      async list(params: ListAuditParams = {}): Promise<ListAuditResult> {
+        const sink = cfg.audit
+        if (!sink || typeof sink.list !== 'function') {
+          throw new Error('O sink de auditoria configurado não suporta consulta.')
+        }
+        const page = Math.max(1, params.page ?? 1)
+        const limit = Math.max(1, Math.min(100, params.limit ?? 20))
+        const type = params.type?.trim() || undefined
+        const subject = params.subject?.trim() || undefined
+        const result = await sink.list({ page, limit, type, subject })
+        return { data: result.data.map(auditDto), total: result.total, page, limit }
+      },
+    },
+    tokens: {
+      async verify(token: string): Promise<VerifyTokenResult> {
+        const verifier = new TokenVerifyService(cfg, (service as any).provider)
+        return verifier.verify(token)
+      },
+    },
+  }
+}

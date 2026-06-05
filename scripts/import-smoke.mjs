@@ -22,6 +22,7 @@ const PACKAGES = [
   'packages/authkit-server/build',
   'packages/authkit-react/build',
   'packages/authkit-testing/build',
+  'packages/authkit-sdk/build',
 ]
 
 // O react usa JSX/DOM; importar seus módulos a frio em Node pode falhar por

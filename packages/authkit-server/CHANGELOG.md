@@ -1,5 +1,11 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.11.1
+
+### Patch Changes
+
+- Fix ace commands reading the raw config provider: `authkit:doctor`, `authkit:users:import`, `authkit:keys:rotate` and the legacy `authkit:rotate-keys` read `config.get('authkit')` directly, which returns the UNRESOLVED config provider that `defineConfig` exports — so every field (issuer, accountStore, jwks) looked missing against a perfectly valid host config. The commands now resolve the provider via the new `resolveAuthkitConfig` helper (plain-object configs still pass through). The resolved config also gains `jwksConfig`, an echo of the jwks INPUT shape (source/store/algorithm), since the resolved `jwks` is the materialized keyset and loses those fields needed by key rotation.
+
 ## 0.11.0
 
 ### Minor Changes

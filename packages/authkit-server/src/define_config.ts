@@ -824,6 +824,12 @@ export interface ResolvedServerConfig {
   AdapterClass: OidcAdapterClass
   clients: ClientConfig[]
   jwks: { keys: Record<string, any>[] }
+  /**
+   * Eco do `jwks` de INPUT (source/store/algorithm) — o `jwks` resolvido acima é o
+   * keyset materializado e perde esses campos; comandos como `authkit:keys:rotate`
+   * precisam do shape original para localizar o keystore.
+   */
+  jwksConfig: JwksConfig
   ttl: { accessToken: number; refreshToken: number; idToken: number; session: number }
   globalRolesClaim: string
   cookieKeys: string[]
@@ -921,6 +927,7 @@ export function defineConfig(config: AuthServerConfigInput) {
       AdapterClass,
       clients: config.clients ?? [],
       jwks: jwks as { keys: Record<string, any>[] },
+      jwksConfig: config.jwks,
       ttl: {
         accessToken: toSeconds(config.ttl?.accessToken, 900),
         refreshToken: toSeconds(config.ttl?.refreshToken, 2592000),

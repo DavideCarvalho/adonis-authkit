@@ -2,6 +2,7 @@ import { BaseCommand, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import { rotateKeystore } from '../src/keys/keystore.js'
 import type { SigningAlg } from '../src/keys/jwks_manager.js'
+import { resolveAuthkitConfig } from '../src/commands/resolve_config.js'
 
 export default class AuthkitRotateKeys extends BaseCommand {
   static commandName = 'authkit:rotate-keys'
@@ -21,15 +22,17 @@ export default class AuthkitRotateKeys extends BaseCommand {
 
   async run() {
     const config = await this.app.container.make('config')
-    const authkitConfig = config.get('authkit', null) as Record<string, any> | null
+    // Resolve o config provider; o shape de input do jwks vive em `jwksConfig` no resolvido.
+    const authkitConfig = await resolveAuthkitConfig(this.app, config.get('authkit', null))
+    const jwksInput = authkitConfig?.jwksConfig ?? authkitConfig?.jwks
 
-    if (!authkitConfig?.jwks) {
+    if (!jwksInput) {
       this.logger.logError("❌ config('authkit').jwks ausente.")
       this.exitCode = 1
       return
     }
 
-    const { source, store, algorithm } = authkitConfig.jwks as {
+    const { source, store, algorithm } = jwksInput as {
       source?: string
       store?: string
       algorithm?: SigningAlg

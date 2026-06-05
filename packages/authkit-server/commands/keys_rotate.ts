@@ -8,6 +8,7 @@ import {
 } from '../src/keys/keystore.js'
 import type { SigningAlg } from '../src/keys/jwks_manager.js'
 import type { AuditSink } from '../src/audit/audit_sink.js'
+import { resolveAuthkitConfig } from '../src/commands/resolve_config.js'
 
 /**
  * Rotação de chaves de assinatura JWKS (padrão OIDC). Gera uma chave nova, passa a
@@ -49,19 +50,20 @@ export default class AuthkitKeysRotate extends BaseCommand {
 
   async run() {
     const config = await this.app.container.make('config')
-    const authkitConfig = config.get('authkit', null) as Record<string, any> | null
+    // Resolve o config provider; no resolvido o `jwks` vira keyset materializado,
+    // então o shape de input (source/store) é lido de `jwksConfig`.
+    const authkitConfig = await resolveAuthkitConfig(this.app, config.get('authkit', null))
+    const jwksInput = (authkitConfig?.jwksConfig ?? authkitConfig?.jwks) as
+      | { source?: string; store?: string; algorithm?: SigningAlg }
+      | undefined
 
-    if (!authkitConfig?.jwks) {
+    if (!jwksInput) {
       this.logger.logError("❌ config('authkit').jwks ausente.")
       this.exitCode = 1
       return
     }
 
-    const { source, store, algorithm } = authkitConfig.jwks as {
-      source?: string
-      store?: string
-      algorithm?: SigningAlg
-    }
+    const { source, store, algorithm } = jwksInput
 
     if (source !== 'managed') {
       this.logger.logError('❌ Rotação só se aplica a jwks.source = "managed".')
@@ -124,7 +126,7 @@ export default class AuthkitKeysRotate extends BaseCommand {
     this.logger.info('Reinicie o processo (ou recarregue a config) para passar a assinar com a nova chave.')
 
     // Audit event best-effort: a config resolvida expõe o sink em `audit`.
-    const sink = authkitConfig.audit as AuditSink | undefined
+    const sink = authkitConfig?.audit as AuditSink | undefined
     if (sink && typeof sink.record === 'function') {
       try {
         await sink.record({

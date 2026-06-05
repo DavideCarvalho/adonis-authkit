@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { BaseCommand, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import { parseImportFile, importUsers } from '../src/commands/import_users.js'
+import { resolveAuthkitConfig } from '../src/commands/resolve_config.js'
 import type { AccountStore } from '../src/accounts/account_store.js'
 
 /**
@@ -42,7 +43,8 @@ export default class AuthkitImportUsers extends BaseCommand {
     }
 
     const config = await this.app.container.make('config')
-    const authkitConfig = config.get('authkit', null) as Record<string, any> | null
+    // Resolve o config provider exportado por defineConfig (provider cru não tem accountStore).
+    const authkitConfig = await resolveAuthkitConfig(this.app, config.get('authkit', null))
     const store = authkitConfig?.accountStore as AccountStore | undefined
     if (!store) {
       this.logger.logError("❌ config('authkit').accountStore ausente.")

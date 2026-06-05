@@ -11,6 +11,7 @@ export type AuditEventType =
   | 'pat.revoked'
   | 'pat.used'
   | 'impersonation'
+  | 'impersonation.started'
   | 'mfa.enabled'
   | 'mfa.disabled'
   | 'account.locked'

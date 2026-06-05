@@ -15,6 +15,7 @@ import {
   checkAccessTokens,
   checkBotProtection,
   checkSettings,
+  checkAuthMethodsSetting,
   type DoctorInput,
 } from '../src/doctor/checks.js'
 import { DatabaseAdapter } from '../src/adapters/database_adapter.js'
@@ -347,5 +348,68 @@ test.group('doctor checks', () => {
       authkitConfig: { clients: [] },
     }))
     assert.isNull(f)
+  })
+
+  // --- checkAuthMethodsSetting ---
+
+  test('checkAuthMethodsSetting: no authMethodsSetting → null (silent)', ({ assert }) => {
+    const f = checkAuthMethodsSetting(baseInput())
+    assert.isNull(f)
+  })
+
+  test('checkAuthMethodsSetting: null → null (silent)', ({ assert }) => {
+    const f = checkAuthMethodsSetting({ ...baseInput(), authMethodsSetting: null } as any)
+    assert.isNull(f)
+  })
+
+  test('checkAuthMethodsSetting: invalid shape (array) → warn', ({ assert }) => {
+    const f = checkAuthMethodsSetting({ ...baseInput(), authMethodsSetting: ['password'] } as any)
+    assert.equal(f!.level, 'warn')
+    assert.include(f!.message, 'invalid shape')
+  })
+
+  test('checkAuthMethodsSetting: all-off → warn (fail-safe will activate)', ({ assert }) => {
+    const f = checkAuthMethodsSetting({
+      ...baseInput(),
+      authMethodsSetting: { password: false, magicLink: false, passkey: false, social: [] },
+    } as any)
+    assert.equal(f!.level, 'warn')
+    assert.include(f!.message, 'fail-safe')
+  })
+
+  test('checkAuthMethodsSetting: social references unknown provider → warn', ({ assert }) => {
+    const f = checkAuthMethodsSetting({
+      ...baseInput({
+        authkitConfig: {
+          ...baseInput().authkitConfig,
+          social: { providers: ['google'] },
+        },
+      }),
+      authMethodsSetting: { password: true, social: ['google', 'unknown_provider'] },
+    } as any)
+    assert.equal(f!.level, 'warn')
+    assert.include(f!.message, 'unknown_provider')
+  })
+
+  test('checkAuthMethodsSetting: valid setting → ok', ({ assert }) => {
+    const f = checkAuthMethodsSetting({
+      ...baseInput({
+        authkitConfig: {
+          ...baseInput().authkitConfig,
+          social: { providers: ['google'] },
+        },
+      }),
+      authMethodsSetting: { password: true, magicLink: false, passkey: false, social: ['google'], forgotPassword: true },
+    } as any)
+    assert.equal(f!.level, 'ok')
+  })
+
+  test('checkAuthMethodsSetting: password=true, no social → ok (all-off needs ALL methods)', ({ assert }) => {
+    // password is on, so not all-off
+    const f = checkAuthMethodsSetting({
+      ...baseInput(),
+      authMethodsSetting: { password: true, magicLink: false, passkey: false, social: [] },
+    } as any)
+    assert.equal(f!.level, 'ok')
   })
 })

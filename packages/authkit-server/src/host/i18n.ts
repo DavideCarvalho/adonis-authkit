@@ -512,6 +512,26 @@ export const DEFAULT_MESSAGES = {
     'LOCKOUT WARNING: If you enable maintenance mode and lose access to the Admin API, you will not be able to disable it remotely. Accounts with an admin role can still log in — but if you are locked out, use the Admin REST API (PUT /api/authkit/v1/settings/maintenance_mode with {\"value\":{\"enabled\":false}}) to disable it without a browser login.',
   'admin.settings.maintenance_from_setting': 'Source: runtime setting',
 
+  // Auth methods setting card (admin console).
+  'admin.settings.auth_methods_section': 'Authentication methods',
+  'admin.settings.auth_methods_intro':
+    'Control which login methods are offered on the login screen at runtime. Disabling all methods activates a fail-safe that restores config defaults.',
+  'admin.settings.auth_methods_from_config': 'Source: static config',
+  'admin.settings.auth_methods_from_setting': 'Source: runtime setting',
+  'admin.settings.auth_methods_password_label': 'Password',
+  'admin.settings.auth_methods_magic_link_label': 'Magic link (email login link)',
+  'admin.settings.auth_methods_passkey_label': 'Passkey (passwordless)',
+  'admin.settings.auth_methods_forgot_password_label': 'Forgot password link',
+  'admin.settings.auth_methods_social_section': 'Social providers',
+  'admin.settings.auth_methods_social_intro': 'Only providers configured in the code can be enabled here.',
+  'admin.settings.auth_methods_magic_link_unavailable': 'Unavailable — requires mail and `passwordless.magicLink` in config.',
+  'admin.settings.auth_methods_passkey_unavailable': 'Unavailable — requires WebAuthn configured in config.',
+  'admin.settings.auth_methods_forgot_disabled_hint': 'Automatically disabled when password method is off.',
+  'admin.settings.auth_methods_no_social': 'No social providers configured in the static config.',
+
+  // Generic social provider label (fallback when no specific translation exists).
+  'login.social_provider': 'Sign in with {provider}',
+
   // Console admin — paginação compartilhada.
   'admin.pagination.page': 'Page {page} of {total}',
   'admin.pagination.prev': 'Previous',
@@ -554,6 +574,7 @@ export const DEFAULT_MESSAGES = {
   'errors.no_passkey_registered': 'No passkey registered',
   'errors.registration_disabled':
     'Registration is currently disabled. Please contact the administrator to get access.',
+  'errors.not_found': 'Not found.',
 
   // Manutenção do sistema.
   'maintenance.title': 'Under Maintenance',
@@ -1093,6 +1114,26 @@ export const PT_BR_MESSAGES = {
     'ATENÇÃO — BLOQUEIO: Se você ativar o modo de manutenção e perder acesso à Admin API, não conseguirá desativá-lo remotamente. Contas com role admin ainda podem entrar — mas se você ficar bloqueado, use a Admin REST API (PUT /api/authkit/v1/settings/maintenance_mode com {"value":{"enabled":false}}) para desativar sem login no browser.',
   'admin.settings.maintenance_from_setting': 'Fonte: setting em runtime',
 
+  // Auth methods setting card (console admin).
+  'admin.settings.auth_methods_section': 'Métodos de autenticação',
+  'admin.settings.auth_methods_intro':
+    'Controla quais métodos de login a tela oferece em tempo de execução. Desativar todos ativa um fail-safe que restaura os defaults do config.',
+  'admin.settings.auth_methods_from_config': 'Fonte: config estático',
+  'admin.settings.auth_methods_from_setting': 'Fonte: setting em runtime',
+  'admin.settings.auth_methods_password_label': 'Senha',
+  'admin.settings.auth_methods_magic_link_label': 'Magic link (link de login por e-mail)',
+  'admin.settings.auth_methods_passkey_label': 'Passkey (sem senha)',
+  'admin.settings.auth_methods_forgot_password_label': 'Link "Esqueci minha senha"',
+  'admin.settings.auth_methods_social_section': 'Providers sociais',
+  'admin.settings.auth_methods_social_intro': 'Apenas providers configurados no código podem ser habilitados aqui.',
+  'admin.settings.auth_methods_magic_link_unavailable': 'Indisponível — requer mail e `passwordless.magicLink` no config.',
+  'admin.settings.auth_methods_passkey_unavailable': 'Indisponível — requer WebAuthn configurado no config.',
+  'admin.settings.auth_methods_forgot_disabled_hint': 'Desabilitado automaticamente quando o método senha está desligado.',
+  'admin.settings.auth_methods_no_social': 'Nenhum provider social configurado no config estático.',
+
+  // Rótulo genérico de provider social (fallback quando não há tradução específica).
+  'login.social_provider': 'Entrar com {provider}',
+
   // Console admin — paginação compartilhada.
   'admin.pagination.page': 'Página {page} de {total}',
   'admin.pagination.prev': 'Anterior',
@@ -1135,6 +1176,7 @@ export const PT_BR_MESSAGES = {
   'errors.no_passkey_registered': 'Nenhuma passkey registrada',
   'errors.registration_disabled':
     'O cadastro está desabilitado no momento. Entre em contato com o administrador para obter acesso.',
+  'errors.not_found': 'Não encontrado.',
 
   // Manutenção do sistema.
   'maintenance.title': 'Em manutenção',

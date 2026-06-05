@@ -105,7 +105,7 @@ function fakeApiCtx(opts: { service: any; db: any; params?: Record<string, strin
   return { ctx, captured }
 }
 
-function buildService(withBotProtection = true) {
+function buildService(withBotProtection = true, opts: { social?: string[]; magicLink?: boolean; passkeyCapable?: boolean } = {}) {
   const messages: Record<string, string> = {
     'admin.settings.saved': 'Settings saved.',
     'admin.settings.no_settings_table': 'No settings table.',
@@ -118,6 +118,13 @@ function buildService(withBotProtection = true) {
     audit: {
       events: [] as any[],
       record: async (e: any) => { config.audit.events.push(e) },
+    },
+    social: opts.social ? { providers: opts.social } : undefined,
+    passwordless: { magicLink: opts.magicLink ?? false, passkeyFirst: false },
+    webauthn: opts.passkeyCapable ? { rpId: 'localhost' } : undefined,
+    accountStore: {
+      findById: () => {},
+      issueMagicLinkToken: opts.magicLink ? async () => null : undefined,
     },
   }
   return { config }
@@ -470,5 +477,134 @@ test.group('AdminSettingsController — new toggles (registration / require_veri
     assert.equal(captured._redirected, '/admin/settings')
     await ctrl.updateMaintenance(ctx as any)
     assert.equal(captured._redirected, '/admin/settings')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// AdminSettingsController — auth_methods
+// ---------------------------------------------------------------------------
+
+test.group('AdminSettingsController — auth_methods', (group) => {
+  let settingsDb: ReturnType<typeof makeSettingsDb>
+  let service: any
+
+  group.each.setup(() => {
+    service = buildService(false, { social: ['google', 'github'], magicLink: true })
+    settingsDb = makeSettingsDb()
+  })
+
+  test('GET index includes auth_methods state (no setting → defaults)', async ({ assert }) => {
+    const ctrl = new AdminSettingsController()
+    const { ctx } = fakeCtx({ service, db: settingsDb })
+    const result: any = await ctrl.index(ctx as any)
+    assert.equal(result.view, 'admin/settings')
+    assert.isNull(result.data.currentAuthMethodsSetting)
+    assert.deepEqual(result.data.configuredSocialProviders, ['google', 'github'])
+    assert.isTrue(result.data.authMethodsEffective.password)
+    assert.isTrue(result.data.authMethodsEffective.forgotPassword)
+  })
+
+  test('POST /auth-methods saves setting + audits', async ({ assert }) => {
+    const ctrl = new AdminSettingsController()
+    const session = fakeSession()
+    const { ctx, captured } = fakeCtx({
+      service,
+      db: settingsDb,
+      inputs: {
+        password: '1',
+        magic_link: '',
+        passkey: '',
+        forgot_password: '1',
+        social: ['google'],
+      },
+      session,
+    })
+    await ctrl.updateAuthMethods(ctx as any)
+    assert.equal(captured._redirected, '/admin/settings')
+    const s = new RuntimeSettings(settingsDb as any)
+    const saved: any = await s.getSetting('auth_methods')
+    assert.isTrue(saved.password)
+    assert.isFalse(saved.magicLink)
+    assert.isFalse(saved.passkey)
+    assert.isTrue(saved.forgotPassword)
+    assert.deepEqual(saved.social, ['google'])
+    const ev = service.config.audit.events.find((e: any) => e.metadata?.key === 'auth_methods')
+    assert.isNotNull(ev)
+  })
+
+  test('POST /auth-methods with password=false auto-disables forgotPassword via resolver', async ({ assert }) => {
+    const ctrl = new AdminSettingsController()
+    const { ctx } = fakeCtx({
+      service,
+      db: settingsDb,
+      inputs: {
+        password: '',        // unchecked = false
+        magic_link: '1',
+        passkey: '',
+        forgot_password: '1', // requested but auto-off
+        social: 'google',
+      },
+    })
+    await ctrl.updateAuthMethods(ctx as any)
+    // After saving, re-read via GET and check effective
+    const ctrl2 = new AdminSettingsController()
+    const { ctx: ctx2 } = fakeCtx({ service, db: settingsDb })
+    const result: any = await ctrl2.index(ctx2 as any)
+    assert.isFalse(result.data.authMethodsEffective.password)
+    assert.isFalse(result.data.authMethodsEffective.forgotPassword) // auto-off
+  })
+
+  test('POST /auth-methods/reset clears setting', async ({ assert }) => {
+    await settingsDb.table('auth_settings').insert({
+      key: 'auth_methods',
+      value: JSON.stringify({ password: false, magicLink: false, passkey: false, social: [], forgotPassword: false }),
+      updated_at: new Date(),
+      updated_by: null,
+    })
+    const ctrl = new AdminSettingsController()
+    const { ctx } = fakeCtx({ service, db: settingsDb })
+    await ctrl.resetAuthMethods(ctx as any)
+    const s = new RuntimeSettings(settingsDb as any)
+    const after = await s.getSetting('auth_methods')
+    assert.isNull(after)
+    const ev = service.config.audit.events.find((e: any) => e.metadata?.key === 'auth_methods' && e.metadata?.action === 'reset_to_config')
+    assert.isNotNull(ev)
+  })
+
+  test('GET index shows currentAuthMethodsSetting when setting exists', async ({ assert }) => {
+    await settingsDb.table('auth_settings').insert({
+      key: 'auth_methods',
+      value: JSON.stringify({ password: true, magicLink: false, passkey: false, social: ['google'], forgotPassword: true }),
+      updated_at: new Date(),
+      updated_by: null,
+    })
+    const ctrl = new AdminSettingsController()
+    const { ctx } = fakeCtx({ service, db: settingsDb })
+    const result: any = await ctrl.index(ctx as any)
+    assert.isNotNull(result.data.currentAuthMethodsSetting)
+    assert.isFalse(result.data.currentAuthMethodsSetting.magicLink)
+  })
+
+  test('POST /auth-methods with no table redirects with flash', async ({ assert }) => {
+    const noTableDb = makeSettingsDb().withNoTable()
+    const ctrl = new AdminSettingsController()
+    const session = fakeSession()
+    const { ctx, captured } = fakeCtx({ service, db: noTableDb, inputs: { password: '1' }, session })
+    await ctrl.updateAuthMethods(ctx as any)
+    assert.equal(captured._redirected, '/admin/settings')
+  })
+
+  test('social filter: setting references known + unknown providers → only known returned', async ({ assert }) => {
+    await settingsDb.table('auth_settings').insert({
+      key: 'auth_methods',
+      value: JSON.stringify({ password: true, social: ['google', 'phantom'] }),
+      updated_at: new Date(),
+      updated_by: null,
+    })
+    const ctrl = new AdminSettingsController()
+    const { ctx } = fakeCtx({ service, db: settingsDb })
+    const result: any = await ctrl.index(ctx as any)
+    // effective social should only include providers in config
+    assert.deepEqual(result.data.authMethodsEffective.social, ['google'])
   })
 })

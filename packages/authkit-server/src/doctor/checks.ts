@@ -505,6 +505,73 @@ export function checkSettings(input: DoctorInput): Finding | null {
   }
 }
 
+/**
+ * auth_methods setting: verifica se o valor persistido tem forma válida.
+ * O input `authMethodsSetting` é injetado pelo doctor command quando a tabela
+ * está presente — similar ao padrão do checkSettings mas focado na setting específica.
+ *
+ * Warns quando:
+ *   - Todos os métodos estão desligados (fail-safe será acionado em runtime).
+ *   - A lista `social` referencia um provider não presente em `config.social.providers`.
+ */
+export function checkAuthMethodsSetting(input: DoctorInput): Finding | null {
+  const cfg = input.authkitConfig
+  if (!cfg) return null
+
+  // Só verificamos quando a tabela existe e o setting foi injetado no input.
+  const raw = (input as any).authMethodsSetting
+  if (raw === undefined || raw === null) return null
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    return {
+      level: 'warn',
+      message: 'auth_methods setting has an invalid shape — expected an object. The setting will be ignored (config defaults apply).',
+    }
+  }
+
+  const s = raw as {
+    password?: boolean
+    magicLink?: boolean
+    passkey?: boolean
+    social?: string[]
+    forgotPassword?: boolean
+  }
+
+  // Check all-off scenario.
+  const allOff =
+    s.password === false &&
+    s.magicLink === false &&
+    s.passkey === false &&
+    Array.isArray(s.social) && s.social.length === 0
+  if (allOff) {
+    return {
+      level: 'warn',
+      message:
+        'auth_methods setting disables all login methods — a fail-safe will revert to config defaults at runtime. ' +
+        'Enable at least one method in the admin console (/admin/settings) to avoid the fallback.',
+    }
+  }
+
+  // Check social references unknown providers.
+  if (Array.isArray(s.social) && s.social.length > 0) {
+    const configuredProviders: string[] = cfg.social?.providers ?? []
+    const unknown = s.social.filter((p: string) => !configuredProviders.includes(p))
+    if (unknown.length > 0) {
+      return {
+        level: 'warn',
+        message:
+          `auth_methods setting references social provider(s) not in config.social.providers: [${unknown.join(', ')}]. ` +
+          'These providers will be silently filtered out (intersection rule). ' +
+          'Remove them from the setting or add them to config.social.providers.',
+      }
+    }
+  }
+
+  return {
+    level: 'ok',
+    message: 'auth_methods setting is valid.',
+  }
+}
+
 /** Roda todos os checks e devolve a lista plana de findings. */
 export function runAllChecks(input: DoctorInput): Finding[] {
   const findings: Finding[] = []
@@ -536,6 +603,8 @@ export function runAllChecks(input: DoctorInput): Finding[] {
   if (orgs) findings.push(orgs)
   const settings = checkSettings(input)
   if (settings) findings.push(settings)
+  const authMethods = checkAuthMethodsSetting(input)
+  if (authMethods) findings.push(authMethods)
   return findings
 }
 

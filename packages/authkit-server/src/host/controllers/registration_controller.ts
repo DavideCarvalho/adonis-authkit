@@ -10,6 +10,7 @@ import { RuntimeSettings } from '../runtime_settings.js'
 import {
   resolveEffectiveRegistration,
   resolveEffectiveMaintenanceMode,
+  resolveEffectiveAuthMethods,
 } from '../runtime_toggles.js'
 
 /** Best-effort: returns a RuntimeSettings backed by the container DB, or a no-op fallback. */
@@ -218,6 +219,15 @@ export default class AuthRegistrationController {
       })
     }
 
+    // auth_methods: se forgotPassword efetivo for false → 404 (endpoint desligado).
+    const authMethods = await resolveEffectiveAuthMethods(runtimeSettings, {
+      configuredSocialProviders: cfg.social?.providers ?? [],
+      magicLinkCapable: cfg.passwordless?.magicLink && typeof (cfg.accountStore as any).issueMagicLinkToken === 'function',
+    })
+    if (!authMethods.forgotPassword) {
+      return ctx.response.notFound({ error: translate(cfg.messages, 'errors.not_found') })
+    }
+
     const effectiveBot = await resolveEffectiveBotProtection(cfg.botProtection, runtimeSettings)
     return render(ctx, 'forgot', {
       csrfToken: ctx.request.csrfToken,
@@ -239,6 +249,15 @@ export default class AuthRegistrationController {
         csrfToken: ctx.request.csrfToken,
         message: maintenance.message ?? translate(cfg.messages, 'maintenance.default_message'),
       })
+    }
+
+    // auth_methods: se forgotPassword efetivo for false → 404 (endpoint desligado).
+    const authMethods = await resolveEffectiveAuthMethods(runtimeSettings, {
+      configuredSocialProviders: cfg.social?.providers ?? [],
+      magicLinkCapable: cfg.passwordless?.magicLink && typeof (cfg.accountStore as any).issueMagicLinkToken === 'function',
+    })
+    if (!authMethods.forgotPassword) {
+      return ctx.response.notFound({ error: translate(cfg.messages, 'errors.not_found') })
     }
 
     // Effective bot protection: may be overridden at runtime via auth_settings.

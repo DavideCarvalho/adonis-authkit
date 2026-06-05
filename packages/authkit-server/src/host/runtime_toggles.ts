@@ -27,6 +27,7 @@ export const SETTING_KEYS = {
   REGISTRATION: 'registration',
   REQUIRE_VERIFIED_EMAIL: 'require_verified_email',
   MAINTENANCE_MODE: 'maintenance_mode',
+  AUTH_METHODS: 'auth_methods',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]
@@ -165,4 +166,143 @@ export async function resolveEffectiveMaintenanceMode(
     enabled: setting.enabled,
     message: typeof setting.message === 'string' ? setting.message : undefined,
   }
+}
+
+// ---------------------------------------------------------------------------
+// 4. auth_methods setting
+// ---------------------------------------------------------------------------
+
+/**
+ * Shape da setting `auth_methods` em `auth_settings`.
+ *
+ * Controla quais métodos de login a tela oferece em runtime. Todos os campos
+ * são opcionais — campos ausentes são derivados do config/capabilities.
+ *
+ * @remarks
+ *   - `password`:      exibe o formulário de senha. Default: true.
+ *   - `magicLink`:     exibe o botão "me envie um link de login". Default: true
+ *                      se o mail/store suportam.
+ *   - `passkey`:       exibe o botão "entrar com passkey" (passkey-first).
+ *                      Default: true se webauthn configurado e conta tem passkeys.
+ *   - `social`:        lista dos providers sociais a exibir. Default: todos os
+ *                      providers configurados em `config.social.providers`.
+ *                      A setting só pode FILTRAR (não ATIVAR) providers; providers
+ *                      não presentes no config nunca aparecem.
+ *   - `forgotPassword`: exibe o link "esqueci minha senha". Default: true.
+ *                      AUTO-DERIVADO: sempre false quando `password` efetivo é false.
+ */
+export interface AuthMethodsSetting {
+  password?: boolean
+  magicLink?: boolean
+  passkey?: boolean
+  social?: string[]
+  forgotPassword?: boolean
+}
+
+/**
+ * Resultado resolvido dos métodos de autenticação, pronto para consumo pelas views.
+ */
+export interface ResolvedAuthMethods {
+  password: boolean
+  magicLink: boolean
+  passkey: boolean
+  social: string[]
+  forgotPassword: boolean
+}
+
+/**
+ * Capabilities de runtime necessárias para derivar os defaults de auth_methods.
+ * Campos opcionais — quando ausentes, assume defaults conservadores.
+ */
+export interface AuthMethodsCapabilities {
+  /** Providers sociais configurados no config estático. */
+  configuredSocialProviders?: string[]
+  /** Magic link disponível (config.passwordless.magicLink && store.issueMagicLinkToken). */
+  magicLinkCapable?: boolean
+  /** Passkey-first disponível (config.passwordless.passkeyFirst && store tem passkeys). */
+  passkeyCapable?: boolean
+}
+
+/**
+ * Resolve os métodos de autenticação efetivos combinando config estático + setting
+ * persistida em runtime + capabilities.
+ *
+ * Regras:
+ *   1. Defaults derivados do config/capabilities.
+ *   2. Setting presente → sobrescreve campo a campo.
+ *   3. DERIVAÇÃO: `forgotPassword` efetivo = (setting.forgotPassword ?? true) && passwordEnabled.
+ *      Sem método senha ativo, "esqueci minha senha" NUNCA aparece.
+ *   4. `social` efetivo = interseção do setting.social com os providers do config.
+ *      Setting não pode LIGAR provider que o código não tem.
+ *   5. FAIL-SAFE all-off: se todos os métodos ficarem desligados, volta ao derivado
+ *      do config (nunca deixar a tela sem nenhum método). Loga um aviso (console.warn).
+ *   6. Qualquer erro DB → defaults derivados do config (fail-safe total).
+ */
+export async function resolveEffectiveAuthMethods(
+  settings: SettingsCapability,
+  capabilities: AuthMethodsCapabilities = {}
+): Promise<ResolvedAuthMethods> {
+  const {
+    configuredSocialProviders = [],
+    magicLinkCapable = false,
+    passkeyCapable = false,
+  } = capabilities
+
+  // Defaults derivados do config/capabilities.
+  const configDefaults: ResolvedAuthMethods = {
+    password: true,
+    magicLink: magicLinkCapable,
+    passkey: passkeyCapable,
+    social: configuredSocialProviders,
+    forgotPassword: true,
+  }
+
+  const raw = await settings.getSetting(SETTING_KEYS.AUTH_METHODS)
+  if (raw === null || raw === undefined) return configDefaults
+  if (typeof raw !== 'object' || Array.isArray(raw)) return configDefaults // shape inválida
+
+  const s = raw as AuthMethodsSetting
+
+  // Aplica campo a campo, com fallback ao default quando o campo está ausente.
+  const passwordEnabled = typeof s.password === 'boolean' ? s.password : configDefaults.password
+  const magicLinkEnabled = typeof s.magicLink === 'boolean' ? s.magicLink : configDefaults.magicLink
+  const passkeyEnabled = typeof s.passkey === 'boolean' ? s.passkey : configDefaults.passkey
+
+  // Social: interseção com os providers do config (setting não pode ligar o que não existe).
+  let socialEnabled: string[]
+  if (Array.isArray(s.social)) {
+    socialEnabled = s.social.filter((p) => configuredSocialProviders.includes(p))
+  } else {
+    socialEnabled = configDefaults.social
+  }
+
+  // forgotPassword: derivado automaticamente — sem senha NUNCA existe esqueci-senha.
+  const forgotPasswordEnabled =
+    passwordEnabled && (typeof s.forgotPassword === 'boolean' ? s.forgotPassword : true)
+
+  const resolved: ResolvedAuthMethods = {
+    password: passwordEnabled,
+    magicLink: magicLinkEnabled,
+    passkey: passkeyEnabled,
+    social: socialEnabled,
+    forgotPassword: forgotPasswordEnabled,
+  }
+
+  // FAIL-SAFE all-off: se todos ficaram false/vazio, volta ao config derivado.
+  const allOff =
+    !resolved.password &&
+    !resolved.magicLink &&
+    !resolved.passkey &&
+    resolved.social.length === 0
+  if (allOff) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[authkit] auth_methods setting deixou todos os métodos desligados — ' +
+        'revertendo para os defaults do config (fail-safe). ' +
+        'Verifique a setting auth_methods no console admin.'
+    )
+    return configDefaults
+  }
+
+  return resolved
 }

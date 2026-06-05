@@ -309,6 +309,8 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
         router.post(`${ap}/settings/require-verified-email/reset`, [C.adminSettings, 'resetRequireVerifiedEmail'])
         router.post(`${ap}/settings/maintenance`, [C.adminSettings, 'updateMaintenance'])
         router.post(`${ap}/settings/maintenance/reset`, [C.adminSettings, 'resetMaintenance'])
+        router.post(`${ap}/settings/auth-methods`, [C.adminSettings, 'updateAuthMethods'])
+        router.post(`${ap}/settings/auth-methods/reset`, [C.adminSettings, 'resetAuthMethods'])
       })
       .use([adminGuard])
   }

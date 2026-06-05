@@ -6,8 +6,11 @@ import {
   resolveEffectiveRegistration,
   resolveEffectiveRequireVerifiedEmail,
   resolveEffectiveMaintenanceMode,
+  resolveEffectiveAuthMethods,
+  type AuthMethodsSetting,
 } from '../../runtime_toggles.js'
 import { getAdminPrefix } from '../../admin_prefix.js'
+import { supportsMagicLink } from '../../../accounts/account_store.js'
 
 /** Best-effort: returns RuntimeSettings from container DB, or null if unavailable. */
 async function getRuntimeSettings(ctx: HttpContext): Promise<RuntimeSettings | null> {
@@ -30,6 +33,8 @@ async function getRuntimeSettings(ctx: HttpContext): Promise<RuntimeSettings | n
  * POST /admin/settings/require-verified-email/reset  → apaga require_verified_email.
  * POST /admin/settings/maintenance                   → salva maintenance_mode + audita.
  * POST /admin/settings/maintenance/reset             → apaga maintenance_mode + audita.
+ * POST /admin/settings/auth-methods                  → salva auth_methods.
+ * POST /admin/settings/auth-methods/reset            → apaga auth_methods.
  */
 export default class AdminSettingsController {
   async index(ctx: HttpContext) {
@@ -93,6 +98,26 @@ export default class AdminSettingsController {
       ? await resolveEffectiveMaintenanceMode(runtimeSettings)
       : { enabled: false }
 
+    // ---- auth_methods ----
+    let currentAuthMethodsSetting: AuthMethodsSetting | null = null
+    if (runtimeSettings && hasTable) {
+      const raw = await runtimeSettings.getSetting('auth_methods')
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        currentAuthMethodsSetting = raw as AuthMethodsSetting
+      }
+    }
+    // Capabilities: magic link needs mail + store support; passkey needs webauthn config.
+    const magicLinkCapable = cfg.passwordless?.magicLink && supportsMagicLink(cfg.accountStore)
+    const passkeyCapable = !!cfg.webauthn
+    const configuredSocialProviders: string[] = cfg.social?.providers ?? []
+    const authMethodsEffective = runtimeSettings
+      ? await resolveEffectiveAuthMethods(runtimeSettings, {
+          configuredSocialProviders,
+          magicLinkCapable,
+          passkeyCapable,
+        })
+      : { password: true, magicLink: magicLinkCapable, passkey: passkeyCapable, social: configuredSocialProviders, forgotPassword: true }
+
     return render(ctx, 'admin/settings', {
       csrfToken: ctx.request.csrfToken,
       adminBase: getAdminPrefix(),
@@ -115,6 +140,12 @@ export default class AdminSettingsController {
       // maintenance_mode
       currentMaintenanceSetting,
       maintenanceEffective,
+      // auth_methods
+      currentAuthMethodsSetting,
+      authMethodsEffective,
+      magicLinkCapable,
+      passkeyCapable,
+      configuredSocialProviders,
     })
   }
 
@@ -351,6 +382,76 @@ export default class AdminSettingsController {
         actorId: accountId,
         ip: ctx.request.ip?.() ?? null,
         metadata: { key: 'maintenance_mode', action: 'reset_to_config' },
+      })
+    }
+
+    ctx.session?.flash('flash', t('admin.settings.reset_done'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  // -------------------------------------------------------------------------
+  // Auth methods
+  // -------------------------------------------------------------------------
+
+  async updateAuthMethods(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (!runtimeSettings || !(await runtimeSettings.isTablePresent())) {
+      ctx.session?.flash('flash', t('admin.settings.no_settings_table'))
+      return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+    }
+
+    const password = ctx.request.input('password') === '1' || ctx.request.input('password') === 'true'
+    const magicLink = ctx.request.input('magic_link') === '1' || ctx.request.input('magic_link') === 'true'
+    const passkey = ctx.request.input('passkey') === '1' || ctx.request.input('passkey') === 'true'
+    const forgotPassword = ctx.request.input('forgot_password') === '1' || ctx.request.input('forgot_password') === 'true'
+
+    // Social providers: multi-value checkbox (array or single string).
+    const rawSocial = ctx.request.input('social')
+    const social: string[] = Array.isArray(rawSocial)
+      ? rawSocial
+      : typeof rawSocial === 'string' && rawSocial
+        ? [rawSocial]
+        : []
+
+    const setting: AuthMethodsSetting = {
+      password,
+      magicLink,
+      passkey,
+      social,
+      forgotPassword,
+    }
+
+    await runtimeSettings.setSetting('auth_methods', setting, accountId)
+    await cfg.audit?.record({
+      type: 'settings.updated',
+      actorId: accountId,
+      ip: ctx.request.ip?.() ?? null,
+      metadata: { key: 'auth_methods', value: setting },
+    })
+
+    ctx.session?.flash('flash', t('admin.settings.saved'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  async resetAuthMethods(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (runtimeSettings) {
+      await runtimeSettings.deleteSetting('auth_methods')
+      await cfg.audit?.record({
+        type: 'settings.updated',
+        actorId: accountId,
+        ip: ctx.request.ip?.() ?? null,
+        metadata: { key: 'auth_methods', action: 'reset_to_config' },
       })
     }
 

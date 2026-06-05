@@ -9,6 +9,7 @@ import { RuntimeSettings } from '../runtime_settings.js'
 import {
   resolveEffectiveMaintenanceMode,
   resolveEffectiveRegistration,
+  resolveEffectiveAuthMethods,
 } from '../runtime_toggles.js'
 import { supportsPasskeys, supportsMagicLink } from '../../accounts/account_store.js'
 import { sendMagicLinkEmail } from '../default_mailer.js'
@@ -94,6 +95,18 @@ export default class AuthInteractionController {
 
     const email = ctx.session.get(SESSION_KEY) as string | undefined
 
+    // Resolve auth methods (capabilities: magic link, passkey-first, social providers).
+    // Capabilities are account-independent at this stage for the identifier step.
+    const magicLinkCapableConfig =
+      cfg.passwordless.magicLink && supportsMagicLink(cfg.accountStore)
+    const configuredSocialProviders: string[] = cfg.social?.providers ?? []
+    const authMethodsSettings = runtimeSettingsForMaintenance
+    const authMethods = await resolveEffectiveAuthMethods(authMethodsSettings, {
+      configuredSocialProviders,
+      magicLinkCapable: magicLinkCapableConfig,
+      passkeyCapable: false, // passkey-first depends on account — resolved in step 2
+    })
+
     if (!email) {
       // Step 1: identifier (email only).
       // Resolve registration enabled to hide "create account" link when closed.
@@ -107,6 +120,7 @@ export default class AuthInteractionController {
         step: 'identifier',
         registrationEnabled,
         brand,
+        authMethods,
       })
     }
 
@@ -114,12 +128,13 @@ export default class AuthInteractionController {
     const acc = await cfg.accountStore.findByEmail(email)
     const account = acc ? { fullName: acc.name ?? null, globalRoles: acc.globalRoles ?? [] } : null
 
-    // Passwordless: magic link disponível se ligado E o store suporta. Passkey-first
-    // disponível se ligado, o store suporta E a conta tem ao menos uma passkey.
+    // Passwordless: magic link disponível se ligado E o store suporta E auth_methods permite.
+    // Passkey-first disponível se ligado, o store suporta, a conta tem passkeys E auth_methods permite.
     const magicLinkAvailable =
-      cfg.passwordless.magicLink && supportsMagicLink(cfg.accountStore)
-    const passkeyFirstAvailable =
+      authMethods.magicLink && magicLinkCapableConfig
+    const passkeyFirstCapable =
       cfg.passwordless.passkeyFirst && !!acc && (await this.hasPasskeys(cfg, acc.id))
+    const passkeyFirstAvailable = authMethods.passkey && passkeyFirstCapable
 
     // Effective bot protection: may be overridden at runtime via auth_settings.
     const effectiveBot = await resolveEffectiveBotProtection(cfg.botProtection, await getRuntimeSettings(ctx))
@@ -134,6 +149,7 @@ export default class AuthInteractionController {
       magicLinkAvailable,
       passkeyFirstAvailable,
       botProtection: effectiveBot?.on.includes('login') ? effectiveBot.widget : undefined,
+      authMethods,
     })
   }
 

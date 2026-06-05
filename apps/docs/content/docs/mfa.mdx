@@ -14,8 +14,8 @@ MFA is driven by the optional MFA methods on the `AccountStore`. With `lucidAcco
 compose the model with the `withMfa` mixin and set an `mfaIssuer`:
 
 ```ts title="config/authkit_server.ts"
-accountStore: lucidAccountStore(AuthUser, { mfaIssuer: 'educ(a)ção' }),
-mfaIssuer: 'educ(a)ção',
+accountStore: lucidAccountStore(AuthUser, { mfaIssuer: 'Acme' }),
+mfaIssuer: 'Acme',
 ```
 
 ```ts title="app/models/auth_user.ts"

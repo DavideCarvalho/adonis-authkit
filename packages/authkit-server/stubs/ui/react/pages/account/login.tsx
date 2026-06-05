@@ -15,7 +15,7 @@ export default function AccountLogin({ csrfToken, error }: Props) {
         className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-xl ring-1 ring-black/5"
       >
         <input type="hidden" name="_csrf" value={csrfToken} />
-        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">educ(a)ção</div>
+        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Acme</div>
         <h1 className="mt-2 text-xl font-semibold text-gray-900">Minha conta</h1>
         <p className="mt-1 text-sm text-gray-500">Gerencie seus tokens de acesso.</p>
 

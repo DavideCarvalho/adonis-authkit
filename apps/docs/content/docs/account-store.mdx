@@ -95,7 +95,7 @@ See [MFA](/docs/mfa) and [WebAuthn](/docs/webauthn).
 import AuthUser from '#models/auth_user'
 import { lucidAccountStore } from '@dudousxd/adonis-authkit-server'
 
-accountStore: lucidAccountStore(AuthUser, { mfaIssuer: 'educ(a)ção' })
+accountStore: lucidAccountStore(AuthUser, { mfaIssuer: 'Acme' })
 ```
 
 The `mfaIssuer` option is the label shown in authenticator apps; the store uses it to

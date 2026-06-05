@@ -21,7 +21,7 @@ export default function AccountTokens({ csrfToken, createdToken, tokens }: Props
       <div className="mx-auto max-w-2xl">
         <div className="flex items-center justify-between py-6">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">educ(a)ção</div>
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Acme</div>
             <h1 className="text-xl font-semibold text-gray-900">Tokens de acesso</h1>
           </div>
           <form method="POST" action="/account/logout">

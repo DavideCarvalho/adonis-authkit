@@ -12,7 +12,7 @@ export interface AuthBrand {
   audienceLabel?: string
 }
 
-const COMPANY_FALLBACK = 'educ(a)ção'
+const COMPANY_FALLBACK = 'Acme'
 
 /**
  * Layout de duas colunas para as telas de autenticacao do IdP.

@@ -122,64 +122,55 @@ function Hero() {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Console preview — a faithful OIDC console mock in AdonisJS woodsmoke        */
+/*  Console preview — faithful reproduction of the shipped host-kit screens:    */
+/*  the IdP login (login.edge) + the admin audit log (admin/audit.edge),        */
+/*  with the real pt-BR i18n labels and the real audit event types we emit.     */
 /* -------------------------------------------------------------------------- */
 
-interface EventRow {
+interface AuditRow {
   type: string
   typeColor: string
-  dot: string
-  label: string
-  status: string
-  statusColor: string
   detail: string
+  time: string
 }
 
-const EVENT_ROWS: readonly EventRow[] = [
+// Real event types emitted by the host kit (see authkit-server emitters).
+const AUDIT_ROWS: readonly AuditRow[] = [
   {
-    type: 'authorize',
-    typeColor: 'text-[#9a8bff]',
-    dot: 'bg-[#9a8bff]',
-    label: 'GET /oauth/authorize · client web-app',
-    status: '302',
-    statusColor: 'text-emerald-400',
-    detail: 'PKCE S256',
-  },
-  {
-    type: 'token',
+    type: 'login.success',
     typeColor: 'text-emerald-400',
-    dot: 'bg-emerald-400',
-    label: 'POST /oauth/token · grant authorization_code',
-    status: '200',
-    statusColor: 'text-emerald-400',
-    detail: 'access + id_token',
+    detail: 'jane@acme.dev · acc_8f3a · web-app · 187.0.12.4',
+    time: 'há 2 min',
   },
   {
-    type: 'mfa',
+    type: 'mfa.enabled',
     typeColor: 'text-sky-400',
-    dot: 'bg-sky-400',
-    label: 'TOTP challenge · jane@acme.dev',
-    status: 'pass',
-    statusColor: 'text-sky-300',
-    detail: '2nd factor',
+    detail: 'jane@acme.dev · acc_8f3a · 187.0.12.4',
+    time: 'há 14 min',
   },
   {
-    type: 'pat',
+    type: 'pat.issued',
     typeColor: 'text-amber-400',
-    dot: 'bg-amber-400',
-    label: 'Personal access token · ci-runner',
-    status: 'issued',
-    statusColor: 'text-amber-300',
-    detail: 'scope: read',
+    detail: 'ci-runner · acc_2b1c · 10.0.4.7',
+    time: 'há 1 h',
   },
   {
-    type: 'logout',
+    type: 'client.created',
+    typeColor: 'text-[#9a8bff]',
+    detail: 'mobile-app · acc_1a9f · 187.0.12.4',
+    time: 'há 3 h',
+  },
+  {
+    type: 'session.revoked_all',
     typeColor: 'text-rose-400',
-    dot: 'bg-rose-400',
-    label: 'RP-initiated logout · end_session',
-    status: '204',
-    statusColor: 'text-rose-300',
-    detail: 'session cleared',
+    detail: 'sam@acme.dev · acc_77de · 201.55.9.2',
+    time: 'há 5 h',
+  },
+  {
+    type: 'login.failure',
+    typeColor: 'text-zinc-400',
+    detail: 'sam@acme.dev · 201.55.9.2',
+    time: 'ontem',
   },
 ]
 
@@ -191,97 +182,167 @@ function ConsolePreview() {
           aria-hidden
           className="absolute -inset-x-10 -bottom-8 top-10 -z-10 rounded-[2rem] bg-[#625fff]/10 blur-3xl"
         />
-        <div className="overflow-hidden rounded-xl border border-zinc-800 bg-[#0d0d10] shadow-2xl shadow-black/40 ring-1 ring-white/5">
-          {/* window chrome */}
-          <div className="flex items-center gap-2 border-b border-zinc-800 bg-[#16161b]/80 px-4 py-3">
-            <span className="size-3 rounded-full bg-zinc-700" />
-            <span className="size-3 rounded-full bg-zinc-700" />
-            <span className="size-3 rounded-full bg-zinc-700" />
-            <span className="ml-3 font-mono text-xs text-zinc-500">authkit · /audit</span>
-            <span className="ml-auto inline-flex items-center gap-1.5 font-mono text-[11px] text-[#9a8bff]">
-              <span className="animate-ak-blink size-1.5 rounded-full bg-[#9a8bff]" />
-              live
-            </span>
-          </div>
 
-          <div className="grid gap-px bg-zinc-800/60 lg:grid-cols-[1.7fr_1fr]">
-            {/* audit table */}
-            <div className="bg-[#0d0d10] p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="font-mono text-xs uppercase tracking-wide text-[#9a8bff]">
-                  Recent auth events
-                </h3>
-                <span className="font-mono text-[10px] text-zinc-600">tenant · acme</span>
-              </div>
-              <div className="space-y-px font-mono text-xs">
-                {EVENT_ROWS.map((row) => (
-                  <div
-                    key={row.label}
-                    className="group flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-[#16161b]"
-                  >
-                    <span className={`size-1.5 shrink-0 rounded-full ${row.dot}`} />
-                    <span className={`w-20 shrink-0 ${row.typeColor}`}>{row.type}</span>
-                    <span className="min-w-0 flex-1 truncate text-zinc-300">{row.label}</span>
-                    <span className="hidden shrink-0 text-zinc-500 sm:block">{row.detail}</span>
-                    <span className={`w-16 shrink-0 text-right ${row.statusColor}`}>
-                      {row.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* side rail: discovery + token claims */}
-            <div className="flex flex-col gap-4 bg-[#0d0d10] p-4">
-              <div>
-                <h3 className="mb-3 font-mono text-xs uppercase tracking-wide text-zinc-400">
-                  Provider
-                </h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <MockStat label="Flows" value="OIDC" accent="text-[#9a8bff]" />
-                  <MockStat label="MFA" value="TOTP" accent="text-sky-400" />
-                  <MockStat label="Tokens" value="JWT" accent="text-emerald-400" />
-                  <MockStat label="Topology" value="embed" accent="text-amber-400" />
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-zinc-800 bg-[#16161b]/60 p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="font-mono text-[10px] uppercase tracking-wide text-zinc-500">
-                    id_token claims
-                  </span>
-                  <span className="font-mono text-[10px] text-[#9a8bff]">verified</span>
-                </div>
-                <pre className="overflow-x-auto font-mono text-[11px] leading-relaxed text-zinc-400">
-                  <code>{`{
-  "sub": "usr_8f3a",
-  "email": "jane@acme.dev",
-  "amr": ["pwd","otp"],
-  "scope": "openid profile"
-}`}</code>
-                </pre>
-              </div>
-            </div>
-          </div>
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
+          <LoginScreenMock />
+          <AdminAuditMock />
         </div>
+
+        <p className="mt-5 text-center font-mono text-xs text-fd-muted-foreground">
+          Telas reais do host-kit: login + console admin
+        </p>
       </div>
     </section>
   )
 }
 
-function MockStat({
-  label,
-  value,
-  accent,
-}: {
-  label: string
-  value: string
-  accent: string
-}) {
+/* Faithful reproduction of packages/authkit-server/src/host/views/login.edge   */
+function LoginScreenMock() {
   return (
-    <div className="rounded-lg border border-zinc-800 bg-[#16161b]/60 px-3 py-2.5">
-      <p className="font-mono text-[10px] uppercase tracking-wide text-zinc-500">{label}</p>
-      <p className={`mt-1 font-mono text-lg font-semibold tabular-nums ${accent}`}>{value}</p>
+    <div className="overflow-hidden rounded-xl border border-zinc-800 bg-[#0d0d10] shadow-2xl shadow-black/40 ring-1 ring-white/5 lg:mt-8">
+      {/* window chrome */}
+      <div className="flex items-center gap-2 border-b border-zinc-800 bg-[#16161b]/80 px-4 py-3">
+        <span className="size-3 rounded-full bg-zinc-700" />
+        <span className="size-3 rounded-full bg-zinc-700" />
+        <span className="size-3 rounded-full bg-zinc-700" />
+        <span className="ml-3 truncate font-mono text-xs text-zinc-500">
+          auth.acme.dev · /auth/interaction
+        </span>
+      </div>
+
+      {/* the login card itself (card markup mirrors login.edge) */}
+      <div className="bg-[#0d0d10] p-6">
+        <div className="mx-auto w-full max-w-sm rounded-2xl border border-zinc-800 bg-[#16161b]/60 p-6 ring-1 ring-white/5">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9a8bff]">
+            Acme
+          </p>
+          <h3 className="mt-1 text-lg font-semibold text-zinc-100">Entrar</h3>
+          <p className="mt-1 text-sm text-zinc-500">Informe seu e-mail para continuar.</p>
+
+          <div className="mt-5">
+            <label className="mb-1 block text-sm font-medium text-zinc-300">E-mail</label>
+            <div className="w-full rounded-lg border border-zinc-700 bg-[#0d0d10] px-3 py-2 text-sm text-zinc-300">
+              jane@acme.dev
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <label className="mb-1 block text-sm font-medium text-zinc-300">Senha</label>
+            <div className="w-full rounded-lg border border-zinc-700 bg-[#0d0d10] px-3 py-2 text-sm tracking-widest text-zinc-500">
+              ••••••••••
+            </div>
+          </div>
+
+          <div className="mt-5 w-full rounded-lg bg-[#625fff] py-2.5 text-center text-sm font-semibold text-white">
+            Entrar
+          </div>
+
+          <div className="mt-4 flex justify-between text-sm text-zinc-500">
+            <span className="hover:underline">Criar conta</span>
+            <span className="hover:underline">Esqueci a senha</span>
+          </div>
+
+          <div className="my-5 flex items-center gap-3 text-xs text-zinc-600">
+            <span className="h-px flex-1 bg-zinc-800" />
+            ou
+            <span className="h-px flex-1 bg-zinc-800" />
+          </div>
+
+          <div className="flex w-full items-center justify-center gap-2 rounded-lg border border-zinc-700 bg-[#0d0d10] py-2.5 text-sm font-medium text-zinc-300">
+            <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="#4285F4"
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1Z"
+              />
+              <path
+                fill="#34A853"
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84Z"
+              />
+              <path
+                fill="#EA4335"
+                d="M12 4.75c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 1.46 14.97.5 12 .5A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.3 9.14 4.75 12 4.75Z"
+              />
+            </svg>
+            Entrar com Google
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* Faithful reproduction of packages/authkit-server/src/host/views/admin/audit.edge */
+function AdminAuditMock() {
+  return (
+    <div className="overflow-hidden rounded-xl border border-zinc-800 bg-[#0d0d10] shadow-2xl shadow-black/40 ring-1 ring-white/5">
+      {/* window chrome */}
+      <div className="flex items-center gap-2 border-b border-zinc-800 bg-[#16161b]/80 px-4 py-3">
+        <span className="size-3 rounded-full bg-zinc-700" />
+        <span className="size-3 rounded-full bg-zinc-700" />
+        <span className="size-3 rounded-full bg-zinc-700" />
+        <span className="ml-3 font-mono text-xs text-zinc-500">auth.acme.dev · /admin/audit</span>
+        <span className="ml-auto inline-flex items-center gap-1.5 font-mono text-[11px] text-[#9a8bff]">
+          <span className="animate-ak-blink size-1.5 rounded-full bg-[#9a8bff]" />
+          live
+        </span>
+      </div>
+
+      <div className="bg-[#0d0d10] p-5">
+        {/* header: eyebrow + title (mirrors admin/audit.edge) */}
+        <div className="mb-4">
+          <div className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500">
+            Auth
+          </div>
+          <h3 className="text-lg font-semibold text-zinc-100">Log de auditoria</h3>
+        </div>
+
+        {/* admin nav */}
+        <nav className="mb-4 flex gap-4 text-sm font-medium">
+          <span className="text-zinc-500">Painel</span>
+          <span className="text-zinc-500">Usuários</span>
+          <span className="text-zinc-500">Clients</span>
+          <span className="text-zinc-100 underline">Auditoria</span>
+        </nav>
+
+        {/* filter form */}
+        <div className="mb-4 flex gap-2">
+          <div className="flex-1 rounded-lg border border-zinc-700 bg-[#16161b]/60 px-3 py-2 text-sm text-zinc-600">
+            Filtrar por tipo
+          </div>
+          <div className="flex-1 rounded-lg border border-zinc-700 bg-[#16161b]/60 px-3 py-2 text-sm text-zinc-600">
+            Filtrar por subject (accountId)
+          </div>
+          <div className="rounded-lg bg-[#625fff] px-4 py-2 text-sm font-semibold text-white">
+            Filtrar
+          </div>
+        </div>
+
+        {/* events list (each row = type + createdAt, then detail line) */}
+        <div className="overflow-hidden rounded-xl border border-zinc-800 bg-[#16161b]/40">
+          {AUDIT_ROWS.map((row) => (
+            <div key={row.type + row.time} className="border-b border-zinc-800/80 p-4 last:border-0">
+              <div className="flex items-center justify-between">
+                <p className={`font-mono text-sm font-medium ${row.typeColor}`}>{row.type}</p>
+                <p className="text-xs text-zinc-600">{row.time}</p>
+              </div>
+              <p className="mt-1 font-mono text-xs text-zinc-500">{row.detail}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* pagination */}
+        <div className="mt-4 flex items-center justify-between text-sm text-zinc-500">
+          <span>Página 1 de 8</span>
+          <div className="flex gap-2">
+            <span className="rounded border border-zinc-700 px-3 py-1">Anterior</span>
+            <span className="rounded border border-zinc-700 px-3 py-1">Próxima</span>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

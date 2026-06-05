@@ -8,6 +8,7 @@ import type {
   ClientInput,
   CreateUserInput,
   DeletedClient,
+  DeletedUser,
   ListAuditParams,
   ListAuditResult,
   ListClientsResult,
@@ -205,6 +206,17 @@ export async function createEmbeddedAuthkit(opts: EmbeddedOptions): Promise<Auth
         const account = await usersService.resetPassword(ctx, id, ACTOR)
         if (!account) throw new Error('Usuário não encontrado.')
         return { id, sent: true }
+      },
+      async delete(id: string): Promise<DeletedUser> {
+        const outcome = await usersService.delete(service, id, ACTOR)
+        if (!outcome.ok) {
+          throw new Error(
+            outcome.reason === 'not_found'
+              ? 'Usuário não encontrado.'
+              : 'O store de contas não suporta deletar usuários.'
+          )
+        }
+        return { id, deleted: true, ...outcome.result }
       },
     },
     sessions: {

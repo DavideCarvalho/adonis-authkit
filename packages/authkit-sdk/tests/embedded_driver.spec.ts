@@ -53,6 +53,10 @@ function buildFakeServer() {
     async issuePasswordResetToken() {
       return { token: 'reset-tok' }
     },
+    // account-deletion capability
+    async deleteAccount(id: string) {
+      return accounts.delete(id)
+    },
   }
 
   const config = {
@@ -134,6 +138,28 @@ test.group('embedded driver — same interface, same shapes', () => {
     assert.isTrue((await sdk.users.get('u1')).disabled)
     const e = await sdk.users.enable('u1')
     assert.isFalse(e.disabled)
+  })
+
+  test('users.delete cascades and removes the account (same shape as remote)', async ({
+    assert,
+  }) => {
+    const { service, audit, accounts } = buildFakeServer()
+    const sdk = await createAuthkit({ mode: 'embedded', app: fakeApp(service) })
+    const res = await sdk.users.delete('u1')
+    assert.isTrue(res.deleted)
+    assert.equal(res.id, 'u1')
+    // A conta sumiu do store.
+    assert.isUndefined(accounts.get('u1'))
+    // Auditou user.deleted + account.deleted com ator admin-api.
+    assert.isTrue(audit.some((e) => e.type === 'user.deleted'))
+    assert.isTrue(audit.some((e) => e.type === 'account.deleted'))
+  })
+
+  test('users.delete throws when the store lacks deletion capability', async ({ assert }) => {
+    const { service } = buildFakeServer()
+    delete (service.config.accountStore as any).deleteAccount
+    const sdk = await createAuthkit({ mode: 'embedded', app: fakeApp(service) })
+    await assert.rejects(() => sdk.users.delete('u1'))
   })
 
   test('tokens.verify resolves a PAT to the same shape', async ({ assert }) => {

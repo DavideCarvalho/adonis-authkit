@@ -187,6 +187,55 @@ test.group('attemptPasswordLogin', (group) => {
     assert.isTrue(res.ok)
   })
 
+  test('e-mail não verificado + requireVerifiedEmail: rejeita com { unverified: true }', async ({
+    assert,
+  }) => {
+    const events: AuditEvent[] = []
+    const sink: AuditSink = { record: async (e) => { events.push(e) } }
+    const accountStore = {
+      verifyCredentials: async (email: string) =>
+        email === ACCOUNT.email ? { ...ACCOUNT } : null,
+      isEmailVerified: async () => false,
+    } as unknown as AccountStore
+    const cfg = {
+      accountStore,
+      audit: sink,
+      lockout: resolveLockout({ enabled: true, maxAttempts: 5 }),
+      login: { requireVerifiedEmail: true },
+    } as unknown as ResolvedServerConfig
+
+    const res = await attemptPasswordLogin(cfg, { email: 'a@b.com', password: 'secret', ip: '1.2.3.4' })
+    assert.isFalse(res.ok)
+    if (!res.ok) assert.isTrue(res.unverified)
+    const fail = events.find((e) => e.type === 'login.failure')!
+    assert.equal((fail.metadata as any)?.reason, 'unverified')
+  })
+
+  test('e-mail verificado + requireVerifiedEmail: login normal', async ({ assert }) => {
+    const accountStore = {
+      verifyCredentials: async (email: string) =>
+        email === ACCOUNT.email ? { ...ACCOUNT } : null,
+      isEmailVerified: async () => true,
+    } as unknown as AccountStore
+    const cfg = {
+      accountStore,
+      lockout: resolveLockout({ enabled: true, maxAttempts: 5 }),
+      login: { requireVerifiedEmail: true },
+    } as unknown as ResolvedServerConfig
+    const res = await attemptPasswordLogin(cfg, { email: 'a@b.com', password: 'secret', ip: null })
+    assert.isTrue(res.ok)
+  })
+
+  test('requireVerifiedEmail mas store SEM isEmailVerified: degrada (não bloqueia)', async ({
+    assert,
+  }) => {
+    // Store sem a capability → a checagem é no-op (capability-probed).
+    const cfg = makeCfg({})
+    ;(cfg as any).login = { requireVerifiedEmail: true }
+    const res = await attemptPasswordLogin(cfg, { email: 'a@b.com', password: 'secret', ip: null })
+    assert.isTrue(res.ok)
+  })
+
   test('travada: não verifica a senha e devolve { ok: false, locked: true, retryAfterSec }', async ({
     assert,
   }) => {

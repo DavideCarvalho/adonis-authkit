@@ -13,6 +13,8 @@ import { withWebauthnCredential } from '../../src/mixins/with_webauthn_credentia
 import { lucidAccountStore } from '../../src/accounts/lucid_account_store.js'
 import type { WebauthnCeremonies } from '../../src/accounts/lucid_account_store.js'
 import {
+  supportsAccountDeletion,
+  supportsEmailVerificationStatus,
   supportsPasskeys,
   supportsProviderIdentity,
 } from '../../src/accounts/account_store.js'
@@ -317,6 +319,80 @@ test.group('lucidAccountStore', (group) => {
     assert.equal(cleared!.name, 'New')
     assert.isUndefined(cleared!.avatarUrl)
     assert.isNull(await store.updateProfile!('nope', { name: 'X' }))
+  })
+
+  // ----- Verificação de e-mail (estado) -----
+
+  test('isEmailVerified reflete o estado da conta (capability presente)', async ({ assert }) => {
+    const store = lucidAccountStore(TestAccount)
+    assert.isTrue(supportsEmailVerificationStatus(store))
+    const acc = await store.create({ email: 'ev1@x.com', password: 'pass123456' })
+    // Recém-criada sem emailVerified → false.
+    assert.isFalse(await store.isEmailVerified!(acc.id))
+    // Verifica via token → true.
+    const issued = await store.issueEmailVerificationToken('ev1@x.com')
+    await store.consumeEmailVerificationToken(issued!.token)
+    assert.isTrue(await store.isEmailVerified!(acc.id))
+    // Conta inexistente → false.
+    assert.isFalse(await store.isEmailVerified!('nope'))
+  })
+
+  test('create com emailVerified: true marca verificado', async ({ assert }) => {
+    const store = lucidAccountStore(TestAccount)
+    const acc = await store.create({ email: 'ev2@x.com', password: 'pass123456', emailVerified: true })
+    assert.isTrue(await store.isEmailVerified!(acc.id))
+  })
+
+  test('capability isEmailVerified AUSENTE quando o model não tem email_verified_at', async ({
+    assert,
+  }) => {
+    // Model mínimo SEM a coluna email_verified_at → a capacidade não é montada.
+    class NoVerifyAccount extends compose(BaseModel, withAuthUser(), withCredentials(), withMfa()) {
+      static table = 'users'
+      static selfAssignPrimaryKey = true
+      @column({ isPrimary: true })
+      declare id: string
+      @beforeCreate()
+      static assignId(row: NoVerifyAccount) {
+        if (!row.id) row.id = randomUUID()
+      }
+    }
+    // Remove a coluna da definição (o probe usa $columnsDefinitions).
+    NoVerifyAccount.$columnsDefinitions.delete('emailVerifiedAt')
+    const store = lucidAccountStore(NoVerifyAccount)
+    assert.isFalse('isEmailVerified' in store)
+    assert.isFalse(supportsEmailVerificationStatus(store))
+  })
+
+  // ----- Deleção de conta (LGPD) -----
+
+  test('deleteAccount apaga a linha (capability sempre presente) e retorna false p/ inexistente', async ({
+    assert,
+  }) => {
+    const store = lucidAccountStore(TestAccount)
+    assert.isTrue(supportsAccountDeletion(store))
+    const acc = await store.create({ email: 'del1@x.com', password: 'pass123456' })
+    assert.isTrue(await store.deleteAccount!(acc.id))
+    assert.isNull(await store.findById(acc.id))
+    // Segunda vez → false (não existe mais).
+    assert.isFalse(await store.deleteAccount!(acc.id))
+    assert.isFalse(await store.deleteAccount!('nope'))
+  })
+
+  test('unlinkAllProviderIdentities + listProviderIdentities (sem tokens)', async ({ assert }) => {
+    const store = lucidAccountStore(TestAccount, { providerIdentityModel: TestProviderIdentity })
+    const acc = await store.create({ email: 'del2@x.com', password: 'pass123456' })
+    await store.linkProviderIdentity({ accountId: acc.id, provider: 'google', providerUserId: 'g-1', email: 'g@x.com' })
+    await store.linkProviderIdentity({ accountId: acc.id, provider: 'github', providerUserId: 'h-1' })
+
+    const list = await store.listProviderIdentities!(acc.id)
+    assert.lengthOf(list, 2)
+    // Só provider/providerUserId/email — nenhum campo de token.
+    assert.deepEqual(Object.keys(list[0]).sort(), ['email', 'provider', 'providerUserId'])
+
+    const removed = await store.unlinkAllProviderIdentities!(acc.id)
+    assert.equal(removed, 2)
+    assert.lengthOf(await store.listProviderIdentities!(acc.id), 0)
   })
 
   // ----- MFA / TOTP -----

@@ -179,6 +179,25 @@ export interface ProviderIdentityCapability {
   findByProviderIdentity(provider: string, providerUserId: string): Promise<AuthAccount | null>
   /** Liga (upsert idempotente na chave única) uma identidade de provider a uma conta. */
   linkProviderIdentity(data: LinkProviderIdentityInput): Promise<void>
+  /**
+   * Remove TODAS as identidades de provider ligadas a uma conta (usado na deleção
+   * de conta — LGPD). Retorna quantas foram removidas. No-op (0) se a conta não tem
+   * identidades.
+   */
+  unlinkAllProviderIdentities(accountId: string): Promise<number>
+  /**
+   * Lista as identidades de provider de uma conta (usado no export de dados —
+   * LGPD). NUNCA expõe tokens/segredos do provider — só provider + providerUserId +
+   * email (quando presente).
+   */
+  listProviderIdentities(accountId: string): Promise<ProviderIdentitySummary[]>
+}
+
+/** Resumo de uma identidade de provider para export/exibição (sem tokens). */
+export interface ProviderIdentitySummary {
+  provider: string
+  providerUserId: string
+  email?: string | null
 }
 
 /**
@@ -270,6 +289,32 @@ export interface WebauthnCapability {
 }
 
 /**
+ * Verificação de e-mail como ESTADO consultável da conta. CAPACIDADE opcional:
+ * stores sem a noção de "e-mail verificado" (ex.: model sem a coluna
+ * `email_verified_at`) NÃO expõem o método — e features que dependem dela
+ * (`requireVerifiedEmail`) degradam graciosamente (não bloqueiam ninguém) e o
+ * doctor avisa. Distinta de {@link CoreAccountStore.consumeEmailVerificationToken},
+ * que ESCREVE o estado; aqui só LEMOS.
+ */
+export interface EmailVerificationStatusCapability {
+  /** True se o e-mail da conta está verificado. False se a conta não existe. */
+  isEmailVerified(accountId: string): Promise<boolean>
+}
+
+/**
+ * Deleção self-service / por admin da conta (LGPD/GDPR — "direito ao
+ * esquecimento"). CAPACIDADE opcional: stores sem suporte a delete NÃO expõem o
+ * método — a UI esconde a "danger zone" e o admin/REST respondem 409. Apenas
+ * apaga a LINHA da conta; o cascade dos demais artefatos (sessões, grants, PATs,
+ * passkeys, identidades, MFA, avatar) e a anonimização do audit ficam a cargo do
+ * `accountDeletionService` (orquestrador no host).
+ */
+export interface AccountDeletionCapability {
+  /** Apaga a linha da conta. Retorna false se a conta não existe. */
+  deleteAccount(accountId: string): Promise<boolean>
+}
+
+/**
  * Login sem senha por "magic link" — um token de uso único e curta duração
  * enviado por e-mail. CAPACIDADE opcional: stores sem suporte omitem os métodos e
  * a UI esconde o botão "me envie um link".
@@ -312,7 +357,9 @@ export type AccountStore = CoreAccountStore &
       AccountSecurityCapability &
       AccountStatusCapability &
       ProfileCapability &
-      MagicLinkCapability
+      MagicLinkCapability &
+      EmailVerificationStatusCapability &
+      AccountDeletionCapability
   >
 
 /** Type guard: o store implementa a capacidade de MFA / TOTP. */
@@ -356,4 +403,18 @@ export function supportsMagicLink(
   store: AccountStore
 ): store is AccountStore & MagicLinkCapability {
   return typeof store.issueMagicLinkToken === 'function'
+}
+
+/** Type guard: o store consegue dizer se o e-mail de uma conta está verificado. */
+export function supportsEmailVerificationStatus(
+  store: AccountStore
+): store is AccountStore & EmailVerificationStatusCapability {
+  return typeof store.isEmailVerified === 'function'
+}
+
+/** Type guard: o store implementa a deleção (hard delete) da conta. */
+export function supportsAccountDeletion(
+  store: AccountStore
+): store is AccountStore & AccountDeletionCapability {
+  return typeof store.deleteAccount === 'function'
 }

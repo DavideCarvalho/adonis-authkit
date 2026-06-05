@@ -164,3 +164,45 @@ export async function storeAvatar(
     return key
   }
 }
+
+/**
+ * Deleta (best-effort, fail-safe) o avatar de uma conta no drive do host, a partir
+ * da URL/key armazenada. Usado pela deleção de conta (LGPD): apaga o arquivo se
+ * conseguirmos derivar a key dentro do diretório configurado.
+ *
+ * NUNCA lança: drive ausente, key não reconhecida ou erro de I/O → no-op. A key é
+ * derivada da `storedUrlOrKey` pegando o trecho a partir de `directory/` (cobre
+ * tanto uma key relativa quanto uma URL pública que contenha o caminho).
+ */
+export async function deleteAvatar(
+  cfg: ResolvedUploadsConfig,
+  storedUrlOrKey: string | null | undefined
+): Promise<boolean> {
+  if (!storedUrlOrKey) return false
+  const drive = await loadDrive()
+  if (!drive) return false
+
+  // Deriva a key: trecho a partir de `<directory>/`. Se não bater, aborta (não
+  // arriscamos deletar algo fora do nosso diretório).
+  const dir = cfg.avatars.directory.replace(/\/+$/, '')
+  const marker = `${dir}/`
+  const idx = storedUrlOrKey.indexOf(marker)
+  if (idx < 0) return false
+  // Remove querystring/fragment de uma URL pública.
+  const key = storedUrlOrKey.slice(idx).split(/[?#]/)[0]
+
+  let disk: any
+  try {
+    disk = cfg.avatars.disk ? drive.use(cfg.avatars.disk) : drive.use()
+  } catch {
+    return false
+  }
+  if (!disk || typeof disk.delete !== 'function') return false
+
+  try {
+    await disk.delete(key)
+    return true
+  } catch {
+    return false
+  }
+}

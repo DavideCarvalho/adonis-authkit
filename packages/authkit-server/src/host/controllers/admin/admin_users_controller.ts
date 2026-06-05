@@ -1,7 +1,7 @@
 import '../../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { AuthAccount } from '../../../accounts/account_store.js'
-import { supportsAccountStatus } from '../../../accounts/account_store.js'
+import { supportsAccountDeletion, supportsAccountStatus } from '../../../accounts/account_store.js'
 import { ACCOUNT_SESSION_KEY } from '../../middleware/account_auth.js'
 import { adminCreateUserValidator } from '../../validators.js'
 import { AdminUsersService } from '../../admin_api/admin_users_service.js'
@@ -27,6 +27,7 @@ export default class AdminUsersController {
 
     const store = cfg.accountStore
     const statusSupported = supportsAccountStatus(store)
+    const deletionSupported = supportsAccountDeletion(store)
     // Resolve o estado de disabled por conta (só quando suportado).
     const disabledMap = new Map<string, boolean>()
     if (statusSupported) {
@@ -42,9 +43,11 @@ export default class AdminUsersController {
       totalPages,
       total: result.total,
       statusSupported,
+      deletionSupported,
       created: ctx.session.flashMessages.get('userCreated') ?? null,
       resetSent: ctx.session.flashMessages.get('resetSent') ?? null,
       statusChanged: ctx.session.flashMessages.get('statusChanged') ?? null,
+      userDeleted: ctx.session.flashMessages.get('userDeleted') ?? null,
       error: ctx.session.flashMessages.get('usersError') ?? null,
       users: result.data.map((u: AuthAccount) => ({
         id: u.id,
@@ -118,6 +121,27 @@ export default class AdminUsersController {
         cfg.messages[disable ? 'admin.users.disabled' : 'admin.users.enabled'] ??
           (disable ? 'admin.users.disabled' : 'admin.users.enabled')
       )
+    }
+    return this.#redirectBack(ctx)
+  }
+
+  /** POST /admin/users/:id/delete — deleção completa (cascade) da conta. */
+  async destroy(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const actorId = (ctx.session.get(ACCOUNT_SESSION_KEY) as string) ?? null
+    const ip = ctx.request.ip?.() ?? null
+
+    const accountId = ctx.request.param('id')
+    const outcome = await new AdminUsersService(cfg).delete(service, accountId, {
+      actorId,
+      ip,
+      source: 'admin',
+    })
+    if (outcome.ok) {
+      ctx.session.flash('userDeleted', cfg.messages['admin.users.deleted'] ?? 'admin.users.deleted')
+    } else {
+      ctx.session.flash('usersError', cfg.messages['admin.users.delete_unsupported'] ?? 'admin.users.delete_unsupported')
     }
     return this.#redirectBack(ctx)
   }

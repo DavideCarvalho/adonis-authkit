@@ -2,7 +2,7 @@ import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import { brandFor, isFirstParty } from '../branding.js'
 import { translate } from '../i18n.js'
-import { attemptPasswordLogin } from '../login_attempt.js'
+import { attemptPasswordLogin, isEmailUnverifiedBlock } from '../login_attempt.js'
 import { notifyLoginSuccess } from '../login_notify.js'
 import { supportsPasskeys, supportsMagicLink } from '../../accounts/account_store.js'
 import { sendMagicLinkEmail } from '../default_mailer.js'
@@ -141,7 +141,9 @@ export default class AuthInteractionController {
             })
           : result.disabled
             ? translate(cfg.messages, 'errors.account_disabled')
-            : translate(cfg.messages, 'errors.invalid_credentials'),
+            : result.unverified
+              ? translate(cfg.messages, 'errors.email_unverified')
+              : translate(cfg.messages, 'errors.invalid_credentials'),
         brand,
       })
     }
@@ -435,6 +437,28 @@ export default class AuthInteractionController {
       await cfg.audit?.record({ type: 'login.failure', ip, clientId, metadata: { stage: 'magic_link' } })
       return ctx.response.redirect(`/auth/interaction/${uid}`)
     }
+    // E-mail não verificado (LGPD/compliance): mesmo com o link válido, não
+    // materializa a sessão se a política exige verificação. Volta ao login com erro.
+    if (await isEmailUnverifiedBlock(cfg, acc.id)) {
+      await cfg.audit?.record({
+        type: 'login.failure',
+        accountId: acc.id,
+        email: acc.email,
+        ip,
+        clientId,
+        metadata: { stage: 'magic_link', reason: 'unverified' },
+      })
+      const render = cfg.render!
+      return render(ctx, 'login', {
+        uid,
+        csrfToken: ctx.request.csrfToken,
+        step: 'password',
+        email: acc.email,
+        account: null,
+        brand: brandFor(cfg.branding!, clientId ?? undefined, undefined),
+        error: translate(cfg.messages, 'errors.email_unverified'),
+      })
+    }
     await notifyLoginSuccess(ctx, cfg, {
       accountId: acc.id,
       email: acc.email,
@@ -522,6 +546,28 @@ export default class AuthInteractionController {
         uid: ctx.request.param('uid'),
         csrfToken: ctx.request.csrfToken,
         error: translate(cfg.messages, 'mfa_challenge.passkey_error'),
+        brand,
+        passkeyAvailable: await this.hasPasskeys(cfg, accountId),
+        trustedDevicesEnabled: cfg.trustedDevices.enabled,
+        trustedDeviceDays: cfg.trustedDevices.days,
+      })
+    }
+
+    // E-mail não verificado (LGPD/compliance): bloqueia mesmo com a passkey válida.
+    // Relevante sobretudo no passkey-first (a etapa de senha — que também checa —
+    // não rodou). Volta à tela de desafio com o erro.
+    if (await isEmailUnverifiedBlock(cfg, accountId)) {
+      await cfg.audit?.record({
+        type: 'login.failure',
+        accountId,
+        ip,
+        clientId,
+        metadata: { stage: 'mfa', method: 'webauthn', reason: 'unverified' },
+      })
+      return render(ctx, 'mfa-challenge', {
+        uid: ctx.request.param('uid'),
+        csrfToken: ctx.request.csrfToken,
+        error: translate(cfg.messages, 'errors.email_unverified'),
         brand,
         passkeyAvailable: await this.hasPasskeys(cfg, accountId),
         trustedDevicesEnabled: cfg.trustedDevices.enabled,

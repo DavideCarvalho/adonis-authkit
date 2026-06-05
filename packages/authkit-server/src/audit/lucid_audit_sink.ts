@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type {
   AuditEvent,
   AuditPage,
@@ -5,6 +6,15 @@ import type {
   ListAuditParams,
   StoredAuditEvent,
 } from './audit_sink.js'
+
+/**
+ * Pseudônimo estável para um accountId anonimizado: `anon:<sha256(accountId)[:16]>`.
+ * Mantém os eventos de uma conta deletada correlacionáveis ENTRE SI (mesmo
+ * pseudônimo) sem permitir reidentificar a pessoa (one-way).
+ */
+function anonId(accountId: string): string {
+  return `anon:${createHash('sha256').update(accountId).digest('hex').slice(0, 16)}`
+}
 
 /**
  * Implementação default do {@link AuditSink} sobre um model Lucid composto de
@@ -66,6 +76,35 @@ export function lucidAuditSink(Model: any): AuditSink {
       }))
 
       return { data, total }
+    },
+
+    /**
+     * Anonimiza (LGPD/GDPR) as linhas de audit cujo subject (`accountId`) OU ator
+     * (`actorId`) é a conta dada: substitui o id pelo pseudônimo estável e zera os
+     * identificadores pessoais (`email`, `ip`). Preserva `type`, `clientId`,
+     * `metadata` e o timestamp — o histórico continua íntegro, só não é mais
+     * reidentificável. Best-effort: erros são logados e engolidos (retorna 0).
+     */
+    async anonymizeAccount(accountId: string): Promise<number> {
+      if (!accountId) return 0
+      const pseudonym = anonId(accountId)
+      try {
+        // accountId === conta deletada → subject.
+        const asSubject = await Model.query()
+          .where('accountId', accountId)
+          .update({ accountId: pseudonym, email: null, ip: null })
+        // actorId === conta deletada (ações que ela fez como admin) → ator.
+        const asActor = await Model.query()
+          .where('actorId', accountId)
+          .update({ actorId: pseudonym })
+        // O retorno do update varia por dialeto (número ou array). Normaliza.
+        const n = (v: unknown) => (Array.isArray(v) ? Number(v[0] ?? 0) : Number(v ?? 0))
+        return n(asSubject) + n(asActor)
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('[authkit] audit sink falhou ao anonimizar conta', accountId, error)
+        return 0
+      }
     },
   }
 }

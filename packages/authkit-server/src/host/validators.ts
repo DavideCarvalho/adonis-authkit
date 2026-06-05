@@ -52,6 +52,18 @@ export const updateProfileValidator = vine.compile(
   })
 )
 
+/**
+ * Deleção self-service de conta (LGPD). Aceita confirmação por senha atual
+ * (`currentPassword`) OU pelo e-mail digitado (`confirmEmail`, p/ contas
+ * passwordless). Ambos opcionais aqui; o controller exige que UM deles confirme.
+ */
+export const deleteAccountValidator = vine.compile(
+  vine.object({
+    currentPassword: vine.string().optional(),
+    confirmEmail: vine.string().trim().optional(),
+  })
+)
+
 /** Criação de usuário no console admin (email obrigatório; nome/senha opcionais). */
 export const adminCreateUserValidator = vine.compile(
   vine.object({

@@ -1,7 +1,22 @@
 import type { AuthAccount } from '../accounts/account_store.js'
-import { supportsAccountStatus } from '../accounts/account_store.js'
+import { supportsAccountStatus, supportsEmailVerificationStatus } from '../accounts/account_store.js'
 import type { ResolvedServerConfig } from '../define_config.js'
 import { createAccountLockout } from './account_lockout.js'
+
+/**
+ * `requireVerifiedEmail` ligado E o store sabe dizer se o e-mail está verificado
+ * E a conta NÃO está verificada → bloqueia. Capability-probed: sem
+ * {@link EmailVerificationStatusCapability} a checagem é no-op (não bloqueia).
+ * Compartilhado pelos três fluxos de login (senha, magic link, passkey-first).
+ */
+export async function isEmailUnverifiedBlock(
+  cfg: ResolvedServerConfig,
+  accountId: string
+): Promise<boolean> {
+  if (!cfg.login?.requireVerifiedEmail) return false
+  if (!supportsEmailVerificationStatus(cfg.accountStore)) return false
+  return !(await cfg.accountStore.isEmailVerified(accountId))
+}
 
 /** Entrada de uma tentativa de login por senha (keyed por email). */
 export interface PasswordLoginInput {
@@ -19,7 +34,7 @@ export interface PasswordLoginInput {
 /** Resultado de {@link attemptPasswordLogin}. */
 export type PasswordLoginResult =
   | { ok: true; account: AuthAccount }
-  | { ok: false; locked: boolean; retryAfterSec?: number; disabled?: boolean }
+  | { ok: false; locked: boolean; retryAfterSec?: number; disabled?: boolean; unverified?: boolean }
 
 /**
  * Sequência canônica de login por senha + bloqueio progressivo, compartilhada
@@ -72,6 +87,19 @@ export async function attemptPasswordLogin(
         : { type: 'login.failure', email, ip, metadata: { reason: 'disabled' } }
     )
     return { ok: false, locked: false, disabled: true }
+  }
+
+  // E-mail não verificado (LGPD/compliance): rejeita o login se a política exige
+  // verificação E o store sabe responder. Não conta como falha de senha (a senha
+  // estava correta) — limpa o contador e emite login.failure com motivo `unverified`.
+  if (await isEmailUnverifiedBlock(cfg, account.id)) {
+    await lockout.clearFailures(email)
+    await cfg.audit?.record(
+      input.clientId !== undefined
+        ? { type: 'login.failure', email, ip, clientId: input.clientId, metadata: { reason: 'unverified' } }
+        : { type: 'login.failure', email, ip, metadata: { reason: 'unverified' } }
+    )
+    return { ok: false, locked: false, unverified: true }
   }
 
   // Senha correta: limpa o contador de falhas (o lockout protege a etapa de senha).

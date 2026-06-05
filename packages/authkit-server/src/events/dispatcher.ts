@@ -124,5 +124,9 @@ export function composeAuditSink(
   if (original && typeof original.list === 'function') {
     composed.list = original.list.bind(original)
   }
+  // Preserva a anonimização (LGPD) do sink original (deleção de conta).
+  if (original && typeof original.anonymizeAccount === 'function') {
+    composed.anonymizeAccount = original.anonymizeAccount.bind(original)
+  }
   return composed
 }

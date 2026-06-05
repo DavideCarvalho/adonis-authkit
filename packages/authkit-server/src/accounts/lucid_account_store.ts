@@ -14,7 +14,13 @@ import { buildCore } from './lucid_store/core.js'
 import { buildMfa } from './lucid_store/mfa.js'
 import { buildProviderIdentity } from './lucid_store/provider_identity.js'
 import { buildWebauthn } from './lucid_store/webauthn.js'
-import { buildStatus, buildProfile, hasColumn } from './lucid_store/status_profile.js'
+import {
+  buildStatus,
+  buildProfile,
+  buildEmailVerificationStatus,
+  buildDeletion,
+  hasColumn,
+} from './lucid_store/status_profile.js'
 
 export type { AccountSecretEncrypter, WebauthnCeremonies }
 
@@ -136,5 +142,9 @@ export function lucidAccountStore(
     ...(hasColumn(Model, 'fullName') || hasColumn(Model, 'avatarUrl')
       ? buildProfile(ctx)
       : {}),
+    // Estado de verificação de e-mail (leitura) só quando o model tem a coluna.
+    ...(hasColumn(Model, 'emailVerifiedAt') ? buildEmailVerificationStatus(ctx) : {}),
+    // Deleção da conta: sempre disponível (qualquer model Lucid pode deletar).
+    ...buildDeletion(ctx),
   }
 }

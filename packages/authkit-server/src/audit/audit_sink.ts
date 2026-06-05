@@ -31,7 +31,10 @@ export type AuditEventType =
   | 'user.password_reset_sent'
   | 'user.disabled'
   | 'user.enabled'
+  | 'user.deleted'
   | 'profile.updated'
+  | 'account.deleted'
+  | 'account.exported'
 
 /**
  * Evento de auditoria a registrar. O timestamp é definido pelo sink (não aqui).
@@ -86,4 +89,13 @@ export interface AuditSink {
   record(event: AuditEvent): Promise<void>
   /** Lista eventos paginados (opcional — só sinks que suportam consulta). */
   list?(params: ListAuditParams): Promise<AuditPage>
+  /**
+   * Anonimiza (LGPD/GDPR) os eventos de uma conta SEM apagar o histórico: remove
+   * os identificadores pessoais (`email`, `ip`) e re-escreve o `accountId` para um
+   * pseudônimo estável (`anon:<hash>`), preservando a linha do tempo, o `type` e a
+   * forma para auditoria/forense. OPCIONAL: sinks write-only podem omitir — a
+   * deleção de conta segue funcionando (best-effort), só não anonimiza.
+   * Retorna a quantidade de linhas afetadas.
+   */
+  anonymizeAccount?(accountId: string): Promise<number>
 }

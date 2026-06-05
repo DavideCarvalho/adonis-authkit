@@ -8,6 +8,7 @@ import {
   checkRateLimit,
   checkAdmin,
   checkWebauthn,
+  checkRequireVerifiedEmail,
   type DoctorInput,
 } from '../src/doctor/checks.js'
 
@@ -86,6 +87,37 @@ test.group('doctor checks', () => {
       authkitConfig: { issuer: 'https://idp.test/oidc', webauthn: { rpId: 'other.host' } },
     }))
     assert.equal(f!.level, 'warn')
+  })
+
+  test('requireVerifiedEmail sem isEmailVerified no store vira warn', ({ assert }) => {
+    const f = checkRequireVerifiedEmail(baseInput({
+      authkitConfig: {
+        login: { requireVerifiedEmail: true },
+        accountStore: { findById: () => {} },
+      },
+    }))
+    assert.equal(f!.level, 'warn')
+  })
+
+  test('requireVerifiedEmail com isEmailVerified no store é ok', ({ assert }) => {
+    const f = checkRequireVerifiedEmail(baseInput({
+      authkitConfig: {
+        login: { requireVerifiedEmail: true },
+        accountStore: { findById: () => {}, isEmailVerified: () => {} },
+      },
+    }))
+    assert.equal(f!.level, 'ok')
+  })
+
+  test('accountStore detecta email-verification-status e account-deletion', ({ assert }) => {
+    const findings = checkAccountStore(baseInput({
+      authkitConfig: {
+        accountStore: { findById: () => {}, isEmailVerified: () => {}, deleteAccount: () => {} },
+      },
+    }))
+    const caps = findings.find((f) => f.message.includes('Optional capabilities'))
+    assert.include(caps!.message, 'email-verification-status')
+    assert.include(caps!.message, 'account-deletion')
   })
 
   test('session cookie store gera warn de tamanho', ({ assert }) => {

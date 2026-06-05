@@ -111,6 +111,35 @@ test.group('remote driver — users', () => {
       }
     )
   })
+
+  test('delete uses DELETE verb and returns cascade counts', async ({ assert }) => {
+    await withApi(
+      () => ({
+        status: 200,
+        body: {
+          id: 'u1',
+          deleted: true,
+          sessions: 1,
+          grants: 2,
+          accessTokens: 3,
+          refreshTokens: 1,
+          pats: 1,
+          passkeys: 1,
+          providerIdentities: 1,
+          auditAnonymized: 5,
+          avatarDeleted: true,
+        },
+      }),
+      async (sdk, api) => {
+        const res = await sdk.users.delete('u1')
+        assert.isTrue(res.deleted)
+        assert.equal(res.passkeys, 1)
+        assert.equal(res.auditAnonymized, 5)
+        assert.equal(api.last!.method, 'DELETE')
+        assert.equal(api.last!.url, '/api/authkit/v1/users/u1')
+      }
+    )
+  })
 })
 
 test.group('remote driver — error mapping', () => {

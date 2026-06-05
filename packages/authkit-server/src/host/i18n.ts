@@ -177,6 +177,23 @@ export const DEFAULT_MESSAGES = {
   'account.profile.updated': 'Profile updated successfully.',
   'account.profile.not_supported': 'Profile editing is not available in this installation.',
 
+  // Console de conta — exportar dados (portabilidade, LGPD/GDPR).
+  'account.export.section': 'Export your data',
+  'account.export.intro':
+    'Download a copy of your data: profile, linked identities, authorized apps, active sessions, passkeys and your audit history. No secrets or tokens are included.',
+  'account.export.submit': 'Download my data (JSON)',
+
+  // Console de conta — deletar conta (danger zone, LGPD/GDPR).
+  'account.delete.section': 'Delete account',
+  'account.delete.intro':
+    'Permanently delete your account and all associated data: sessions, authorized apps, personal access tokens, passkeys, linked identities and two-factor secrets. This cannot be undone.',
+  'account.delete.confirm_password_label': 'Confirm with your current password',
+  'account.delete.confirm_email_label': 'Type your email to confirm',
+  'account.delete.submit': 'Delete my account',
+  'account.delete.deleted': 'Your account has been permanently deleted.',
+  'account.delete.invalid_confirmation': 'Confirmation failed. Your account was not deleted.',
+  'account.delete.not_supported': 'Account deletion is not available in this installation.',
+
   // Console de conta — apps com acesso (account/apps).
   'account.apps.page_title': 'Apps with access',
   'account.apps.title': 'Apps with access',
@@ -266,6 +283,10 @@ export const DEFAULT_MESSAGES = {
   'admin.users.enable': 'Enable',
   'admin.users.disabled': 'Account disabled.',
   'admin.users.enabled': 'Account enabled.',
+  'admin.users.deleted': 'Account permanently deleted.',
+  'admin.users.delete_unsupported': 'The account store does not support deleting users.',
+  'admin.users.delete': 'Delete',
+  'admin.users.delete_confirm': 'Permanently delete this account and all its data? This cannot be undone.',
   'admin.users.disabled_badge': 'Disabled',
   'admin.users.disable_confirm': 'Disable this account? The user will not be able to log in.',
 
@@ -369,6 +390,8 @@ export const DEFAULT_MESSAGES = {
   'errors.invalid_credentials': 'Invalid credentials',
   'errors.invalid_code': 'Invalid code',
   'errors.account_disabled': 'This account has been disabled.',
+  'errors.email_unverified':
+    'Please verify your email address before signing in. Check your inbox for the verification link.',
   'errors.email_taken': 'Email already registered',
   'errors.signup_failed': 'Could not create the account',
   'errors.invalid_or_expired_token': 'Invalid or expired token',
@@ -568,6 +591,23 @@ export const PT_BR_MESSAGES = {
   'account.profile.updated': 'Perfil atualizado com sucesso.',
   'account.profile.not_supported': 'A edição de perfil não está disponível nesta instalação.',
 
+  // Console de conta — exportar dados (portabilidade, LGPD/GDPR).
+  'account.export.section': 'Exportar seus dados',
+  'account.export.intro':
+    'Baixe uma cópia dos seus dados: perfil, identidades vinculadas, apps autorizados, sessões ativas, passkeys e seu histórico de auditoria. Nenhum segredo ou token é incluído.',
+  'account.export.submit': 'Baixar meus dados (JSON)',
+
+  // Console de conta — deletar conta (danger zone, LGPD/GDPR).
+  'account.delete.section': 'Deletar conta',
+  'account.delete.intro':
+    'Apaga permanentemente sua conta e todos os dados associados: sessões, apps autorizados, tokens de acesso pessoal, passkeys, identidades vinculadas e segredos de duplo fator. Esta ação não pode ser desfeita.',
+  'account.delete.confirm_password_label': 'Confirme com sua senha atual',
+  'account.delete.confirm_email_label': 'Digite seu e-mail para confirmar',
+  'account.delete.submit': 'Deletar minha conta',
+  'account.delete.deleted': 'Sua conta foi deletada permanentemente.',
+  'account.delete.invalid_confirmation': 'Confirmação falhou. Sua conta NÃO foi deletada.',
+  'account.delete.not_supported': 'A deleção de conta não está disponível nesta instalação.',
+
   // Console de conta — apps com acesso (account/apps).
   'account.apps.page_title': 'Apps com acesso',
   'account.apps.title': 'Apps com acesso',
@@ -657,6 +697,10 @@ export const PT_BR_MESSAGES = {
   'admin.users.enable': 'Reabilitar',
   'admin.users.disabled': 'Conta desabilitada.',
   'admin.users.enabled': 'Conta reabilitada.',
+  'admin.users.deleted': 'Conta deletada permanentemente.',
+  'admin.users.delete_unsupported': 'O store de contas não suporta deletar usuários.',
+  'admin.users.delete': 'Deletar',
+  'admin.users.delete_confirm': 'Deletar permanentemente esta conta e todos os dados? Não pode ser desfeito.',
   'admin.users.disabled_badge': 'Desabilitada',
   'admin.users.disable_confirm': 'Desabilitar esta conta? O usuário não conseguirá entrar.',
 
@@ -760,6 +804,8 @@ export const PT_BR_MESSAGES = {
   'errors.invalid_credentials': 'Credenciais inválidas',
   'errors.invalid_code': 'Código inválido',
   'errors.account_disabled': 'Esta conta foi desabilitada.',
+  'errors.email_unverified':
+    'Verifique seu e-mail antes de entrar. Procure o link de verificação na sua caixa de entrada.',
   'errors.email_taken': 'E-mail já cadastrado',
   'errors.signup_failed': 'Não foi possível criar a conta',
   'errors.invalid_or_expired_token': 'Token inválido ou expirado',

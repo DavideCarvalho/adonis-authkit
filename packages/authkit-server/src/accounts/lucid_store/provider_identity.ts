@@ -43,5 +43,25 @@ export function buildProviderIdentity(
         email: data.email ?? null,
       })
     },
+
+    async unlinkAllProviderIdentities(accountId) {
+      const rows = await ProviderIdentityModel.query().where('accountId', accountId)
+      let count = 0
+      for (const row of rows) {
+        await row.delete()
+        count++
+      }
+      return count
+    },
+
+    async listProviderIdentities(accountId) {
+      const rows = await ProviderIdentityModel.query().where('accountId', accountId)
+      // NUNCA expõe tokens — só os identificadores estáveis do provider + email.
+      return rows.map((r: any) => ({
+        provider: r.provider,
+        providerUserId: r.providerUserId,
+        email: r.email ?? null,
+      }))
+    },
   }
 }

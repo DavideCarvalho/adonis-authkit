@@ -17,10 +17,12 @@ export type {
 } from './src/define_config.js'
 export { resolveAdmin, resolveAdminApi, resolveWebauthn, resolveDynamicRegistration } from './src/define_config.js'
 export type { WebauthnConfigInput, ResolvedWebauthnConfig } from './src/define_config.js'
-export { resolvePasswordless } from './src/define_config.js'
+export { resolvePasswordless, resolveLogin } from './src/define_config.js'
 export type {
   PasswordlessConfigInput,
   ResolvedPasswordlessConfig,
+  LoginConfigInput,
+  ResolvedLoginConfig,
 } from './src/define_config.js'
 export {
   resolveTrustedDevices,
@@ -45,8 +47,13 @@ export type {
   MfaCapability,
   WebauthnCapability,
   ProviderIdentityCapability,
+  ProviderIdentitySummary,
   AccountSecurityCapability,
+  AccountStatusCapability,
+  ProfileCapability,
   MagicLinkCapability,
+  EmailVerificationStatusCapability,
+  AccountDeletionCapability,
   AuthAccount,
   CreateAccountInput,
   LinkProviderIdentityInput,
@@ -59,7 +66,11 @@ export {
   supportsPasskeys,
   supportsProviderIdentity,
   supportsAccountSecurity,
+  supportsAccountStatus,
+  supportsProfile,
   supportsMagicLink,
+  supportsEmailVerificationStatus,
+  supportsAccountDeletion,
 } from './src/accounts/account_store.js'
 export { withProviderIdentity } from './src/mixins/with_provider_identity.js'
 export type {
@@ -129,7 +140,15 @@ export type {
   AdminActor,
   CreateUserInput as AdminCreateUserInput,
   CreateUserResult as AdminCreateUserResult,
+  DeleteUserResult as AdminDeleteUserResult,
 } from './src/host/admin_api/admin_users_service.js'
+export { AccountDeletionService } from './src/host/account_deletion_service.js'
+export type {
+  DeletionActor,
+  DeletionResult,
+} from './src/host/account_deletion_service.js'
+export { AccountExportService } from './src/host/account_export_service.js'
+export type { AccountExport } from './src/host/account_export_service.js'
 export { AdminClientsService } from './src/host/admin_clients_service.js'
 export type {
   AdminClient,

@@ -8,6 +8,7 @@ import type {
   ClientInput,
   CreateUserInput,
   DeletedClient,
+  DeletedUser,
   ListAuditParams,
   ListAuditResult,
   ListClientsResult,
@@ -127,6 +128,9 @@ export function createRemoteAuthkit(opts: RemoteOptions): Authkit {
       },
       resetPassword(id: string) {
         return request<ResetPasswordResult>('POST', `/users/${encodeURIComponent(id)}/reset-password`)
+      },
+      delete(id: string) {
+        return request<DeletedUser>('DELETE', `/users/${encodeURIComponent(id)}`)
       },
     },
     sessions: {

@@ -145,5 +145,44 @@
         </form>
       </div>
     @end
+
+    @if(exportSupported)
+      <div class="mt-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+        <h2 class="mb-1 text-sm font-semibold text-gray-900">{{ t('account.export.section') }}</h2>
+        <p class="mb-4 text-xs text-gray-500">{{ t('account.export.intro') }}</p>
+        <a href="/account/security/export"
+          class="inline-block rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+          {{ t('account.export.submit') }}
+        </a>
+      </div>
+    @end
+
+    @if(deletionSupported)
+      @if(deleteError)
+        <div class="mt-6 rounded-lg border border-red-300 bg-red-50 p-4">
+          <p class="text-sm font-medium text-red-900">{{ deleteError }}</p>
+        </div>
+      @end
+      <div class="mt-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-red-200">
+        <h2 class="mb-1 text-sm font-semibold text-red-700">{{ t('account.delete.section') }}</h2>
+        <p class="mb-4 text-xs text-gray-500">{{ t('account.delete.intro') }}</p>
+        <form method="POST" action="/account/security/delete" class="space-y-4">
+          <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-gray-700">{{ t('account.delete.confirm_password_label') }}</label>
+            <input name="currentPassword" type="password"
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-red-600" />
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-gray-700">{{ t('account.delete.confirm_email_label') }}</label>
+            <input name="confirmEmail" type="email" placeholder="{{ email }}"
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-red-600" />
+          </div>
+          <button type="submit" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">
+            {{ t('account.delete.submit') }}
+          </button>
+        </form>
+      </div>
+    @end
   </div>
 </body></html>

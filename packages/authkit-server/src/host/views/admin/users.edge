@@ -33,6 +33,9 @@
     @if(statusChanged)
       <div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3"><p class="text-sm font-medium text-amber-900">{{ statusChanged }}</p></div>
     @end
+    @if(userDeleted)
+      <div class="mb-4 rounded-lg border border-red-300 bg-red-50 p-3"><p class="text-sm font-medium text-red-900">{{ userDeleted }}</p></div>
+    @end
 
     <div class="mb-6 rounded-xl bg-white p-4 shadow-sm ring-1 ring-black/5">
       <h2 class="mb-3 text-sm font-semibold text-gray-900">{{ t('admin.users.create_section') }}</h2>
@@ -101,6 +104,15 @@
                       <button type="submit" class="text-red-700 hover:underline">{{ t('admin.users.disable') }}</button>
                     </form>
                   @end
+                @end
+                @if(deletionSupported)
+                  <form method="POST" action="/admin/users/{{ user.id }}/delete" class="inline"
+                    onsubmit="return confirm('{{ t('admin.users.delete_confirm') }}')">
+                    <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                    <input type="hidden" name="search" value="{{ search }}">
+                    <input type="hidden" name="page" value="{{ page }}">
+                    <button type="submit" class="font-semibold text-red-700 hover:underline">{{ t('admin.users.delete') }}</button>
+                  </form>
                 @end
               </div>
             </div>

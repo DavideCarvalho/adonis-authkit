@@ -176,6 +176,25 @@ export interface ResetPasswordResult {
   sent: boolean
 }
 
+/**
+ * Result of `users.delete` — the cascade counts of what was removed (sessions,
+ * grants, tokens, PATs, passkeys, linked identities) plus how many audit rows were
+ * anonymized (kept, not deleted) and whether the avatar was removed.
+ */
+export interface DeletedUser {
+  id: string
+  deleted: boolean
+  sessions: number
+  grants: number
+  accessTokens: number
+  refreshTokens: number
+  pats: number
+  passkeys: number
+  providerIdentities: number
+  auditAnonymized: number
+  avatarDeleted: boolean
+}
+
 /** The shared SDK interface, implemented identically by both drivers. */
 export interface Authkit {
   users: {
@@ -186,6 +205,8 @@ export interface Authkit {
     disable(id: string): Promise<UserStatusResult>
     enable(id: string): Promise<UserStatusResult>
     resetPassword(id: string): Promise<ResetPasswordResult>
+    /** Permanently deletes a user and cascades all associated data (LGPD/GDPR). */
+    delete(id: string): Promise<DeletedUser>
   }
   sessions: {
     list(userId: string): Promise<ListSessionsResult>

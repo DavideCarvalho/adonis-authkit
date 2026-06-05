@@ -1,12 +1,23 @@
 import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
-import { supportsAccountSecurity, supportsProfile } from '../../accounts/account_store.js'
-import { changePasswordValidator, changeEmailValidator, updateProfileValidator } from '../validators.js'
+import {
+  supportsAccountSecurity,
+  supportsAccountDeletion,
+  supportsProfile,
+} from '../../accounts/account_store.js'
+import {
+  changePasswordValidator,
+  changeEmailValidator,
+  deleteAccountValidator,
+  updateProfileValidator,
+} from '../validators.js'
 import { sendEmailChangeConfirmationEmail } from '../default_mailer.js'
 import { storeAvatar, isDriveAvailable, AvatarUploadError } from '../avatar_storage.js'
 import { translate } from '../i18n.js'
 import { TRUSTED_DEVICE_COOKIE } from '../trusted_device.js'
+import { AccountDeletionService } from '../account_deletion_service.js'
+import { AccountExportService } from '../account_export_service.js'
 
 /**
  * Self-service de segurança da conta (console de conta): trocar a senha e o
@@ -40,7 +51,93 @@ export default class AccountSecurityController {
       error: ctx.session.flashMessages.get('securityError') ?? null,
       trustedDevicesEnabled: cfg.trustedDevices.enabled,
       trustedDevicesRevoked: ctx.session.flashMessages.get('trustedDevicesRevoked') ?? null,
+      // Export de dados (portabilidade) sempre disponível para a conta logada.
+      exportSupported: true,
+      // Deleção de conta (LGPD): só quando o store suporta hard delete.
+      deletionSupported: supportsAccountDeletion(cfg.accountStore),
+      deleteError: ctx.session.flashMessages.get('deleteError') ?? null,
     })
+  }
+
+  /**
+   * GET /account/security/export — baixa um JSON com os dados da conta logada
+   * (perfil, identidades, apps autorizados, sessões, passkeys e audit do usuário).
+   * NUNCA inclui segredos. Audita `account.exported`.
+   */
+  async exportData(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+
+    const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
+    const payload = await new AccountExportService(service).export(userId)
+    if (!payload) {
+      return ctx.response.notFound()
+    }
+
+    await cfg.audit?.record({
+      type: 'account.exported',
+      accountId: userId,
+      ip: ctx.request.ip?.() ?? null,
+    })
+
+    ctx.response.header('content-type', 'application/json; charset=utf-8')
+    ctx.response.header(
+      'content-disposition',
+      `attachment; filename="authkit-data-export-${userId}.json"`
+    )
+    return ctx.response.send(JSON.stringify(payload, null, 2))
+  }
+
+  /**
+   * POST /account/security/delete — deleção self-service da conta (danger zone).
+   * Exige confirmação: a senha ATUAL (se confere via verifyCredentials) OU o
+   * e-mail digitado igual ao da conta (contas passwordless). Roda o cascade
+   * completo e encerra a sessão.
+   */
+  async deleteAccount(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const store = cfg.accountStore
+
+    const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
+    if (!supportsAccountDeletion(store)) {
+      return ctx.response.redirect('/account/security')
+    }
+
+    const account = await store.findById(userId)
+    if (!account) {
+      return ctx.response.redirect('/account/login')
+    }
+
+    const { currentPassword, confirmEmail } = await ctx.request.validateUsing(deleteAccountValidator)
+
+    // Confirmação: senha atual correta OU e-mail digitado batendo com o da conta
+    // (case-insensitive). Sem nenhuma das duas → recusa (não deleta).
+    let confirmed = false
+    if (currentPassword) {
+      confirmed = !!(await store.verifyCredentials(account.email, currentPassword))
+    }
+    if (!confirmed && confirmEmail) {
+      confirmed = confirmEmail.trim().toLowerCase() === account.email.toLowerCase()
+    }
+    if (!confirmed) {
+      ctx.session.flash(
+        'deleteError',
+        translate(cfg.messages, 'account.delete.invalid_confirmation')
+      )
+      return ctx.response.redirect('/account/security')
+    }
+
+    await new AccountDeletionService(service).delete(userId, {
+      actorId: userId,
+      ip: ctx.request.ip?.() ?? null,
+      source: 'self',
+    })
+
+    // Encerra a sessão e leva ao login com a mensagem de sucesso.
+    ctx.session.forget(ACCOUNT_SESSION_KEY)
+    ctx.session.flash('accountDeleted', translate(cfg.messages, 'account.delete.deleted'))
+    return ctx.response.redirect('/account/login')
   }
 
   /**

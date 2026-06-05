@@ -126,7 +126,7 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
   // Throttles opt-in (anti-brute-force). `undefined` quando rate-limit desligado.
   const throttles = createAuthThrottles(resolveRateLimit(opts.rateLimit))
   // Helpers: aplicam o middleware de throttle quando presente; senão no-op.
-  const withLogin = (route: ReturnType<Router['post']>): void => {
+  const withLogin = (route: any): void => {
     if (throttles) route.use([throttles.login])
   }
   const withIntrospection = (route: ReturnType<Router['post']>): void => {
@@ -192,6 +192,10 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
       router.post('/account/security/password', [C.accountSecurity, 'changePassword'])
       router.post('/account/security/email', [C.accountSecurity, 'changeEmail'])
       router.post('/account/security/profile', [C.accountSecurity, 'updateProfile'])
+      // LGPD/GDPR: export de dados (portabilidade) + deleção self-service (danger zone).
+      // O export carrega o throttle de login (anti-abuso) quando o rate-limit existe.
+      withLogin(router.get('/account/security/export', [C.accountSecurity, 'exportData']))
+      router.post('/account/security/delete', [C.accountSecurity, 'deleteAccount'])
       // Trusted devices: limpa o cookie de confiança DESTE navegador.
       router.post('/account/security/trusted-devices/revoke', [
         C.accountSecurity,
@@ -226,6 +230,7 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
         router.post('/admin/users/:id/reset-password', [C.adminUsers, 'resetPassword'])
         router.post('/admin/users/:id/disable', [C.adminUsers, 'disable'])
         router.post('/admin/users/:id/enable', [C.adminUsers, 'enable'])
+        router.post('/admin/users/:id/delete', [C.adminUsers, 'destroy'])
         // Sessões/grants ativos da conta + revogação em massa.
         router.get('/admin/users/:id/sessions', [C.adminSessions, 'index'])
         router.post('/admin/users/:id/revoke-sessions', [C.adminSessions, 'revoke'])
@@ -258,6 +263,7 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
         withApiThrottle(router.post('/users', [C.apiUsers, 'store']))
         withApiThrottle(router.get('/users/:id', [C.apiUsers, 'show']))
         withApiThrottle(router.patch('/users/:id', [C.apiUsers, 'update']))
+        withApiThrottle(router.delete('/users/:id', [C.apiUsers, 'destroy']))
         withApiThrottle(router.post('/users/:id/disable', [C.apiUsers, 'disable']))
         withApiThrottle(router.post('/users/:id/enable', [C.apiUsers, 'enable']))
         withApiThrottle(router.post('/users/:id/reset-password', [C.apiUsers, 'resetPassword']))

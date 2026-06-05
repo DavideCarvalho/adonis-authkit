@@ -106,6 +106,8 @@ export function checkAccountStore(input: DoctorInput): Finding[] {
   if (has(store, 'listPasskeys')) caps.push('passkeys/WebAuthn')
   if (has(store, 'findByProviderIdentity')) caps.push('account-linking')
   if (has(store, 'changePassword')) caps.push('account-security')
+  if (has(store, 'isEmailVerified')) caps.push('email-verification-status')
+  if (has(store, 'deleteAccount')) caps.push('account-deletion')
   findings.push({
     level: 'ok',
     message: caps.length
@@ -195,6 +197,22 @@ export function checkAdmin(input: DoctorInput): Finding | null {
   return { level: 'ok', message: `admin console on for roles: ${roles.join(', ')}.` }
 }
 
+/** requireVerifiedEmail ligado mas o store não sabe checar verificação → warn. */
+export function checkRequireVerifiedEmail(input: DoctorInput): Finding | null {
+  const cfg = input.authkitConfig
+  const login = cfg?.login
+  if (!login || login.requireVerifiedEmail !== true) return null
+  const store = cfg?.accountStore
+  if (!has(store, 'isEmailVerified')) {
+    return {
+      level: 'warn',
+      message:
+        'login.requireVerifiedEmail is on, but the accountStore has no `isEmailVerified` capability — the check is a no-op (nobody is blocked). Add an `email_verified_at` column (or a store that tracks it).',
+    }
+  }
+  return { level: 'ok', message: 'login.requireVerifiedEmail on and the accountStore can check it.' }
+}
+
 /** webauthn rpId deve casar com o host do issuer. */
 export function checkWebauthn(input: DoctorInput): Finding | null {
   const cfg = input.authkitConfig
@@ -243,6 +261,8 @@ export function runAllChecks(input: DoctorInput): Finding[] {
   findings.push(checkRateLimit(input))
   const admin = checkAdmin(input)
   if (admin) findings.push(admin)
+  const requireVerified = checkRequireVerifiedEmail(input)
+  if (requireVerified) findings.push(requireVerified)
   const webauthn = checkWebauthn(input)
   if (webauthn) findings.push(webauthn)
   const jwks = checkJwks(input)

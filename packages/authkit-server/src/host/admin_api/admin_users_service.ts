@@ -1,17 +1,28 @@
 import { randomBytes } from 'node:crypto'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { ResolvedServerConfig } from '../../define_config.js'
+import type { OidcService } from '../../provider/oidc_service.js'
 import type { AuthAccount } from '../../accounts/account_store.js'
-import { supportsAccountStatus, supportsProfile } from '../../accounts/account_store.js'
+import {
+  supportsAccountDeletion,
+  supportsAccountStatus,
+  supportsProfile,
+} from '../../accounts/account_store.js'
 import { sendPasswordResetEmail } from '../default_mailer.js'
+import { AccountDeletionService, type DeletionResult } from '../account_deletion_service.js'
 
 /** Quem disparou a operação (para auditoria). `admin-api` quando via REST API. */
 export interface AdminActor {
   actorId: string | null
   ip: string | null
-  /** Marca metadata da auditoria — 'admin-api' nas escritas via REST. */
-  source?: 'admin-api'
+  /** Marca metadata da auditoria — 'admin-api' nas escritas via REST, 'admin' no console HTML. */
+  source?: 'admin-api' | 'admin'
 }
+
+/** Resultado da deleção via admin: false quando o store não suporta hard delete. */
+export type DeleteUserResult =
+  | { ok: false; reason: 'not_found' | 'unsupported' }
+  | { ok: true; result: DeletionResult }
 
 export interface CreateUserInput {
   email: string
@@ -115,6 +126,42 @@ export class AdminUsersService {
     const store = this.cfg.accountStore
     if (!supportsProfile(store)) return null
     return store.updateProfile(accountId, patch)
+  }
+
+  /**
+   * Deleta uma conta pelo admin, usando o MESMO cascade do self-service
+   * ({@link AccountDeletionService}). Precisa do {@link OidcService} (para revogar
+   * sessões/grants). Retorna `{ ok: false, reason }` se a conta não existe ou o
+   * store não suporta hard delete (o caller responde 404/409). Audita
+   * `account.deleted` (ator admin) dentro do cascade + `user.deleted` aqui (trilha
+   * administrativa).
+   */
+  async delete(oidc: OidcService, accountId: string, actor: AdminActor): Promise<DeleteUserResult> {
+    const store = this.cfg.accountStore
+    if (!supportsAccountDeletion(store)) return { ok: false, reason: 'unsupported' }
+    const account = await store.findById(accountId)
+    if (!account) return { ok: false, reason: 'not_found' }
+
+    const source = actor.source === 'admin' ? 'admin' : 'admin-api'
+
+    // Trilha administrativa ANTES do cascade — assim esta linha também é
+    // anonimizada na etapa de anonimização do audit (não reintroduz PII).
+    await this.cfg.audit?.record({
+      type: 'user.deleted',
+      accountId,
+      email: account.email,
+      actorId: actor.actorId,
+      ip: actor.ip,
+      metadata: { actor: source },
+    })
+
+    const result = await new AccountDeletionService(oidc).delete(accountId, {
+      actorId: actor.actorId,
+      ip: actor.ip,
+      source,
+    })
+
+    return { ok: true, result }
   }
 
   /** Indica se a conta está desabilitada (false quando a capacidade não existe). */

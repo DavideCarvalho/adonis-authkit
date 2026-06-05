@@ -127,4 +127,66 @@ test.group('lucidAuditSink', (group) => {
     assert.equal(forTarget1.total, 2)
     assert.isTrue(forTarget1.data.every((e) => e.accountId === 'target-1'))
   })
+
+  // ----- anonymizeAccount (LGPD/GDPR — deleção de conta) -----
+
+  test('anonymizeAccount remove PII mas PRESERVA o histórico', async ({ assert }) => {
+    const sink = lucidAuditSink(TestAuditLog)
+    // Eventos da conta alvo (como subject) com PII.
+    await sink.record({ type: 'login.success', accountId: 'me', email: 'me@x.com', ip: '1.2.3.4' })
+    await sink.record({ type: 'pat.issued', accountId: 'me', email: 'me@x.com', ip: '5.6.7.8' })
+    // Evento de outra conta — não deve ser tocado.
+    await sink.record({ type: 'login.success', accountId: 'other', email: 'other@x.com', ip: '9.9.9.9' })
+
+    const affected = await sink.anonymizeAccount!('me')
+    assert.equal(affected, 2)
+
+    // O histórico continua: 3 linhas no total (nada foi deletado).
+    const all = await TestAuditLog.all()
+    assert.lengthOf(all, 3)
+
+    // As linhas da conta 'me' não têm mais email/ip e o accountId virou pseudônimo.
+    const mine = all.filter((r) => r.accountId?.startsWith('anon:'))
+    assert.lengthOf(mine, 2)
+    for (const row of mine) {
+      assert.isNull(row.email)
+      assert.isNull(row.ip)
+      assert.notEqual(row.accountId, 'me')
+    }
+    // Pseudônimo estável: as duas linhas compartilham o MESMO anon id.
+    assert.equal(mine[0].accountId, mine[1].accountId)
+
+    // A conta 'other' permanece intacta.
+    const other = all.find((r) => r.accountId === 'other')
+    assert.isNotNull(other)
+    assert.equal(other!.email, 'other@x.com')
+    assert.equal(other!.ip, '9.9.9.9')
+  })
+
+  test('anonymizeAccount também anonimiza o actorId (ações como admin)', async ({ assert }) => {
+    const sink = lucidAuditSink(TestAuditLog)
+    // 'me' agiu como admin sobre outra conta.
+    await sink.record({ type: 'user.disabled', accountId: 'victim', actorId: 'me', ip: '1.1.1.1' })
+
+    await sink.anonymizeAccount!('me')
+    const row = (await TestAuditLog.all())[0]
+    assert.notEqual(row.actorId, 'me')
+    assert.isTrue(row.actorId?.startsWith('anon:'))
+    // accountId (a vítima da ação) NÃO é a conta deletada — não muda.
+    assert.equal(row.accountId, 'victim')
+  })
+
+  test('anonymizeAccount engole erros (best-effort, retorna 0)', async ({ assert }) => {
+    const ThrowingModel = {
+      query: () => {
+        throw new Error('db down')
+      },
+    }
+    const sink = lucidAuditSink(ThrowingModel as any)
+    let result = -1
+    await assert.doesNotReject(async () => {
+      result = await sink.anonymizeAccount!('me')
+    })
+    assert.equal(result, 0)
+  })
 })

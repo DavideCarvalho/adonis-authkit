@@ -91,6 +91,22 @@ export default class ApiUsersController {
     return userDto(updated!, await users.isDisabled(id))
   }
 
+  /** DELETE /users/:id — deleção completa (cascade) da conta. */
+  async destroy(ctx: HttpContext) {
+    const { service, cfg, actor } = await ctxBits(ctx)
+    const id = ctx.request.param('id')
+    const outcome = await new AdminUsersService(cfg).delete(service, id, actor)
+    if (!outcome.ok) {
+      if (outcome.reason === 'not_found') {
+        return ctx.response.notFound(apiError('not_found', 'Usuário não encontrado.'))
+      }
+      return ctx.response.conflict(
+        apiError('capability_unsupported', 'O store de contas não suporta deletar usuários.')
+      )
+    }
+    return { id, deleted: true, ...outcome.result }
+  }
+
   /** POST /users/:id/disable */
   async disable(ctx: HttpContext) {
     return this.#setStatus(ctx, true)

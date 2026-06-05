@@ -376,6 +376,32 @@ export function resolvePasswordless(
 }
 
 /**
+ * Política de login por senha/identidade. Hoje cobre `requireVerifiedEmail`:
+ * quando ligado, TODO fluxo de login que materializa uma sessão (login por senha,
+ * magic link e passkey-first) rejeita contas cujo e-mail ainda NÃO foi verificado,
+ * com a instrução de verificar o e-mail.
+ *
+ * Capability-probed: a checagem depende do accountStore expor
+ * {@link EmailVerificationStatusCapability} (`isEmailVerified`). Se o store não
+ * tem noção de "e-mail verificado", a feature degrada para NO-OP (não bloqueia
+ * ninguém) e o `authkit:doctor` avisa.
+ */
+export interface LoginConfigInput {
+  /** Exige e-mail verificado para autenticar (senha/magic link/passkey-first). Default: false. */
+  requireVerifiedEmail?: boolean
+}
+
+export interface ResolvedLoginConfig {
+  requireVerifiedEmail: boolean
+}
+
+export function resolveLogin(input?: LoginConfigInput): ResolvedLoginConfig {
+  return {
+    requireVerifiedEmail: input?.requireVerifiedEmail ?? false,
+  }
+}
+
+/**
  * Console admin opt-in do IdP (B6). Quando habilitado, monta o grupo `/admin/*`
  * (dashboard, usuários/papéis, clients, audit) atrás de um guard que exige sessão
  * de conta E que a conta tenha pelo menos um dos `roles` nas suas roles globais.
@@ -552,6 +578,11 @@ export interface AuthServerConfigInput {
    */
   passwordless?: PasswordlessConfigInput
   /**
+   * Política de login (hoje: `requireVerifiedEmail`). Default: tudo desligado.
+   * `requireVerifiedEmail` é capability-probed (precisa de `isEmailVerified` no store).
+   */
+  login?: LoginConfigInput
+  /**
    * Console admin do IdP (B6). Default: desligado. Quando ligado, o host também
    * deve passar `admin: true` em {@link AuthHostOptions} no registro de rotas
    * (a montagem das rotas acontece antes do config resolver).
@@ -608,6 +639,8 @@ export interface ResolvedServerConfig {
   trustedDevices: ResolvedTrustedDevicesConfig
   /** Passwordless resolvido (default tudo desligado). */
   passwordless: ResolvedPasswordlessConfig
+  /** Política de login resolvida (requireVerifiedEmail; default desligado). */
+  login: ResolvedLoginConfig
   /** Console admin resolvido (sempre presente; default desligado). */
   admin: ResolvedAdminConfig
   /** Admin REST API resolvida (sempre presente; default desligada). */
@@ -692,6 +725,7 @@ export function defineConfig(config: AuthServerConfigInput) {
       stepUp: resolveStepUp(config.stepUp),
       trustedDevices: resolveTrustedDevices(config.trustedDevices),
       passwordless: resolvePasswordless(config.passwordless),
+      login: resolveLogin(config.login),
       admin: resolveAdmin(config.admin),
       adminApi: resolveAdminApi(config.adminApi),
       messages: resolveMessages(config.i18n),

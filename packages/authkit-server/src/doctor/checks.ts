@@ -378,7 +378,9 @@ export function checkPasswordPolicy(input: DoctorInput): Finding | null {
 
 /** info sobre rotação quando jwks é managed; warn se managed sem store (sem rotação real). */
 export function checkJwks(input: DoctorInput): Finding | null {
-  const jwks = input.authkitConfig?.jwks
+  // No config RESOLVIDO o `jwks` é o keyset materializado ({ keys }) e perde
+  // source/store — o shape de input fica ecoado em `jwksConfig`. Prefira-o.
+  const jwks = input.authkitConfig?.jwksConfig ?? input.authkitConfig?.jwks
   if (!jwks) return null
   if (jwks.source === 'managed') {
     if (!jwks.store) {

@@ -1,5 +1,11 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.11.2
+
+### Patch Changes
+
+- `authkit:doctor` jwks check now reads the input shape (`jwksConfig`) instead of the materialized keyset, restoring the "managed without store = ephemeral key per boot" warning on resolved configs.
+
 ## 0.11.1
 
 ### Patch Changes

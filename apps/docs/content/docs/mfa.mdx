@@ -61,3 +61,41 @@ also offers a [passkey](/docs/webauthn) challenge as an alternative to typing a 
 `confirmTotpEnrollment` returns N recovery codes in plaintext exactly once, at activation
 time. Persisted hashed, each is single-use via `consumeRecoveryCode`. Enabling and
 disabling MFA emit the `mfa.enabled` / `mfa.disabled` [audit events](/docs/security).
+
+## Trusted devices
+
+To avoid asking for the second factor on every sign-in, AuthKit can mark a device as
+**trusted** for a number of days. It's on by default (30 days):
+
+```ts title="config/authkit_server.ts"
+trustedDevices: { enabled: true, days: 30 }, // defaults — omit to use them
+```
+
+### How it works (no extra DB)
+
+When a second factor verifies, the MFA challenge offers a **"Trust this device for N days"**
+checkbox. If checked, AuthKit writes a signed, `httpOnly` cookie (`authkit_trusted_device`)
+**encrypted with the app key** — via `response.encryptedCookie`, so no new table or column
+is required. The cookie carries `{ accountId, deviceId, iat, exp }`.
+
+On later sign-ins, after the password is verified and the account has MFA, a valid trusted
+cookie for **that** account skips the MFA step. The login still records `amr: ['pwd']` (no
+MFA `acr`) so downstream relying parties can tell the factor apart.
+
+### Validation and revocation
+
+A trusted cookie is honored only when it has not expired, belongs to the account that just
+authenticated, and was issued **at or after** the last MFA (re)enrollment. The last point is
+the revocation lever: **re-enrolling the authenticator invalidates every previously trusted
+device** (the cookie's `iat` falls before the new `mfaEnabledAt`).
+
+`/account/security` exposes a **"Stop trusting this device"** button that clears the cookie
+for the current browser (emits `trusted_device.revoked`). A per-device, server-side
+revocation list is intentionally out of scope for this MVP — global revocation is achieved
+by re-enrolling MFA. This tradeoff keeps the feature migration-free.
+
+### Step-up always wins
+
+A [step-up](/docs/security#step-up-authentication) request (the client asks for the
+`mfaAcr` in `acr_values`) **always** forces the second factor, regardless of any trusted
+cookie.

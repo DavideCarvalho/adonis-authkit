@@ -134,6 +134,9 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
   // Passkey como 2º fator alternativo no login (begin/finish; challenge na sessão).
   router.post('/auth/interaction/:uid/passkey/options', [C.interaction, 'passkeyOptions'])
   withLogin(router.post('/auth/interaction/:uid/passkey/verify', [C.interaction, 'passkeyVerify']))
+  // Magic link (passwordless): POST emite (throttled), GET consome o token do link.
+  withLogin(router.post('/auth/interaction/:uid/magic', [C.interaction, 'magicLinkRequest']))
+  router.get('/auth/interaction/:uid/magic', [C.interaction, 'magicLinkConsume'])
   router.post('/auth/interaction/:uid/consent', [C.interaction, 'consent'])
   router.get('/auth/interaction/:uid/switch', [C.interaction, 'switchIdentifier'])
   router.get('/auth/interaction/:uid/signup', [C.registration, 'showSignup'])
@@ -178,6 +181,11 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
       router.post('/account/security/password', [C.accountSecurity, 'changePassword'])
       router.post('/account/security/email', [C.accountSecurity, 'changeEmail'])
       router.post('/account/security/profile', [C.accountSecurity, 'updateProfile'])
+      // Trusted devices: limpa o cookie de confiança DESTE navegador.
+      router.post('/account/security/trusted-devices/revoke', [
+        C.accountSecurity,
+        'revokeTrustedDevices',
+      ])
 
       // Apps com acesso (consentimento): lista os grants da conta + revogação por client.
       router.get('/account/apps', [C.accountApps, 'index'])

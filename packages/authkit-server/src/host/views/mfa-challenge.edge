@@ -24,6 +24,13 @@
             class="w-full rounded-lg border border-gray-300 px-3 py-2 text-center text-lg tracking-[0.4em] outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900" />
         </div>
 
+        @if(trustedDevicesEnabled)
+          <label class="mt-4 flex items-center gap-2 text-sm text-gray-600">
+            <input type="checkbox" name="trustDevice" value="on" class="h-4 w-4 rounded border-gray-300">
+            {{ t('mfa_challenge.trust_device', { days: trustedDeviceDays }) }}
+          </label>
+        @end
+
         <button type="submit"
           class="mt-6 w-full rounded-lg bg-gray-900 py-2.5 text-sm font-semibold text-white transition hover:opacity-90">
           {{ t('mfa_challenge.submit') }}
@@ -37,6 +44,7 @@
       <form id="passkey-form" method="POST" action="/auth/interaction/{{ uid }}/passkey/verify" class="mt-4">
         <input type="hidden" name="_csrf" value="{{ csrfToken }}">
         <input type="hidden" name="response" id="passkey-response">
+        <input type="hidden" name="trustDevice" id="passkey-trust" value="">
       </form>
       <button type="button" id="passkey-button"
         class="mt-4 w-full rounded-lg border border-gray-300 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50">
@@ -83,6 +91,10 @@
           const assertion = await startAuthentication({ optionsJSON })
           // 3) Submete a assertion como POST de página inteira (segue o 303).
           document.getElementById('passkey-response').value = JSON.stringify(assertion)
+          // Carrega a escolha de "confiar neste dispositivo" para o form da passkey.
+          const trustChk = document.querySelector('input[name="trustDevice"][type="checkbox"]')
+          const trustHidden = document.getElementById('passkey-trust')
+          if (trustHidden) trustHidden.value = trustChk && trustChk.checked ? 'on' : ''
           document.getElementById('passkey-form').submit()
         } catch (e) {
           errEl.classList.remove('hidden')

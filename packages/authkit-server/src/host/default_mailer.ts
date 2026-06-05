@@ -253,6 +253,43 @@ export async function sendNewLoginEmail(
 }
 
 /**
+ * Envia o e-mail de magic link (login passwordless) pelo mailer default do host.
+ * Best-effort: no fallback (sem mail) loga o link; nunca lança.
+ */
+export async function sendMagicLinkEmail(
+  ctx: HttpContext,
+  data: { email: string; magicUrl: string }
+): Promise<void> {
+  try {
+    const brand = resolveBrand(ctx)
+    const { messages: t, locale } = resolveMailMessages(ctx)
+    const content = renderTransactionalEmail({
+      brand,
+      locale,
+      linkFallback: translate(t, 'mail.common.link_fallback'),
+      subject: translate(t, 'mail.magic_link.subject'),
+      heading: translate(t, 'mail.magic_link.heading'),
+      intro: translate(t, 'mail.magic_link.intro'),
+      ctaLabel: translate(t, 'mail.magic_link.cta'),
+      ctaUrl: data.magicUrl,
+      footnote: translate(t, 'mail.magic_link.fallback'),
+    })
+    const sent = await sendEmail(ctx, data.email, content)
+    if (!sent) {
+      ctx.logger.info(
+        { magicUrl: data.magicUrl, email: data.email },
+        'authkit: magic link de login (dev — @adonisjs/mail ausente)'
+      )
+    }
+  } catch (error) {
+    ctx.logger.error(
+      { err: error, email: data.email },
+      'authkit: falha ao enviar magic link de login'
+    )
+  }
+}
+
+/**
  * Envia o e-mail de verificação pelo mailer default do host.
  * Best-effort: no fallback (sem mail) loga o link; nunca lança.
  */

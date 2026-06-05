@@ -14,7 +14,10 @@ export function buildMfa(ctx: LucidStoreContext): MfaCapability {
   return {
     async getMfaState(accountId) {
       const row = await Model.find(accountId)
-      return { enabled: !!row?.mfaEnabledAt }
+      // `enabledAt` (epoch ms) habilita o trusted-device check: um cookie de
+      // confiança emitido ANTES deste instante é inválido (re-enrolar revoga).
+      const enabledAt = row?.mfaEnabledAt ? row.mfaEnabledAt.toMillis() : null
+      return { enabled: !!row?.mfaEnabledAt, enabledAt }
     },
 
     async startTotpEnrollment(accountId) {

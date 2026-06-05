@@ -5,6 +5,7 @@ import { supportsAccountSecurity, supportsProfile } from '../../accounts/account
 import { changePasswordValidator, changeEmailValidator, updateProfileValidator } from '../validators.js'
 import { sendEmailChangeConfirmationEmail } from '../default_mailer.js'
 import { translate } from '../i18n.js'
+import { TRUSTED_DEVICE_COOKIE } from '../trusted_device.js'
 
 /**
  * Self-service de segurança da conta (console de conta): trocar a senha e o
@@ -34,7 +35,32 @@ export default class AccountSecurityController {
       emailChanged: ctx.session.flashMessages.get('emailChanged') ?? null,
       profileUpdated: ctx.session.flashMessages.get('profileUpdated') ?? null,
       error: ctx.session.flashMessages.get('securityError') ?? null,
+      trustedDevicesEnabled: cfg.trustedDevices.enabled,
+      trustedDevicesRevoked: ctx.session.flashMessages.get('trustedDevicesRevoked') ?? null,
     })
+  }
+
+  /**
+   * POST /account/security/trusted-devices/revoke
+   * Limpa o cookie de dispositivo confiável DESTE navegador (o MFA volta a ser
+   * exigido aqui). Revogação global por-dispositivo não existe sem estado
+   * server-side; re-enrolar o MFA invalida a confiança em TODOS os dispositivos.
+   */
+  async revokeTrustedDevices(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    ctx.response.clearCookie(TRUSTED_DEVICE_COOKIE)
+    const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
+    await cfg.audit?.record({
+      type: 'trusted_device.revoked',
+      accountId: userId,
+      ip: ctx.request.ip?.() ?? null,
+    })
+    ctx.session.flash(
+      'trustedDevicesRevoked',
+      translate(cfg.messages, 'account.security.trusted_devices_revoked')
+    )
+    return ctx.response.redirect('/account/security')
   }
 
   /** POST /account/security/profile — atualiza nome + avatar do próprio perfil. */

@@ -4,7 +4,13 @@ import { brandFor, isFirstParty } from '../branding.js'
 import { translate } from '../i18n.js'
 import { attemptPasswordLogin } from '../login_attempt.js'
 import { notifyLoginSuccess } from '../login_notify.js'
-import { supportsPasskeys } from '../../accounts/account_store.js'
+import { supportsPasskeys, supportsMagicLink } from '../../accounts/account_store.js'
+import { sendMagicLinkEmail } from '../default_mailer.js'
+import {
+  TRUSTED_DEVICE_COOKIE,
+  buildTrustedDevicePayload,
+  isTrustedDeviceValid,
+} from '../trusted_device.js'
 
 const SESSION_KEY = 'authkit_login_email'
 /** accountId aguardando o 2º fator depois da senha verificada. */
@@ -58,6 +64,13 @@ export default class AuthInteractionController {
     const acc = await cfg.accountStore.findByEmail(email)
     const account = acc ? { fullName: acc.name ?? null, globalRoles: acc.globalRoles ?? [] } : null
 
+    // Passwordless: magic link disponível se ligado E o store suporta. Passkey-first
+    // disponível se ligado, o store suporta E a conta tem ao menos uma passkey.
+    const magicLinkAvailable =
+      cfg.passwordless.magicLink && supportsMagicLink(cfg.accountStore)
+    const passkeyFirstAvailable =
+      cfg.passwordless.passkeyFirst && !!acc && (await this.hasPasskeys(cfg, acc.id))
+
     return render(ctx, 'login', {
       uid: details.uid,
       csrfToken: ctx.request.csrfToken,
@@ -65,6 +78,8 @@ export default class AuthInteractionController {
       email,
       account,
       brand,
+      magicLinkAvailable,
+      passkeyFirstAvailable,
     })
   }
 
@@ -153,6 +168,19 @@ export default class AuthInteractionController {
           noEnrollment: true,
         })
       }
+      // Trusted device: se o mecanismo está ligado, a conta JÁ tem MFA enrolado e
+      // o request NÃO é um step-up (que sempre força o MFA), um cookie de confiança
+      // válido para ESTA conta pula o 2º fator. amr fica `['pwd']` (sem acr de MFA).
+      if (cfg.trustedDevices.enabled && mfa.enabled && !mfaRequired) {
+        const trusted = await this.checkTrustedDevice(ctx, acc.id, mfa.enabledAt ?? null)
+        if (trusted) {
+          await service.interactions.completeLogin(ctx, acc.id, { amr: ['pwd'] })
+          await notifyLoginSuccess(ctx, cfg, { accountId: acc.id, email, ip, clientId })
+          ctx.session.forget(SESSION_KEY)
+          return
+        }
+      }
+
       ctx.session.put(MFA_PENDING_KEY, acc.id)
       // Passkey disponível como alternativa ao TOTP se o store suporta E a conta
       // tem ao menos uma credencial registrada.
@@ -162,6 +190,8 @@ export default class AuthInteractionController {
         csrfToken: ctx.request.csrfToken,
         brand,
         passkeyAvailable,
+        trustedDevicesEnabled: cfg.trustedDevices.enabled,
+        trustedDeviceDays: cfg.trustedDevices.days,
       })
     }
 
@@ -221,10 +251,14 @@ export default class AuthInteractionController {
         error: translate(cfg.messages, 'errors.invalid_code'),
         brand,
         passkeyAvailable: await this.hasPasskeys(cfg, accountId),
+        trustedDevicesEnabled: cfg.trustedDevices.enabled,
+        trustedDeviceDays: cfg.trustedDevices.days,
       })
     }
 
-    // Sucesso no 2º fator: finaliza a interaction para o accountId pendente.
+    // Sucesso no 2º fator: opcionalmente confia neste dispositivo (checkbox).
+    await this.maybeTrustDevice(ctx, cfg, accountId)
+    // Finaliza a interaction para o accountId pendente.
     ctx.session.forget(MFA_PENDING_KEY)
     ctx.session.forget(SESSION_KEY)
     await notifyLoginSuccess(ctx, cfg, {
@@ -276,6 +310,143 @@ export default class AuthInteractionController {
   }
 
   /**
+   * Lê o cookie de dispositivo confiável (encriptado, appKey-backed) e valida que
+   * pertence a `accountId`, não expirou e é posterior ao último (re)enrollment de
+   * MFA. Step-up NÃO chama isto (força sempre o MFA). Best-effort: qualquer erro de
+   * leitura → não confiável.
+   */
+  private async checkTrustedDevice(
+    ctx: HttpContext,
+    accountId: string,
+    mfaEnabledAt: number | null
+  ): Promise<boolean> {
+    try {
+      const payload = ctx.request.encryptedCookie(TRUSTED_DEVICE_COOKIE)
+      return isTrustedDeviceValid(payload, { accountId, mfaEnabledAt })
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Se o checkbox "confiar neste dispositivo" foi marcado E o mecanismo está ligado,
+   * grava o cookie encriptado de confiança para a conta (skip MFA por N dias).
+   */
+  private async maybeTrustDevice(ctx: HttpContext, cfg: any, accountId: string): Promise<void> {
+    if (!cfg.trustedDevices.enabled) return
+    const checked = ctx.request.input('trustDevice')
+    // Checkbox HTML: presente ('on'/'true'/'1') = marcado.
+    const on = checked === 'on' || checked === 'true' || checked === '1' || checked === true
+    if (!on) return
+    const payload = buildTrustedDevicePayload(accountId, cfg.trustedDevices)
+    ctx.response.encryptedCookie(TRUSTED_DEVICE_COOKIE, payload, {
+      httpOnly: true,
+      sameSite: 'lax',
+      maxAge: cfg.trustedDevices.days * 24 * 60 * 60,
+    })
+  }
+
+  /**
+   * accountId para uma cerimônia de passkey no login. Prioriza o accountId pendente
+   * do MFA (passkey como 2º fator). Quando ausente e o passkey-first está ligado,
+   * resolve a conta pelo e-mail guardado na sessão (passkey ANTES da senha) — só se
+   * a conta existe E tem ao menos uma passkey.
+   */
+  private async resolvePasskeyAccountId(ctx: HttpContext, cfg: any): Promise<string | undefined> {
+    const pending = ctx.session.get(MFA_PENDING_KEY) as string | undefined
+    if (pending) return pending
+    if (!cfg.passwordless?.passkeyFirst) return undefined
+    const email = ctx.session.get(SESSION_KEY) as string | undefined
+    if (!email) return undefined
+    const acc = await cfg.accountStore.findByEmail(email)
+    if (!acc) return undefined
+    return (await this.hasPasskeys(cfg, acc.id)) ? acc.id : undefined
+  }
+
+  /**
+   * POST /auth/interaction/:uid/magic
+   * Magic link: lê o e-mail da sessão (passwordless.magicLink ligado), emite um
+   * token de uso único e dispara o e-mail. SEMPRE renderiza "link enviado",
+   * independentemente de a conta existir (anti-enumeração). Throttled como o login.
+   */
+  async magicLinkRequest(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const render = cfg.render!
+    const details = await service.interactions.details(ctx)
+    const brand = brandFor(
+      cfg.branding!,
+      details.params.client_id as string | undefined,
+      details.params.audience as string | undefined
+    )
+    const email = ctx.session.get(SESSION_KEY) as string | undefined
+    const uid = ctx.request.param('uid')
+
+    if (cfg.passwordless.magicLink && supportsMagicLink(cfg.accountStore) && email) {
+      const issued = await cfg.accountStore.issueMagicLinkToken(email)
+      if (issued) {
+        await cfg.audit?.record({
+          type: 'login.magic_link_sent',
+          accountId: issued.account.id,
+          email,
+          ip: ctx.request.ip?.() ?? null,
+          clientId: (details.params.client_id as string | undefined) ?? null,
+        })
+        const origin = `${ctx.request.protocol()}://${ctx.request.host()}`
+        const magicUrl = `${origin}/auth/interaction/${uid}/magic?token=${encodeURIComponent(issued.token)}`
+        if (cfg.mail?.onMagicLink) {
+          await cfg.mail.onMagicLink({ email, magicUrl, token: issued.token })
+        } else {
+          await sendMagicLinkEmail(ctx, { email, magicUrl })
+        }
+      }
+    }
+
+    // Resposta uniforme (não vaza existência de conta).
+    return render(ctx, 'login', {
+      uid,
+      csrfToken: ctx.request.csrfToken,
+      step: 'password',
+      email,
+      account: null,
+      brand,
+      magicLinkSent: true,
+    })
+  }
+
+  /**
+   * GET /auth/interaction/:uid/magic?token=...
+   * Consome o magic link. Em sucesso finaliza o login (amr `['email']`). Token
+   * inválido/expirado volta ao início do login.
+   */
+  async magicLinkConsume(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const uid = ctx.request.param('uid')
+    const ip = ctx.request.ip?.() ?? null
+    const clientId = (await service.interactions.details(ctx)).params.client_id as string | undefined
+
+    const token = (ctx.request.qs().token as string) ?? ''
+    if (!cfg.passwordless.magicLink || !supportsMagicLink(cfg.accountStore) || !token) {
+      return ctx.response.redirect(`/auth/interaction/${uid}`)
+    }
+    const acc = await cfg.accountStore.consumeMagicLinkToken(token)
+    if (!acc) {
+      await cfg.audit?.record({ type: 'login.failure', ip, clientId, metadata: { stage: 'magic_link' } })
+      return ctx.response.redirect(`/auth/interaction/${uid}`)
+    }
+    await notifyLoginSuccess(ctx, cfg, {
+      accountId: acc.id,
+      email: acc.email,
+      ip,
+      clientId: clientId ?? null,
+      metadata: { method: 'magic_link' },
+    })
+    ctx.session.forget(SESSION_KEY)
+    await service.interactions.completeLogin(ctx, acc.id, { amr: ['email'] })
+  }
+
+  /**
    * POST /auth/interaction/:uid/passkey/options
    * Gera as opções de autenticação por passkey para o accountId pendente do MFA,
    * guarda o challenge na sessão e devolve as opções JSON para o browser.
@@ -283,7 +454,7 @@ export default class AuthInteractionController {
   async passkeyOptions(ctx: HttpContext) {
     const service = await ctx.containerResolver.make('authkit.server')
     const cfg = service.config
-    const accountId = ctx.session.get(MFA_PENDING_KEY) as string | undefined
+    const accountId = await this.resolvePasskeyAccountId(ctx, cfg)
     if (!accountId) {
       return ctx.response.badRequest({
         message: translate(cfg.messages, 'errors.session_expired'),
@@ -316,7 +487,7 @@ export default class AuthInteractionController {
       details.params.client_id as string | undefined,
       details.params.audience as string | undefined
     )
-    const accountId = ctx.session.get(MFA_PENDING_KEY) as string | undefined
+    const accountId = await this.resolvePasskeyAccountId(ctx, cfg)
     const challenge = ctx.session.get(PASSKEY_AUTH_CHALLENGE_KEY) as string | undefined
     const ip = ctx.request.ip?.() ?? null
     const clientId = (details.params.client_id as string | undefined) ?? null
@@ -353,9 +524,13 @@ export default class AuthInteractionController {
         error: translate(cfg.messages, 'mfa_challenge.passkey_error'),
         brand,
         passkeyAvailable: await this.hasPasskeys(cfg, accountId),
+        trustedDevicesEnabled: cfg.trustedDevices.enabled,
+        trustedDeviceDays: cfg.trustedDevices.days,
       })
     }
 
+    // Passkey OK: opcionalmente confia neste dispositivo (checkbox no challenge).
+    await this.maybeTrustDevice(ctx, cfg, accountId)
     ctx.session.forget(MFA_PENDING_KEY)
     ctx.session.forget(SESSION_KEY)
     await notifyLoginSuccess(ctx, cfg, {
@@ -364,10 +539,12 @@ export default class AuthInteractionController {
       clientId,
       metadata: { mfa: 'webauthn' },
     })
+    // Step-up carimba acr/amr quando solicitado; senão a passkey conta como o fator
+    // forte do login (amr `['webauthn']`) — vale tanto p/ MFA quanto passkey-first.
     await service.interactions.completeLogin(
       ctx,
       accountId,
-      this.stepUpExtra(cfg, details, 'webauthn')
+      this.stepUpExtra(cfg, details, 'webauthn') ?? { amr: ['webauthn'] }
     )
   }
 

@@ -51,6 +51,10 @@ export const DEFAULT_MESSAGES = {
   'login.switch_account': 'Switch account',
   'login.password_label': 'Password',
   'login.submit': 'Log in',
+  // Passwordless (login).
+  'login.magic_link_button': 'Email me a login link',
+  'login.magic_link_sent': 'If the account exists, we sent you a login link.',
+  'login.passkey_button': 'Sign in with a passkey',
 
   // Tela de cadastro (signup).
   'signup.page_title': 'Create account',
@@ -97,6 +101,7 @@ export const DEFAULT_MESSAGES = {
   'mfa_challenge.recovery_submit': 'Log in with a recovery code',
   'mfa_challenge.passkey_button': 'Use passkey',
   'mfa_challenge.passkey_error': 'Could not authenticate with the passkey. Please try again.',
+  'mfa_challenge.trust_device': 'Trust this device for {days} days',
 
   // Consent (autorização de cliente OIDC).
   'consent.page_title': 'Authorize',
@@ -151,6 +156,13 @@ export const DEFAULT_MESSAGES = {
   'account.security.email_change_requested':
     'We sent a confirmation link to {email}. Click it to complete the change.',
   'account.security.email_changed': 'Email changed successfully.',
+  // Trusted devices (account/security).
+  'account.security.trusted_devices_section': 'Trusted devices',
+  'account.security.trusted_devices_intro':
+    'You can stop trusting this browser so two-factor is required here again. To revoke trust on all devices, re-enroll your authenticator.',
+  'account.security.trusted_devices_revoke': 'Stop trusting this device',
+  'account.security.trusted_devices_revoked':
+    'This device is no longer trusted. Two-factor will be required here again.',
 
   // Console de conta — perfil (seção em account/security).
   'account.profile.section': 'Profile',
@@ -381,6 +393,12 @@ export const DEFAULT_MESSAGES = {
   'mail.verify.fallback': 'If you did not create this account, you can ignore this email.',
   'mail.verify.expires': 'This link expires in {minutes} minutes.',
 
+  'mail.magic_link.subject': 'Your login link',
+  'mail.magic_link.heading': 'Sign in to your account',
+  'mail.magic_link.intro': 'Click the button below to sign in. The link expires shortly and can be used once.',
+  'mail.magic_link.cta': 'Sign in',
+  'mail.magic_link.fallback': 'If you did not request this, you can ignore this email.',
+
   'mail.new_login.subject': 'New login to your account',
   'mail.new_login.heading': 'New login detected',
   'mail.new_login.intro': 'We detected a new login to your account.',
@@ -422,6 +440,10 @@ export const PT_BR_MESSAGES = {
   'login.switch_account': 'Trocar de conta',
   'login.password_label': 'Senha',
   'login.submit': 'Entrar',
+  // Passwordless (login).
+  'login.magic_link_button': 'Me envie um link de login',
+  'login.magic_link_sent': 'Se a conta existir, enviamos um link de login.',
+  'login.passkey_button': 'Entrar com passkey',
 
   // Tela de cadastro (signup).
   'signup.page_title': 'Criar conta',
@@ -468,6 +490,7 @@ export const PT_BR_MESSAGES = {
   'mfa_challenge.recovery_submit': 'Entrar com código de recuperação',
   'mfa_challenge.passkey_button': 'Usar passkey',
   'mfa_challenge.passkey_error': 'Não foi possível autenticar com a passkey. Tente novamente.',
+  'mfa_challenge.trust_device': 'Confiar neste dispositivo por {days} dias',
 
   // Consent (autorização de cliente OIDC).
   'consent.page_title': 'Autorizar',
@@ -520,6 +543,13 @@ export const PT_BR_MESSAGES = {
   'account.security.email_change_requested':
     'Enviamos um link de confirmação para {email}. Clique nele para concluir a troca.',
   'account.security.email_changed': 'E-mail alterado com sucesso.',
+  // Trusted devices (account/security).
+  'account.security.trusted_devices_section': 'Dispositivos confiáveis',
+  'account.security.trusted_devices_intro':
+    'Você pode deixar de confiar neste navegador para que a verificação em duas etapas volte a ser exigida aqui. Para revogar a confiança em todos os dispositivos, refaça o cadastro do seu autenticador.',
+  'account.security.trusted_devices_revoke': 'Deixar de confiar neste dispositivo',
+  'account.security.trusted_devices_revoked':
+    'Este dispositivo não é mais confiável. A verificação em duas etapas voltará a ser exigida aqui.',
 
   // Console de conta — perfil (seção em account/security).
   'account.profile.section': 'Perfil',
@@ -749,6 +779,12 @@ export const PT_BR_MESSAGES = {
   'mail.verify.cta': 'Verificar e-mail',
   'mail.verify.fallback': 'Se você não criou esta conta, pode ignorar este e-mail.',
   'mail.verify.expires': 'Este link expira em {minutes} minutos.',
+
+  'mail.magic_link.subject': 'Seu link de login',
+  'mail.magic_link.heading': 'Entrar na sua conta',
+  'mail.magic_link.intro': 'Clique no botão abaixo para entrar. O link expira em breve e pode ser usado uma vez.',
+  'mail.magic_link.cta': 'Entrar',
+  'mail.magic_link.fallback': 'Se você não solicitou isso, pode ignorar este e-mail.',
 
   'mail.new_login.subject': 'Novo login na sua conta',
   'mail.new_login.heading': 'Novo login detectado',

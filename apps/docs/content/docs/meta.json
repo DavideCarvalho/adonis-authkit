@@ -16,6 +16,7 @@
     "impersonation",
     "mfa",
     "webauthn",
+    "passwordless",
     "refresh-tokens",
     "back-channel-logout",
     "account-linking",

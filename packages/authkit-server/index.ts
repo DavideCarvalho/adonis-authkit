@@ -15,6 +15,22 @@ export type {
 } from './src/define_config.js'
 export { resolveAdmin, resolveWebauthn, resolveDynamicRegistration } from './src/define_config.js'
 export type { WebauthnConfigInput, ResolvedWebauthnConfig } from './src/define_config.js'
+export { resolvePasswordless } from './src/define_config.js'
+export type {
+  PasswordlessConfigInput,
+  ResolvedPasswordlessConfig,
+} from './src/define_config.js'
+export {
+  resolveTrustedDevices,
+  isTrustedDeviceValid,
+  buildTrustedDevicePayload,
+  TRUSTED_DEVICE_COOKIE,
+} from './src/host/trusted_device.js'
+export type {
+  TrustedDevicesConfigInput,
+  ResolvedTrustedDevicesConfig,
+  TrustedDevicePayload,
+} from './src/host/trusted_device.js'
 export { lucidAccountStore } from './src/accounts/lucid_account_store.js'
 export type {
   LucidAccountStoreOptions,
@@ -28,6 +44,7 @@ export type {
   WebauthnCapability,
   ProviderIdentityCapability,
   AccountSecurityCapability,
+  MagicLinkCapability,
   AuthAccount,
   CreateAccountInput,
   LinkProviderIdentityInput,
@@ -40,6 +57,7 @@ export {
   supportsPasskeys,
   supportsProviderIdentity,
   supportsAccountSecurity,
+  supportsMagicLink,
 } from './src/accounts/account_store.js'
 export { withProviderIdentity } from './src/mixins/with_provider_identity.js'
 export type {

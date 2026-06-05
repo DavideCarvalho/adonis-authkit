@@ -10,6 +10,11 @@ import type { PatStore } from './pat/pat_store.js'
 import type { AuditSink } from './audit/audit_sink.js'
 import type { BrandingConfig } from './host/branding.js'
 import { resolveMessages, type AuthMessages, type I18nConfig } from './host/i18n.js'
+import {
+  resolveTrustedDevices,
+  type ResolvedTrustedDevicesConfig,
+  type TrustedDevicesConfigInput,
+} from './host/trusted_device.js'
 
 export { adapters }
 export type { AuthAccount }
@@ -38,6 +43,8 @@ export interface MailHooks {
     verifyUrl: string
     token: string
   }) => Promise<void>
+  /** Disparado após gerar o magic link de login (passwordless). */
+  onMagicLink?: (data: { email: string; magicUrl: string; token: string }) => Promise<void>
 }
 
 /** Bucket de rate-limit: pontos (requests) permitidos por janela de duração. */
@@ -299,6 +306,39 @@ export function resolveStepUp(input?: StepUpConfigInput): ResolvedStepUpConfig {
 }
 
 /**
+ * Login passwordless. Duas vias independentes e opcionais:
+ *   - `magicLink`: na tela de senha, oferece "me envie um link de login". Um token
+ *     de uso único e curta duração é enviado por e-mail; abrir o link finaliza o
+ *     login (amr `['email']`). Sempre responde "link enviado" (não vaza contas).
+ *   - `passkeyFirst`: na tela de senha, se a conta tem passkeys, oferece "entrar
+ *     com passkey" ANTES da senha. Verificar a passkey já conta como o 2º fator
+ *     (amr `['webauthn']`) — não pede senha nem MFA.
+ *
+ * Ambas exigem que o accountStore implemente a capacidade correspondente
+ * (MagicLinkCapability / WebauthnCapability), senão a opção fica oculta.
+ */
+export interface PasswordlessConfigInput {
+  /** Liga o login por magic link (e-mail). Default: false. */
+  magicLink?: boolean
+  /** Liga o "entrar com passkey" antes da senha. Default: false. */
+  passkeyFirst?: boolean
+}
+
+export interface ResolvedPasswordlessConfig {
+  magicLink: boolean
+  passkeyFirst: boolean
+}
+
+export function resolvePasswordless(
+  input?: PasswordlessConfigInput
+): ResolvedPasswordlessConfig {
+  return {
+    magicLink: input?.magicLink ?? false,
+    passkeyFirst: input?.passkeyFirst ?? false,
+  }
+}
+
+/**
  * Console admin opt-in do IdP (B6). Quando habilitado, monta o grupo `/admin/*`
  * (dashboard, usuários/papéis, clients, audit) atrás de um guard que exige sessão
  * de conta E que a conta tenha pelo menos um dos `roles` nas suas roles globais.
@@ -429,6 +469,17 @@ export interface AuthServerConfigInput {
   /** Step-up auth via acr_values (MFA por requisição). Default: vazio (só o mfaAcr derivado). */
   stepUp?: StepUpConfigInput
   /**
+   * Trusted devices: pular o MFA neste dispositivo por N dias via cookie
+   * encriptado (appKey-backed), sem migração. Default: ligado, 30 dias. Step-up
+   * (acr_values) sempre ignora o cookie e força o MFA.
+   */
+  trustedDevices?: TrustedDevicesConfigInput
+  /**
+   * Login passwordless (magic link por e-mail e/ou passkey-first). Default: ambos
+   * desligados. Exigem as capacidades correspondentes no accountStore.
+   */
+  passwordless?: PasswordlessConfigInput
+  /**
    * Console admin do IdP (B6). Default: desligado. Quando ligado, o host também
    * deve passar `admin: true` em {@link AuthHostOptions} no registro de rotas
    * (a montagem das rotas acontece antes do config resolver).
@@ -473,6 +524,10 @@ export interface ResolvedServerConfig {
   par: ResolvedParConfig
   /** Step-up auth resolvido (mfaAcr sempre presente). */
   stepUp: ResolvedStepUpConfig
+  /** Trusted devices resolvido (default ligado, 30 dias). */
+  trustedDevices: ResolvedTrustedDevicesConfig
+  /** Passwordless resolvido (default tudo desligado). */
+  passwordless: ResolvedPasswordlessConfig
   /** Console admin resolvido (sempre presente; default desligado). */
   admin: ResolvedAdminConfig
   /** Catálogo de mensagens ativo (locale resolvido), pronto para os renderers. */
@@ -549,6 +604,8 @@ export function defineConfig(config: AuthServerConfigInput) {
       dpop: resolveDpop(config.dpop),
       par: resolvePar(config.par),
       stepUp: resolveStepUp(config.stepUp),
+      trustedDevices: resolveTrustedDevices(config.trustedDevices),
+      passwordless: resolvePasswordless(config.passwordless),
       admin: resolveAdmin(config.admin),
       messages: resolveMessages(config.i18n),
       locale: config.i18n?.locale ?? 'pt-BR',

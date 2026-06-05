@@ -265,6 +265,111 @@ test.group('account console views render real (edge.js)', () => {
   })
 })
 
+test.group('R4 login views render real (edge.js)', () => {
+  test('login.edge (password) mostra magic link + passkey-first quando disponíveis', async ({
+    assert,
+  }) => {
+    const edge = makeEdge()
+    const html = await edge.render('authkit::login', {
+      uid: 'i1',
+      csrfToken: 'csrf',
+      step: 'password',
+      email: 'u@x.com',
+      account: null,
+      brand: { appName: 'X' },
+      magicLinkAvailable: true,
+      passkeyFirstAvailable: true,
+    })
+    assert.include(html, '/auth/interaction/i1/magic')
+    assert.include(html, translate({ ...DEFAULT_MESSAGES }, 'login.magic_link_button'))
+    assert.include(html, '/auth/interaction/i1/passkey/verify')
+    assert.include(html, '/auth/interaction/i1/passkey/options')
+    assert.include(html, translate({ ...DEFAULT_MESSAGES }, 'login.passkey_button'))
+  })
+
+  test('login.edge esconde passwordless quando indisponível e mostra "link enviado"', async ({
+    assert,
+  }) => {
+    const edge = makeEdge()
+    const off = await edge.render('authkit::login', {
+      uid: 'i1',
+      csrfToken: 'c',
+      step: 'password',
+      email: 'u@x.com',
+      account: null,
+      brand: { appName: 'X' },
+      magicLinkAvailable: false,
+      passkeyFirstAvailable: false,
+    })
+    assert.notInclude(off, translate({ ...DEFAULT_MESSAGES }, 'login.magic_link_button'))
+    assert.notInclude(off, translate({ ...DEFAULT_MESSAGES }, 'login.passkey_button'))
+
+    const sent = await edge.render('authkit::login', {
+      uid: 'i1',
+      csrfToken: 'c',
+      step: 'password',
+      email: 'u@x.com',
+      account: null,
+      brand: { appName: 'X' },
+      magicLinkAvailable: true,
+      magicLinkSent: true,
+    })
+    assert.include(sent, translate({ ...DEFAULT_MESSAGES }, 'login.magic_link_sent'))
+  })
+
+  test('mfa-challenge.edge mostra a checkbox de trusted device quando ligado', async ({
+    assert,
+  }) => {
+    const edge = makeEdge()
+    const html = await edge.render('authkit::mfa-challenge', {
+      uid: 'i1',
+      csrfToken: 'csrf',
+      brand: { appName: 'X' },
+      passkeyAvailable: false,
+      trustedDevicesEnabled: true,
+      trustedDeviceDays: 30,
+    })
+    assert.include(html, 'name="trustDevice"')
+    assert.include(html, translate({ ...DEFAULT_MESSAGES }, 'mfa_challenge.trust_device', { days: 30 }))
+
+    const off = await edge.render('authkit::mfa-challenge', {
+      uid: 'i1',
+      csrfToken: 'csrf',
+      brand: { appName: 'X' },
+      passkeyAvailable: false,
+      trustedDevicesEnabled: false,
+      trustedDeviceDays: 30,
+    })
+    assert.notInclude(off, 'name="trustDevice"')
+  })
+
+  test('account/security.edge mostra a seção de trusted devices + revogação', async ({
+    assert,
+  }) => {
+    const edge = makeEdge()
+    const html = await edge.render('authkit::account/security', {
+      csrfToken: 'csrf',
+      supported: true,
+      profileSupported: false,
+      email: 'u@x.com',
+      name: '',
+      avatarUrl: '',
+      passwordChanged: null,
+      emailChangeRequested: null,
+      emailChanged: null,
+      profileUpdated: null,
+      error: null,
+      trustedDevicesEnabled: true,
+      trustedDevicesRevoked: null,
+    })
+    assert.include(html, 'action="/account/security/trusted-devices/revoke"')
+    assert.include(
+      html,
+      translate({ ...DEFAULT_MESSAGES }, 'account.security.trusted_devices_revoke')
+    )
+  })
+})
+
 test.group('admin views render real (edge.js)', () => {
   test('clients.edge renderiza listas estática + dinâmica e o banner de secret', async ({
     assert,

@@ -4,11 +4,15 @@ import type {
   AccountSecurityCapability,
   CoreAccountStore,
   CreateAccountInput,
+  MagicLinkCapability,
 } from '../account_store.js'
 import type { LucidStoreContext } from './shared.js'
 
 /** Prefixo do token de troca de e-mail (reaproveita a coluna emailVerificationToken). */
 const EMAIL_CHANGE_PREFIX = 'ec:'
+
+/** Prefixo do magic link (reaproveita as colunas de reset de senha). */
+const MAGIC_LINK_PREFIX = 'ml:'
 
 /**
  * Núcleo SEMPRE presente do {@link CoreAccountStore} sobre um model Lucid:
@@ -16,7 +20,9 @@ const EMAIL_CHANGE_PREFIX = 'ec:'
  * (listagem paginada + roles globais) e o self-service de segurança
  * ({@link AccountSecurityCapability}: trocar senha/e-mail).
  */
-export function buildCore(ctx: LucidStoreContext): CoreAccountStore & AccountSecurityCapability {
+export function buildCore(
+  ctx: LucidStoreContext
+): CoreAccountStore & AccountSecurityCapability & MagicLinkCapability {
   const { Model, toAccount } = ctx
 
   return {
@@ -58,6 +64,9 @@ export function buildCore(ctx: LucidStoreContext): CoreAccountStore & AccountSec
     },
 
     async consumePasswordResetToken(token, newPassword) {
+      // Magic links (`ml:`) NÃO são tokens de reset de senha — só o fluxo de
+      // consumeMagicLinkToken pode consumi-los (não trocam senha).
+      if (token.startsWith(MAGIC_LINK_PREFIX)) return false
       const row = await Model.query().where('passwordResetToken', token).first()
       if (!row) return false
       if (!row.passwordResetExpiresAt || row.passwordResetExpiresAt < DateTime.now()) return false
@@ -66,6 +75,32 @@ export function buildCore(ctx: LucidStoreContext): CoreAccountStore & AccountSec
       row.passwordResetExpiresAt = null
       await row.save()
       return true
+    },
+
+    // ----- Magic link (login passwordless) -----
+
+    async issueMagicLinkToken(email) {
+      const row = await Model.query().where('email', email).first()
+      if (!row) return null
+      // Token `ml:<random>` nas colunas de reset (sem migração); o prefixo o
+      // distingue de um token de reset de senha. Curta duração (15 min).
+      const token = `${MAGIC_LINK_PREFIX}${randomBytes(32).toString('hex')}`
+      row.passwordResetToken = token
+      row.passwordResetExpiresAt = DateTime.now().plus({ minutes: 15 })
+      await row.save()
+      return { token, account: toAccount(row) }
+    },
+
+    async consumeMagicLinkToken(token) {
+      if (!token || !token.startsWith(MAGIC_LINK_PREFIX)) return null
+      const row = await Model.query().where('passwordResetToken', token).first()
+      if (!row) return null
+      if (!row.passwordResetExpiresAt || row.passwordResetExpiresAt < DateTime.now()) return null
+      // Single-use: limpa o token (NÃO altera a senha).
+      row.passwordResetToken = null
+      row.passwordResetExpiresAt = null
+      await row.save()
+      return toAccount(row)
     },
 
     async issueEmailVerificationToken(email) {

@@ -37,6 +37,8 @@ description: The full defineConfig option tables for server and client.
 | `dpop` | `{ enabled: boolean }` | disabled | DPoP sender-constrained tokens (RFC 9449). See [Security](/docs/security#dpop). |
 | `par` | `{ enabled: boolean; requirePushedAuthorizationRequests?: boolean }` | disabled | Pushed Authorization Requests (RFC 9126). See [Security](/docs/security#par). |
 | `stepUp` | `{ acrValues?: string[]; mfaAcr?: string }` | `mfaAcr: 'urn:authkit:mfa'` | Step-up auth via `acr_values`. See [Security](/docs/security#step-up-authentication). |
+| `trustedDevices` | `{ enabled?: boolean; days?: number }` | enabled, 30 days | Skip MFA on a trusted device via an encrypted cookie. See [MFA](/docs/mfa#trusted-devices). |
+| `passwordless` | `{ magicLink?: boolean; passkeyFirst?: boolean }` | both disabled | Magic-link email login and/or passkey-first login. See [Passwordless](/docs/passwordless). |
 
 ### `ttl` defaults
 

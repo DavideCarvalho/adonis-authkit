@@ -114,5 +114,23 @@
         </form>
       </div>
     @end
+
+    @if(trustedDevicesEnabled)
+      @if(trustedDevicesRevoked)
+        <div class="mt-6 rounded-lg border border-emerald-300 bg-emerald-50 p-4">
+          <p class="text-sm font-medium text-emerald-900">{{ trustedDevicesRevoked }}</p>
+        </div>
+      @end
+      <div class="mt-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+        <h2 class="mb-1 text-sm font-semibold text-gray-900">{{ t('account.security.trusted_devices_section') }}</h2>
+        <p class="mb-4 text-xs text-gray-500">{{ t('account.security.trusted_devices_intro') }}</p>
+        <form method="POST" action="/account/security/trusted-devices/revoke">
+          <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+          <button type="submit" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+            {{ t('account.security.trusted_devices_revoke') }}
+          </button>
+        </form>
+      </div>
+    @end
   </div>
 </body></html>

@@ -186,8 +186,14 @@ export interface ProviderIdentityCapability {
  * flow trata a ausência como "MFA desligado".
  */
 export interface MfaCapability {
-  /** Estado do MFA da conta (se o desafio TOTP deve ser exigido no login). */
-  getMfaState(accountId: string): Promise<{ enabled: boolean }>
+  /**
+   * Estado do MFA da conta (se o desafio TOTP deve ser exigido no login).
+   * `enabledAt` (epoch ms) é o instante em que o MFA foi (re)enrolado, usado pelo
+   * mecanismo de "trusted devices": um cookie de confiança emitido ANTES desse
+   * instante é considerado inválido (re-enrolar MFA revoga a confiança). Pode ser
+   * `null`/ausente quando o MFA não está ativo ou o store não rastreia o instante.
+   */
+  getMfaState(accountId: string): Promise<{ enabled: boolean; enabledAt?: number | null }>
   /**
    * Inicia o enrollment TOTP: gera um segredo PENDENTE (mfaEnabledAt continua
    * null) e devolve o segredo + otpauth URI (keyuri). Não ativa o MFA ainda.
@@ -264,6 +270,32 @@ export interface WebauthnCapability {
 }
 
 /**
+ * Login sem senha por "magic link" — um token de uso único e curta duração
+ * enviado por e-mail. CAPACIDADE opcional: stores sem suporte omitem os métodos e
+ * a UI esconde o botão "me envie um link".
+ *
+ * O store default (Lucid) reaproveita as colunas de reset de senha
+ * (`passwordResetToken` / `passwordResetExpiresAt`) codificando o token com o
+ * prefixo `ml:` — assim NÃO exige migração nova (mesmo padrão do `ec:` da troca de
+ * e-mail). O tradeoff é que um magic link e um reset de senha pendentes não
+ * coexistem (mesma coluna); na prática são fluxos distintos no tempo. Consumir um
+ * magic link NÃO altera a senha.
+ */
+export interface MagicLinkCapability {
+  /**
+   * Emite um magic link para o e-mail. Retorna o token + a conta, ou null se a
+   * conta não existe (o controller SEMPRE renderiza "link enviado" para não vazar
+   * a existência de contas).
+   */
+  issueMagicLinkToken(email: string): Promise<{ token: string; account: AuthAccount } | null>
+  /**
+   * Consome (single-use) um magic link. Retorna a conta autenticada ou null se o
+   * token é inválido/expirado. NÃO altera a senha.
+   */
+  consumeMagicLinkToken(token: string): Promise<AuthAccount | null>
+}
+
+/**
  * Store de contas usado pela config. É o núcleo SEMPRE presente
  * ({@link CoreAccountStore}) + as capacidades opcionais (MFA, WebAuthn, account
  * linking por provider) marcadas como `Partial` — assim configs/hosts existentes
@@ -279,7 +311,8 @@ export type AccountStore = CoreAccountStore &
       ProviderIdentityCapability &
       AccountSecurityCapability &
       AccountStatusCapability &
-      ProfileCapability
+      ProfileCapability &
+      MagicLinkCapability
   >
 
 /** Type guard: o store implementa a capacidade de MFA / TOTP. */
@@ -316,4 +349,11 @@ export function supportsAccountStatus(
 /** Type guard: o store implementa a edição de perfil (nome/avatar). */
 export function supportsProfile(store: AccountStore): store is AccountStore & ProfileCapability {
   return typeof store.updateProfile === 'function'
+}
+
+/** Type guard: o store implementa login por magic link (passwordless). */
+export function supportsMagicLink(
+  store: AccountStore
+): store is AccountStore & MagicLinkCapability {
+  return typeof store.issueMagicLinkToken === 'function'
 }

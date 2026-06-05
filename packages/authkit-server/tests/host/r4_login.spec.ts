@@ -1,0 +1,228 @@
+import { test } from '@japa/runner'
+import { randomUUID } from 'node:crypto'
+import { DateTime } from 'luxon'
+import { compose } from '@adonisjs/core/helpers'
+import { BaseModel, column, beforeCreate } from '@adonisjs/lucid/orm'
+import { createTestDatabase } from '../bootstrap.js'
+import { withAuthUser } from '../../src/mixins/with_auth_user.js'
+import { withCredentials } from '../../src/mixins/with_credentials.js'
+import { withMfa } from '../../src/mixins/with_mfa.js'
+import { lucidAccountStore } from '../../src/accounts/lucid_account_store.js'
+import { supportsMagicLink } from '../../src/accounts/account_store.js'
+import {
+  buildTrustedDevicePayload,
+  isTrustedDeviceValid,
+  resolveTrustedDevices,
+} from '../../src/host/trusted_device.js'
+import { resolvePasswordless } from '../../src/define_config.js'
+
+class TestAccount extends compose(BaseModel, withAuthUser(), withCredentials(), withMfa()) {
+  static table = 'users'
+  static selfAssignPrimaryKey = true
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare fullName: string | null
+  @column()
+  declare avatarUrl: string | null
+  @column.dateTime()
+  declare disabledAt: DateTime | null
+  @beforeCreate()
+  static assignId(row: TestAccount) {
+    if (!row.id) row.id = randomUUID()
+  }
+}
+
+async function setupDb() {
+  const db = await createTestDatabase()
+  BaseModel.useAdapter(db.modelAdapter())
+  await db.connection().schema.createTable('users', (t: any) => {
+    t.string('id').primary()
+    t.string('email').notNullable()
+    t.string('password').notNullable()
+    t.string('full_name').nullable()
+    t.string('avatar_url').nullable()
+    t.timestamp('disabled_at').nullable()
+    t.text('global_roles').nullable()
+    t.timestamp('email_verified_at').nullable()
+    t.string('email_verification_token').nullable()
+    t.string('password_reset_token').nullable()
+    t.timestamp('password_reset_expires_at').nullable()
+    t.string('totp_secret').nullable()
+    t.timestamp('mfa_enabled_at').nullable()
+    t.text('recovery_codes').nullable()
+  })
+  return db
+}
+
+// --------------------------------------------------------------------------
+// 1) Trusted devices — cookie payload puro
+// --------------------------------------------------------------------------
+
+test.group('trusted devices (helper puro)', () => {
+  test('resolve defaults: ligado, 30 dias', ({ assert }) => {
+    assert.deepEqual(resolveTrustedDevices(), { enabled: true, days: 30 })
+    assert.deepEqual(resolveTrustedDevices({ enabled: false, days: 7 }), {
+      enabled: false,
+      days: 7,
+    })
+    // dias inválido cai no default.
+    assert.equal(resolveTrustedDevices({ days: 0 }).days, 30)
+  })
+
+  test('cookie válido pula o MFA no 2º login (mesma conta, não expirado)', ({ assert }) => {
+    const cfg = resolveTrustedDevices()
+    const now = 1_000_000
+    const payload = buildTrustedDevicePayload('acc-1', cfg, now)
+    assert.isTrue(
+      isTrustedDeviceValid(payload, { accountId: 'acc-1', mfaEnabledAt: 500_000, now: now + 1000 })
+    )
+  })
+
+  test('cookie de OUTRA conta não é válido', ({ assert }) => {
+    const payload = buildTrustedDevicePayload('acc-1', resolveTrustedDevices(), 1000)
+    assert.isFalse(isTrustedDeviceValid(payload, { accountId: 'acc-2', now: 2000 }))
+  })
+
+  test('cookie expirado não é válido', ({ assert }) => {
+    const cfg = resolveTrustedDevices({ days: 1 })
+    const payload = buildTrustedDevicePayload('acc-1', cfg, 0)
+    const afterExpiry = 2 * 24 * 60 * 60 * 1000
+    assert.isFalse(isTrustedDeviceValid(payload, { accountId: 'acc-1', now: afterExpiry }))
+  })
+
+  test('re-enrollment do MFA invalida cookie emitido antes (iat < mfaEnabledAt)', ({ assert }) => {
+    const cfg = resolveTrustedDevices()
+    const iat = 1000
+    const payload = buildTrustedDevicePayload('acc-1', cfg, iat)
+    // MFA re-enrolado DEPOIS do cookie → inválido.
+    assert.isFalse(
+      isTrustedDeviceValid(payload, { accountId: 'acc-1', mfaEnabledAt: 5000, now: 6000 })
+    )
+    // MFA enrolado ANTES do cookie → válido.
+    assert.isTrue(
+      isTrustedDeviceValid(payload, { accountId: 'acc-1', mfaEnabledAt: 500, now: 6000 })
+    )
+  })
+
+  test('payloads malformados são rejeitados', ({ assert }) => {
+    assert.isFalse(isTrustedDeviceValid(null, { accountId: 'a' }))
+    assert.isFalse(isTrustedDeviceValid('nope', { accountId: 'a' }))
+    assert.isFalse(isTrustedDeviceValid({ a: 1 }, { accountId: 'a' }))
+  })
+})
+
+// --------------------------------------------------------------------------
+// 2) Passwordless — config resolver
+// --------------------------------------------------------------------------
+
+test.group('passwordless (config resolver)', () => {
+  test('defaults desligados', ({ assert }) => {
+    assert.deepEqual(resolvePasswordless(), { magicLink: false, passkeyFirst: false })
+  })
+  test('liga seletivamente', ({ assert }) => {
+    assert.deepEqual(resolvePasswordless({ magicLink: true }), {
+      magicLink: true,
+      passkeyFirst: false,
+    })
+    assert.deepEqual(resolvePasswordless({ passkeyFirst: true }), {
+      magicLink: false,
+      passkeyFirst: true,
+    })
+  })
+})
+
+// --------------------------------------------------------------------------
+// 3) Magic link — store-backed (Lucid)
+// --------------------------------------------------------------------------
+
+test.group('magic link (lucid store)', (group) => {
+  let close: () => Promise<void>
+  group.each.setup(async () => {
+    const db = await setupDb()
+    close = async () => db.manager.closeAll()
+    return () => close()
+  })
+
+  test('store expõe a capacidade de magic link', async ({ assert }) => {
+    const store = lucidAccountStore(TestAccount)
+    assert.isTrue(supportsMagicLink(store))
+  })
+
+  test('issue → consume completa o login (devolve a conta)', async ({ assert }) => {
+    const store = lucidAccountStore(TestAccount)
+    const created = await store.create({ email: 'm@l.com', password: 'pw12345678' })
+    const issued = await store.issueMagicLinkToken!('m@l.com')
+    assert.isNotNull(issued)
+    assert.isTrue(issued!.token.startsWith('ml:'))
+    const acc = await store.consumeMagicLinkToken!(issued!.token)
+    assert.equal(acc!.id, created.id)
+  })
+
+  test('consumo é single-use', async ({ assert }) => {
+    const store = lucidAccountStore(TestAccount)
+    await store.create({ email: 's@l.com', password: 'pw12345678' })
+    const issued = await store.issueMagicLinkToken!('s@l.com')
+    assert.isNotNull(await store.consumeMagicLinkToken!(issued!.token))
+    assert.isNull(await store.consumeMagicLinkToken!(issued!.token))
+  })
+
+  test('token bogus/expirado falha', async ({ assert }) => {
+    const store = lucidAccountStore(TestAccount)
+    await store.create({ email: 'e@l.com', password: 'pw12345678' })
+    assert.isNull(await store.consumeMagicLinkToken!('ml:bogus'))
+    assert.isNull(await store.consumeMagicLinkToken!('not-a-magic-token'))
+    // Token expirado.
+    const issued = await store.issueMagicLinkToken!('e@l.com')
+    const row = await TestAccount.findBy('email', 'e@l.com')
+    row!.passwordResetExpiresAt = DateTime.now().minus({ minutes: 1 })
+    await row!.save()
+    assert.isNull(await store.consumeMagicLinkToken!(issued!.token))
+  })
+
+  test('issue para e-mail inexistente devolve null (anti-enumeração no controller)', async ({
+    assert,
+  }) => {
+    const store = lucidAccountStore(TestAccount)
+    assert.isNull(await store.issueMagicLinkToken!('ghost@l.com'))
+  })
+
+  test('magic link NÃO pode ser consumido como reset de senha', async ({ assert }) => {
+    const store = lucidAccountStore(TestAccount)
+    await store.create({ email: 'x@l.com', password: 'pw12345678' })
+    const issued = await store.issueMagicLinkToken!('x@l.com')
+    // O `ml:` é rejeitado pelo consumePasswordResetToken (não troca a senha).
+    assert.isFalse(await store.consumePasswordResetToken(issued!.token, 'hacked12345'))
+    // A senha original continua válida.
+    assert.isNotNull(await store.verifyCredentials('x@l.com', 'pw12345678'))
+  })
+})
+
+// --------------------------------------------------------------------------
+// 4) getMfaState expõe enabledAt (para o trusted-device check)
+// --------------------------------------------------------------------------
+
+test.group('getMfaState.enabledAt', (group) => {
+  let close: () => Promise<void>
+  group.each.setup(async () => {
+    const db = await setupDb()
+    close = async () => db.manager.closeAll()
+    return () => close()
+  })
+
+  test('enabledAt nulo quando MFA desligado; epoch ms quando ligado', async ({ assert }) => {
+    const store = lucidAccountStore(TestAccount)
+    const created = await store.create({ email: 'mfa@l.com', password: 'pw12345678' })
+    const before = await store.getMfaState!(created.id)
+    assert.isFalse(before.enabled)
+    assert.isNull(before.enabledAt ?? null)
+
+    // Liga o MFA setando mfa_enabled_at direto (sem cerimônia TOTP completa).
+    const row = await TestAccount.findBy('email', 'mfa@l.com')
+    row!.mfaEnabledAt = DateTime.now()
+    await row!.save()
+    const after = await store.getMfaState!(created.id)
+    assert.isTrue(after.enabled)
+    assert.isNumber(after.enabledAt)
+  })
+})

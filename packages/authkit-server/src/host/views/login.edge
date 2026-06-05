@@ -86,6 +86,61 @@
           <a href="/auth/forgot-password" class="hover:underline">{{ t('login.forgot_password') }}</a>
         </div>
       </form>
+
+      {{-- Passwordless: confirmação de magic link enviado (anti-enumeração). --}}
+      @if(magicLinkSent)
+        <p class="mt-4 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">{{ t('login.magic_link_sent') }}</p>
+      @end
+
+      {{-- Passwordless: "me envie um link de login" (mesma sessão/e-mail; não pede senha). --}}
+      @if(magicLinkAvailable && !magicLinkSent)
+        <form method="POST" action="/auth/interaction/{{ uid }}/magic" class="mt-4">
+          <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+          <button type="submit"
+            class="w-full rounded-lg border border-gray-300 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50">
+            {{ t('login.magic_link_button') }}
+          </button>
+        </form>
+      @end
+
+      {{-- Passwordless: "entrar com passkey" ANTES da senha. Reusa as cerimônias
+           de passkey do MFA (begin/finish) liberadas no estágio de senha. --}}
+      @if(passkeyFirstAvailable)
+        <form id="passkey-form" method="POST" action="/auth/interaction/{{ uid }}/passkey/verify" class="mt-4">
+          <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+          <input type="hidden" name="response" id="passkey-response">
+        </form>
+        <button type="button" id="passkey-button"
+          class="mt-4 w-full rounded-lg border border-gray-300 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50">
+          {{ t('login.passkey_button') }}
+        </button>
+        <p id="passkey-error" class="mt-3 hidden text-sm text-red-600">{{ t('mfa_challenge.passkey_error') }}</p>
+        <script type="module">
+          import { startAuthentication } from 'https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@13/dist/bundle/index.js'
+          const btn = document.getElementById('passkey-button')
+          const errEl = document.getElementById('passkey-error')
+          const csrf = document.querySelector('#passkey-form input[name="_csrf"]').value
+          btn?.addEventListener('click', async () => {
+            errEl.classList.add('hidden')
+            btn.disabled = true
+            try {
+              const res = await fetch('/auth/interaction/{{ uid }}/passkey/options', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json', 'x-csrf-token': csrf },
+                body: JSON.stringify({}),
+              })
+              if (!res.ok) throw new Error('options')
+              const optionsJSON = await res.json()
+              const assertion = await startAuthentication({ optionsJSON })
+              document.getElementById('passkey-response').value = JSON.stringify(assertion)
+              document.getElementById('passkey-form').submit()
+            } catch (e) {
+              errEl.classList.remove('hidden')
+              btn.disabled = false
+            }
+          })
+        </script>
+      @end
     </div>
   @end
 </body></html>

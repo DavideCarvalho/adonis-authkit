@@ -17,6 +17,41 @@
       </form>
     </div>
 
+    <nav class="mb-6 flex gap-4 text-sm font-medium">
+      <a href="/account/tokens" class="text-gray-500 hover:underline">{{ t('account.tokens.title') }}</a>
+      <a href="/account/security" class="text-gray-900 underline">{{ t('account.security.title') }}</a>
+      <a href="/account/apps" class="text-gray-500 hover:underline">{{ t('account.apps.title') }}</a>
+    </nav>
+
+    @if(profileUpdated)
+      <div class="mb-6 rounded-lg border border-emerald-300 bg-emerald-50 p-4">
+        <p class="text-sm font-medium text-emerald-900">{{ profileUpdated }}</p>
+      </div>
+    @end
+
+    @if(profileSupported)
+      <div class="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+        <h2 class="mb-1 text-sm font-semibold text-gray-900">{{ t('account.profile.section') }}</h2>
+        <p class="mb-4 text-xs text-gray-500">{{ t('account.profile.intro') }}</p>
+        <form method="POST" action="/account/security/profile" class="space-y-4">
+          <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-gray-700">{{ t('account.profile.name_label') }}</label>
+            <input name="name" type="text" value="{{ name }}" maxlength="255"
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900" />
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-gray-700">{{ t('account.profile.avatar_label') }}</label>
+            <input name="avatarUrl" type="url" value="{{ avatarUrl }}"
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900" />
+          </div>
+          <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white">
+            {{ t('account.profile.submit') }}
+          </button>
+        </form>
+      </div>
+    @end
+
     @if(!supported)
       <div class="rounded-xl bg-white p-6 text-sm text-gray-500 shadow-sm ring-1 ring-black/5">
         {{ t('account.security.not_supported') }}

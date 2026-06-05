@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="pt-br"><head><meta charset="utf-8"><title>{{ t('account.apps.page_title') }}</title>
+<script src="https://cdn.tailwindcss.com"></script></head>
+<body class="min-h-screen bg-gray-100 p-4">
+  <div class="mx-auto max-w-2xl">
+    <div class="flex items-center justify-between py-6">
+      <div>
+        <div class="text-xs font-semibold uppercase tracking-widest text-gray-400">{{ t('common.brand_eyebrow') }}</div>
+        <h1 class="text-xl font-semibold text-gray-900">{{ t('account.apps.title') }}</h1>
+        <p class="mt-1 text-sm text-gray-500">{{ t('account.apps.intro') }}</p>
+      </div>
+      <form method="POST" action="/account/logout">
+        <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+        <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('account.apps.logout') }}</button>
+      </form>
+    </div>
+
+    <nav class="mb-6 flex gap-4 text-sm font-medium">
+      <a href="/account/tokens" class="text-gray-500 hover:underline">{{ t('account.tokens.title') }}</a>
+      <a href="/account/security" class="text-gray-500 hover:underline">{{ t('account.security.title') }}</a>
+      <a href="/account/apps" class="text-gray-900 underline">{{ t('account.apps.title') }}</a>
+    </nav>
+
+    @if(revoked)
+      <div class="mb-6 rounded-lg border border-emerald-300 bg-emerald-50 p-4">
+        <p class="text-sm font-medium text-emerald-900">{{ revoked }}</p>
+      </div>
+    @end
+
+    @if(!supported)
+      <div class="rounded-xl bg-white p-6 text-sm text-gray-500 shadow-sm ring-1 ring-black/5">
+        {{ t('account.apps.not_supported') }}
+      </div>
+    @else
+      <div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-black/5">
+        @if(apps.length === 0)
+          <p class="p-6 text-sm text-gray-500">{{ t('account.apps.empty') }}</p>
+        @else
+          @each(app in apps)
+            <div class="flex items-center justify-between border-b border-gray-100 p-4 last:border-0">
+              <div>
+                <p class="text-sm font-medium text-gray-900">{{ app.name }}</p>
+                <p class="text-xs text-gray-500">{{ t('account.apps.tokens', { accessTokens: app.accessTokens, refreshTokens: app.refreshTokens }) }}</p>
+              </div>
+              <form method="POST" action="/account/apps/{{ app.clientId }}/revoke"
+                onsubmit="return confirm('{{ t('account.apps.revoke_confirm') }}')">
+                <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                <button type="submit" class="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-semibold text-red-700 hover:bg-red-50">
+                  {{ t('account.apps.revoke') }}
+                </button>
+              </form>
+            </div>
+          @end
+        @end
+      </div>
+    @end
+  </div>
+</body></html>

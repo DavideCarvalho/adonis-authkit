@@ -26,6 +26,12 @@ export type AuditEventType =
   | 'email.change_requested'
   | 'email.changed'
   | 'login.new_ip_notified'
+  | 'grant.revoked_by_user'
+  | 'user.created'
+  | 'user.password_reset_sent'
+  | 'user.disabled'
+  | 'user.enabled'
+  | 'profile.updated'
 
 /**
  * Evento de auditoria a registrar. O timestamp é definido pelo sink (não aqui).

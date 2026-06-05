@@ -129,6 +129,34 @@ test.group('AdminSessionsService (sessões/grants + revogação adapter-backed)'
     assert.lengthOf(await admin.listSessions('acc-2'), 1)
   })
 
+  test('revokeClientGrants revoga só os grants de um client (consentimento)', async ({
+    assert,
+    cleanup,
+  }) => {
+    const port = 9853
+    const { service, server } = await startService(port, db)
+    cleanup(() => new Promise<void>((r) => server.close(() => r())))
+
+    // Mesma conta, dois clients distintos (grants diferentes).
+    const grant = new DatabaseAdapter('Grant', db)
+    const at = new DatabaseAdapter('AccessToken', db)
+    await grant.upsert('g-c1', { accountId: 'acc-1', clientId: 'c1' } as any, 3600)
+    await grant.upsert('g-c2', { accountId: 'acc-1', clientId: 'c2' } as any, 3600)
+    await at.upsert('at-c1', { accountId: 'acc-1', clientId: 'c1', grantId: 'g-c1' } as any, 3600)
+    await at.upsert('at-c2', { accountId: 'acc-1', clientId: 'c2', grantId: 'g-c2' } as any, 3600)
+
+    const admin = new AdminSessionsService(service)
+    const result = await admin.revokeClientGrants('acc-1', 'c1')
+    assert.equal(result.grants, 1)
+    assert.equal(result.accessTokens, 1)
+
+    // O grant/token de c1 some; os de c2 permanecem.
+    assert.isUndefined(await (service.provider as any).Grant.find('g-c1'))
+    assert.isUndefined(await new DatabaseAdapter('AccessToken', db).find('at-c1'))
+    assert.isOk(await (service.provider as any).Grant.find('g-c2'))
+    assert.isOk(await new DatabaseAdapter('AccessToken', db).find('at-c2'))
+  })
+
   test('canList=false e listas vazias quando o adapter não enumera', async ({ assert }) => {
     // Adapter sem `list`: o serviço degrada graciosamente.
     class NoListAdapter {

@@ -1,8 +1,8 @@
 import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
-import { supportsAccountSecurity } from '../../accounts/account_store.js'
-import { changePasswordValidator, changeEmailValidator } from '../validators.js'
+import { supportsAccountSecurity, supportsProfile } from '../../accounts/account_store.js'
+import { changePasswordValidator, changeEmailValidator, updateProfileValidator } from '../validators.js'
 import { sendEmailChangeConfirmationEmail } from '../default_mailer.js'
 import { translate } from '../i18n.js'
 
@@ -25,12 +25,47 @@ export default class AccountSecurityController {
     return render(ctx, 'account/security', {
       csrfToken: ctx.request.csrfToken,
       supported: supportsAccountSecurity(cfg.accountStore),
+      profileSupported: supportsProfile(cfg.accountStore),
       email: account?.email ?? '',
+      name: account?.name ?? '',
+      avatarUrl: account?.avatarUrl ?? '',
       passwordChanged: ctx.session.flashMessages.get('passwordChanged') ?? null,
       emailChangeRequested: ctx.session.flashMessages.get('emailChangeRequested') ?? null,
       emailChanged: ctx.session.flashMessages.get('emailChanged') ?? null,
+      profileUpdated: ctx.session.flashMessages.get('profileUpdated') ?? null,
       error: ctx.session.flashMessages.get('securityError') ?? null,
     })
+  }
+
+  /** POST /account/security/profile — atualiza nome + avatar do próprio perfil. */
+  async updateProfile(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const store = cfg.accountStore
+
+    const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
+    if (!supportsProfile(store)) {
+      return ctx.response.redirect('/account/security')
+    }
+
+    const { name, avatarUrl } = await ctx.request.validateUsing(updateProfileValidator)
+    // Campos ausentes no form viram string vazia (limpa o valor); enviamos null
+    // para limpar, ou o valor trimado.
+    await store.updateProfile(userId, {
+      name: name ?? null,
+      avatarUrl: avatarUrl ?? null,
+    })
+
+    await cfg.audit?.record({
+      type: 'profile.updated',
+      accountId: userId,
+      ip: ctx.request.ip?.() ?? null,
+    })
+    ctx.session.flash(
+      'profileUpdated',
+      translate(cfg.messages, 'account.profile.updated')
+    )
+    return ctx.response.redirect('/account/security')
   }
 
   async changePassword(ctx: HttpContext) {

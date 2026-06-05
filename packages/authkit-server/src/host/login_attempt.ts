@@ -1,4 +1,5 @@
 import type { AuthAccount } from '../accounts/account_store.js'
+import { supportsAccountStatus } from '../accounts/account_store.js'
 import type { ResolvedServerConfig } from '../define_config.js'
 import { createAccountLockout } from './account_lockout.js'
 
@@ -18,7 +19,7 @@ export interface PasswordLoginInput {
 /** Resultado de {@link attemptPasswordLogin}. */
 export type PasswordLoginResult =
   | { ok: true; account: AuthAccount }
-  | { ok: false; locked: boolean; retryAfterSec?: number }
+  | { ok: false; locked: boolean; retryAfterSec?: number; disabled?: boolean }
 
 /**
  * Sequência canônica de login por senha + bloqueio progressivo, compartilhada
@@ -58,6 +59,19 @@ export async function attemptPasswordLogin(
     )
     await lockout.recordFailure(email, { sink: cfg.audit, ip })
     return { ok: false, locked: false }
+  }
+
+  // Conta desabilitada: rejeita o login (mesmo com senha correta). A capacidade é
+  // opcional — só checada quando o store a implementa. Emite `login.failure` (com
+  // motivo `disabled` no metadata) e NÃO registra falha no lockout (não é tentativa
+  // de adivinhar senha).
+  if (supportsAccountStatus(cfg.accountStore) && (await cfg.accountStore.isDisabled(account.id))) {
+    await cfg.audit?.record(
+      input.clientId !== undefined
+        ? { type: 'login.failure', email, ip, clientId: input.clientId, metadata: { reason: 'disabled' } }
+        : { type: 'login.failure', email, ip, metadata: { reason: 'disabled' } }
+    )
+    return { ok: false, locked: false, disabled: true }
   }
 
   // Senha correta: limpa o contador de falhas (o lockout protege a etapa de senha).

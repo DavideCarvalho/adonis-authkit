@@ -124,7 +124,9 @@ export default class AuthInteractionController {
           ? translate(cfg.messages, 'errors.account_locked', {
               seconds: result.retryAfterSec ?? 0,
             })
-          : translate(cfg.messages, 'errors.invalid_credentials'),
+          : result.disabled
+            ? translate(cfg.messages, 'errors.account_disabled')
+            : translate(cfg.messages, 'errors.invalid_credentials'),
         brand,
       })
     }

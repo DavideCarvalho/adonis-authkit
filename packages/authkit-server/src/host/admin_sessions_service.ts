@@ -155,6 +155,29 @@ export class AdminSessionsService {
     }
   }
 
+  /**
+   * Revoga os grants de uma conta para UM client específico (+ tokens ligados),
+   * deixando os demais clients intactos. Reaproveita a lógica de {@link revokeAll}
+   * restrita ao `clientId`. Usado pelo self-service de consentimento
+   * (/account/apps) e por qualquer revogação granular do admin. Retorna as
+   * contagens do que foi removido.
+   */
+  async revokeClientGrants(accountId: string, clientId: string): Promise<RevokeResult> {
+    const grantAdapter = this.#adapter('Grant')
+    const grants = (await this.listGrants(accountId)).filter((g) => g.clientId === clientId)
+    const grantIds = new Set(grants.map((g) => g.id))
+
+    const accessTokens = await this.#destroyTokensOfGrants('AccessToken', grantIds)
+    const refreshTokens = await this.#destroyTokensOfGrants('RefreshToken', grantIds)
+
+    for (const g of grants) {
+      await grantAdapter.revokeByGrantId(g.id)
+      await grantAdapter.destroy(g.id)
+    }
+
+    return { sessions: 0, grants: grants.length, accessTokens, refreshTokens }
+  }
+
   /** Destrói (quando enumerável) os artefatos de um model token cujos grantId estão em `grantIds`. */
   async #destroyTokensOfGrants(model: string, grantIds: Set<string>): Promise<number> {
     const adapter = this.#adapter(model)

@@ -14,6 +14,7 @@ import { buildCore } from './lucid_store/core.js'
 import { buildMfa } from './lucid_store/mfa.js'
 import { buildProviderIdentity } from './lucid_store/provider_identity.js'
 import { buildWebauthn } from './lucid_store/webauthn.js'
+import { buildStatus, buildProfile, hasColumn } from './lucid_store/status_profile.js'
 
 export type { AccountSecretEncrypter, WebauthnCeremonies }
 
@@ -115,6 +116,7 @@ export function lucidAccountStore(
       email: row.email,
       globalRoles: row.globalRoles ?? [],
       name: row.fullName ?? undefined,
+      avatarUrl: row.avatarUrl ?? undefined,
     }),
   }
 
@@ -127,6 +129,12 @@ export function lucidAccountStore(
     ...(ProviderIdentityModel ? buildProviderIdentity(ctx, ProviderIdentityModel) : {}),
     ...(WebauthnCredentialModel
       ? buildWebauthn(ctx, WebauthnCredentialModel, webauthn, ceremonies)
+      : {}),
+    // Status (disable/enable) só quando o model tem a coluna `disabled_at`.
+    ...(hasColumn(Model, 'disabledAt') ? buildStatus(ctx) : {}),
+    // Perfil (nome/avatar) só quando o model tem ao menos uma das colunas.
+    ...(hasColumn(Model, 'fullName') || hasColumn(Model, 'avatarUrl')
+      ? buildProfile(ctx)
       : {}),
   }
 }

@@ -96,6 +96,7 @@ const C = {
   accountSession: () => import('./controllers/account_session_controller.js'),
   accountTokens: () => import('./controllers/account_tokens_controller.js'),
   accountSecurity: () => import('./controllers/account_security_controller.js'),
+  accountApps: () => import('./controllers/account_apps_controller.js'),
   accountMfa: () => import('./controllers/account_mfa_controller.js'),
   adminDashboard: () => import('./controllers/admin/admin_dashboard_controller.js'),
   adminUsers: () => import('./controllers/admin/admin_users_controller.js'),
@@ -172,10 +173,15 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
       router.post('/account/tokens', [C.accountTokens, 'store'])
       router.post('/account/tokens/:id/revoke', [C.accountTokens, 'destroy'])
 
-      // Segurança da conta: trocar senha + solicitar troca de e-mail.
+      // Segurança da conta: trocar senha + solicitar troca de e-mail + perfil.
       router.get('/account/security', [C.accountSecurity, 'index'])
       router.post('/account/security/password', [C.accountSecurity, 'changePassword'])
       router.post('/account/security/email', [C.accountSecurity, 'changeEmail'])
+      router.post('/account/security/profile', [C.accountSecurity, 'updateProfile'])
+
+      // Apps com acesso (consentimento): lista os grants da conta + revogação por client.
+      router.get('/account/apps', [C.accountApps, 'index'])
+      router.post('/account/apps/:clientId/revoke', [C.accountApps, 'revoke'])
 
       // MFA / TOTP (enrollment, confirmação, disable).
       router.get('/account/mfa', [C.accountMfa, 'index'])
@@ -196,7 +202,11 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
       .group(() => {
         router.get('/admin', [C.adminDashboard, 'index'])
         router.get('/admin/users', [C.adminUsers, 'index'])
+        router.post('/admin/users', [C.adminUsers, 'store'])
         router.post('/admin/users/:id/roles', [C.adminUsers, 'updateRoles'])
+        router.post('/admin/users/:id/reset-password', [C.adminUsers, 'resetPassword'])
+        router.post('/admin/users/:id/disable', [C.adminUsers, 'disable'])
+        router.post('/admin/users/:id/enable', [C.adminUsers, 'enable'])
         // Sessões/grants ativos da conta + revogação em massa.
         router.get('/admin/users/:id/sessions', [C.adminSessions, 'index'])
         router.post('/admin/users/:id/revoke-sessions', [C.adminSessions, 'revoke'])

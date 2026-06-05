@@ -129,6 +129,45 @@ export interface AccountSecurityCapability {
 }
 
 /**
+ * Status da conta (habilitar/desabilitar) — usado pelo console admin para
+ * suspender uma conta sem apagá-la. É uma CAPACIDADE opcional: stores sem suporte
+ * omitem os métodos e a UI esconde os botões de disable/enable. Quando suportada,
+ * os fluxos de login (interaction OIDC + console de conta) DEVEM rejeitar contas
+ * desabilitadas (ver `attemptPasswordLogin`).
+ *
+ * O store default (Lucid) implementa via uma coluna `disabled_at` (timestamp
+ * nullable) NO model — quando a coluna existe (probe em `$columnsDefinitions`); se
+ * o model não a tiver, a capacidade fica genuinamente ausente (nenhum método é
+ * montado) e a UI esconde os botões. Hosts adicionam a coluna por migração própria
+ * (mesmo padrão documentado das demais colunas opcionais).
+ */
+export interface AccountStatusCapability {
+  /** Desabilita a conta (impede login). No-op se a conta não existe. */
+  disableAccount(accountId: string): Promise<void>
+  /** Reabilita a conta. No-op se a conta não existe. */
+  enableAccount(accountId: string): Promise<void>
+  /** Indica se a conta está desabilitada (false se a conta não existe). */
+  isDisabled(accountId: string): Promise<boolean>
+}
+
+/**
+ * Edição do perfil próprio (console de conta): nome e avatar. CAPACIDADE opcional;
+ * stores sem suporte omitem o método e a UI esconde a seção. O store default
+ * (Lucid) grava nas colunas `full_name`/`avatar_url` do model — apenas as que
+ * existirem (probe em `$columnsDefinitions`).
+ */
+export interface ProfileCapability {
+  /**
+   * Atualiza o perfil da conta. Campos `undefined` são deixados como estão;
+   * `null` limpa o valor. Retorna a conta atualizada ou null se inexistente.
+   */
+  updateProfile(
+    accountId: string,
+    patch: { name?: string | null; avatarUrl?: string | null }
+  ): Promise<AuthAccount | null>
+}
+
+/**
  * Account linking por identidade de provider (Google, GitHub, …).
  * `(provider, providerUserId)` é a chave estável vinda do provider OAuth — não
  * depende do e-mail (que pode mudar / não estar presente). Uma conta pode ter
@@ -235,7 +274,12 @@ export interface WebauthnCapability {
  */
 export type AccountStore = CoreAccountStore &
   Partial<
-    MfaCapability & WebauthnCapability & ProviderIdentityCapability & AccountSecurityCapability
+    MfaCapability &
+      WebauthnCapability &
+      ProviderIdentityCapability &
+      AccountSecurityCapability &
+      AccountStatusCapability &
+      ProfileCapability
   >
 
 /** Type guard: o store implementa a capacidade de MFA / TOTP. */
@@ -260,4 +304,16 @@ export function supportsAccountSecurity(
   store: AccountStore
 ): store is AccountStore & AccountSecurityCapability {
   return typeof store.changePassword === 'function'
+}
+
+/** Type guard: o store implementa habilitar/desabilitar conta. */
+export function supportsAccountStatus(
+  store: AccountStore
+): store is AccountStore & AccountStatusCapability {
+  return typeof store.disableAccount === 'function'
+}
+
+/** Type guard: o store implementa a edição de perfil (nome/avatar). */
+export function supportsProfile(store: AccountStore): store is AccountStore & ProfileCapability {
+  return typeof store.updateProfile === 'function'
 }

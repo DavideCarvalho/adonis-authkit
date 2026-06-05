@@ -138,6 +138,55 @@ test.group('attemptPasswordLogin', (group) => {
     assert.isNull(fail.clientId)
   })
 
+  test('conta desabilitada: rejeita login com { disabled: true } e emite login.failure', async ({
+    assert,
+  }) => {
+    const events: AuditEvent[] = []
+    const sink: AuditSink = { record: async (e) => { events.push(e) } }
+    // accountStore com a capacidade de status: a conta a@b.com está desabilitada.
+    const accountStore = {
+      verifyCredentials: async (email: string) =>
+        email === ACCOUNT.email ? { ...ACCOUNT } : null,
+      disableAccount: async () => {},
+      enableAccount: async () => {},
+      isDisabled: async (id: string) => id === ACCOUNT.id,
+    } as unknown as AccountStore
+    const cfg = {
+      accountStore,
+      audit: sink,
+      lockout: resolveLockout({ enabled: true, maxAttempts: 5 }),
+    } as unknown as ResolvedServerConfig
+
+    const res = await attemptPasswordLogin(cfg, {
+      email: 'a@b.com',
+      password: 'secret',
+      ip: '1.2.3.4',
+    })
+    assert.isFalse(res.ok)
+    if (!res.ok) {
+      assert.isFalse(res.locked)
+      assert.isTrue(res.disabled)
+    }
+    const fail = events.find((e) => e.type === 'login.failure')!
+    assert.equal((fail.metadata as any)?.reason, 'disabled')
+  })
+
+  test('conta habilitada (isDisabled=false) faz login normalmente', async ({ assert }) => {
+    const accountStore = {
+      verifyCredentials: async (email: string) =>
+        email === ACCOUNT.email ? { ...ACCOUNT } : null,
+      disableAccount: async () => {},
+      enableAccount: async () => {},
+      isDisabled: async () => false,
+    } as unknown as AccountStore
+    const cfg = {
+      accountStore,
+      lockout: resolveLockout({ enabled: true, maxAttempts: 5 }),
+    } as unknown as ResolvedServerConfig
+    const res = await attemptPasswordLogin(cfg, { email: 'a@b.com', password: 'secret', ip: null })
+    assert.isTrue(res.ok)
+  })
+
   test('travada: não verifica a senha e devolve { ok: false, locked: true, retryAfterSec }', async ({
     assert,
   }) => {

@@ -48,10 +48,15 @@ interface MfaCapability { /* getMfaState, startTotpEnrollment, confirmTotpEnroll
 interface WebauthnCapability { /* generatePasskeyRegistrationOptions, listPasskeys, … */ }
 interface ProviderIdentityCapability { /* findByProviderIdentity, linkProviderIdentity */ }
 interface AccountSecurityCapability { /* changePassword, requestEmailChange, confirmEmailChange */ }
+interface AccountStatusCapability { /* disableAccount, enableAccount, isDisabled */ }
+interface ProfileCapability { /* updateProfile({ name?, avatarUrl? }) */ }
 
 // What the config consumes.
 type AccountStore = CoreAccountStore &
-  Partial<MfaCapability & WebauthnCapability & ProviderIdentityCapability & AccountSecurityCapability>
+  Partial<
+    MfaCapability & WebauthnCapability & ProviderIdentityCapability &
+    AccountSecurityCapability & AccountStatusCapability & ProfileCapability
+  >
 ```
 
 A capability is **all-or-nothing**: a store either implements every method of
@@ -59,7 +64,7 @@ A capability is **all-or-nothing**: a store either implements every method of
 throw. Narrow at runtime with the exported type guards:
 
 ```ts
-import { supportsMfa, supportsPasskeys, supportsProviderIdentity, supportsAccountSecurity } from '@dudousxd/adonis-authkit-server'
+import { supportsMfa, supportsPasskeys, supportsProviderIdentity, supportsAccountSecurity, supportsAccountStatus, supportsProfile } from '@dudousxd/adonis-authkit-server'
 
 if (supportsMfa(store)) {
   await store.getMfaState(accountId) // typed as MfaCapability here
@@ -70,6 +75,13 @@ if (supportsMfa(store)) {
 - `supportsPasskeys(store)` → `store is AccountStore & WebauthnCapability` (checks `listPasskeys`)
 - `supportsProviderIdentity(store)` → `store is AccountStore & ProviderIdentityCapability` (checks `findByProviderIdentity`)
 - `supportsAccountSecurity(store)` → `store is AccountStore & AccountSecurityCapability` (checks `changePassword`); powers the `/account/security` page (change password / email)
+- `supportsAccountStatus(store)` → `store is AccountStore & AccountStatusCapability` (checks `disableAccount`); powers the admin **Disable / Enable** buttons and makes both login paths reject disabled accounts
+- `supportsProfile(store)` → `store is AccountStore & ProfileCapability` (checks `updateProfile`); powers the **Profile** section (name / avatar) on `/account/security`
+
+The Lucid store mounts `AccountStatusCapability` only when your model has a **`disabled_at`**
+column, and `ProfileCapability` only when it has a `full_name` and/or `avatar_url` column —
+probed via `Model.$columnsDefinitions`. Add the columns with your own migration; when they're
+absent the capability is genuinely missing and the corresponding UI is hidden.
 
 A store that omits MFA simply has it disabled (the interaction flow treats the absent
 capability as "no MFA"). The UI hides the passkeys section when `supportsPasskeys` is false.

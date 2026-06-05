@@ -10,6 +10,7 @@
       </div>
       <div class="flex items-center gap-4">
         <a href="/account/security" class="text-sm text-gray-500 hover:underline">{{ t('account.tokens.security') }}</a>
+        <a href="/account/apps" class="text-sm text-gray-500 hover:underline">{{ t('account.apps.title') }}</a>
         <form method="POST" action="/account/logout">
           <input type="hidden" name="_csrf" value="{{ csrfToken }}">
           <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('account.tokens.logout') }}</button>

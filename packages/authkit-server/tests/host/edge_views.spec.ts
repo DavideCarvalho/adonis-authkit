@@ -175,20 +175,82 @@ test.group('account console views render real (edge.js)', () => {
     assert.notInclude(html, '/revoke-sessions')
   })
 
-  test('account/security.edge renderiza os dois formulários', async ({ assert }) => {
+  test('account/security.edge renderiza os dois formulários + perfil', async ({ assert }) => {
     const edge = makeEdge()
     const html = await edge.render('authkit::account/security', {
       csrfToken: 'csrf',
       supported: true,
+      profileSupported: true,
       email: 'u@x.com',
+      name: 'Old Name',
+      avatarUrl: 'https://x/a.png',
       passwordChanged: null,
       emailChangeRequested: null,
       emailChanged: null,
+      profileUpdated: null,
       error: null,
     })
     assert.include(html, 'action="/account/security/password"')
     assert.include(html, 'action="/account/security/email"')
+    assert.include(html, 'action="/account/security/profile"')
+    assert.include(html, 'Old Name')
+    assert.include(html, '/account/apps')
     assert.include(html, 'csrf')
+  })
+
+  test('account/apps.edge renderiza apps com revogação e degrada sem enumeração', async ({
+    assert,
+  }) => {
+    const edge = makeEdge()
+    const html = await edge.render('authkit::account/apps', {
+      csrfToken: 'csrf',
+      supported: true,
+      revoked: null,
+      apps: [{ clientId: 'c1', name: 'c1', accessTokens: 2, refreshTokens: 1 }],
+    })
+    assert.include(html, 'action="/account/apps/c1/revoke"')
+    assert.include(html, 'name="_csrf"')
+
+    const degraded = await edge.render('authkit::account/apps', {
+      csrfToken: 't',
+      supported: false,
+      revoked: null,
+      apps: [],
+    })
+    assert.include(degraded, translate({ ...DEFAULT_MESSAGES }, 'account.apps.not_supported'))
+    assert.notInclude(degraded, '/revoke')
+  })
+
+  test('admin/users.edge renderiza criar/reset/disable + badge desabilitada', async ({
+    assert,
+  }) => {
+    const edge = makeEdge()
+    const html = await edge.render('authkit::admin/users', {
+      csrfToken: 'csrf',
+      search: '',
+      page: 1,
+      totalPages: 1,
+      total: 1,
+      statusSupported: true,
+      created: null,
+      resetSent: null,
+      statusChanged: null,
+      error: null,
+      users: [
+        {
+          id: 'u1',
+          email: 'a@b.com',
+          name: 'Al',
+          roles: [],
+          rolesText: '',
+          disabled: true,
+        },
+      ],
+    })
+    assert.include(html, 'action="/admin/users"')
+    assert.include(html, '/admin/users/u1/reset-password')
+    assert.include(html, '/admin/users/u1/enable')
+    assert.include(html, translate({ ...DEFAULT_MESSAGES }, 'admin.users.disabled_badge'))
   })
 
   test('account/email-confirmed.edge mostra sucesso/falha conforme `ok`', async ({ assert }) => {

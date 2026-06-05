@@ -24,6 +24,10 @@ class TestAccount extends compose(BaseModel, withAuthUser(), withCredentials(), 
   declare id: string
   @column()
   declare fullName: string | null
+  @column()
+  declare avatarUrl: string | null
+  @column.dateTime()
+  declare disabledAt: DateTime | null
   @beforeCreate()
   static assignId(row: TestAccount) {
     if (!row.id) row.id = randomUUID()
@@ -94,6 +98,8 @@ test.group('lucidAccountStore', (group) => {
       t.string('email').notNullable()
       t.string('password').notNullable()
       t.string('full_name').nullable()
+      t.string('avatar_url').nullable()
+      t.timestamp('disabled_at').nullable()
       t.text('global_roles').nullable()
       t.timestamp('email_verified_at').nullable()
       t.string('email_verification_token').nullable()
@@ -277,6 +283,40 @@ test.group('lucidAccountStore', (group) => {
     await store.create({ email: 'taken@x.com', password: 'pass123456' })
     const acc = await store.create({ email: 'me@x.com', password: 'pass123456' })
     assert.isNull(await store.requestEmailChange!(acc.id, 'taken@x.com'))
+  })
+
+  // ----- Status (disable/enable) + Perfil -----
+
+  test('disable/enable: isDisabled reflete o estado e updateProfile altera nome/avatar', async ({
+    assert,
+  }) => {
+    const store = lucidAccountStore(TestAccount)
+    const acc = await store.create({ email: 'st1@x.com', password: 'pass123456', fullName: 'Old' })
+
+    // Status: capacidade presente (model tem disabled_at).
+    assert.isTrue('disableAccount' in store)
+    assert.isFalse(await store.isDisabled!(acc.id))
+    await store.disableAccount!(acc.id)
+    assert.isTrue(await store.isDisabled!(acc.id))
+    await store.enableAccount!(acc.id)
+    assert.isFalse(await store.isDisabled!(acc.id))
+    // Conta inexistente: isDisabled false, métodos no-op.
+    assert.isFalse(await store.isDisabled!('nope'))
+    await assert.doesNotReject(() => store.disableAccount!('nope'))
+
+    // Perfil: capacidade presente (model tem full_name/avatar_url).
+    assert.isTrue('updateProfile' in store)
+    const updated = await store.updateProfile!(acc.id, { name: 'New', avatarUrl: 'https://x/a.png' })
+    assert.equal(updated!.name, 'New')
+    assert.equal(updated!.avatarUrl, 'https://x/a.png')
+    const reloaded = await store.findById(acc.id)
+    assert.equal(reloaded!.name, 'New')
+    assert.equal(reloaded!.avatarUrl, 'https://x/a.png')
+    // null limpa o valor; undefined preserva.
+    const cleared = await store.updateProfile!(acc.id, { avatarUrl: null })
+    assert.equal(cleared!.name, 'New')
+    assert.isUndefined(cleared!.avatarUrl)
+    assert.isNull(await store.updateProfile!('nope', { name: 'X' }))
   })
 
   // ----- MFA / TOTP -----

@@ -51,7 +51,10 @@ users self-serve:
 | `GET /account/security` | Change password and request an email change |
 | `POST /account/security/password` | Change password — requires the **current** password (verified via `verifyCredentials`) and a new one (min 8 chars, same rule as signup). Emits `password.changed`. |
 | `POST /account/security/email` | Request an email change — requires the current password; sends a confirmation link to the **new** address. Emits `email.change_requested`. |
+| `POST /account/security/profile` | Update display name + avatar URL — backed by the optional `ProfileCapability` (`updateProfile`). Emits `profile.updated`. Hidden when unsupported. |
 | `GET /account/email/confirm?token=…` | Consume the confirmation token and apply the new email (standalone, no session required — openable on another device). Emits `email.changed`. |
+| `GET /account/apps` | List the apps (OIDC clients) you have authorized, grouped by client, with live access/refresh token counts |
+| `POST /account/apps/:clientId/revoke` | Revoke one app's access — destroys that client's grants + tokens for your account (reuses `AdminSessionsService`). Emits `grant.revoked_by_user`. |
 | `GET /account/mfa` | Enroll / disable TOTP and manage passkeys |
 
 The change-password and change-email flows are backed by the optional
@@ -64,6 +67,13 @@ coexist for the same account (one column) — in practice these are distinct flo
 The confirmation email is sent through the same default mailer (and is overridable via the
 `mail.onEmailVerification` hook). Stores that don't implement the capability simply hide the
 security page (`supportsAccountSecurity` guards it).
+
+The **Profile** section (name + avatar) is backed by the optional `ProfileCapability`; the
+Lucid store mounts it only when the model has a `full_name`/`avatar_url` column. The **Apps
+with access** page (`/account/apps`) lists the account's OIDC grants and lets the user revoke
+a single client's access — the consent self-service counterpart of the admin "revoke all"
+button. It relies on the OIDC adapter's optional `list?()` capability and degrades gracefully
+when the adapter can't enumerate.
 
 ## The render seam
 

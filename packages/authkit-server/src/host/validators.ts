@@ -40,3 +40,23 @@ export const changeEmailValidator = vine.compile(
     newEmail: vine.string().trim().email().normalizeEmail(),
   })
 )
+
+/**
+ * Edição de perfil no console de conta: nome e avatarUrl, ambos opcionais.
+ * Campos vazios são normalizados para string vazia (limpa o valor).
+ */
+export const updateProfileValidator = vine.compile(
+  vine.object({
+    name: vine.string().trim().maxLength(255).optional(),
+    avatarUrl: vine.string().trim().url().maxLength(2048).optional(),
+  })
+)
+
+/** Criação de usuário no console admin (email obrigatório; nome/senha opcionais). */
+export const adminCreateUserValidator = vine.compile(
+  vine.object({
+    email: vine.string().trim().email().normalizeEmail(),
+    name: vine.string().trim().maxLength(255).optional(),
+    password: vine.string().minLength(8).maxLength(255).optional(),
+  })
+)

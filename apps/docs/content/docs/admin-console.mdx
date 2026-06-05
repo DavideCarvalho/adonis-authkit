@@ -53,7 +53,11 @@ The allowed roles are resolved at runtime from the `authkit.server` config. See
 | --- | --- |
 | `GET /admin` | Dashboard (counts + recent audit events) |
 | `GET /admin/users` | List/search users |
+| `POST /admin/users` | Create a user (with a password, or invite via password-reset email) |
 | `POST /admin/users/:id/roles` | Replace a user's global roles (`AccountStore.setGlobalRoles`) |
+| `POST /admin/users/:id/reset-password` | Issue a reset token and email it to the user |
+| `POST /admin/users/:id/disable` | Disable the account (blocks login) — needs `AccountStatusCapability` |
+| `POST /admin/users/:id/enable` | Re-enable a disabled account |
 | `GET /admin/users/:id/sessions` | List the account's active sessions + grants |
 | `POST /admin/users/:id/revoke-sessions` | Revoke all of the account's sessions + grants |
 | `GET /admin/clients` | List OAuth clients (static config + adapter-stored) |
@@ -87,6 +91,28 @@ Like the client list, enumeration relies on the adapter's **optional** `list?()`
 (the database and Redis adapters both implement it). When the adapter can't enumerate, the
 page **degrades gracefully** with a notice instead of erroring. Both the database adapter's
 table query and the Redis adapter's `SCAN` are scoped per model, so the lookup is cheap.
+
+## User management (create / invite / reset / disable)
+
+The users page has a **create** form (email + optional name + optional password). When you
+leave the password blank the account is created with a throwaway password and a
+**password-reset email** is sent — the user sets their own password (the "invite" flow).
+Each row also exposes **Send password reset** and, when the store supports it,
+**Disable** / **Enable** buttons. The operations emit `user.created`,
+`user.password_reset_sent`, `user.disabled` and `user.enabled` audit events.
+
+Disabling requires the optional **`AccountStatusCapability`** on the account store (see
+[Account store](/docs/account-store)). The Lucid store implements it via a
+`disabled_at` timestamp column **only when the column exists on your model** — otherwise the
+capability is genuinely absent and the disable/enable buttons are hidden. Add the column with
+a migration of your own:
+
+```ts
+table.timestamp('disabled_at').nullable()
+```
+
+Both login paths (the OIDC interaction and the account-console login) reject disabled
+accounts with an "account disabled" message, even with a correct password.
 
 ## Client CRUD
 

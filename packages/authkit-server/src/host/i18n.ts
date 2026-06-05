@@ -152,6 +152,29 @@ export const DEFAULT_MESSAGES = {
     'We sent a confirmation link to {email}. Click it to complete the change.',
   'account.security.email_changed': 'Email changed successfully.',
 
+  // Console de conta — perfil (seção em account/security).
+  'account.profile.section': 'Profile',
+  'account.profile.intro': 'Update your display name and avatar.',
+  'account.profile.name_label': 'Name',
+  'account.profile.avatar_label': 'Avatar URL',
+  'account.profile.submit': 'Save profile',
+  'account.profile.updated': 'Profile updated successfully.',
+  'account.profile.not_supported': 'Profile editing is not available in this installation.',
+
+  // Console de conta — apps com acesso (account/apps).
+  'account.apps.page_title': 'Apps with access',
+  'account.apps.title': 'Apps with access',
+  'account.apps.intro': 'Apps you have authorized to access your account.',
+  'account.apps.logout': 'Log out',
+  'account.apps.empty': 'No apps have access to your account.',
+  'account.apps.tokens': '{accessTokens} access · {refreshTokens} refresh',
+  'account.apps.revoke': 'Revoke access',
+  'account.apps.revoke_confirm':
+    'Revoke this app’s access? It will need to be authorized again and its tokens will stop working.',
+  'account.apps.revoked': 'Access revoked.',
+  'account.apps.not_supported':
+    'The configured OIDC adapter does not support enumeration — listing apps is unavailable.',
+
   // Confirmação de troca de e-mail (account/email-confirmed).
   'account.email_confirmed.page_title': 'Email confirmation',
   'account.email_confirmed.ok_title': 'Email changed',
@@ -215,6 +238,20 @@ export const DEFAULT_MESSAGES = {
   'admin.users.roles_placeholder': 'Roles (comma-separated)',
   'admin.users.save_roles': 'Save roles',
   'admin.users.sessions': 'Sessions',
+  'admin.users.create_section': 'Create user',
+  'admin.users.create_name_placeholder': 'Name (optional)',
+  'admin.users.create_email_placeholder': 'Email',
+  'admin.users.create_password_placeholder': 'Password (leave blank to send invite)',
+  'admin.users.create_submit': 'Create user',
+  'admin.users.created': 'User created.',
+  'admin.users.reset_password': 'Send password reset',
+  'admin.users.reset_sent': 'Password reset email sent.',
+  'admin.users.disable': 'Disable',
+  'admin.users.enable': 'Enable',
+  'admin.users.disabled': 'Account disabled.',
+  'admin.users.enabled': 'Account enabled.',
+  'admin.users.disabled_badge': 'Disabled',
+  'admin.users.disable_confirm': 'Disable this account? The user will not be able to log in.',
 
   // Console admin — sessões/grants ativos de uma conta.
   'admin.sessions.page_title': 'Active sessions',
@@ -315,6 +352,7 @@ export const DEFAULT_MESSAGES = {
   // Mensagens de erro/flash produzidas pelos controllers.
   'errors.invalid_credentials': 'Invalid credentials',
   'errors.invalid_code': 'Invalid code',
+  'errors.account_disabled': 'This account has been disabled.',
   'errors.email_taken': 'Email already registered',
   'errors.signup_failed': 'Could not create the account',
   'errors.invalid_or_expired_token': 'Invalid or expired token',
@@ -483,6 +521,29 @@ export const PT_BR_MESSAGES = {
     'Enviamos um link de confirmação para {email}. Clique nele para concluir a troca.',
   'account.security.email_changed': 'E-mail alterado com sucesso.',
 
+  // Console de conta — perfil (seção em account/security).
+  'account.profile.section': 'Perfil',
+  'account.profile.intro': 'Atualize seu nome de exibição e avatar.',
+  'account.profile.name_label': 'Nome',
+  'account.profile.avatar_label': 'URL do avatar',
+  'account.profile.submit': 'Salvar perfil',
+  'account.profile.updated': 'Perfil atualizado com sucesso.',
+  'account.profile.not_supported': 'A edição de perfil não está disponível nesta instalação.',
+
+  // Console de conta — apps com acesso (account/apps).
+  'account.apps.page_title': 'Apps com acesso',
+  'account.apps.title': 'Apps com acesso',
+  'account.apps.intro': 'Apps que você autorizou a acessar sua conta.',
+  'account.apps.logout': 'Sair',
+  'account.apps.empty': 'Nenhum app tem acesso à sua conta.',
+  'account.apps.tokens': '{accessTokens} access · {refreshTokens} refresh',
+  'account.apps.revoke': 'Revogar acesso',
+  'account.apps.revoke_confirm':
+    'Revogar o acesso deste app? Ele precisará ser autorizado novamente e seus tokens deixarão de funcionar.',
+  'account.apps.revoked': 'Acesso revogado.',
+  'account.apps.not_supported':
+    'O adapter OIDC configurado não suporta enumeração — a listagem de apps fica indisponível.',
+
   // Confirmação de troca de e-mail (account/email-confirmed).
   'account.email_confirmed.page_title': 'Confirmação de e-mail',
   'account.email_confirmed.ok_title': 'E-mail alterado',
@@ -546,6 +607,20 @@ export const PT_BR_MESSAGES = {
   'admin.users.roles_placeholder': 'Papéis (separados por vírgula)',
   'admin.users.save_roles': 'Salvar papéis',
   'admin.users.sessions': 'Sessões',
+  'admin.users.create_section': 'Criar usuário',
+  'admin.users.create_name_placeholder': 'Nome (opcional)',
+  'admin.users.create_email_placeholder': 'E-mail',
+  'admin.users.create_password_placeholder': 'Senha (deixe em branco para enviar convite)',
+  'admin.users.create_submit': 'Criar usuário',
+  'admin.users.created': 'Usuário criado.',
+  'admin.users.reset_password': 'Enviar redefinição de senha',
+  'admin.users.reset_sent': 'E-mail de redefinição de senha enviado.',
+  'admin.users.disable': 'Desabilitar',
+  'admin.users.enable': 'Reabilitar',
+  'admin.users.disabled': 'Conta desabilitada.',
+  'admin.users.enabled': 'Conta reabilitada.',
+  'admin.users.disabled_badge': 'Desabilitada',
+  'admin.users.disable_confirm': 'Desabilitar esta conta? O usuário não conseguirá entrar.',
 
   // Console admin — sessões/grants ativos de uma conta.
   'admin.sessions.page_title': 'Sessões ativas',
@@ -646,6 +721,7 @@ export const PT_BR_MESSAGES = {
   // Mensagens de erro/flash produzidas pelos controllers.
   'errors.invalid_credentials': 'Credenciais inválidas',
   'errors.invalid_code': 'Código inválido',
+  'errors.account_disabled': 'Esta conta foi desabilitada.',
   'errors.email_taken': 'E-mail já cadastrado',
   'errors.signup_failed': 'Não foi possível criar a conta',
   'errors.invalid_or_expired_token': 'Token inválido ou expirado',

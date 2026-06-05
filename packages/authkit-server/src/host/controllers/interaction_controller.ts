@@ -4,8 +4,20 @@ import { brandFor, isFirstParty } from '../branding.js'
 import { translate } from '../i18n.js'
 import { attemptPasswordLogin, isEmailUnverifiedBlock } from '../login_attempt.js'
 import { notifyLoginSuccess } from '../login_notify.js'
-import { guardBotProtection } from '../bot_protection.js'
+import { guardBotProtection, resolveEffectiveBotProtection } from '../bot_protection.js'
+import { RuntimeSettings } from '../runtime_settings.js'
 import { supportsPasskeys, supportsMagicLink } from '../../accounts/account_store.js'
+
+/** Best-effort: returns a RuntimeSettings backed by the container DB, or a no-op fallback. */
+async function getRuntimeSettings(ctx: HttpContext): Promise<RuntimeSettings> {
+  try {
+    const db = await ctx.containerResolver.make('lucid.db')
+    return new RuntimeSettings(db)
+  } catch {
+    // Fallback: no-table probe always returns null → config fallback
+    return new RuntimeSettings({ connection: async () => ({ schema: { async hasTable() { return false } } }), table: () => { throw new Error() } })
+  }
+}
 import { sendMagicLinkEmail } from '../default_mailer.js'
 import {
   TRUSTED_DEVICE_COOKIE,
@@ -72,6 +84,9 @@ export default class AuthInteractionController {
     const passkeyFirstAvailable =
       cfg.passwordless.passkeyFirst && !!acc && (await this.hasPasskeys(cfg, acc.id))
 
+    // Effective bot protection: may be overridden at runtime via auth_settings.
+    const effectiveBot = await resolveEffectiveBotProtection(cfg.botProtection, await getRuntimeSettings(ctx))
+
     return render(ctx, 'login', {
       uid: details.uid,
       csrfToken: ctx.request.csrfToken,
@@ -81,7 +96,7 @@ export default class AuthInteractionController {
       brand,
       magicLinkAvailable,
       passkeyFirstAvailable,
-      botProtection: cfg.botProtection?.on.includes('login') ? cfg.botProtection.widget : undefined,
+      botProtection: effectiveBot?.on.includes('login') ? effectiveBot.widget : undefined,
     })
   }
 
@@ -120,9 +135,16 @@ export default class AuthInteractionController {
     const ip = ctx.request.ip?.() ?? null
     const clientId = (details.params.client_id as string | undefined) ?? null
 
+    // Effective bot protection: may be overridden at runtime via auth_settings.
+    const effectiveBotLogin = await resolveEffectiveBotProtection(cfg.botProtection, await getRuntimeSettings(ctx))
+
     // Bot protection (plugável): valida o token do widget ANTES de tocar nas
     // credenciais. Fail-safe: erro/timeout no verify do host PERMITE o fluxo.
-    if (!(await guardBotProtection(ctx, cfg, 'login', { email, clientId }))) {
+    // We use a cfg-compatible object: pass effectiveBotLogin merged into cfg.
+    const cfgWithEffectiveBot = effectiveBotLogin !== cfg.botProtection
+      ? { ...cfg, botProtection: effectiveBotLogin }
+      : cfg
+    if (!(await guardBotProtection(ctx, cfgWithEffectiveBot as any, 'login', { email, clientId }))) {
       const found = await cfg.accountStore.findByEmail(email)
       const account = found
         ? { fullName: found.name ?? null, globalRoles: found.globalRoles ?? [] }
@@ -135,7 +157,7 @@ export default class AuthInteractionController {
         account,
         error: translate(cfg.messages, 'errors.bot_protection_failed'),
         brand,
-        botProtection: cfg.botProtection?.widget,
+        botProtection: effectiveBotLogin?.widget,
       })
     }
 
@@ -166,7 +188,7 @@ export default class AuthInteractionController {
               ? translate(cfg.messages, 'errors.email_unverified')
               : translate(cfg.messages, 'errors.invalid_credentials'),
         brand,
-        botProtection: cfg.botProtection?.on.includes('login') ? cfg.botProtection.widget : undefined,
+        botProtection: effectiveBotLogin?.on.includes('login') ? effectiveBotLogin.widget : undefined,
       })
     }
 

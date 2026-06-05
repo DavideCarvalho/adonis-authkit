@@ -5,7 +5,18 @@ import { signupValidator, forgotPasswordValidator, resetPasswordValidator } from
 import { sendPasswordResetEmail, sendEmailVerificationEmail } from '../default_mailer.js'
 import { translate } from '../i18n.js'
 import { PasswordPolicyError } from '../../password/password_manager.js'
-import { guardBotProtection } from '../bot_protection.js'
+import { guardBotProtection, resolveEffectiveBotProtection } from '../bot_protection.js'
+import { RuntimeSettings } from '../runtime_settings.js'
+
+/** Best-effort: returns a RuntimeSettings backed by the container DB, or a no-op fallback. */
+async function getRuntimeSettings(ctx: HttpContext): Promise<RuntimeSettings> {
+  try {
+    const db = await ctx.containerResolver.make('lucid.db')
+    return new RuntimeSettings(db)
+  } catch {
+    return new RuntimeSettings({ connection: async () => ({ schema: { async hasTable() { return false } } }), table: () => { throw new Error() } })
+  }
+}
 
 export default class AuthRegistrationController {
   /** GET /auth/interaction/:uid/signup — tela de cadastro (dentro do fluxo OIDC). */
@@ -15,11 +26,12 @@ export default class AuthRegistrationController {
     const render = cfg.render!
     const details = await service.interactions.details(ctx)
     const brand = brandFor(cfg.branding!, details.params.client_id as string | undefined)
+    const effectiveBot = await resolveEffectiveBotProtection(cfg.botProtection, await getRuntimeSettings(ctx))
     return render(ctx, 'signup', {
       uid: details.uid,
       csrfToken: ctx.request.csrfToken,
       brand,
-      botProtection: cfg.botProtection?.on.includes('signup') ? cfg.botProtection.widget : undefined,
+      botProtection: effectiveBot?.on.includes('signup') ? effectiveBot.widget : undefined,
     })
   }
 
@@ -31,16 +43,22 @@ export default class AuthRegistrationController {
     const details = await service.interactions.details(ctx)
     const brand = brandFor(cfg.branding!, details.params.client_id as string | undefined)
 
+    // Effective bot protection: may be overridden at runtime via auth_settings.
+    const effectiveBotSignup = await resolveEffectiveBotProtection(cfg.botProtection, await getRuntimeSettings(ctx))
+    const cfgWithEffectiveBotSignup = effectiveBotSignup !== cfg.botProtection
+      ? { ...cfg, botProtection: effectiveBotSignup }
+      : cfg
+
     // Bot protection (plugável): valida o token do widget ANTES de criar a conta.
     // Fail-safe: erro/timeout no verify do host PERMITE o cadastro.
     const clientId = (details.params.client_id as string | undefined) ?? null
-    if (!(await guardBotProtection(ctx, cfg, 'signup', { clientId }))) {
+    if (!(await guardBotProtection(ctx, cfgWithEffectiveBotSignup as any, 'signup', { clientId }))) {
       return render(ctx, 'signup', {
         uid: ctx.request.param('uid'),
         csrfToken: ctx.request.csrfToken,
         error: translate(cfg.messages, 'errors.bot_protection_failed'),
         brand,
-        botProtection: cfg.botProtection?.widget,
+        botProtection: effectiveBotSignup?.widget,
       })
     }
 
@@ -54,7 +72,7 @@ export default class AuthRegistrationController {
         csrfToken: ctx.request.csrfToken,
         error: translate(cfg.messages, 'errors.email_taken'),
         brand,
-        botProtection: cfg.botProtection?.on.includes('signup') ? cfg.botProtection.widget : undefined,
+        botProtection: effectiveBotSignup?.on.includes('signup') ? effectiveBotSignup.widget : undefined,
       })
     }
 
@@ -74,7 +92,7 @@ export default class AuthRegistrationController {
           csrfToken: ctx.request.csrfToken,
           error: translate(cfg.messages, error.key, error.params),
           brand,
-          botProtection: cfg.botProtection?.on.includes('signup') ? cfg.botProtection.widget : undefined,
+          botProtection: effectiveBotSignup?.on.includes('signup') ? effectiveBotSignup.widget : undefined,
         })
       }
       throw error
@@ -99,7 +117,7 @@ export default class AuthRegistrationController {
         csrfToken: ctx.request.csrfToken,
         error: translate(cfg.messages, 'errors.signup_failed'),
         brand,
-        botProtection: cfg.botProtection?.on.includes('signup') ? cfg.botProtection.widget : undefined,
+        botProtection: effectiveBotSignup?.on.includes('signup') ? effectiveBotSignup.widget : undefined,
       })
     }
 
@@ -132,9 +150,10 @@ export default class AuthRegistrationController {
     const service = await ctx.containerResolver.make('authkit.server')
     const cfg = service.config
     const render = cfg.render!
+    const effectiveBot = await resolveEffectiveBotProtection(cfg.botProtection, await getRuntimeSettings(ctx))
     return render(ctx, 'forgot', {
       csrfToken: ctx.request.csrfToken,
-      botProtection: cfg.botProtection?.on.includes('reset') ? cfg.botProtection.widget : undefined,
+      botProtection: effectiveBot?.on.includes('reset') ? effectiveBot.widget : undefined,
     })
   }
 
@@ -144,13 +163,19 @@ export default class AuthRegistrationController {
     const cfg = service.config
     const render = cfg.render!
 
+    // Effective bot protection: may be overridden at runtime via auth_settings.
+    const effectiveBotForgot = await resolveEffectiveBotProtection(cfg.botProtection, await getRuntimeSettings(ctx))
+    const cfgWithEffectiveBotForgot = effectiveBotForgot !== cfg.botProtection
+      ? { ...cfg, botProtection: effectiveBotForgot }
+      : cfg
+
     // Bot protection (plugável): valida o token do widget ANTES de emitir o token
     // de reset. Fail-safe: erro/timeout no verify do host PERMITE o fluxo.
-    if (!(await guardBotProtection(ctx, cfg, 'reset'))) {
+    if (!(await guardBotProtection(ctx, cfgWithEffectiveBotForgot as any, 'reset'))) {
       return render(ctx, 'forgot', {
         csrfToken: ctx.request.csrfToken,
         error: translate(cfg.messages, 'errors.bot_protection_failed'),
-        botProtection: cfg.botProtection?.widget,
+        botProtection: effectiveBotForgot?.widget,
       })
     }
 

@@ -14,6 +14,7 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
+    "smoke": "node scripts/import-smoke.mjs",
     "lint": "prettier --check .",
     "format": "prettier --write .",
     "release": "pnpm build && pnpm changeset publish"

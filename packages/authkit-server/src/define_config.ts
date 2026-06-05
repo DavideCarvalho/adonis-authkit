@@ -3,6 +3,7 @@ import type { ApplicationService } from '@adonisjs/core/types'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { ClientConfig, JwksConfig, ObservabilityConfig, TtlConfig } from '@dudousxd/adonis-authkit-core'
 import { generateJwks } from './keys/jwks_manager.js'
+import { ensureKeystore } from './keys/keystore.js'
 import { adapters, type AdapterFactory, type OidcAdapterClass } from './adapters/factory.js'
 import type { AccountStore, AuthAccount } from './accounts/account_store.js'
 import type { PatStore } from './pat/pat_store.js'
@@ -494,10 +495,21 @@ export function defineConfig(config: AuthServerConfigInput) {
   return configProvider.create(async (app: ApplicationService): Promise<ResolvedServerConfig> => {
     const AdapterClass = await config.adapter.resolver(app)
 
-    const jwks =
-      config.jwks.source === 'managed'
-        ? await generateJwks(config.jwks.algorithm ?? 'RS256')
-        : { keys: config.jwks.keys ?? [] }
+    let jwks: { keys: Record<string, any>[] }
+    if (config.jwks.source === 'managed') {
+      const alg = config.jwks.algorithm ?? 'RS256'
+      if (config.jwks.store) {
+        // keystore persistido em arquivo: chaves sobrevivem a restarts + rotacionáveis.
+        const storePath = app.makePath(config.jwks.store)
+        const store = await ensureKeystore(storePath, alg)
+        jwks = { keys: store.keys }
+      } else {
+        // managed efêmero: uma chave nova por boot.
+        jwks = await generateJwks(alg)
+      }
+    } else {
+      jwks = { keys: config.jwks.keys ?? [] }
+    }
 
     return {
       issuer: config.issuer,

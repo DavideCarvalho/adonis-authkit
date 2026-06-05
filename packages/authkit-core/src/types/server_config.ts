@@ -32,6 +32,13 @@ export interface JwksConfig {
   /** usado quando source='managed' */
   rotationDays?: number
   algorithm?: 'RS256' | 'ES256' | 'PS256' | 'EdDSA'
+  /**
+   * Caminho de um arquivo JSON onde o JWKS PRIVADO managed é persistido. Quando
+   * presente, as chaves sobrevivem a restarts e podem ser rotacionadas com
+   * `node ace authkit:rotate-keys`. Quando ausente, o modo managed gera uma
+   * chave efêmera por boot (sem rotação real).
+   */
+  store?: string
   /** usado quando source='jwks' */
   keys?: Record<string, unknown>[]
 }

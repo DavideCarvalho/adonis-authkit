@@ -1,0 +1,33 @@
+---
+title: Changelog
+description: Where to find release notes and per-package changelogs.
+---
+
+AuthKit is versioned and published with [Changesets](https://github.com/changesets/changesets).
+Each published package has its own changelog and semantic version.
+
+## GitHub releases
+
+All tagged releases (with aggregated notes) are published here:
+
+- [GitHub Releases](https://github.com/DavideCarvalho/streaming-educacao/releases)
+
+## Per-package changelogs
+
+Every package keeps a `CHANGELOG.md` next to its source, generated from the
+changesets merged into `main`:
+
+- [`@dudousxd/adonis-authkit-core`](https://github.com/DavideCarvalho/streaming-educacao/blob/main/packages/authkit-core/CHANGELOG.md)
+- [`@dudousxd/adonis-authkit-server`](https://github.com/DavideCarvalho/streaming-educacao/blob/main/packages/authkit-server/CHANGELOG.md)
+- [`@dudousxd/adonis-authkit-client`](https://github.com/DavideCarvalho/streaming-educacao/blob/main/packages/authkit-client/CHANGELOG.md)
+- [`@dudousxd/adonis-authkit-react`](https://github.com/DavideCarvalho/streaming-educacao/blob/main/packages/authkit-react/CHANGELOG.md)
+- [`@dudousxd/adonis-authkit-testing`](https://github.com/DavideCarvalho/streaming-educacao/blob/main/packages/authkit-testing/CHANGELOG.md)
+
+## How releases work
+
+1. A PR that changes a published package includes a changeset (`pnpm changeset`).
+2. On merge to `main`, the Release workflow opens a **Version Packages** PR that
+   bumps versions and updates the changelogs.
+3. Merging that PR publishes the affected packages to npm — with
+   [provenance](https://docs.npmjs.com/generating-provenance-statements) so the
+   build origin is verifiable.

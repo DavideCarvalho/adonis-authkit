@@ -31,6 +31,11 @@ jobs:
       - name: Build
         run: pnpm -r build
 
+      # Smoke de empacotamento: importa cada módulo do build de cada pacote
+      # publicável, pegando bugs como hard-imports que não resolvem em runtime.
+      - name: Import smoke (packaging)
+        run: node scripts/import-smoke.mjs
+
       - name: Typecheck
         run: pnpm -r typecheck
 

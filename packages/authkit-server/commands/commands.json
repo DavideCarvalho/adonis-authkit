@@ -25,6 +25,34 @@
       "args": [],
       "options": {},
       "filePath": "eject.js"
+    },
+    {
+      "commandName": "authkit:doctor",
+      "description": "Valida a configuração do AuthKit no host e imprime achados (✅/⚠️/❌). Sai com código !=0 se houver erros.",
+      "namespace": "authkit",
+      "aliases": [],
+      "flags": [],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "doctor.js"
+    },
+    {
+      "commandName": "authkit:rotate-keys",
+      "description": "Rotaciona as chaves de assinatura JWKS managed: gera uma nova chave (novo kid), mantém as N anteriores no JWKS para validar tokens antigos.",
+      "namespace": "authkit",
+      "aliases": [],
+      "flags": [
+        {
+          "name": "keep",
+          "flagName": "keep",
+          "required": false,
+          "type": "number",
+          "description": "Quantas chaves manter no JWKS (default 2)."
+        }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "rotate_keys.js"
     }
   ]
 }

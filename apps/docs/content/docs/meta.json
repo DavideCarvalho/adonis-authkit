@@ -29,6 +29,7 @@
     "security",
     "account-lockout",
     "observability",
-    "reference"
+    "reference",
+    "changelog"
   ]
 }

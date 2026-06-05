@@ -1,5 +1,11 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.5.0
+
+### Minor Changes
+
+- 687501c: Built-in UI strings now default to English; pt-BR ships as a built-in locale (`i18n: { locale: 'pt-BR' }`). BREAKING-ish for hosts relying on pt-BR defaults: set the locale explicitly.
+
 ## 0.4.0
 
 ### Minor Changes

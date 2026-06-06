@@ -1,15 +1,33 @@
-import React, { useEffect, useState, useCallback } from 'react'
-import { api, type Client, type ClientInput, ApiError } from '../lib/api'
+import React, { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  useClientsQueryOptions,
+  useCreateClientMutationOptions,
+  useUpdateClientMutationOptions,
+  useAuthkitClient,
+  authkitKeys,
+  type AdminClient,
+  type CreateClientInput,
+} from '@dudousxd/adonis-authkit-react'
 import { Modal } from '../components/Modal'
 import { useToast } from '../lib/toast'
 
 const GRANT_TYPES = ['authorization_code', 'refresh_token', 'client_credentials', 'implicit']
 const AUTH_METHODS = ['client_secret_basic', 'client_secret_post', 'none']
 
-function defaultInput(): ClientInput & { clientIdOverride: string } {
+interface FormState {
+  clientIdOverride: string
+  redirectUris: string[]
+  postLogoutRedirectUris: string[]
+  grantTypes: string[]
+  tokenEndpointAuthMethod: string
+  backchannelLogoutUri: string
+  backchannelLogoutSessionRequired: boolean
+}
+
+function defaultForm(): FormState {
   return {
     clientIdOverride: '',
-    clientId: undefined,
     redirectUris: [],
     postLogoutRedirectUris: [],
     grantTypes: ['authorization_code', 'refresh_token'],
@@ -21,41 +39,37 @@ function defaultInput(): ClientInput & { clientIdOverride: string } {
 
 export function Clients() {
   const toast = useToast()
-  const [clients, setClients] = useState<Client[]>([])
-  const [canList, setCanList] = useState(true)
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
+  const authkitClient = useAuthkitClient()
 
   const [createOpen, setCreateOpen] = useState(false)
-  const [editClient, setEditClient] = useState<Client | null>(null)
+  const [editClient, setEditClient] = useState<AdminClient | null>(null)
   const [createdSecret, setCreatedSecret] = useState<{ clientId: string; secret: string } | null>(null)
-  const [formData, setFormData] = useState(defaultInput())
-  const [saving, setSaving] = useState(false)
-
+  const [formData, setFormData] = useState<FormState>(defaultForm())
   const [redirectInput, setRedirectInput] = useState('')
   const [logoutInput, setLogoutInput] = useState('')
 
-  const load = useCallback(() => {
-    setLoading(true)
-    api.clients
-      .list()
-      .then((r) => { setClients(r.data); setCanList(r.canList) })
-      .catch((e) => toast.error(e.message))
-      .finally(() => setLoading(false))
-  }, [])
+  // ── Queries ──────────────────────────────────────────────────────────────────
 
-  useEffect(() => { load() }, [load])
+  const { data, isLoading } = useQuery(useClientsQueryOptions())
+  const clients = data?.data ?? []
+  const canList = data?.canList ?? true
+
+  // ── Mutations ─────────────────────────────────────────────────────────────────
+
+  const createMutation = useMutation(useCreateClientMutationOptions())
+  const updateMutation = useMutation(useUpdateClientMutationOptions(editClient?.clientId ?? ''))
 
   function openCreate() {
-    setFormData(defaultInput())
+    setFormData(defaultForm())
     setRedirectInput('')
     setLogoutInput('')
     setCreateOpen(true)
   }
 
-  function openEdit(c: Client) {
+  function openEdit(c: AdminClient) {
     setFormData({
       clientIdOverride: '',
-      clientId: undefined,
       redirectUris: [...c.redirectUris],
       postLogoutRedirectUris: [...c.postLogoutRedirectUris],
       grantTypes: [...c.grants],
@@ -75,7 +89,7 @@ export function Clients() {
       setFormData((f) => ({ ...f, redirectUris: [...f.redirectUris, val] }))
       setRedirectInput('')
     } else {
-      setFormData((f) => ({ ...f, postLogoutRedirectUris: [...(f.postLogoutRedirectUris ?? []), val] }))
+      setFormData((f) => ({ ...f, postLogoutRedirectUris: [...f.postLogoutRedirectUris, val] }))
       setLogoutInput('')
     }
   }
@@ -84,24 +98,23 @@ export function Clients() {
     if (type === 'redirect') {
       setFormData((f) => ({ ...f, redirectUris: f.redirectUris.filter((_, i) => i !== idx) }))
     } else {
-      setFormData((f) => ({ ...f, postLogoutRedirectUris: (f.postLogoutRedirectUris ?? []).filter((_, i) => i !== idx) }))
+      setFormData((f) => ({ ...f, postLogoutRedirectUris: f.postLogoutRedirectUris.filter((_, i) => i !== idx) }))
     }
   }
 
   function toggleGrant(g: string) {
     setFormData((f) => ({
       ...f,
-      grantTypes: f.grantTypes?.includes(g)
+      grantTypes: f.grantTypes.includes(g)
         ? f.grantTypes.filter((x) => x !== g)
-        : [...(f.grantTypes ?? []), g],
+        : [...f.grantTypes, g],
     }))
   }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    setSaving(true)
     try {
-      const input: ClientInput = {
+      const input: CreateClientInput = {
         clientId: formData.clientIdOverride || undefined,
         redirectUris: formData.redirectUris,
         postLogoutRedirectUris: formData.postLogoutRedirectUris,
@@ -110,27 +123,24 @@ export function Clients() {
         backchannelLogoutUri: formData.backchannelLogoutUri || undefined,
         backchannelLogoutSessionRequired: formData.backchannelLogoutSessionRequired,
       }
-      const r = await api.clients.create(input)
+      const r = await createMutation.mutateAsync(input)
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.clients() })
       setCreateOpen(false)
       if (r.clientSecret) {
         setCreatedSecret({ clientId: r.clientId, secret: r.clientSecret })
       } else {
         toast.success(`Client ${r.clientId} created`)
       }
-      load()
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : String(err))
-    } finally {
-      setSaving(false)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err))
     }
   }
 
   async function handleUpdate(e: React.FormEvent) {
     e.preventDefault()
     if (!editClient) return
-    setSaving(true)
     try {
-      await api.clients.update(editClient.clientId, {
+      await updateMutation.mutateAsync({
         redirectUris: formData.redirectUris,
         postLogoutRedirectUris: formData.postLogoutRedirectUris,
         grantTypes: formData.grantTypes,
@@ -138,38 +148,37 @@ export function Clients() {
         backchannelLogoutUri: formData.backchannelLogoutUri || undefined,
         backchannelLogoutSessionRequired: formData.backchannelLogoutSessionRequired,
       })
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.clients() })
       toast.success('Client updated')
       setEditClient(null)
-      load()
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : String(err))
-    } finally {
-      setSaving(false)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err))
     }
   }
 
-  async function handleDelete(c: Client) {
+  // Delete and regenerate call the client directly since they need the clientId at call time
+  async function handleDelete(c: AdminClient) {
     if (!confirm(`Delete client ${c.clientId}?`)) return
     try {
-      await api.clients.delete(c.clientId)
+      await authkitClient.admin.clients.remove(c.clientId)
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.clients() })
       toast.success('Client deleted')
-      load()
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : String(err))
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err))
     }
   }
 
-  async function handleRegenerate(c: Client) {
+  async function handleRegenerate(c: AdminClient) {
     if (!confirm(`Regenerate secret for ${c.clientId}? Existing secret will stop working.`)) return
     try {
-      const r = await api.clients.regenerateSecret(c.clientId)
+      const r = await authkitClient.admin.clients.regenerateSecret(c.clientId)
       if (r.clientSecret) {
         setCreatedSecret({ clientId: r.clientId, secret: r.clientSecret })
       } else {
         toast.info('No secret returned (public client)')
       }
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : String(err))
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -194,7 +203,7 @@ export function Clients() {
             <label key={g} className="checkbox-row" style={{ padding: '4px 0' }}>
               <input
                 type="checkbox"
-                checked={formData.grantTypes?.includes(g) ?? false}
+                checked={formData.grantTypes.includes(g)}
                 onChange={() => toggleGrant(g)}
               />
               <span className="chk-label mono">{g}</span>
@@ -238,7 +247,7 @@ export function Clients() {
 
       <div className="field">
         <label>Post-Logout Redirect URIs</label>
-        {(formData.postLogoutRedirectUris ?? []).map((uri, i) => (
+        {formData.postLogoutRedirectUris.map((uri, i) => (
           <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
             <input className="input input-mono" value={uri} readOnly style={{ flex: 1 }} />
             <button type="button" className="btn btn-sm btn-danger" onClick={() => removeUri('logout', i)}>
@@ -262,7 +271,7 @@ export function Clients() {
         <label>Backchannel Logout URI</label>
         <input
           className="input input-mono"
-          value={formData.backchannelLogoutUri ?? ''}
+          value={formData.backchannelLogoutUri}
           onChange={(e) => setFormData((f) => ({ ...f, backchannelLogoutUri: e.target.value }))}
           placeholder="https://app.example.com/backchannel-logout"
         />
@@ -271,7 +280,7 @@ export function Clients() {
       <label className="checkbox-row">
         <input
           type="checkbox"
-          checked={formData.backchannelLogoutSessionRequired ?? false}
+          checked={formData.backchannelLogoutSessionRequired}
           onChange={(e) => setFormData((f) => ({ ...f, backchannelLogoutSessionRequired: e.target.checked }))}
         />
         <span className="chk-label">Require session ID in backchannel logout</span>
@@ -298,7 +307,7 @@ export function Clients() {
 
       {!canList ? (
         <div className="error-box">Client store does not support listing (no dynamic registration adapter configured).</div>
-      ) : loading ? (
+      ) : isLoading ? (
         <div className="loading-row"><div className="spinner" /></div>
       ) : clients.length === 0 ? (
         <div className="empty-state">
@@ -360,8 +369,8 @@ export function Clients() {
         footer={
           <>
             <button className="btn" onClick={() => setCreateOpen(false)}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleCreate} disabled={saving}>
-              {saving ? <span className="spinner sm" /> : 'Create Client'}
+            <button className="btn btn-primary" onClick={handleCreate} disabled={createMutation.isPending}>
+              {createMutation.isPending ? <span className="spinner sm" /> : 'Create Client'}
             </button>
           </>
         }
@@ -378,8 +387,8 @@ export function Clients() {
         footer={
           <>
             <button className="btn" onClick={() => setEditClient(null)}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleUpdate} disabled={saving}>
-              {saving ? <span className="spinner sm" /> : 'Save Changes'}
+            <button className="btn btn-primary" onClick={handleUpdate} disabled={updateMutation.isPending}>
+              {updateMutation.isPending ? <span className="spinner sm" /> : 'Save Changes'}
             </button>
           </>
         }

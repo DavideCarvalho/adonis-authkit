@@ -1,5 +1,12 @@
-import React, { useEffect, useState, useCallback } from 'react'
-import { api, type Setting, ApiError } from '../lib/api'
+import React, { useState, useEffect } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  useSettingsQueryOptions,
+  useSetSettingMutationOptions,
+  useRemoveSettingMutationOptions,
+  authkitKeys,
+  type SettingEntry,
+} from '@dudousxd/adonis-authkit-react'
 import { useToast } from '../lib/toast'
 
 // Setting schema with sections, descriptions, and types
@@ -71,32 +78,40 @@ const SETTING_SECTIONS: Array<{ title: string; description: string; keys: Settin
 
 export function Settings() {
   const toast = useToast()
-  const [settings, setSettings] = useState<Setting[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
+
   const [unavailable, setUnavailable] = useState(false)
-  const [saving, setSaving] = useState<Record<string, boolean>>({})
   const [localValues, setLocalValues] = useState<Record<string, unknown>>({})
   const [dirtyKeys, setDirtyKeys] = useState<Set<string>>(new Set())
+  const [saving, setSaving] = useState<Record<string, boolean>>({})
 
-  const load = useCallback(() => {
-    setLoading(true)
-    api.settings
-      .list()
-      .then((r) => {
-        setSettings(r.data)
-        const initial: Record<string, unknown> = {}
-        for (const s of r.data) initial[s.key] = s.value
-        setLocalValues(initial)
-        setDirtyKeys(new Set())
-      })
-      .catch((e) => {
-        if (e.status === 404) setUnavailable(true)
-        else toast.error(e.message)
-      })
-      .finally(() => setLoading(false))
-  }, [])
+  // ── Query ─────────────────────────────────────────────────────────────────────
 
-  useEffect(() => { load() }, [load])
+  const { data, isLoading, error } = useQuery({
+    ...useSettingsQueryOptions(),
+    retry: (failureCount, err: unknown) => {
+      if (err && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 404) {
+        setUnavailable(true)
+        return false
+      }
+      return failureCount < 1
+    },
+  })
+  const settings = data?.data ?? []
+
+  // Sync local values when settings load
+  useEffect(() => {
+    if (!data) return
+    const initial: Record<string, unknown> = {}
+    for (const s of data.data) initial[s.key] = s.value
+    setLocalValues(initial)
+    setDirtyKeys(new Set())
+  }, [data])
+
+  // ── Mutations ─────────────────────────────────────────────────────────────────
+
+  const setSettingMutation = useMutation(useSetSettingMutationOptions())
+  const removeSettingMutation = useMutation(useRemoveSettingMutationOptions())
 
   function getValue(key: string, meta: SettingMeta): unknown {
     if (key in localValues) return localValues[key]
@@ -118,18 +133,12 @@ export function Settings() {
     setSaving((prev) => ({ ...prev, [key]: true }))
     try {
       const value = localValues[key]
-      await api.settings.upsert(key, value)
+      await setSettingMutation.mutateAsync({ key, value })
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.settings() })
       setDirtyKeys((prev) => { const s = new Set(prev); s.delete(key); return s })
-      // Update stored settings
-      setSettings((prev) => {
-        const idx = prev.findIndex((s) => s.key === key)
-        const entry: Setting = { key, value, updatedAt: new Date().toISOString(), updatedBy: null }
-        if (idx >= 0) return prev.map((s, i) => i === idx ? entry : s)
-        return [...prev, entry]
-      })
       toast.success(`Saved: ${key}`)
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : String(err))
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err))
     } finally {
       setSaving((prev) => ({ ...prev, [key]: false }))
     }
@@ -138,19 +147,19 @@ export function Settings() {
   async function resetSetting(key: string) {
     setSaving((prev) => ({ ...prev, [key]: true }))
     try {
-      await api.settings.delete(key)
-      setSettings((prev) => prev.filter((s) => s.key !== key))
+      await removeSettingMutation.mutateAsync(key)
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.settings() })
       setLocalValues((prev) => { const n = { ...prev }; delete n[key]; return n })
       setDirtyKeys((prev) => { const s = new Set(prev); s.delete(key); return s })
       toast.success(`Reset to default: ${key}`)
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : String(err))
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err))
     } finally {
       setSaving((prev) => ({ ...prev, [key]: false }))
     }
   }
 
-  if (unavailable) {
+  if (unavailable || (error && typeof error === 'object' && 'status' in error && (error as { status: number }).status === 404)) {
     return (
       <div>
         <div className="page-title" style={{ marginBottom: 8 }}>Settings</div>
@@ -161,7 +170,7 @@ export function Settings() {
     )
   }
 
-  if (loading) {
+  if (isLoading) {
     return <div className="loading-row"><div className="spinner lg" /></div>
   }
 

@@ -1,39 +1,38 @@
-import React, { useEffect, useState, useCallback } from 'react'
-import { api, type Session } from '../lib/api'
-import { ApiError } from '../lib/api'
+import React, { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  useSessionsQueryOptions,
+  useRevokeAllSessionsMutationOptions,
+  authkitKeys,
+} from '@dudousxd/adonis-authkit-react'
 import { Pagination } from '../components/Pagination'
 import { useToast } from '../lib/toast'
 
+const PER_PAGE = 20
+
 export function Sessions() {
   const toast = useToast()
-  const [sessions, setSessions] = useState<Session[]>([])
-  const [total, setTotal] = useState(0)
+  const queryClient = useQueryClient()
+
   const [page, setPage] = useState(1)
-  const [loading, setLoading] = useState(true)
-  const [revoking, setRevoking] = useState(false)
 
-  const load = useCallback(() => {
-    setLoading(true)
-    api.sessions
-      .list({ page, perPage: 20 })
-      .then((r) => { setSessions(r.data); setTotal(r.total) })
-      .catch((e) => toast.error(e.message))
-      .finally(() => setLoading(false))
-  }, [page])
+  const { data, isLoading } = useQuery(useSessionsQueryOptions())
+  const allSessions = data?.sessions ?? []
+  const total = allSessions.length
 
-  useEffect(() => { load() }, [load])
+  // Client-side pagination
+  const sessions = allSessions.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+
+  const revokeMutation = useMutation(useRevokeAllSessionsMutationOptions())
 
   async function revokeAll() {
     if (!confirm('Revoke ALL active sessions? All users will be logged out.')) return
-    setRevoking(true)
     try {
-      const r = await api.sessions.revokeAll()
-      toast.success(`Revoked ${r.revoked} sessions`)
-      load()
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : String(err))
-    } finally {
-      setRevoking(false)
+      const r = await revokeMutation.mutateAsync()
+      toast.success(`Revoked ${r.revoked ?? 0} sessions`)
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.sessions() })
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -45,8 +44,8 @@ export function Sessions() {
           <div className="page-sub">{total.toLocaleString()} active sessions</div>
         </div>
         <div className="page-actions">
-          <button className="btn btn-danger" onClick={revokeAll} disabled={revoking}>
-            {revoking ? <span className="spinner sm" /> : (
+          <button className="btn btn-danger" onClick={revokeAll} disabled={revokeMutation.isPending}>
+            {revokeMutation.isPending ? <span className="spinner sm" /> : (
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" />
               </svg>
@@ -57,7 +56,7 @@ export function Sessions() {
       </div>
 
       <div className="panel">
-        {loading ? (
+        {isLoading ? (
           <div className="loading-row"><div className="spinner" /></div>
         ) : sessions.length === 0 ? (
           <div className="empty-state">
@@ -114,7 +113,7 @@ export function Sessions() {
               </tbody>
             </table>
             <div style={{ padding: '0 16px 12px' }}>
-              <Pagination page={page} total={total} perPage={20} onPage={setPage} />
+              <Pagination page={page} total={total} perPage={PER_PAGE} onPage={setPage} />
             </div>
           </div>
         )}

@@ -1,5 +1,12 @@
-import React, { useEffect, useState, useCallback } from 'react'
-import { api, type Role, ApiError } from '../lib/api'
+import React, { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  useRolesQueryOptions,
+  useCreateRoleMutationOptions,
+  useAuthkitClient,
+  authkitKeys,
+  type RoleCatalogEntry,
+} from '@dudousxd/adonis-authkit-react'
 import { Modal } from '../components/Modal'
 import { useToast } from '../lib/toast'
 
@@ -7,40 +14,45 @@ const PROTECTED = 'ADMIN'
 
 export function Roles() {
   const toast = useToast()
-  const [roles, setRoles] = useState<Role[]>([])
-  const [loading, setLoading] = useState(true)
-  const [unavailable, setUnavailable] = useState(false)
+  const queryClient = useQueryClient()
+  const authkitClient = useAuthkitClient()
 
   const [createOpen, setCreateOpen] = useState(false)
-  const [editRole, setEditRole] = useState<Role | null>(null)
+  const [editRole, setEditRole] = useState<RoleCatalogEntry | null>(null)
   const [form, setForm] = useState({ name: '', description: '' })
   const [saving, setSaving] = useState(false)
+  const [unavailable, setUnavailable] = useState(false)
 
-  const load = useCallback(() => {
-    setLoading(true)
-    api.roles
-      .list()
-      .then((r) => setRoles(r.data))
-      .catch((e) => {
-        if (e.status === 404) setUnavailable(true)
-        else toast.error(e.message)
-      })
-      .finally(() => setLoading(false))
-  }, [])
+  // ── Query ─────────────────────────────────────────────────────────────────────
 
-  useEffect(() => { load() }, [load])
+  const { data, isLoading, error } = useQuery({
+    ...useRolesQueryOptions(),
+    retry: (failureCount, err: unknown) => {
+      // If 404, mark as unavailable and don't retry
+      if (err && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 404) {
+        setUnavailable(true)
+        return false
+      }
+      return failureCount < 1
+    },
+  })
+  const roles = data?.data ?? []
+
+  // ── Mutations ─────────────────────────────────────────────────────────────────
+
+  const createMutation = useMutation(useCreateRoleMutationOptions())
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     try {
-      await api.roles.create({ name: form.name.trim().toUpperCase(), description: form.description || undefined })
+      await createMutation.mutateAsync({ name: form.name.trim().toUpperCase(), description: form.description || undefined })
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.roles() })
       toast.success('Role created')
       setCreateOpen(false)
       setForm({ name: '', description: '' })
-      load()
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : String(err))
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err))
     } finally {
       setSaving(false)
     }
@@ -51,30 +63,30 @@ export function Roles() {
     if (!editRole) return
     setSaving(true)
     try {
-      await api.roles.update(editRole.name, { description: form.description || undefined })
+      await authkitClient.admin.roles.update(editRole.name, { description: form.description || undefined })
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.roles() })
       toast.success('Role updated')
       setEditRole(null)
-      load()
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : String(err))
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err))
     } finally {
       setSaving(false)
     }
   }
 
-  async function handleDelete(r: Role) {
+  async function handleDelete(r: RoleCatalogEntry) {
     if (r.name === PROTECTED) return
     if (!confirm(`Delete role ${r.name}?`)) return
     try {
-      await api.roles.delete(r.name)
+      await authkitClient.admin.roles.remove(r.name)
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.roles() })
       toast.success('Role deleted')
-      load()
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : String(err))
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err))
     }
   }
 
-  if (unavailable) {
+  if (unavailable || (error && typeof error === 'object' && 'status' in error && (error as { status: number }).status === 404)) {
     return (
       <div>
         <div className="page-title" style={{ marginBottom: 8 }}>Roles</div>
@@ -103,7 +115,7 @@ export function Roles() {
       </div>
 
       <div className="panel">
-        {loading ? (
+        {isLoading ? (
           <div className="loading-row"><div className="spinner" /></div>
         ) : roles.length === 0 ? (
           <div className="empty-state">
@@ -137,8 +149,8 @@ export function Roles() {
                       <span style={{ color: 'var(--muted)', fontSize: 12 }}>{r.description ?? '—'}</span>
                     </td>
                     <td>
-                      <span className={`badge ${r.builtin ? 'badge-accent' : 'badge-muted'}`}>
-                        {r.builtin ? 'built-in' : 'custom'}
+                      <span className={`badge ${'builtin' in r && (r as { builtin?: boolean }).builtin ? 'badge-accent' : 'badge-muted'}`}>
+                        {'builtin' in r && (r as { builtin?: boolean }).builtin ? 'built-in' : 'custom'}
                       </span>
                     </td>
                     <td className="no-click" style={{ textAlign: 'right' }}>

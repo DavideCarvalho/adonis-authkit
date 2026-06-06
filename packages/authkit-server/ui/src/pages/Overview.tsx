@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react'
-import { api, type OverviewData } from '../lib/api'
+import React from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useOverviewQueryOptions } from '@dudousxd/adonis-authkit-react'
 import { SparkLine } from '../components/SparkLine'
 
 function fmtDate(d: string) {
@@ -15,20 +16,9 @@ function eventBadgeClass(type: string) {
 }
 
 export function Overview() {
-  const [data, setData] = useState<OverviewData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { data, isLoading, error } = useQuery(useOverviewQueryOptions())
 
-  useEffect(() => {
-    setLoading(true)
-    api.overview
-      .get()
-      .then(setData)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [])
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="loading-row">
         <div className="spinner lg" />
@@ -38,7 +28,7 @@ export function Overview() {
   }
 
   if (error) {
-    return <div className="error-box">{error}</div>
+    return <div className="error-box">{error.message}</div>
   }
 
   if (!data) return null
@@ -58,7 +48,7 @@ export function Overview() {
         </div>
         <div className="card c-green">
           <div className="card-label">Active Sessions</div>
-          <div className="card-value">{data.activeSessions.toLocaleString()}</div>
+          <div className="card-value">{(data.activeSessions ?? 0).toLocaleString()}</div>
           <div className="card-hint">currently logged in</div>
         </div>
         <div className="card c-amber">

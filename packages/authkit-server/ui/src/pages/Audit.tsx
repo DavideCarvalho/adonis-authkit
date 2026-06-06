@@ -1,5 +1,9 @@
-import React, { useEffect, useState, useCallback } from 'react'
-import { api, type AuditEvent } from '../lib/api'
+import React, { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import {
+  useAuditQueryOptions,
+  type AuditEventEntry,
+} from '@dudousxd/adonis-authkit-react'
 import { Pagination } from '../components/Pagination'
 import { useToast } from '../lib/toast'
 
@@ -27,31 +31,31 @@ const EVENT_TYPES = [
   'account.enabled',
 ]
 
+const PER_PAGE = 30
+
 export function Audit() {
   const toast = useToast()
-  const [events, setEvents] = useState<AuditEvent[]>([])
-  const [total, setTotal] = useState(0)
+
   const [page, setPage] = useState(1)
   const [typeFilter, setTypeFilter] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState<AuditEventEntry | null>(null)
   const [unavailable, setUnavailable] = useState(false)
-  const [selected, setSelected] = useState<AuditEvent | null>(null)
 
-  const load = useCallback(() => {
-    setLoading(true)
-    api.audit
-      .list({ type: typeFilter || undefined, page, perPage: 30 })
-      .then((r) => { setEvents(r.data); setTotal(r.total) })
-      .catch((e) => {
-        if (e.status === 404) setUnavailable(true)
-        else toast.error(e.message)
-      })
-      .finally(() => setLoading(false))
-  }, [typeFilter, page])
+  const { data, isLoading, error } = useQuery({
+    ...useAuditQueryOptions({ type: typeFilter || undefined, page, limit: PER_PAGE }),
+    retry: (failureCount, err: unknown) => {
+      if (err && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 404) {
+        setUnavailable(true)
+        return false
+      }
+      return failureCount < 1
+    },
+  })
 
-  useEffect(() => { load() }, [load])
+  const events = data?.data ?? []
+  const total = data?.total ?? 0
 
-  if (unavailable) {
+  if (unavailable || (error && typeof error === 'object' && 'status' in error && (error as { status: number }).status === 404)) {
     return (
       <div>
         <div className="page-title" style={{ marginBottom: 8 }}>Audit Log</div>
@@ -83,7 +87,7 @@ export function Audit() {
           </select>
         </div>
 
-        {loading ? (
+        {isLoading ? (
           <div className="loading-row"><div className="spinner" /></div>
         ) : events.length === 0 ? (
           <div className="empty-state">
@@ -126,7 +130,7 @@ export function Audit() {
               </tbody>
             </table>
             <div style={{ padding: '0 16px 12px' }}>
-              <Pagination page={page} total={total} perPage={30} onPage={setPage} />
+              <Pagination page={page} total={total} perPage={PER_PAGE} onPage={setPage} />
             </div>
           </div>
         )}

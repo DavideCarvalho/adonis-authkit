@@ -1,45 +1,62 @@
-import React, { useEffect, useState, useCallback } from 'react'
-import { api, type Org, type OrgDetail } from '../lib/api'
+import React, { useState, useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  useOrgsQueryOptions,
+  useOrgQueryOptions,
+  type AdminOrgEntry,
+  type AdminOrgDetail,
+} from '@dudousxd/adonis-authkit-react'
 import { Pagination } from '../components/Pagination'
 import { Drawer } from '../components/Drawer'
 import { useToast } from '../lib/toast'
 
+const PER_PAGE = 20
+
+function useDebounce<T>(value: T, ms: number): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), ms)
+    return () => clearTimeout(t)
+  }, [value, ms])
+  return debounced
+}
+
 export function Orgs() {
   const toast = useToast()
-  const [orgs, setOrgs] = useState<Org[]>([])
-  const [total, setTotal] = useState(0)
+
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
-  const [loading, setLoading] = useState(true)
+  const dSearch = useDebounce(search, 300)
+  const [detailOrgId, setDetailOrgId] = useState<string | null>(null)
   const [unavailable, setUnavailable] = useState(false)
-  const [detail, setDetail] = useState<OrgDetail | null>(null)
-  const [detailLoading, setDetailLoading] = useState(false)
 
-  const load = useCallback(() => {
-    setLoading(true)
-    api.orgs
-      .list({ search, page, perPage: 20 })
-      .then((r) => { setOrgs(r.data); setTotal(r.total) })
-      .catch((e) => {
-        if (e.status === 404) setUnavailable(true)
-        else toast.error(e.message)
-      })
-      .finally(() => setLoading(false))
-  }, [search, page])
+  // ── Query ─────────────────────────────────────────────────────────────────────
 
-  useEffect(() => { load() }, [load])
+  const { data: listData, isLoading, error } = useQuery({
+    ...useOrgsQueryOptions(),
+    retry: (failureCount, err: unknown) => {
+      if (err && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 404) {
+        setUnavailable(true)
+        return false
+      }
+      return failureCount < 1
+    },
+  })
 
-  function openDetail(o: Org) {
-    setDetail(null)
-    setDetailLoading(true)
-    api.orgs
-      .get(o.id)
-      .then(setDetail)
-      .catch((e) => toast.error(e.message))
-      .finally(() => setDetailLoading(false))
-  }
+  const allOrgs = listData?.data ?? []
 
-  if (unavailable) {
+  // Client-side search + pagination
+  const filtered = dSearch
+    ? allOrgs.filter(
+        (o) =>
+          o.name.toLowerCase().includes(dSearch.toLowerCase()) ||
+          o.slug.toLowerCase().includes(dSearch.toLowerCase())
+      )
+    : allOrgs
+  const total = filtered.length
+  const orgs = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+
+  if (unavailable || (error && typeof error === 'object' && 'status' in error && (error as { status: number }).status === 404)) {
     return (
       <div>
         <div className="page-title" style={{ marginBottom: 8 }}>Organizations</div>
@@ -72,7 +89,7 @@ export function Orgs() {
           </div>
         </div>
 
-        {loading ? (
+        {isLoading ? (
           <div className="loading-row"><div className="spinner" /></div>
         ) : orgs.length === 0 ? (
           <div className="empty-state">
@@ -98,7 +115,7 @@ export function Orgs() {
               </thead>
               <tbody>
                 {orgs.map((o) => (
-                  <tr key={o.id} onClick={() => openDetail(o)}>
+                  <tr key={o.id} onClick={() => setDetailOrgId(o.id)}>
                     <td><b>{o.name}</b></td>
                     <td><span className="code">{o.slug}</span></td>
                     <td><span className="mono text-sm">{o.memberCount ?? '—'}</span></td>
@@ -112,63 +129,84 @@ export function Orgs() {
               </tbody>
             </table>
             <div style={{ padding: '0 16px 12px' }}>
-              <Pagination page={page} total={total} perPage={20} onPage={setPage} />
+              <Pagination page={page} total={total} perPage={PER_PAGE} onPage={setPage} />
             </div>
           </div>
         )}
       </div>
 
-      <Drawer
-        open={!!detail || detailLoading}
-        onClose={() => setDetail(null)}
-        title={detail?.name ?? 'Loading…'}
-      >
-        {detailLoading && <div className="loading-row"><div className="spinner" /></div>}
-        {detail && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div>
-              <div style={{ fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--faint)', fontWeight: 600, marginBottom: 8 }}>
-                Info
-              </div>
-              <div className="code">{detail.id}</div>
-              <div style={{ marginTop: 6, fontSize: 12 }}>
-                <span className="badge badge-muted">{detail.slug}</span>
-              </div>
-            </div>
+      {detailOrgId && (
+        <OrgDetailDrawer
+          orgId={detailOrgId}
+          onClose={() => setDetailOrgId(null)}
+        />
+      )}
+    </div>
+  )
+}
 
+// ── Org Detail Drawer ─────────────────────────────────────────────────────────
+
+function OrgDetailDrawer({
+  orgId,
+  onClose,
+}: {
+  orgId: string
+  onClose: () => void
+}) {
+  const { data: detail, isLoading } = useQuery(useOrgQueryOptions(orgId))
+
+  return (
+    <Drawer
+      open={true}
+      onClose={onClose}
+      title={detail?.name ?? 'Loading…'}
+    >
+      {isLoading && <div className="loading-row"><div className="spinner" /></div>}
+      {detail && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div>
+            <div style={{ fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--faint)', fontWeight: 600, marginBottom: 8 }}>
+              Info
+            </div>
+            <div className="code">{detail.id}</div>
+            <div style={{ marginTop: 6, fontSize: 12 }}>
+              <span className="badge badge-muted">{detail.slug}</span>
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--faint)', fontWeight: 600, marginBottom: 8 }}>
+              Members ({detail.members.length})
+            </div>
+            {detail.members.map((m) => (
+              <div key={m.accountId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--line)' }}>
+                <div className="avatar" style={{ width: 24, height: 24, fontSize: 9 }}>
+                  {(m.email ?? '?').slice(0, 2).toUpperCase()}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text)' }}>{m.email ?? m.accountId}</div>
+                </div>
+                <span className="badge badge-muted">{m.role}</span>
+              </div>
+            ))}
+          </div>
+
+          {detail.pendingInvitations.length > 0 && (
             <div>
               <div style={{ fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--faint)', fontWeight: 600, marginBottom: 8 }}>
-                Members ({detail.members.length})
+                Pending Invitations ({detail.pendingInvitations.length})
               </div>
-              {detail.members.map((m) => (
-                <div key={m.accountId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--line)' }}>
-                  <div className="avatar" style={{ width: 24, height: 24, fontSize: 9 }}>
-                    {(m.email ?? '?').slice(0, 2).toUpperCase()}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, color: 'var(--text)' }}>{m.email ?? m.accountId}</div>
-                  </div>
-                  <span className="badge badge-muted">{m.role}</span>
+              {detail.pendingInvitations.map((inv) => (
+                <div key={inv.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--line)' }}>
+                  <div style={{ flex: 1, fontSize: 12, color: 'var(--muted)' }}>{inv.email}</div>
+                  <span className="badge badge-amber">{inv.role}</span>
                 </div>
               ))}
             </div>
-
-            {detail.invitations.length > 0 && (
-              <div>
-                <div style={{ fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--faint)', fontWeight: 600, marginBottom: 8 }}>
-                  Pending Invitations ({detail.invitations.length})
-                </div>
-                {detail.invitations.map((inv, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--line)' }}>
-                    <div style={{ flex: 1, fontSize: 12, color: 'var(--muted)' }}>{inv.email}</div>
-                    <span className="badge badge-amber">{inv.role}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </Drawer>
-    </div>
+          )}
+        </div>
+      )}
+    </Drawer>
   )
 }

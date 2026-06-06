@@ -44,6 +44,7 @@
   },
   "peerDependencies": {
     "@inertiajs/react": "catalog:frontend",
+    "@tanstack/react-query": "catalog:frontend",
     "react": "catalog:frontend",
     "react-dom": "catalog:frontend"
   },
@@ -56,6 +57,7 @@
     "@japa/assert": "catalog:",
     "@japa/runner": "catalog:",
     "@poppinss/ts-exec": "catalog:",
+    "@tanstack/react-query": "catalog:frontend",
     "@types/node": "catalog:adonis",
     "@types/react": "catalog:frontend",
     "@types/react-dom": "catalog:frontend",

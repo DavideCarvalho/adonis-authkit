@@ -93,3 +93,181 @@ export {
   hasAllAppRoles,
 } from './src/roles.js'
 export type { AuthUser, AuthSharedProps, AuthState } from './src/types.js'
+
+// ─── Client tipado ────────────────────────────────────────────────────────────
+export { createAuthkitClient, AuthkitClientError } from './src/client/client.js'
+export type { AuthkitClient, AuthkitClientOptions } from './src/client/client.js'
+
+// Tipos das superfícies do client (desacoplados do server)
+export type {
+  // Admin – Usuários
+  AdminUser,
+  AdminUserListResult,
+  CreateUserInput,
+  UpdateUserInput,
+  UserSessionsResult,
+  RevokeSessionsResult,
+  AdminSessionEntry,
+  AdminGrantEntry,
+  // Admin – Clients
+  AdminClient,
+  AdminClientListResult,
+  CreatedClientResult,
+  RegenerateSecretResult,
+  CreateClientInput,
+  UpdateClientInput,
+  // Admin – Roles
+  RoleCatalogEntry,
+  RoleListResult,
+  CreateRoleInput,
+  UpdateRoleInput,
+  // Admin – Orgs
+  AdminOrgEntry,
+  AdminOrgMember,
+  AdminOrgInvitation,
+  AdminOrgDetail,
+  AdminOrgListResult,
+  CreateOrgInput,
+  UpdateOrgInput,
+  // Admin – Audit
+  AuditEventEntry,
+  AuditListResult,
+  AuditListParams,
+  // Admin – Settings
+  SettingEntry,
+  SettingListResult,
+  // Admin – Impersonation
+  ImpersonationPanel,
+  // Admin – Overview
+  DailyPoint,
+  AdminOverview,
+  // Account – Me / Security
+  AccountCapabilities,
+  AccountMe,
+  AccountSecurityOverview,
+  AccountSessionEntry,
+  // Account – Sessions
+  AccountSessionsResult,
+  RevokeSessionResult,
+  RevokeOthersResult,
+  // Account – Apps
+  AccountAppEntry,
+  AccountAppsResult,
+  RevokeAppResult,
+  // Account – MFA / Passkeys
+  PasskeySummaryEntry,
+  AccountMfaStatus,
+  AccountPasskeysResult,
+  RemovePasskeyResult,
+  // Account – Tokens
+  PatEntry,
+  CreatedPatResult,
+  AccountTokensResult,
+  CreateTokenInput,
+  RevokeTokenResult,
+  // Account – Perfil
+  UpdateProfileInput,
+  UpdateProfileResult,
+  // Account – Senha / E-mail
+  ChangePasswordInput,
+  RequestEmailChangeInput,
+  OkResult,
+  EmailChangeResult,
+  // Account – Orgs
+  AccountOrgEntry,
+  AccountOrgsResult,
+  AccountOrgDetail,
+  AccountOrgInvitationsResult,
+  ApiErrorBody,
+} from './src/client/types.js'
+
+// ─── Provider do client ───────────────────────────────────────────────────────
+export {
+  AuthkitClientProvider,
+  useAuthkitClient,
+  createAuthkitQueryClient,
+} from './src/client/context.js'
+export type { AuthkitClientProviderProps } from './src/client/context.js'
+
+// ─── Query keys ───────────────────────────────────────────────────────────────
+export { authkitKeys } from './src/queries/keys.js'
+
+// ─── Hooks TanStack Query — Admin ─────────────────────────────────────────────
+export {
+  // Overview
+  useOverviewQueryOptions,
+  // Users
+  useUsersQueryOptions,
+  useUserQueryOptions,
+  useUserSessionsQueryOptions,
+  useCreateUserMutationOptions,
+  useUpdateUserMutationOptions,
+  useDisableUserMutationOptions,
+  useEnableUserMutationOptions,
+  useResetPasswordMutationOptions,
+  useDeleteUserMutationOptions,
+  useRevokeUserSessionsMutationOptions,
+  // Sessions
+  useSessionsQueryOptions,
+  useRevokeAllSessionsMutationOptions,
+  // Clients
+  useClientsQueryOptions,
+  useClientQueryOptions,
+  useCreateClientMutationOptions,
+  useUpdateClientMutationOptions,
+  useDeleteClientMutationOptions,
+  useRegenerateClientSecretMutationOptions,
+  // Roles
+  useRolesQueryOptions,
+  useCreateRoleMutationOptions,
+  useUpdateRoleMutationOptions,
+  useDeleteRoleMutationOptions,
+  // Orgs
+  useOrgsQueryOptions,
+  useOrgQueryOptions,
+  useCreateOrgMutationOptions,
+  useUpdateOrgMutationOptions,
+  useDeleteOrgMutationOptions,
+  // Audit
+  useAuditQueryOptions,
+  // Settings
+  useSettingsQueryOptions,
+  useSetSettingMutationOptions,
+  useRemoveSettingMutationOptions,
+  // Impersonation
+  useImpersonationQueryOptions,
+} from './src/queries/admin/index.js'
+
+// ─── Hooks TanStack Query — Account ──────────────────────────────────────────
+export {
+  // Me / Security
+  useMeQueryOptions,
+  useSecurityQueryOptions,
+  // Profile
+  useUpdateProfileMutationOptions,
+  // Password
+  useChangePasswordMutationOptions,
+  // Email change
+  useEmailChangeMutationOptions,
+  useCancelEmailChangeMutationOptions,
+  // Sessions
+  useAccountSessionsQueryOptions,
+  useRevokeSessionMutationOptions,
+  useRevokeOtherSessionsMutationOptions,
+  // Apps
+  useAppsQueryOptions,
+  useRevokeAppMutationOptions,
+  // MFA
+  useMfaQueryOptions,
+  // Passkeys
+  usePasskeysQueryOptions,
+  useRemovePasskeyMutationOptions,
+  // Tokens
+  useTokensQueryOptions,
+  useCreateTokenMutationOptions,
+  useRevokeTokenMutationOptions,
+  // Orgs
+  useAccountOrgsQueryOptions,
+  useAccountOrgQueryOptions,
+  useAccountOrgInvitationsQueryOptions,
+} from './src/queries/account/index.js'

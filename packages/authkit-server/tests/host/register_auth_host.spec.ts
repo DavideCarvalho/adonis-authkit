@@ -9,16 +9,31 @@ import {
 } from '../../src/host/admin_prefix.js'
 
 function fakeRouter() {
-  const routes: Array<{ method: string; pattern: string; middleware: unknown[] }> = []
+  const routes: Array<{
+    method: string
+    pattern: string
+    middleware: unknown[]
+    handler?: unknown
+    name?: string
+  }> = []
   let groupMiddlewareApplied = false
   /** Last prefix passed via `.prefix()` on any group chain — useful for API prefix tests. */
   const groupPrefixes: string[] = []
 
-  const mk = (method: string) => (pattern: string) => {
-    const route = { method, pattern, middleware: [] as unknown[] }
+  const mk = (method: string) => (pattern: string, handler?: unknown) => {
+    const route = {
+      method,
+      pattern,
+      middleware: [] as unknown[],
+      handler,
+      name: undefined as string | undefined,
+    }
     routes.push(route)
     const chain: any = {
-      as: () => chain,
+      as: (n: string) => {
+        route.name = n
+        return chain
+      },
       middleware: () => chain,
       use: (m: unknown[]) => {
         route.middleware.push(...(Array.isArray(m) ? m : [m]))
@@ -75,6 +90,36 @@ test.group('registerAuthHost', () => {
     assert.isTrue(router.routes.some((r: any) => r.pattern === '/auth/interaction/:uid'))
     assert.isTrue(router.routes.some((r: any) => r.pattern === '/account/login'))
     assert.isTrue(router.routes.some((r: any) => r.pattern === '/authkit/pat/introspect'))
+  })
+
+  test('console React: rotas com mesmo controller.método têm nomes explícitos distintos (anti-colisão)', ({
+    assert,
+  }) => {
+    // Regressão: o AdonisJS auto-deriva o nome da rota de controller.método. Duas
+    // rotas GET no mesmo [controller, método] (shell em `ap` e `ap/*`) sem `.as()`
+    // distinto colidem no boot ("route name already exists") — derrubou o deploy.
+    const router = fakeRouter()
+    registerAuthHost(router, { mountPath: '/oidc', admin: { ui: 'react' } })
+
+    // Agrupa por handler-tuple (controller thunk + método); cada grupo com >1 rota
+    // PRECISA de nomes explícitos e distintos.
+    const byHandler = new Map<string, Array<{ name?: string }>>()
+    for (const r of router.routes as any[]) {
+      if (!Array.isArray(r.handler)) continue
+      const key = JSON.stringify([String(r.handler[0]), r.handler[1], r.method])
+      const list = byHandler.get(key) ?? []
+      list.push(r)
+      byHandler.set(key, list)
+    }
+    for (const [, list] of byHandler) {
+      if (list.length < 2) continue
+      const names = list.map((r) => r.name)
+      assert.isTrue(
+        names.every((n) => typeof n === 'string' && n.length > 0),
+        'rotas que compartilham controller.método precisam de .as() explícito'
+      )
+      assert.equal(new Set(names).size, names.length, 'nomes de rota devem ser únicos')
+    }
   })
 
   test('NÃO monta rotas sociais quando social ausente', ({ assert }) => {

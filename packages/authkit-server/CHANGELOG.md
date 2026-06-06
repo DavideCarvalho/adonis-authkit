@@ -1,5 +1,11 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.18.1
+
+### Patch Changes
+
+- Fix boot crash with `admin: { ui: 'react' }`: the React shell was served from two GET routes (`{prefix}` and `{prefix}/*`) sharing the same controller+method, so AdonisJS auto-derived the same route name for both and threw "A route with name console_shell.serve already exists" at boot. The shell, asset and catch-all routes now carry explicit unique names.
+
 ## 0.18.0
 
 ### Minor Changes

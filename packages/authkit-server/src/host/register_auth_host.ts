@@ -406,12 +406,14 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
           // ─── Missão B: assets estáticos do Vite build ─────────────────────
           // Servidos por serveAsset (readFile + Cache-Control: immutable).
           // DEVE ser registrado ANTES do catch-all `${ap}/*`.
-          router.get(`${ap}/assets/*`, [C.consoleShell, 'serveAsset'])
+          router.get(`${ap}/assets/*`, [C.consoleShell, 'serveAsset']).as('authkit_console_assets')
 
           // Shell HTML — serve para TODAS as rotas de página do console React.
-          // O roteamento client-side (hash) é tratado pela SPA.
-          router.get(ap, [C.consoleShell, 'serve'])
-          router.get(`${ap}/*`, [C.consoleShell, 'serve'])
+          // O roteamento client-side (hash) é tratado pela SPA. Nomes explícitos:
+          // o mesmo par controller.método em duas rotas colide no auto-naming do
+          // AdonisJS ("route name already exists") — daí o .as() distinto.
+          router.get(ap, [C.consoleShell, 'serve']).as('authkit_console_root')
+          router.get(`${ap}/*`, [C.consoleShell, 'serve']).as('authkit_console_shell')
 
           // ─── JSON API do console (session-authed via adminGuard upstream) ─────
           // GET {ap}/api/overview

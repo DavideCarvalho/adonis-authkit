@@ -1,5 +1,16 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.15.0
+
+### Minor Changes
+
+- Rodauth parity + runtime-first management:
+  - **Verified email change** (`verify_login_change`): logged-in users change their email with confirmation sent to the NEW address and a security warning to the CURRENT one; cancellable, hashed tokens, `email_change` runtime setting, `onEmailChangeConfirm`/`onEmailChangeNotice` mail hooks.
+  - **Security notification emails**: automatic notices for password changed, MFA enabled/disabled, passkey added/removed and email changed — `security_notifications` setting, `onSecurityNotice` hook overrides defaults.
+  - **Advanced password hygiene**: password reuse history (optional `auth_password_history` table + `password_history` setting), password pepper (`password.pepper: string | string[]` with rotation and lazy re-hash), password expiration (optional `password_changed_at` column + forced change step at login), email-verification grace period (`require_verified_email.graceDays`).
+  - **Session policies** (`session_policy` setting): explicit remember-me checkbox backed by oidc-provider transient sessions + runtime TTL holder, single-session enforcement (revokes other sessions on login), idle timeout for the account/admin consoles.
+  - **Runtime-first management**: 18 runtime setting keys are now the single source of policy (setting > legacy config fallback > library default) — lockout, rate-limit buckets, password policy/HIBP, notifications, trusted devices, token TTLs (live via holder), admin impersonation and organizations policy join the existing toggles; legacy config policy fields are deprecated (kept as fallback) and reported by the new doctor check; new `authkit:settings:list|get|set|unset` ace commands write through the configured storage; the admin settings page is organized into sections.
+
 ## 0.14.0
 
 ### Minor Changes

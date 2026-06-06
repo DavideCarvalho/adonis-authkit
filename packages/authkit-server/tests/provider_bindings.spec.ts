@@ -38,7 +38,6 @@ test.group('authkit provider bindings', () => {
       issuer: 'https://auth.test',
       adapter: adapters.redis({ connection: 'main' }),
       jwks: { source: 'managed' },
-      clients: [{ clientId: 'app1', redirectUris: ['https://app1/cb'] }],
       accountStore: store,
       patStore,
     })
@@ -54,7 +53,6 @@ test.group('authkit provider bindings', () => {
       issuer: 'https://auth.test',
       adapter: adapters.redis({ connection: 'main' }),
       jwks: { source: 'managed' },
-      clients: [{ clientId: 'app1', redirectUris: ['https://app1/cb'] }],
       accountStore: fakeAccountStore(),
       // patStore omitido de propósito
     })
@@ -64,22 +62,21 @@ test.group('authkit provider bindings', () => {
     await assert.rejects(() => singletons['authkit.patStore']())
   })
 
-  test('boot sem clients estáticos não emite aviso de deprecação', async ({ assert }) => {
+  test('boot sobe normalmente sem clients (clients são 100% runtime)', async ({ assert }) => {
     const warnMessages: string[] = []
     const providerValue = defineConfig({
       issuer: 'https://auth.test',
       adapter: adapters.redis({ connection: 'main' }),
       jwks: { source: 'managed' },
-      // clients omitido — zero clients estáticos
       accountStore: fakeAccountStore(),
     })
     const { app, singletons } = buildFakeApp(providerValue, (msg) => warnMessages.push(msg))
     new AuthkitServerProvider(app).register()
 
-    await singletons['authkit.server']()
+    const service = await singletons['authkit.server']()
 
-    // Nenhum warn de deprecação de clients deve ter sido emitido.
-    const deprecationWarns = warnMessages.filter((m) => m.includes('authkit:clients:import'))
-    assert.lengthOf(deprecationWarns, 0, 'sem clients estáticos, nenhum aviso de deprecação')
+    // Nenhum aviso de deprecação deve ter sido emitido.
+    assert.lengthOf(warnMessages, 0, 'sem avisos de deprecação no boot')
+    assert.isOk(service)
   })
 })

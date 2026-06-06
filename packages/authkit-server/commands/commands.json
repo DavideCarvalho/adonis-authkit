@@ -69,40 +69,64 @@
       "filePath": "keys_rotate.js"
     },
     {
-      "commandName": "authkit:rotate-keys",
-      "description": "(alias legado de authkit:keys:rotate) Rotaciona as chaves de assinatura JWKS managed: gera uma nova chave (novo kid), mantém as N anteriores no JWKS para validar tokens antigos.",
+      "commandName": "authkit:clients:create",
+      "description": "Cria um client OIDC no adapter/DB em runtime (sem redeploy). O secret é impresso uma vez.",
       "namespace": "authkit",
       "aliases": [],
       "flags": [
         {
-          "name": "keep",
-          "flagName": "keep",
+          "name": "clientId",
+          "flagName": "client-id",
           "required": false,
-          "type": "number",
-          "description": "Quantas chaves manter no JWKS (default 2)."
-        }
-      ],
-      "args": [],
-      "options": { "startApp": true },
-      "filePath": "rotate_keys.js"
-    },
-    {
-      "commandName": "authkit:clients:import",
-      "description": "Migra clients OIDC do config estático para o adapter/DB (gerenciável via console/API sem redeploy).",
-      "namespace": "authkit",
-      "aliases": [],
-      "flags": [
+          "type": "string",
+          "description": "client_id desejado. Omitir gera um UUID aleatório."
+        },
         {
-          "name": "dryRun",
-          "flagName": "dry-run",
+          "name": "redirectUri",
+          "flagName": "redirect-uri",
+          "required": false,
+          "type": "array",
+          "description": "redirect_uri(s) permitidas (repetível). Obrigatório."
+        },
+        {
+          "name": "postLogoutUri",
+          "flagName": "post-logout-uri",
+          "required": false,
+          "type": "array",
+          "description": "post_logout_redirect_uri(s) permitidas (repetível)."
+        },
+        {
+          "name": "grant",
+          "flagName": "grant",
+          "required": false,
+          "type": "array",
+          "description": "Grant types (repetível). Default: authorization_code + refresh_token."
+        },
+        {
+          "name": "public",
+          "flagName": "public",
           "required": false,
           "type": "boolean",
-          "description": "Relata o que SERIA feito SEM persistir nada."
+          "description": "Cria um client público (sem secret; token_endpoint_auth_method=none)."
+        },
+        {
+          "name": "backchannelLogoutUri",
+          "flagName": "backchannel-logout-uri",
+          "required": false,
+          "type": "string",
+          "description": "Endpoint de OIDC Back-Channel Logout do RP."
+        },
+        {
+          "name": "json",
+          "flagName": "json",
+          "required": false,
+          "type": "boolean",
+          "description": "Output em JSON machine-readable."
         }
       ],
       "args": [],
       "options": { "startApp": true },
-      "filePath": "import_clients.js"
+      "filePath": "clients_create.js"
     },
     {
       "commandName": "authkit:users:import",

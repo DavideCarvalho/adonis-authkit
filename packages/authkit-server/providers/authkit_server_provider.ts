@@ -9,9 +9,6 @@ import type { ResolvedServerConfig } from '../src/define_config.js'
 import type { AccountStore } from '../src/accounts/account_store.js'
 import type { PatStore } from '../src/pat/pat_store.js'
 
-/** Flag para emitir o aviso de deprecação de clients estáticos somente UMA vez por processo. */
-let staticClientsDeprecationWarned = false
-
 declare module '@adonisjs/core/types' {
   interface ContainerBindings {
     'authkit.server': OidcService
@@ -61,23 +58,6 @@ export default class AuthkitServerProvider {
         )
       }
 
-      // Emite aviso de deprecação dos clients estáticos UMA vez por processo.
-      if (!staticClientsDeprecationWarned && Array.isArray(config.clients) && config.clients.length > 0) {
-        staticClientsDeprecationWarned = true
-        try {
-          const logger = await this.app.container.make('logger')
-          ;(logger as any).warn(
-            'authkit: static `clients` config is deprecated — manage clients in the admin console/API; ' +
-              'run `node ace authkit:clients:import` to migrate them to the adapter/DB.'
-          )
-        } catch {
-          // logger não disponível (testes/bootstrap parcial) — usa process.stderr silenciosamente
-          process.stderr.write(
-            '[authkit] WARN: static `clients` config is deprecated — manage clients in the admin console/API; ' +
-              'run `node ace authkit:clients:import` to migrate them to the adapter/DB.\n'
-          )
-        }
-      }
       // `app.appKey` pode ser uma string crua ou um `Secret` do AdonisJS (config/app.ts
       // expõe `export const appKey = new Secret(env.get('APP_KEY'))`). O oidc-provider
       // assina cookies via keygrip e exige uma string — então liberamos o Secret aqui.

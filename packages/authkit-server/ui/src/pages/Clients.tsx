@@ -1,0 +1,424 @@
+import React, { useEffect, useState, useCallback } from 'react'
+import { api, type Client, type ClientInput, ApiError } from '../lib/api'
+import { Modal } from '../components/Modal'
+import { useToast } from '../lib/toast'
+
+const GRANT_TYPES = ['authorization_code', 'refresh_token', 'client_credentials', 'implicit']
+const AUTH_METHODS = ['client_secret_basic', 'client_secret_post', 'none']
+
+function defaultInput(): ClientInput & { clientIdOverride: string } {
+  return {
+    clientIdOverride: '',
+    clientId: undefined,
+    redirectUris: [],
+    postLogoutRedirectUris: [],
+    grantTypes: ['authorization_code', 'refresh_token'],
+    tokenEndpointAuthMethod: 'client_secret_basic',
+    backchannelLogoutUri: '',
+    backchannelLogoutSessionRequired: false,
+  }
+}
+
+export function Clients() {
+  const toast = useToast()
+  const [clients, setClients] = useState<Client[]>([])
+  const [canList, setCanList] = useState(true)
+  const [loading, setLoading] = useState(true)
+
+  const [createOpen, setCreateOpen] = useState(false)
+  const [editClient, setEditClient] = useState<Client | null>(null)
+  const [createdSecret, setCreatedSecret] = useState<{ clientId: string; secret: string } | null>(null)
+  const [formData, setFormData] = useState(defaultInput())
+  const [saving, setSaving] = useState(false)
+
+  const [redirectInput, setRedirectInput] = useState('')
+  const [logoutInput, setLogoutInput] = useState('')
+
+  const load = useCallback(() => {
+    setLoading(true)
+    api.clients
+      .list()
+      .then((r) => { setClients(r.data); setCanList(r.canList) })
+      .catch((e) => toast.error(e.message))
+      .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  function openCreate() {
+    setFormData(defaultInput())
+    setRedirectInput('')
+    setLogoutInput('')
+    setCreateOpen(true)
+  }
+
+  function openEdit(c: Client) {
+    setFormData({
+      clientIdOverride: '',
+      clientId: undefined,
+      redirectUris: [...c.redirectUris],
+      postLogoutRedirectUris: [...c.postLogoutRedirectUris],
+      grantTypes: [...c.grants],
+      tokenEndpointAuthMethod: c.tokenEndpointAuthMethod,
+      backchannelLogoutUri: c.backchannelLogoutUri ?? '',
+      backchannelLogoutSessionRequired: c.backchannelLogoutSessionRequired,
+    })
+    setRedirectInput('')
+    setLogoutInput('')
+    setEditClient(c)
+  }
+
+  function addUri(type: 'redirect' | 'logout') {
+    const val = type === 'redirect' ? redirectInput.trim() : logoutInput.trim()
+    if (!val) return
+    if (type === 'redirect') {
+      setFormData((f) => ({ ...f, redirectUris: [...f.redirectUris, val] }))
+      setRedirectInput('')
+    } else {
+      setFormData((f) => ({ ...f, postLogoutRedirectUris: [...(f.postLogoutRedirectUris ?? []), val] }))
+      setLogoutInput('')
+    }
+  }
+
+  function removeUri(type: 'redirect' | 'logout', idx: number) {
+    if (type === 'redirect') {
+      setFormData((f) => ({ ...f, redirectUris: f.redirectUris.filter((_, i) => i !== idx) }))
+    } else {
+      setFormData((f) => ({ ...f, postLogoutRedirectUris: (f.postLogoutRedirectUris ?? []).filter((_, i) => i !== idx) }))
+    }
+  }
+
+  function toggleGrant(g: string) {
+    setFormData((f) => ({
+      ...f,
+      grantTypes: f.grantTypes?.includes(g)
+        ? f.grantTypes.filter((x) => x !== g)
+        : [...(f.grantTypes ?? []), g],
+    }))
+  }
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      const input: ClientInput = {
+        clientId: formData.clientIdOverride || undefined,
+        redirectUris: formData.redirectUris,
+        postLogoutRedirectUris: formData.postLogoutRedirectUris,
+        grantTypes: formData.grantTypes,
+        tokenEndpointAuthMethod: formData.tokenEndpointAuthMethod,
+        backchannelLogoutUri: formData.backchannelLogoutUri || undefined,
+        backchannelLogoutSessionRequired: formData.backchannelLogoutSessionRequired,
+      }
+      const r = await api.clients.create(input)
+      setCreateOpen(false)
+      if (r.clientSecret) {
+        setCreatedSecret({ clientId: r.clientId, secret: r.clientSecret })
+      } else {
+        toast.success(`Client ${r.clientId} created`)
+      }
+      load()
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : String(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleUpdate(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editClient) return
+    setSaving(true)
+    try {
+      await api.clients.update(editClient.clientId, {
+        redirectUris: formData.redirectUris,
+        postLogoutRedirectUris: formData.postLogoutRedirectUris,
+        grantTypes: formData.grantTypes,
+        tokenEndpointAuthMethod: formData.tokenEndpointAuthMethod,
+        backchannelLogoutUri: formData.backchannelLogoutUri || undefined,
+        backchannelLogoutSessionRequired: formData.backchannelLogoutSessionRequired,
+      })
+      toast.success('Client updated')
+      setEditClient(null)
+      load()
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : String(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete(c: Client) {
+    if (!confirm(`Delete client ${c.clientId}?`)) return
+    try {
+      await api.clients.delete(c.clientId)
+      toast.success('Client deleted')
+      load()
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : String(err))
+    }
+  }
+
+  async function handleRegenerate(c: Client) {
+    if (!confirm(`Regenerate secret for ${c.clientId}? Existing secret will stop working.`)) return
+    try {
+      const r = await api.clients.regenerateSecret(c.clientId)
+      if (r.clientSecret) {
+        setCreatedSecret({ clientId: r.clientId, secret: r.clientSecret })
+      } else {
+        toast.info('No secret returned (public client)')
+      }
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : String(err))
+    }
+  }
+
+  const ClientForm = () => (
+    <form onSubmit={editClient ? handleUpdate : handleCreate}>
+      {!editClient && (
+        <div className="field">
+          <label>Client ID (optional — auto-generated if blank)</label>
+          <input
+            className="input input-mono"
+            value={formData.clientIdOverride}
+            onChange={(e) => setFormData((f) => ({ ...f, clientIdOverride: e.target.value }))}
+            placeholder="my-app (auto if blank)"
+          />
+        </div>
+      )}
+
+      <div className="field">
+        <label>Grant Types</label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+          {GRANT_TYPES.map((g) => (
+            <label key={g} className="checkbox-row" style={{ padding: '4px 0' }}>
+              <input
+                type="checkbox"
+                checked={formData.grantTypes?.includes(g) ?? false}
+                onChange={() => toggleGrant(g)}
+              />
+              <span className="chk-label mono">{g}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="field">
+        <label>Token Endpoint Auth Method</label>
+        <select
+          className="input"
+          value={formData.tokenEndpointAuthMethod}
+          onChange={(e) => setFormData((f) => ({ ...f, tokenEndpointAuthMethod: e.target.value }))}
+        >
+          {AUTH_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+        </select>
+      </div>
+
+      <div className="field">
+        <label>Redirect URIs</label>
+        {formData.redirectUris.map((uri, i) => (
+          <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
+            <input className="input input-mono" value={uri} readOnly style={{ flex: 1 }} />
+            <button type="button" className="btn btn-sm btn-danger" onClick={() => removeUri('redirect', i)}>
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3l10 10M13 3L3 13" strokeLinecap="round" /></svg>
+            </button>
+          </div>
+        ))}
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input
+            className="input input-mono"
+            value={redirectInput}
+            onChange={(e) => setRedirectInput(e.target.value)}
+            placeholder="https://app.example.com/callback"
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addUri('redirect') } }}
+          />
+          <button type="button" className="btn btn-sm" onClick={() => addUri('redirect')}>Add</button>
+        </div>
+      </div>
+
+      <div className="field">
+        <label>Post-Logout Redirect URIs</label>
+        {(formData.postLogoutRedirectUris ?? []).map((uri, i) => (
+          <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
+            <input className="input input-mono" value={uri} readOnly style={{ flex: 1 }} />
+            <button type="button" className="btn btn-sm btn-danger" onClick={() => removeUri('logout', i)}>
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3l10 10M13 3L3 13" strokeLinecap="round" /></svg>
+            </button>
+          </div>
+        ))}
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input
+            className="input input-mono"
+            value={logoutInput}
+            onChange={(e) => setLogoutInput(e.target.value)}
+            placeholder="https://app.example.com/logged-out"
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addUri('logout') } }}
+          />
+          <button type="button" className="btn btn-sm" onClick={() => addUri('logout')}>Add</button>
+        </div>
+      </div>
+
+      <div className="field">
+        <label>Backchannel Logout URI</label>
+        <input
+          className="input input-mono"
+          value={formData.backchannelLogoutUri ?? ''}
+          onChange={(e) => setFormData((f) => ({ ...f, backchannelLogoutUri: e.target.value }))}
+          placeholder="https://app.example.com/backchannel-logout"
+        />
+      </div>
+
+      <label className="checkbox-row">
+        <input
+          type="checkbox"
+          checked={formData.backchannelLogoutSessionRequired ?? false}
+          onChange={(e) => setFormData((f) => ({ ...f, backchannelLogoutSessionRequired: e.target.checked }))}
+        />
+        <span className="chk-label">Require session ID in backchannel logout</span>
+      </label>
+    </form>
+  )
+
+  return (
+    <div>
+      <div className="page-header-row">
+        <div>
+          <div className="page-title">OAuth Clients</div>
+          <div className="page-sub">{clients.length} dynamic clients</div>
+        </div>
+        <div className="page-actions">
+          <button className="btn btn-primary" onClick={openCreate}>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M8 2v12M2 8h12" strokeLinecap="round" />
+            </svg>
+            New Client
+          </button>
+        </div>
+      </div>
+
+      {!canList ? (
+        <div className="error-box">Client store does not support listing (no dynamic registration adapter configured).</div>
+      ) : loading ? (
+        <div className="loading-row"><div className="spinner" /></div>
+      ) : clients.length === 0 ? (
+        <div className="empty-state">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M18 13l4-3.5L18 6" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M22 9.5H9M6 5H4a1 1 0 00-1 1v12a1 1 0 001 1h2" strokeLinecap="round" />
+          </svg>
+          <h4>No clients yet</h4>
+          <p>Create an OAuth 2.0 / OIDC client to get started</p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {clients.map((c) => (
+            <div key={c.clientId} className="panel" style={{ padding: '14px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontFamily: 'var(--mono)', fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>{c.clientId}</span>
+                    <span className={`badge ${c.confidential ? 'badge-accent' : 'badge-muted'}`}>
+                      {c.confidential ? 'confidential' : 'public'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+                    {c.grants.map((g) => <span key={g} className="badge badge-muted">{g}</span>)}
+                  </div>
+                  {c.redirectUris.length > 0 && (
+                    <div style={{ fontSize: 11, color: 'var(--faint)', display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {c.redirectUris.map((u) => <span key={u} className="code">{u}</span>)}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  <button className="btn btn-sm" onClick={() => openEdit(c)}>Edit</button>
+                  <button className="btn btn-sm" onClick={() => handleRegenerate(c)} title="Regenerate secret">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="M2 8a6 6 0 016-6 6 6 0 014.24 1.76L14 5" strokeLinecap="round" />
+                      <path d="M14 2v3h-3M14 8a6 6 0 01-6 6 6 6 0 01-4.24-1.76L2 11" strokeLinecap="round" />
+                      <path d="M2 14v-3h3" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                  <button className="btn btn-sm btn-danger" onClick={() => handleDelete(c)}>
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="M2 4.5h12M5.5 4.5V3h5v1.5M10.5 4.5v8a1 1 0 01-1 1h-3a1 1 0 01-1-1v-8" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Create modal */}
+      <Modal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        title="New OAuth Client"
+        large
+        footer={
+          <>
+            <button className="btn" onClick={() => setCreateOpen(false)}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleCreate} disabled={saving}>
+              {saving ? <span className="spinner sm" /> : 'Create Client'}
+            </button>
+          </>
+        }
+      >
+        <ClientForm />
+      </Modal>
+
+      {/* Edit modal */}
+      <Modal
+        open={!!editClient}
+        onClose={() => setEditClient(null)}
+        title={`Edit — ${editClient?.clientId}`}
+        large
+        footer={
+          <>
+            <button className="btn" onClick={() => setEditClient(null)}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleUpdate} disabled={saving}>
+              {saving ? <span className="spinner sm" /> : 'Save Changes'}
+            </button>
+          </>
+        }
+      >
+        <ClientForm />
+      </Modal>
+
+      {/* Secret shown once */}
+      <Modal
+        open={!!createdSecret}
+        onClose={() => setCreatedSecret(null)}
+        title="Client Secret — Save Now"
+        footer={
+          <button className="btn btn-primary" onClick={() => setCreatedSecret(null)}>I've saved it</button>
+        }
+      >
+        <div className="error-box" style={{ background: 'var(--amber-soft)', borderColor: 'rgba(255,180,84,0.3)', color: 'var(--amber)' }}>
+          This secret will not be shown again. Copy it now.
+        </div>
+        <div className="secret-box" style={{ marginTop: 12 }}>
+          <small>Client ID</small>
+          {createdSecret?.clientId}
+        </div>
+        <div className="secret-box">
+          <small>Client Secret</small>
+          {createdSecret?.secret}
+        </div>
+        <button
+          className="btn btn-sm"
+          style={{ marginTop: 4 }}
+          onClick={() => navigator.clipboard.writeText(createdSecret?.secret ?? '')}
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
+            <rect x="5" y="5" width="9" height="9" rx="1.5" />
+            <path d="M3.5 11H3a1.5 1.5 0 01-1.5-1.5V3A1.5 1.5 0 013 1.5h6.5A1.5 1.5 0 0111 3v.5" strokeLinecap="round" />
+          </svg>
+          Copy secret
+        </button>
+      </Modal>
+    </div>
+  )
+}

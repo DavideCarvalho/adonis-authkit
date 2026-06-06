@@ -92,6 +92,29 @@ test.group('registerAuthHost', () => {
     assert.isTrue(router.routes.some((r: any) => r.pattern === '/authkit/pat/introspect'))
   })
 
+  test('console React: rotas /api/* são registradas ANTES do catch-all do shell (anti-shadowing)', ({
+    assert,
+  }) => {
+    // Regressão: o AdonisJS casa wildcards por ordem de registro. Se o catch-all
+    // `${ap}/*` (shell HTML) vier antes das rotas `/api/*`, ele engole a API e
+    // devolve HTML onde a SPA espera JSON ("Unexpected token '<'" no console).
+    const router = fakeRouter()
+    registerAuthHost(router, { mountPath: '/oidc', admin: { ui: 'react', prefix: '/admin' } })
+
+    const idxCatchAll = (router.routes as any[]).findIndex(
+      (r) => r.method === 'GET' && r.pattern === '/admin/*'
+    )
+    const apiGets = (router.routes as any[]).filter(
+      (r) => r.method === 'GET' && r.pattern.startsWith('/admin/api/')
+    )
+    assert.isAbove(idxCatchAll, -1, 'catch-all do shell deve existir')
+    assert.isAbove(apiGets.length, 0, 'deve haver rotas /api/*')
+    for (const api of apiGets) {
+      const idx = (router.routes as any[]).indexOf(api)
+      assert.isBelow(idx, idxCatchAll, `${api.pattern} deve vir antes do catch-all /admin/*`)
+    }
+  })
+
   test('console React: rotas com mesmo controller.método têm nomes explícitos distintos (anti-colisão)', ({
     assert,
   }) => {

@@ -1,5 +1,11 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.18.3
+
+### Patch Changes
+
+- Fix React admin console JSON API returning HTML ("Unexpected token '<'"): the shell catch-all `{prefix}/*` was registered before the `{prefix}/api/*` routes, and AdonisJS matches wildcards by registration order, so the catch-all swallowed every API request and served the HTML shell. The API and asset routes are now registered before the catch-all.
+
 ## 0.18.2
 
 ### Patch Changes

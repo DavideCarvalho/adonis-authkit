@@ -403,17 +403,13 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
         // Quando ui='edge': as rotas Edge clássicas são registradas (compatibilidade total).
 
         if (uiMode === 'react') {
-          // ─── Missão B: assets estáticos do Vite build ─────────────────────
-          // Servidos por serveAsset (readFile + Cache-Control: immutable).
-          // DEVE ser registrado ANTES do catch-all `${ap}/*`.
-          router.get(`${ap}/assets/*`, [C.consoleShell, 'serveAsset']).as('authkit_console_assets')
+          // ⚠️ ORDEM IMPORTA: o AdonisJS casa rotas wildcard por ORDEM DE REGISTRO.
+          // Os assets e TODA a JSON API `/api/*` precisam ser registrados ANTES do
+          // catch-all `${ap}/*` (que serve o shell HTML), senão o catch-all engole
+          // `/api/*` e devolve HTML onde a SPA espera JSON ("Unexpected token '<'").
 
-          // Shell HTML — serve para TODAS as rotas de página do console React.
-          // O roteamento client-side (hash) é tratado pela SPA. Nomes explícitos:
-          // o mesmo par controller.método em duas rotas colide no auto-naming do
-          // AdonisJS ("route name already exists") — daí o .as() distinto.
-          router.get(ap, [C.consoleShell, 'serve']).as('authkit_console_root')
-          router.get(`${ap}/*`, [C.consoleShell, 'serve']).as('authkit_console_shell')
+          // ─── Assets estáticos do Vite build ───────────────────────────────────
+          router.get(`${ap}/assets/*`, [C.consoleShell, 'serveAsset']).as('authkit_console_assets')
 
           // ─── JSON API do console (session-authed via adminGuard upstream) ─────
           // GET {ap}/api/overview
@@ -452,6 +448,13 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
           router.delete(`${ap}/api/settings/:key`, [C.consoleSettings, 'destroy'])
           // Impersonation (capability-gated: 404 quando desabilitado ou sem client).
           router.get(`${ap}/api/impersonation/:userId`, [C.consoleImpersonation, 'handle'])
+
+          // ─── Shell HTML — POR ÚLTIMO (catch-all) ──────────────────────────────
+          // Serve a SPA para todas as demais rotas GET do console; o roteamento
+          // client-side (hash) é tratado pela SPA. Nomes explícitos: o mesmo par
+          // controller.método em duas rotas colide no auto-naming do AdonisJS.
+          router.get(ap, [C.consoleShell, 'serve']).as('authkit_console_root')
+          router.get(`${ap}/*`, [C.consoleShell, 'serve']).as('authkit_console_shell')
         } else {
           // ─── Modo Edge (server-rendered — back-compat total) ──────────────────
           router.get(ap, [C.adminDashboard, 'index'])

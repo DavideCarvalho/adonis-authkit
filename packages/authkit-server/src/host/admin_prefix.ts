@@ -1,17 +1,19 @@
 /**
- * Prefixo do console admin — singleton de processo.
+ * Prefixo do console admin e da Admin REST API — singletons de processo.
  *
- * Definido em tempo de registro das rotas (`registerAuthHost`) e lido em
+ * Definidos em tempo de registro das rotas (`registerAuthHost`) e lidos em
  * runtime pelos controllers e pelo `adminGuard`. Garantia de normalização:
- * começa com '/', sem trailing slash, default '/admin'.
+ * começa com '/', sem trailing slash, defaults '/admin' e '/api/authkit/v1'.
  *
- * Por que um módulo singleton e não um binding do container?
+ * Por que módulos singleton e não bindings do container?
  * O container do AdonisJS só está disponível no ciclo de vida de uma request;
- * o prefixo precisa estar disponível ANTES da primeira request (ex.: na closure
- * do `adminGuard`, que é construída em tempo de registro) e DENTRO de cada
- * request. Um módulo ESM é inicializado uma vez por processo — perfeito para
- * configuração imutável definida no boot.
+ * os prefixos precisam estar disponíveis ANTES da primeira request (ex.: na
+ * closure do `adminGuard`, que é construída em tempo de registro) e DENTRO de
+ * cada request. Um módulo ESM é inicializado uma vez por processo — perfeito
+ * para configuração imutável definida no boot.
  */
+
+// ─── Console admin ───────────────────────────────────────────────────────────
 
 const DEFAULT_ADMIN_PREFIX = '/admin'
 
@@ -45,4 +47,40 @@ export function setAdminPrefix(prefix: string): void {
  */
 export function getAdminPrefix(): string {
   return _prefix
+}
+
+// ─── Admin REST API ───────────────────────────────────────────────────────────
+
+const DEFAULT_ADMIN_API_PREFIX = '/api/authkit/v1'
+
+let _apiPrefix: string = DEFAULT_ADMIN_API_PREFIX
+
+/**
+ * Normaliza o prefixo da Admin REST API: começa com '/', sem trailing slash.
+ * Mesma semântica de `normalizeAdminPrefix`.
+ */
+export function normalizeAdminApiPrefix(raw: string): string {
+  let p = raw.trim()
+  if (!p.startsWith('/')) p = '/' + p
+  p = p.replace(/\/+$/, '')
+  return p || '/'
+}
+
+/**
+ * Define o prefixo da Admin REST API para este processo.
+ * Chamado UMA VEZ por `registerAuthHost` no boot da aplicação.
+ *
+ * @param prefix  Caminho base da API (ex.: `'/api/authkit/v1'`, `'/authkit/api'`).
+ *                Normalizado automaticamente.
+ */
+export function setAdminApiPrefix(prefix: string): void {
+  _apiPrefix = normalizeAdminApiPrefix(prefix)
+}
+
+/**
+ * Retorna o prefixo da Admin REST API (default `'/api/authkit/v1'`).
+ * Usado pelo `adminApiGuard` e pelo SDK remoto para construir as URLs.
+ */
+export function getAdminApiPrefix(): string {
+  return _apiPrefix
 }

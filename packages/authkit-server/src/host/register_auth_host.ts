@@ -4,7 +4,12 @@ import { resolveRateLimit } from '../define_config.js'
 import { createAuthThrottles } from './rate_limit.js'
 import { ACCOUNT_SESSION_KEY } from './middleware/account_auth.js'
 import { adminApiGuard } from './admin_api/admin_api_guard.js'
-import { setAdminPrefix, normalizeAdminPrefix } from './admin_prefix.js'
+import {
+  setAdminPrefix,
+  normalizeAdminPrefix,
+  setAdminApiPrefix,
+  normalizeAdminApiPrefix,
+} from './admin_prefix.js'
 
 /**
  * Guard inline do console de conta. Usamos uma closure (forma confiável do
@@ -104,12 +109,25 @@ export interface AuthHostOptions {
    */
   admin?: boolean | { prefix?: string }
   /**
-   * Admin REST API opt-in (R6); quando `true`, monta o grupo `/api/authkit/v1/*`
-   * atrás do `adminApiGuard` (API key). Necessário aqui (e não só no config) porque
-   * a decisão de montar as rotas é tomada em tempo de registro, antes do config
-   * (lazy) resolver. Espelhe o `adminApi.enabled` de config/authkit.ts.
+   * Admin REST API opt-in (R6).
+   *
+   * - `true` → comportamento padrão: monta o grupo sob `/api/authkit/v1` (back-compat total).
+   * - `{ prefix?: string }` → monta sob o prefixo fornecido, e.g. `{ prefix: '/authkit/api' }`.
+   *   O prefixo é normalizado: começa com `/`, sem trailing slash.
+   *   Quando `prefix` é omitido ou vazio, usa o default `/api/authkit/v1`.
+   *
+   * Necessário aqui (e não só no config) porque a decisão de montar as rotas é
+   * tomada em tempo de registro, antes do config (lazy) resolver.
+   * Espelhe o `adminApi.enabled` de config/authkit.ts.
+   *
+   * @example
+   * // Prefixo padrão (back-compat)
+   * registerAuthHost(router, { mountPath: '/oidc', adminApi: true })
+   *
+   * // Prefixo customizado — API em /authkit/api
+   * registerAuthHost(router, { mountPath: '/oidc', adminApi: { prefix: '/authkit/api' } })
    */
-  adminApi?: boolean
+  adminApi?: boolean | { prefix?: string }
 }
 
 const C = {
@@ -318,6 +336,16 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
   // Admin REST API (opt-in — R6). Superfície machine-to-machine atrás do
   // adminApiGuard (API key). Todas as rotas levam o throttle de introspecção.
   if (opts.adminApi) {
+    // Resolve o prefixo: `true` → '/api/authkit/v1' (default); objeto → usa prefix fornecido.
+    const rawApiPrefix =
+      typeof opts.adminApi === 'object' && opts.adminApi.prefix
+        ? opts.adminApi.prefix
+        : '/api/authkit/v1'
+    const aap = normalizeAdminApiPrefix(rawApiPrefix)
+    // Persiste no singleton de processo para que o SDK remoto e outros consumidores
+    // usem o mesmo prefixo sem precisar receber a opção.
+    setAdminApiPrefix(aap)
+
     // Aplica o throttle de introspecção a uma rota qualquer (GET ou escrita).
     const withApiThrottle = (route: any): any => {
       if (throttles) route.use([throttles.introspection])
@@ -364,7 +392,7 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
         withApiThrottle(router.put('/settings/:key', [C.apiSettings, 'upsert']))
         withApiThrottle(router.delete('/settings/:key', [C.apiSettings, 'destroy']))
       })
-      .prefix('/api/authkit/v1')
+      .prefix(aap)
       .use([adminApiGuard])
   }
 }

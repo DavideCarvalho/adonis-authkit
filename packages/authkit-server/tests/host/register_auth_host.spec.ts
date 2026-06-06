@@ -1,10 +1,17 @@
 import { test } from '@japa/runner'
 import { registerAuthHost } from '../../src/host/register_auth_host.js'
-import { getAdminPrefix, normalizeAdminPrefix } from '../../src/host/admin_prefix.js'
+import {
+  getAdminPrefix,
+  normalizeAdminPrefix,
+  getAdminApiPrefix,
+  normalizeAdminApiPrefix,
+} from '../../src/host/admin_prefix.js'
 
 function fakeRouter() {
   const routes: Array<{ method: string; pattern: string; middleware: unknown[] }> = []
   let groupMiddlewareApplied = false
+  /** Last prefix passed via `.prefix()` on any group chain — useful for API prefix tests. */
+  const groupPrefixes: string[] = []
 
   const mk = (method: string) => (pattern: string) => {
     const route = { method, pattern, middleware: [] as unknown[] }
@@ -22,7 +29,10 @@ function fakeRouter() {
 
   const groupChain = {
     as: () => groupChain,
-    prefix: () => groupChain,
+    prefix: (p: string) => {
+      groupPrefixes.push(p)
+      return groupChain
+    },
     middleware: (..._args: any[]) => {
       groupMiddlewareApplied = true
       return groupChain
@@ -36,6 +46,9 @@ function fakeRouter() {
   const router: any = {
     get: mk('GET'),
     post: mk('POST'),
+    patch: mk('PATCH'),
+    delete: mk('DELETE'),
+    put: mk('PUT'),
     any: mk('ANY'),
     group: (cb: () => void) => {
       cb()
@@ -44,6 +57,9 @@ function fakeRouter() {
     routes,
     get groupMiddlewareApplied() {
       return groupMiddlewareApplied
+    },
+    get groupPrefixes() {
+      return groupPrefixes
     },
   }
   return router
@@ -209,5 +225,86 @@ test.group('registerAuthHost', () => {
       (r: any) => r.pattern === '/auth/interaction/:uid' && r.method === 'GET'
     )
     assert.lengthOf(showRoute.middleware, 0)
+  })
+})
+
+test.group('registerAuthHost — Admin REST API prefix', () => {
+  test('NÃO monta rotas da Admin API por default (opt-in)', ({ assert }) => {
+    const router = fakeRouter()
+    registerAuthHost(router, { mountPath: '/oidc' })
+    // Rotas internas do grupo (sem prefixo aplicado pelo fakeRouter) não devem existir.
+    assert.isFalse(router.routes.some((r: any) => r.pattern === '/users'))
+    assert.isFalse(router.routes.some((r: any) => r.pattern === '/clients'))
+  })
+
+  test('adminApi: true → prefixo default /api/authkit/v1 (back-compat)', ({ assert }) => {
+    const router = fakeRouter()
+    registerAuthHost(router, { mountPath: '/oidc', adminApi: true })
+    // Grupo montado — rotas internas presentes.
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/users' && r.method === 'GET'))
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/clients' && r.method === 'GET'))
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/audit' && r.method === 'GET'))
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/stats' && r.method === 'GET'))
+    // Prefixo default aplicado ao grupo.
+    assert.isTrue(router.groupPrefixes.includes('/api/authkit/v1'))
+    // Singleton de processo reflete o prefixo default.
+    assert.equal(getAdminApiPrefix(), '/api/authkit/v1')
+    // Middleware (adminApiGuard) aplicado ao grupo.
+    assert.isTrue(router.groupMiddlewareApplied)
+  })
+
+  test('adminApi: { prefix } → prefixo custom', ({ assert }) => {
+    const router = fakeRouter()
+    registerAuthHost(router, { mountPath: '/oidc', adminApi: { prefix: '/authkit/api' } })
+    // Grupo montado — rotas internas presentes.
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/users' && r.method === 'GET'))
+    // Prefixo custom aplicado ao grupo.
+    assert.isTrue(router.groupPrefixes.includes('/authkit/api'))
+    // Default NÃO aplicado.
+    assert.isFalse(router.groupPrefixes.includes('/api/authkit/v1'))
+    // Singleton reflete o prefixo custom.
+    assert.equal(getAdminApiPrefix(), '/authkit/api')
+  })
+
+  test('adminApi: {} sem prefix usa o default /api/authkit/v1', ({ assert }) => {
+    const router = fakeRouter()
+    registerAuthHost(router, { mountPath: '/oidc', adminApi: {} })
+    assert.isTrue(router.groupPrefixes.includes('/api/authkit/v1'))
+    assert.equal(getAdminApiPrefix(), '/api/authkit/v1')
+  })
+
+  test('adminApi prefix normalizado (sem trailing slash, com leading slash)', ({ assert }) => {
+    const router = fakeRouter()
+    registerAuthHost(router, { mountPath: '/oidc', adminApi: { prefix: 'authkit/api/' } })
+    assert.isTrue(router.groupPrefixes.includes('/authkit/api'))
+    assert.equal(getAdminApiPrefix(), '/authkit/api')
+  })
+
+  test('normalizeAdminApiPrefix normaliza corretamente', ({ assert }) => {
+    assert.equal(normalizeAdminApiPrefix('/api/authkit/v1'), '/api/authkit/v1')
+    assert.equal(normalizeAdminApiPrefix('api/authkit/v1'), '/api/authkit/v1')
+    assert.equal(normalizeAdminApiPrefix('/api/authkit/v1/'), '/api/authkit/v1')
+    assert.equal(normalizeAdminApiPrefix('/authkit/api/'), '/authkit/api')
+    assert.equal(normalizeAdminApiPrefix('  /authkit/api  '), '/authkit/api')
+  })
+
+  test('ambos os prefixos (console + API) custom convivem', ({ assert }) => {
+    const router = fakeRouter()
+    registerAuthHost(router, {
+      mountPath: '/oidc',
+      admin: { prefix: '/auth/admin' },
+      adminApi: { prefix: '/authkit/api' },
+    })
+    // Console sob prefixo custom.
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/auth/admin'))
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/auth/admin/users'))
+    assert.isFalse(router.routes.some((r: any) => r.pattern === '/admin'))
+    // API grupo sob prefixo custom.
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/users' && r.method === 'GET'))
+    assert.isTrue(router.groupPrefixes.includes('/authkit/api'))
+    assert.isFalse(router.groupPrefixes.includes('/api/authkit/v1'))
+    // Singletons refletem ambos.
+    assert.equal(getAdminPrefix(), '/auth/admin')
+    assert.equal(getAdminApiPrefix(), '/authkit/api')
   })
 })

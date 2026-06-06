@@ -37,14 +37,26 @@ prompt) — and then:
   `findAccount` / `verifyCredentials` callbacks). Edit it to taste.
 - Publishes the **`app/models/auth_user.ts`** model, composed from the `withAuthUser()` +
   `withCredentials()` mixins.
-- With `--ui=react`: publishes the **React interaction pages** under `inertia/pages`
-  (login, consent, signup, forgot, reset, verify-email, mfa-challenge, account/*) plus an
-  `auth_shell` component. `edge` and `headless` publish **no** UI files (Edge views ship
-  from the package's `authkit::` disk; headless means you render your own).
 - Registers the **provider** in `adonisrc.ts` and the bundled **ace commands** (including
   `authkit:eject`) via the package's `adonisjs` block.
 - Adds an **env validation** for `AUTHKIT_ISSUER` and writes a default value
   (`http://localhost:3333/oidc`) to `.env`.
+
+**What each `--ui` preset does:**
+
+| Preset | UI files published | Render mode |
+| --- | --- | --- |
+| `edge` (default) | None | Built-in Edge views from the `authkit::` disk — zero setup, works out of the box |
+| `react` | React pages under `inertia/pages/authkit/` (login, signup, consent, forgot, reset, verify-email, mfa-challenge, account/login, account/tokens, account/mfa) + `auth_shell.tsx` | `inertiaRenderer({ prefix: 'authkit', views: [...] })` pre-configured in the published config |
+| `headless` | None | No render key; flows respond with JSON contracts for you to drive |
+
+<Callout type="info">
+  The lib does **not** ship `.tsx` React files — there are no pre-built React pages inside
+  the npm package. With `--ui=react` the scaffold **writes starter pages into your project**;
+  they are yours to edit from that moment on. With `edge` or `headless`, the authentication
+  flow screens are served from the package's built-in Edge views (`authkit::` disk) and
+  your project disk has nothing extra.
+</Callout>
 
 <Callout type="warn">
   Choosing `--ui=react` requires `@adonisjs/inertia` + `react` + Vite already configured in
@@ -75,8 +87,18 @@ const authServerConfig = defineConfig({
   ttl: { accessToken: '15m', refreshToken: '30d' },
   accountStore: lucidAccountStore(AuthUser),
   mountPath: '/oidc',
-  render: inertiaRenderer({ prefix: 'authkit' }),
-  admin: { enabled: true },    // enables the admin console
+  // React preset: point at the pages written into your project by `node ace add --ui=react`.
+  // The `views` list is an allowlist; screens not listed here fall back to Edge views.
+  // Remove the `render` key entirely if you chose --ui=edge (built-in Edge views, no setup).
+  render: inertiaRenderer({
+    prefix: 'authkit',
+    views: [
+      'login', 'consent', 'signup', 'forgot', 'reset',
+      'verify-email', 'mfa-challenge',
+      'account/login', 'account/tokens', 'account/mfa',
+    ],
+  }),
+  admin: { enabled: true },    // enables the admin console (React SPA, pre-bundled in the package)
   adminApi: {
     enabled: true,
     apiKeys: [env.get('AUTHKIT_ADMIN_API_KEY')],

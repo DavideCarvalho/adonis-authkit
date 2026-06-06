@@ -112,19 +112,51 @@ when the adapter can't enumerate.
 
 ## The render seam
 
-The host pages are rendered through a `render` function (`AuthHostRenderer`) you set in
-`defineConfig`. Three modes:
+The flow screens (login, consent, signup, account, MFA, etc.) are rendered through a
+`render` function (`AuthHostRenderer`) you set in `defineConfig`. Three modes:
 
-- **`inertiaRenderer({ prefix })`** — render the bundled pages through Inertia/React. The
-  `prefix` namespaces the page components (e.g. `'authkit'`).
-- **`edgeRenderer()`** — render through Edge templates instead.
+- **No `render` key / `edgeRenderer()`** — the **default**. Renders the library's
+  built-in Edge views from the `authkit::` virtual disk. Nothing needs to exist in your
+  project; the views ship inside the package.
+- **`inertiaRenderer({ prefix, views })`** — renders through Inertia/React using pages
+  scaffolded into your project by `node ace add @dudousxd/adonis-authkit-server --ui=react`.
+  `prefix` is a subdirectory under your Inertia pages root (e.g. `'authkit'` → resolves
+  to `inertia/pages/authkit/<view>.tsx`). `views` is an allowlist of the screen names you
+  have React pages for; any other screen falls back to the built-in Edge view.
 - **Headless** — omit `render` and drive the flows via the JSON contracts yourself.
 
-```ts
-import { inertiaRenderer } from '@dudousxd/adonis-authkit-server'
+<Callout type="info">
+  The render hook only applies to the **flow screens**. The admin console is a separate
+  React SPA bundled inside the package and served by its own controller — it is not
+  affected by `render`. See the `admin` option in [Admin Console](/docs/admin-console).
+</Callout>
 
-render: inertiaRenderer({ prefix: 'authkit' })
+```ts title="config/authkit.ts (Edge — default, zero setup)"
+import { defineConfig } from '@dudousxd/adonis-authkit-server'
+
+export default defineConfig({
+  // No `render` key: built-in Edge views are served automatically.
+})
 ```
+
+```ts title="config/authkit.ts (React — after running node ace add --ui=react)"
+import { defineConfig, inertiaRenderer } from '@dudousxd/adonis-authkit-server'
+
+export default defineConfig({
+  // ...
+  render: inertiaRenderer({
+    prefix: 'authkit',   // inertia/pages/authkit/<view>.tsx
+    views: [             // only these go to Inertia; the rest fall back to Edge
+      'login', 'consent', 'signup', 'forgot', 'reset',
+      'verify-email', 'mfa-challenge',
+      'account/login', 'account/tokens', 'account/mfa',
+    ],
+  }),
+})
+```
+
+For the full walk-through — scaffold command, file list, `views` allowlist semantics, and
+Inertia pages resolver — see [Custom screens](/docs/customizing-auth#custom-screens).
 
 ## Branding
 

@@ -75,7 +75,17 @@ const authServerConfig = defineConfig({
   ttl: { accessToken: '15m', refreshToken: '30d' },
   accountStore: lucidAccountStore(AuthUser),
   mountPath: '/oidc',
-  render: inertiaRenderer({ prefix: 'authkit' }),
+  // React preset (after `node ace add --ui=react`). Use the `views` allowlist so screens
+  // added by future lib updates fall back to Edge views instead of crashing SSR.
+  // Remove the `render` key if you picked --ui=edge (built-in Edge views, zero config).
+  render: inertiaRenderer({
+    prefix: 'authkit',
+    views: [
+      'login', 'consent', 'signup', 'forgot', 'reset',
+      'verify-email', 'mfa-challenge',
+      'account/login', 'account/tokens', 'account/mfa',
+    ],
+  }),
   admin: { enabled: true },
   adminApi: { enabled: true, apiKeys: [env.get('AUTHKIT_ADMIN_API_KEY')] },
 })
@@ -280,7 +290,16 @@ const authServerConfig = defineConfig({
   ttl: { accessToken: '15m', refreshToken: '30d' },
   accountStore: lucidAccountStore(AuthUser),
   mountPath: '/oidc',
-  render: inertiaRenderer({ prefix: 'authkit' }),
+  // React preset (after `node ace add --ui=react`). Remove this block and omit `render`
+  // to use the built-in Edge views instead (no pages needed in the project).
+  render: inertiaRenderer({
+    prefix: 'authkit',
+    views: [
+      'login', 'consent', 'signup', 'forgot', 'reset',
+      'verify-email', 'mfa-challenge',
+      'account/login', 'account/tokens', 'account/mfa',
+    ],
+  }),
   admin: { enabled: true },
   adminApi: { enabled: true, apiKeys: [env.get('AUTHKIT_ADMIN_API_KEY')] },
 })

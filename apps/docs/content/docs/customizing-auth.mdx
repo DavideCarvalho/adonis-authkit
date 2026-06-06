@@ -147,26 +147,34 @@ export default defineConfig({
 
 ## Custom screens
 
-The host-kit ships the login / consent / signup / account screens, but you choose **how**
-they render via the `render` hook in `config/authkit.ts`.
+AuthKit's login / consent / signup / account screens are rendered through a `render` hook
+in `config/authkit.ts`. There are three modes, and the right one depends on how much you
+want to customise.
 
-**Inertia / React hosts** — point at pages in your own `inertia/pages/<prefix>/*` folder.
-`inertiaRenderer({ prefix })` calls `inertia.render('<prefix>/<view>', props)`, so changing
-the prefix re-targets the whole screen set at your own components:
+<Callout type="info">
+  **Flow screens vs. admin console.** The `render` hook only affects the authentication
+  flow screens (login, signup, consent, account, MFA, etc.). The **admin console** is a
+  separate React SPA that ships pre-built inside the package — it does not use the render
+  hook and does not need any pages in your project. See [Admin Console](/docs/admin-console)
+  for those options.
+</Callout>
+
+### Default (zero setup): Edge views
+
+Out of the box — no `render` key at all, or `edgeRenderer()` — AuthKit serves its
+**built-in Edge views** from the `authkit::` virtual disk. These pages are server-rendered
+and include the standard Acme-style Tailwind markup, branding tokens, and i18n support.
+Nothing in your project needs to exist for this to work:
 
 ```ts title="config/authkit.ts"
-import { defineConfig, inertiaRenderer } from '@dudousxd/adonis-authkit-server'
+import { defineConfig } from '@dudousxd/adonis-authkit-server'
 
 export default defineConfig({
-  // ...
-  // Renders inertia/pages/auth/login, inertia/pages/auth/consent, etc.
-  render: inertiaRenderer({ prefix: 'auth' }),
+  // No `render` key → Edge views are used automatically.
 })
 ```
 
-**Edge hosts** — `edgeRenderer()` renders the library-owned views from the `authkit::` disk
-and exposes a `t()` helper for translations. Use it when you want the bundled markup but
-server-rendered Edge templates:
+Or equivalently, using `edgeRenderer()` explicitly:
 
 ```ts title="config/authkit.ts"
 import { defineConfig, edgeRenderer } from '@dudousxd/adonis-authkit-server'
@@ -176,6 +184,128 @@ export default defineConfig({
   render: edgeRenderer(),
 })
 ```
+
+Both are identical. The Edge renderer calls `ctx.view.render('authkit::<view>', props)`,
+where each view is a file shipped inside the package — never from your project's disk.
+
+### React / Inertia (recommended for branded UX)
+
+To render the flow screens as React components you need to:
+
+1. **Scaffold the pages into your project.** The pages do **not** ship as React files inside
+   the npm package — there are no `.tsx` files to import. Instead, `node ace add` writes
+   starter components into your project that you then own and customise:
+
+   ```bash
+   node ace add @dudousxd/adonis-authkit-server --ui=react
+   ```
+
+   This requires `@adonisjs/inertia` + React + Vite already configured in your app
+   (run `node ace add @adonisjs/inertia` first if needed). The command aborts if those
+   prerequisites are missing.
+
+2. **Point `inertiaRenderer` at the scaffolded pages.** The published config stub already
+   includes this — you only need to verify the prefix matches your Inertia pages directory:
+
+   ```ts title="config/authkit.ts"
+   import { defineConfig, inertiaRenderer } from '@dudousxd/adonis-authkit-server'
+
+   export default defineConfig({
+     // ...
+     render: inertiaRenderer({
+       prefix: 'authkit',
+       views: [
+         'login',
+         'consent',
+         'signup',
+         'forgot',
+         'reset',
+         'verify-email',
+         'mfa-challenge',
+         'account/login',
+         'account/tokens',
+         'account/mfa',
+       ],
+     }),
+   })
+   ```
+
+#### What the scaffold generates
+
+`--ui=react` writes the following files into your project (relative to your Inertia pages
+directory, e.g. `inertia/pages/` by default):
+
+| File | Screen |
+| --- | --- |
+| `authkit/login.tsx` | Email + password sign-in |
+| `authkit/signup.tsx` | Registration form |
+| `authkit/consent.tsx` | OAuth consent / scope grant |
+| `authkit/forgot.tsx` | Forgot-password request |
+| `authkit/reset.tsx` | Password reset form |
+| `authkit/verify-email.tsx` | Email verification landing |
+| `authkit/mfa-challenge.tsx` | TOTP / passkey MFA prompt |
+| `authkit/account/login.tsx` | Account console sign-in |
+| `authkit/account/tokens.tsx` | Personal Access Tokens management |
+| `authkit/account/mfa.tsx` | MFA enrolment |
+| `authkit/components/auth_shell.tsx` | Shared layout shell used by the pages above |
+
+These files are **yours from the moment they are generated**. Edit them freely — they will
+not be overwritten by future `node ace add` runs.
+
+#### The `views` allowlist and the Edge fallback
+
+`views` is an explicit list of the screen names you have React pages for. When a screen
+name is **not** in the list (for example, a screen added in a future AuthKit release that
+you have not yet created a page for), the renderer silently falls back to the built-in Edge
+view instead of throwing an SSR error.
+
+```
+Requested screen: 'verify-email'
+  → listed in views? yes → inertia.render('authkit/verify-email', props)
+
+Requested screen: 'new-future-screen' (not scaffolded yet)
+  → listed in views? no  → ctx.view.render('authkit::new-future-screen', props)  [Edge fallback]
+```
+
+<Callout type="warn">
+  If you omit `views` entirely, every screen is sent to Inertia — including any new screens
+  added by future library updates. That will crash with an SSR error ("Cannot find module")
+  because those pages won't exist in your project yet. **Always provide `views`** with the
+  exact set of pages the scaffold generated.
+</Callout>
+
+#### Where the files live: Inertia's pages resolver
+
+The React pages live wherever `@adonisjs/inertia` is configured to look for pages — that
+is set in your app's Inertia config, not in AuthKit's config. By default it is
+`inertia/pages/`. The `prefix` you pass to `inertiaRenderer` is a **subdirectory** inside
+that root:
+
+```
+prefix: 'authkit'  +  Inertia pages root: inertia/pages/
+→ login screen:  inertia/pages/authkit/login.tsx
+→ consent screen: inertia/pages/authkit/consent.tsx
+```
+
+If your app places pages elsewhere — for example, many projects use a domain layout like
+`app/**/ui/pages/` — configure that in `config/inertia.ts` (the `ssrEntrypoint` /
+`assetsVersion` / `rootView` settings of `@adonisjs/inertia`), then pass a matching
+prefix to `inertiaRenderer`. **AuthKit does not own that setting.**
+
+```ts title="config/inertia.ts (example for a domain layout)"
+import { defineConfig } from '@adonisjs/inertia'
+
+export default defineConfig({
+  // Your pages live under app/**/ui/pages/
+  // @adonisjs/inertia resolves 'authkit/login' → app/auth/ui/pages/authkit/login.tsx
+})
+```
+
+### Headless (bring your own renderer)
+
+Omit `render` and drive the flows via the JSON contracts yourself — the routes still mount
+but respond with JSON payloads rather than rendered HTML. Useful when you want a fully
+custom SSR setup, a different template engine, or a mobile app consuming the same flows.
 
 ### Copy-only tweaks: override i18n strings
 

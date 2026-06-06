@@ -1,5 +1,12 @@
 # @dudousxd/adonis-authkit-testing
 
+## 0.2.3
+
+### Patch Changes
+
+- Updated dependencies
+  - @dudousxd/adonis-authkit-core@0.4.0
+
 ## 0.2.2
 
 ### Patch Changes

@@ -1,5 +1,19 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.16.0
+
+### Minor Changes
+
+- Breaking cleanup (0.x, no external consumers): every deprecation shim is gone.
+  - Policy now lives ONLY in runtime settings (DB) with library defaults — removed from config: static `clients`, lockout policy fields (`store` stays), rate-limit buckets (`enabled`/`store` stay), `notifications`, trusted-devices `enabled`/`days`, `admin.impersonation`, organizations `roles`/`allowSelfCreate`/`invitationTtlHours`, and `password.policy`/`password.checkPwned` store options (`legacyVerifier`/`pepper`/`pwnedTimeoutMs` stay — they are code/infra).
+  - Removed commands `authkit:clients:import` and the legacy `authkit:rotate-keys` alias. New `authkit:clients:create` creates OIDC clients programmatically through the configured storage (confidential secret printed once; `--public`, repeatable `--redirect-uri`/`--grant`, `--json`).
+  - Removed the no-op `passthroughParsed` option from `jsonColumn` and the `checkLegacyPolicyConfig` doctor check.
+
+### Patch Changes
+
+- Updated dependencies
+  - @dudousxd/adonis-authkit-core@0.4.0
+
 ## 0.15.2
 
 ### Patch Changes

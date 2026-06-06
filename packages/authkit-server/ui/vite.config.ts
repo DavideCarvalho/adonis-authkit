@@ -8,7 +8,11 @@ export default defineConfig({
   plugins: [react()],
   base: '/__AUTHKIT_BASE__/',
   build: {
-    outDir: resolve(__dirname, '../build/host/ui-dist'),
+    // tsconfig do server tem rootDir './', então admin_shell_controller.ts compila
+    // para build/src/host/admin_console/ — seu `../../host/ui-dist` resolve para
+    // build/src/host/ui-dist. O dist do Vite PRECISA cair aí (não em build/host/ui-dist),
+    // senão o serving cai no fallback "Build Required". Ver admin_shell_controller.ts.
+    outDir: resolve(__dirname, '../build/src/host/ui-dist'),
     emptyOutDir: true,
   },
 })

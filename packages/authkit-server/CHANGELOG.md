@@ -1,5 +1,11 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.18.2
+
+### Patch Changes
+
+- Fix React admin console serving the "Build Required" fallback instead of the SPA: the Vite dist was emitted to build/host/ui-dist but the compiled admin_shell_controller (rootDir ./ → build/src/host/admin_console) resolves the dist at build/src/host/ui-dist, so the readFile always failed in production. Vite now outputs to the matching path and the build asserts the dist lands where the controller reads it.
+
 ## 0.18.1
 
 ### Patch Changes

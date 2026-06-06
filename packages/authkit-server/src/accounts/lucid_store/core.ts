@@ -255,11 +255,13 @@ export function buildCore(
       // confirmação por outra conta.
       const taken = await Model.query().where('email', newEmail).first()
       if (taken && taken.id !== row.id) return { ok: false as const }
+      // Captura o e-mail antigo ANTES de sobrescrever (para notificações de segurança).
+      const oldEmail = row.email as string
       row.email = newEmail
       row.emailVerifiedAt = DateTime.now()
       row.emailVerificationToken = null
       await row.save()
-      return { ok: true as const, account: toAccount(row), newEmail }
+      return { ok: true as const, account: toAccount(row), oldEmail, newEmail }
     },
   }
 }

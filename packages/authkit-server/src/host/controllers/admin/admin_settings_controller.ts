@@ -7,7 +7,12 @@ import {
   resolveEffectiveRequireVerifiedEmail,
   resolveEffectiveMaintenanceMode,
   resolveEffectiveAuthMethods,
+  resolveEffectiveEmailChange,
+  resolveEffectiveSecurityNotifications,
+  ALL_SECURITY_NOTIFICATION_KINDS,
   type AuthMethodsSetting,
+  type EmailChangeSetting,
+  type SecurityNotificationsSetting,
 } from '../../runtime_toggles.js'
 import { getAdminPrefix } from '../../admin_prefix.js'
 import { supportsMagicLink } from '../../../accounts/account_store.js'
@@ -118,6 +123,30 @@ export default class AdminSettingsController {
         })
       : { password: true, magicLink: magicLinkCapable, passkey: passkeyCapable, social: configuredSocialProviders, forgotPassword: true }
 
+    // ---- email_change ----
+    let currentEmailChangeSetting: EmailChangeSetting | null = null
+    if (runtimeSettings && hasTable) {
+      const raw = await runtimeSettings.getSetting('email_change')
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        currentEmailChangeSetting = raw as EmailChangeSetting
+      }
+    }
+    const emailChangeEffective = runtimeSettings
+      ? await resolveEffectiveEmailChange(runtimeSettings)
+      : { enabled: true, ttlHours: 24, requirePassword: true }
+
+    // ---- security_notifications ----
+    let currentSecurityNotificationsSetting: SecurityNotificationsSetting | null = null
+    if (runtimeSettings && hasTable) {
+      const raw = await runtimeSettings.getSetting('security_notifications')
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        currentSecurityNotificationsSetting = raw as SecurityNotificationsSetting
+      }
+    }
+    const securityNotificationsEffective = runtimeSettings
+      ? await resolveEffectiveSecurityNotifications(runtimeSettings)
+      : { enabled: true, kinds: [...ALL_SECURITY_NOTIFICATION_KINDS] }
+
     return render(ctx, 'admin/settings', {
       csrfToken: ctx.request.csrfToken,
       adminBase: getAdminPrefix(),
@@ -146,6 +175,13 @@ export default class AdminSettingsController {
       magicLinkCapable,
       passkeyCapable,
       configuredSocialProviders,
+      // email_change
+      currentEmailChangeSetting,
+      emailChangeEffective,
+      // security_notifications
+      currentSecurityNotificationsSetting,
+      securityNotificationsEffective,
+      allSecurityNotificationKinds: ALL_SECURITY_NOTIFICATION_KINDS,
     })
   }
 
@@ -452,6 +488,119 @@ export default class AdminSettingsController {
         actorId: accountId,
         ip: ctx.request.ip?.() ?? null,
         metadata: { key: 'auth_methods', action: 'reset_to_config' },
+      })
+    }
+
+    ctx.session?.flash('flash', t('admin.settings.reset_done'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  // -------------------------------------------------------------------------
+  // Email change
+  // -------------------------------------------------------------------------
+
+  async updateEmailChange(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (!runtimeSettings || !(await runtimeSettings.isTablePresent())) {
+      ctx.session?.flash('flash', t('admin.settings.no_settings_table'))
+      return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+    }
+
+    const enabled = ctx.request.input('enabled') === '1' || ctx.request.input('enabled') === 'true'
+    const rawTtl = ctx.request.input('ttl_hours')
+    const ttlHours = typeof rawTtl === 'string' && rawTtl.trim() !== '' ? Math.max(1, parseInt(rawTtl, 10) || 24) : 24
+    const requirePassword = ctx.request.input('require_password') === '1' || ctx.request.input('require_password') === 'true'
+
+    const setting: EmailChangeSetting = { enabled, ttlHours, requirePassword }
+    await runtimeSettings.setSetting('email_change', setting, accountId)
+    await cfg.audit?.record({
+      type: 'settings.updated',
+      actorId: accountId,
+      ip: ctx.request.ip?.() ?? null,
+      metadata: { key: 'email_change', value: setting },
+    })
+
+    ctx.session?.flash('flash', t('admin.settings.saved'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  async resetEmailChange(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (runtimeSettings) {
+      await runtimeSettings.deleteSetting('email_change')
+      await cfg.audit?.record({
+        type: 'settings.updated',
+        actorId: accountId,
+        ip: ctx.request.ip?.() ?? null,
+        metadata: { key: 'email_change', action: 'reset_to_config' },
+      })
+    }
+
+    ctx.session?.flash('flash', t('admin.settings.reset_done'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  // -------------------------------------------------------------------------
+  // Security notifications
+  // -------------------------------------------------------------------------
+
+  async updateSecurityNotifications(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (!runtimeSettings || !(await runtimeSettings.isTablePresent())) {
+      ctx.session?.flash('flash', t('admin.settings.no_settings_table'))
+      return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+    }
+
+    const enabled = ctx.request.input('enabled') === '1' || ctx.request.input('enabled') === 'true'
+    const rawKinds = ctx.request.input('kinds')
+    const kinds: string[] = Array.isArray(rawKinds)
+      ? rawKinds
+      : typeof rawKinds === 'string' && rawKinds
+        ? [rawKinds]
+        : [...ALL_SECURITY_NOTIFICATION_KINDS]
+
+    const setting: SecurityNotificationsSetting = { enabled, kinds }
+    await runtimeSettings.setSetting('security_notifications', setting, accountId)
+    await cfg.audit?.record({
+      type: 'settings.updated',
+      actorId: accountId,
+      ip: ctx.request.ip?.() ?? null,
+      metadata: { key: 'security_notifications', value: setting },
+    })
+
+    ctx.session?.flash('flash', t('admin.settings.saved'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  async resetSecurityNotifications(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (runtimeSettings) {
+      await runtimeSettings.deleteSetting('security_notifications')
+      await cfg.audit?.record({
+        type: 'settings.updated',
+        actorId: accountId,
+        ip: ctx.request.ip?.() ?? null,
+        metadata: { key: 'security_notifications', action: 'reset_to_config' },
       })
     }
 

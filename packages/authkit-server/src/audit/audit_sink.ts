@@ -52,6 +52,17 @@ export type AuditEventType =
   | 'organization.invitation_sent'
   | 'organization.invitation_accepted'
   | 'organization.invitation_revoked'
+  // Email change (verified flow)
+  | 'email_change.requested'
+  | 'email_change.confirmed'
+  | 'email_change.cancelled'
+  // Security notices
+  | 'security_notice.sent'
+  // Settings
+  | 'settings.updated'
+  | 'maintenance.enabled'
+  | 'maintenance.disabled'
+  | 'trusted_device.revoked'
 
 /**
  * Evento de auditoria a registrar. O timestamp é definido pelo sink (não aqui).

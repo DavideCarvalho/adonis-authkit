@@ -33,10 +33,13 @@ export const changePasswordValidator = vine.compile(
   })
 )
 
-/** Troca de e-mail no console de conta: senha atual + o novo e-mail. */
+/**
+ * Troca de e-mail no console de conta: senha atual (opcional — pode ser
+ * dispensada pela setting `email_change.requirePassword: false`) + o novo e-mail.
+ */
 export const changeEmailValidator = vine.compile(
   vine.object({
-    currentPassword: vine.string().minLength(1),
+    currentPassword: vine.string().minLength(1).optional(),
     newEmail: vine.string().trim().email().normalizeEmail(),
   })
 )

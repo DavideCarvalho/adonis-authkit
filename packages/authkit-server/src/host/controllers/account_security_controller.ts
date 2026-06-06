@@ -12,7 +12,11 @@ import {
   deleteAccountValidator,
   updateProfileValidator,
 } from '../validators.js'
-import { sendEmailChangeConfirmationEmail } from '../default_mailer.js'
+import {
+  sendEmailChangeConfirmationEmail,
+  sendEmailChangeNoticeEmail,
+  sendEmailChangedCompletedEmail,
+} from '../default_mailer.js'
 import { storeAvatar, isDriveAvailable, AvatarUploadError } from '../avatar_storage.js'
 import { translate } from '../i18n.js'
 import { TRUSTED_DEVICE_COOKIE } from '../trusted_device.js'
@@ -21,6 +25,23 @@ import { AccountExportService } from '../account_export_service.js'
 import { AdminSessionsService } from '../admin_sessions_service.js'
 import { enrichSessionsWithContext } from '../session_context.js'
 import { PasswordPolicyError } from '../../password/password_manager.js'
+import { RuntimeSettings } from '../runtime_settings.js'
+import { resolveEffectiveEmailChange } from '../runtime_toggles.js'
+import { dispatchSecurityNotice } from '../security_notice_service.js'
+
+/** Resolve os settings de troca de e-mail em runtime (fail-safe). */
+async function resolveEmailChangeSettings(ctx: HttpContext) {
+  try {
+    const db = await (ctx.containerResolver as any).make('lucid.db')
+    const runtimeSettings = new RuntimeSettings(db)
+    if (await runtimeSettings.isTablePresent()) {
+      return await resolveEffectiveEmailChange(runtimeSettings)
+    }
+  } catch {
+    // DB não disponível ou tabela ausente → usa defaults.
+  }
+  return { enabled: true, ttlHours: 24, requirePassword: true }
+}
 
 /**
  * Self-service de segurança da conta (console de conta): trocar a senha e o
@@ -279,6 +300,20 @@ export default class AccountSecurityController {
       accountId: userId,
       ip: ctx.request.ip?.() ?? null,
     })
+    // Notificação de segurança ao titular da conta (best-effort, fail-safe).
+    if (account) {
+      await dispatchSecurityNotice(
+        ctx,
+        {
+          account: { id: userId, email: account.email },
+          kind: 'password_changed',
+          ip: ctx.request.ip?.() ?? null,
+          timestamp: new Date().toISOString(),
+        },
+        cfg.mail,
+        cfg.audit
+      )
+    }
     ctx.session.flash('passwordChanged', translate(cfg.messages, 'account.security.password_changed'))
     return ctx.response.redirect('/account/security')
   }
@@ -293,14 +328,29 @@ export default class AccountSecurityController {
       return ctx.response.redirect('/account/security')
     }
 
+    // Resolve os settings de troca de e-mail em runtime.
+    const emailChangeSettings = await resolveEmailChangeSettings(ctx)
+    if (!emailChangeSettings.enabled) {
+      ctx.session.flash('securityError', translate(cfg.messages, 'account.security.email_change_disabled'))
+      return ctx.response.redirect('/account/security')
+    }
+
     const { currentPassword, newEmail } = await ctx.request.validateUsing(changeEmailValidator)
     const account = await store.findById(userId)
-    const verified = account
-      ? await store.verifyCredentials(account.email, currentPassword)
-      : null
-    if (!verified) {
-      ctx.session.flash('securityError', translate(cfg.messages, 'errors.invalid_credentials'))
-      return ctx.response.redirect('/account/security')
+
+    // requirePassword: se ligado (default true), exige senha atual.
+    if (emailChangeSettings.requirePassword) {
+      if (!currentPassword) {
+        ctx.session.flash('securityError', translate(cfg.messages, 'errors.invalid_credentials'))
+        return ctx.response.redirect('/account/security')
+      }
+      const verified = account
+        ? await store.verifyCredentials(account.email, currentPassword)
+        : null
+      if (!verified) {
+        ctx.session.flash('securityError', translate(cfg.messages, 'errors.invalid_credentials'))
+        return ctx.response.redirect('/account/security')
+      }
     }
 
     const issued = await store.requestEmailChange(userId, newEmail)
@@ -310,7 +360,7 @@ export default class AccountSecurityController {
     }
 
     await cfg.audit?.record({
-      type: 'email.change_requested',
+      type: 'email_change.requested',
       accountId: userId,
       email: newEmail,
       ip: ctx.request.ip?.() ?? null,
@@ -318,16 +368,81 @@ export default class AccountSecurityController {
 
     const origin = `${ctx.request.protocol()}://${ctx.request.host()}`
     const confirmUrl = `${origin}/account/email/confirm?token=${encodeURIComponent(issued.token)}`
-    // Hook do config tem prioridade (override); senão usa o mailer default do host.
-    if (cfg.mail?.onEmailVerification) {
+
+    // 1. Link de confirmação → NOVO e-mail (hook onEmailChangeConfirm > onEmailVerification > default).
+    if (cfg.mail?.onEmailChangeConfirm) {
+      await cfg.mail.onEmailChangeConfirm({
+        email: newEmail,
+        confirmUrl,
+        token: issued.token,
+        oldEmail: account?.email ?? '',
+      })
+    } else if (cfg.mail?.onEmailVerification) {
+      // Retrocompat: hook legado onEmailVerification (ainda funciona como override).
       await cfg.mail.onEmailVerification({ email: newEmail, verifyUrl: confirmUrl, token: issued.token })
     } else {
       await sendEmailChangeConfirmationEmail(ctx, { email: newEmail, confirmUrl })
     }
 
+    // 2. Aviso de segurança → e-mail ATUAL (best-effort, fail-safe).
+    if (account) {
+      if (cfg.mail?.onEmailChangeNotice) {
+        await cfg.mail.onEmailChangeNotice({ email: account.email, newEmail })
+      } else {
+        await sendEmailChangeNoticeEmail(ctx, { email: account.email, newEmail })
+      }
+    }
+
     ctx.session.flash(
       'emailChangeRequested',
       translate(cfg.messages, 'account.security.email_change_requested', { email: newEmail })
+    )
+    return ctx.response.redirect('/account/security')
+  }
+
+  /**
+   * POST /account/security/email/cancel — cancela uma troca de e-mail pendente
+   * (limpa o token pending sem alterar o e-mail da conta).
+   */
+  async cancelEmailChange(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const store = cfg.accountStore
+
+    const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
+    if (!supportsAccountSecurity(store)) {
+      return ctx.response.redirect('/account/security')
+    }
+
+    // Implementação: issuePendingToken(userId, null) limpa o token; reutilizamos
+    // requestEmailChange com um valor sentinela → não, melhor usar cancelEmailChange
+    // se o store o suportar, senão fallback: sobreescrevemos o token pendente com um
+    // token fictício que nunca será confirmado (mas abre nova solicitação).
+    // A forma mais limpa é verificar se o store tem cancelEmailChange; se não tiver,
+    // chamamos requestEmailChange com o próprio e-mail atual (limpa o pending antigo).
+    const cancelFn = (store as any).cancelEmailChange
+    if (typeof cancelFn === 'function') {
+      await cancelFn.call(store, userId)
+    } else {
+      // Fallback: sobrescreve o pending com o próprio e-mail (não tem efeito após confirm).
+      const account = await store.findById(userId)
+      if (account) {
+        // Limpa o token pending emitindo um novo token para o mesmo e-mail e depois
+        // confirmando imediatamente — ou simplesmente apaga o campo via requestEmailChange
+        // com o mesmo e-mail (que é idempotente e limpa o anterior).
+        await store.requestEmailChange(userId, account.email)
+      }
+    }
+
+    await cfg.audit?.record({
+      type: 'email_change.cancelled',
+      accountId: userId,
+      ip: ctx.request.ip?.() ?? null,
+    })
+
+    ctx.session.flash(
+      'emailChangeRequested',
+      translate(cfg.messages, 'account.security.email_change_cancelled')
     )
     return ctx.response.redirect('/account/security')
   }
@@ -347,11 +462,38 @@ export default class AccountSecurityController {
     const result = await store.confirmEmailChange(token)
     if (result.ok) {
       await cfg.audit?.record({
-        type: 'email.changed',
+        type: 'email_change.confirmed',
         accountId: result.account.id,
         email: result.newEmail,
         ip: ctx.request.ip?.() ?? null,
+        metadata: { oldEmail: result.oldEmail },
       })
+
+      // Aviso de conclusão ao e-mail ANTIGO: "seu e-mail foi alterado de A para B".
+      // Best-effort, fail-safe.
+      if (cfg.mail?.onEmailChangeNotice) {
+        // Reusa onEmailChangeNotice para o aviso pós-confirmação ao endereço antigo.
+        await cfg.mail.onEmailChangeNotice({ email: result.oldEmail, newEmail: result.newEmail }).catch(() => {})
+      } else {
+        await sendEmailChangedCompletedEmail(ctx, {
+          oldEmail: result.oldEmail,
+          newEmail: result.newEmail,
+        })
+      }
+
+      // Notificação de segurança ao NOVO e-mail (email_changed) — best-effort.
+      await dispatchSecurityNotice(
+        ctx,
+        {
+          account: { id: result.account.id, email: result.newEmail },
+          kind: 'email_changed',
+          ip: ctx.request.ip?.() ?? null,
+          timestamp: new Date().toISOString(),
+          metadata: { oldEmail: result.oldEmail, newEmail: result.newEmail },
+        },
+        cfg.mail,
+        cfg.audit
+      )
     }
     return render(ctx, 'account/email-confirmed', { ok: result.ok })
   }

@@ -28,6 +28,8 @@ export const SETTING_KEYS = {
   REQUIRE_VERIFIED_EMAIL: 'require_verified_email',
   MAINTENANCE_MODE: 'maintenance_mode',
   AUTH_METHODS: 'auth_methods',
+  EMAIL_CHANGE: 'email_change',
+  SECURITY_NOTIFICATIONS: 'security_notifications',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]
@@ -305,4 +307,131 @@ export async function resolveEffectiveAuthMethods(
   }
 
   return resolved
+}
+
+// ---------------------------------------------------------------------------
+// 5. email_change setting
+// ---------------------------------------------------------------------------
+
+/**
+ * Shape da setting `email_change` em `auth_settings`.
+ *
+ * Controla o fluxo de troca de e-mail verificada em runtime:
+ *   - `enabled`:          habilita/desabilita o fluxo. Default: true (se a capability presente).
+ *   - `ttlHours`:         duração do token de confirmação em horas. Default: 24.
+ *   - `requirePassword`:  exige senha atual para iniciar a troca. Default: true.
+ */
+export interface EmailChangeSetting {
+  enabled?: boolean
+  ttlHours?: number
+  requirePassword?: boolean
+}
+
+/** Resultado resolvido da setting email_change. */
+export interface ResolvedEmailChangeSetting {
+  enabled: boolean
+  ttlHours: number
+  requirePassword: boolean
+}
+
+/**
+ * Resolve as configurações efetivas de troca de e-mail, combinando a setting
+ * persistida em runtime com defaults.
+ *
+ * FAIL-SAFE: qualquer erro → defaults (enabled true, 24h, requirePassword true).
+ */
+export async function resolveEffectiveEmailChange(
+  settings: SettingsCapability
+): Promise<ResolvedEmailChangeSetting> {
+  const defaults: ResolvedEmailChangeSetting = { enabled: true, ttlHours: 24, requirePassword: true }
+  try {
+    const raw = await settings.getSetting(SETTING_KEYS.EMAIL_CHANGE)
+    if (raw === null || raw === undefined) return defaults
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
+    const s = raw as EmailChangeSetting
+    return {
+      enabled: typeof s.enabled === 'boolean' ? s.enabled : defaults.enabled,
+      ttlHours: typeof s.ttlHours === 'number' && s.ttlHours > 0 ? s.ttlHours : defaults.ttlHours,
+      requirePassword: typeof s.requirePassword === 'boolean' ? s.requirePassword : defaults.requirePassword,
+    }
+  } catch {
+    return defaults
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 6. security_notifications setting
+// ---------------------------------------------------------------------------
+
+/**
+ * Tipos de evento de segurança que disparam notificação por e-mail.
+ */
+export type SecurityNotificationKind =
+  | 'password_changed'
+  | 'mfa_enabled'
+  | 'mfa_disabled'
+  | 'passkey_added'
+  | 'passkey_removed'
+  | 'email_changed'
+
+/** Todos os tipos de notificação de segurança suportados. */
+export const ALL_SECURITY_NOTIFICATION_KINDS: SecurityNotificationKind[] = [
+  'password_changed',
+  'mfa_enabled',
+  'mfa_disabled',
+  'passkey_added',
+  'passkey_removed',
+  'email_changed',
+]
+
+/**
+ * Shape da setting `security_notifications` em `auth_settings`.
+ *
+ *   - `enabled`:  habilita/desabilita todas as notificações. Default: true.
+ *   - `kinds`:    lista dos tipos de evento a notificar. Default: todos.
+ */
+export interface SecurityNotificationsSetting {
+  enabled?: boolean
+  kinds?: string[]
+}
+
+/** Resultado resolvido das notificações de segurança. */
+export interface ResolvedSecurityNotifications {
+  enabled: boolean
+  kinds: SecurityNotificationKind[]
+}
+
+/**
+ * Resolve as notificações de segurança efetivas, combinando a setting
+ * persistida em runtime com defaults.
+ *
+ * FAIL-SAFE: qualquer erro → defaults (enabled true, todos os kinds).
+ */
+export async function resolveEffectiveSecurityNotifications(
+  settings: SettingsCapability
+): Promise<ResolvedSecurityNotifications> {
+  const defaults: ResolvedSecurityNotifications = {
+    enabled: true,
+    kinds: [...ALL_SECURITY_NOTIFICATION_KINDS],
+  }
+  try {
+    const raw = await settings.getSetting(SETTING_KEYS.SECURITY_NOTIFICATIONS)
+    if (raw === null || raw === undefined) return defaults
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
+    const s = raw as SecurityNotificationsSetting
+    const enabled = typeof s.enabled === 'boolean' ? s.enabled : defaults.enabled
+    let kinds: SecurityNotificationKind[]
+    if (Array.isArray(s.kinds) && s.kinds.length > 0) {
+      // Apenas aceita kinds válidos (interseção com os suportados).
+      kinds = s.kinds.filter((k): k is SecurityNotificationKind =>
+        (ALL_SECURITY_NOTIFICATION_KINDS as string[]).includes(k)
+      )
+      if (kinds.length === 0) kinds = [...ALL_SECURITY_NOTIFICATION_KINDS]
+    } else {
+      kinds = [...ALL_SECURITY_NOTIFICATION_KINDS]
+    }
+    return { enabled, kinds }
+  } catch {
+    return defaults
+  }
 }

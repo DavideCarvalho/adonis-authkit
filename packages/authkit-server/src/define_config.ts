@@ -81,6 +81,51 @@ export interface MailHooks {
     acceptUrl: string
     token: string
   }) => Promise<void>
+  /**
+   * Disparado quando o usuário solicita troca de e-mail: envia o link de
+   * confirmação para o NOVO endereço. Quando ausente, o host-kit envia o
+   * e-mail default. Best-effort, fire-and-forget.
+   */
+  onEmailChangeConfirm?: (data: {
+    /** Novo e-mail que receberá o link de confirmação. */
+    email: string
+    confirmUrl: string
+    token: string
+    /** E-mail ATUAL da conta (para contexto no template). */
+    oldEmail: string
+  }) => Promise<void>
+  /**
+   * Disparado quando o usuário solicita troca de e-mail: envia aviso de
+   * segurança para o endereço ATUAL. Quando ausente, o host-kit envia o
+   * e-mail default. Best-effort, fire-and-forget.
+   */
+  onEmailChangeNotice?: (data: {
+    /** E-mail ATUAL que receberá o aviso. */
+    email: string
+    /** Novo e-mail solicitado (para informação). */
+    newEmail: string
+  }) => Promise<void>
+  /**
+   * Disparado após um evento de segurança (senha alterada, MFA habilitado/desabilitado,
+   * passkey adicionada/removida, e-mail alterado). Substitui o e-mail default quando
+   * fornecido. Best-effort, fire-and-forget. Quando ausente, o host-kit envia o e-mail
+   * default correspondente a cada kind.
+   */
+  onSecurityNotice?: (data: {
+    account: { id: string; email: string }
+    kind:
+      | 'password_changed'
+      | 'mfa_enabled'
+      | 'mfa_disabled'
+      | 'passkey_added'
+      | 'passkey_removed'
+      | 'email_changed'
+    ip?: string | null
+    userAgent?: string | null
+    timestamp: string
+    /** Metadados extras (ex.: oldEmail/newEmail para email_changed). */
+    metadata?: Record<string, string>
+  }) => Promise<void>
 }
 
 /** Bucket de rate-limit: pontos (requests) permitidos por janela de duração. */

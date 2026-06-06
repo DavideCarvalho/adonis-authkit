@@ -235,6 +235,7 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
       router.get('/account/security', [C.accountSecurity, 'index'])
       router.post('/account/security/password', [C.accountSecurity, 'changePassword'])
       router.post('/account/security/email', [C.accountSecurity, 'changeEmail'])
+      router.post('/account/security/email/cancel', [C.accountSecurity, 'cancelEmailChange'])
       router.post('/account/security/profile', [C.accountSecurity, 'updateProfile'])
       // LGPD/GDPR: export de dados (portabilidade) + deleção self-service (danger zone).
       // O export carrega o throttle de login (anti-abuso) quando o rate-limit existe.
@@ -329,6 +330,10 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
         router.post(`${ap}/settings/maintenance/reset`, [C.adminSettings, 'resetMaintenance'])
         router.post(`${ap}/settings/auth-methods`, [C.adminSettings, 'updateAuthMethods'])
         router.post(`${ap}/settings/auth-methods/reset`, [C.adminSettings, 'resetAuthMethods'])
+        router.post(`${ap}/settings/email-change`, [C.adminSettings, 'updateEmailChange'])
+        router.post(`${ap}/settings/email-change/reset`, [C.adminSettings, 'resetEmailChange'])
+        router.post(`${ap}/settings/security-notifications`, [C.adminSettings, 'updateSecurityNotifications'])
+        router.post(`${ap}/settings/security-notifications/reset`, [C.adminSettings, 'resetSecurityNotifications'])
       })
       .use([adminGuard])
   }

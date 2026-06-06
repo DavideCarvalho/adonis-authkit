@@ -121,11 +121,13 @@ export interface AccountSecurityCapability {
   /**
    * Confirma a troca de e-mail consumindo o token (single-use). Em caso de
    * sucesso aplica o novo e-mail, marca-o como verificado e limpa o token.
-   * Retorna `{ ok: true, account, newEmail }` ou `{ ok: false }`.
+   * Retorna `{ ok: true, account, oldEmail, newEmail }` ou `{ ok: false }`.
+   * `oldEmail` é o e-mail da conta ANTES da troca (para avisos de segurança ao
+   * endereço antigo e auditoria). `account.email` já reflete o novo endereço.
    */
   confirmEmailChange(
     token: string
-  ): Promise<{ ok: true; account: AuthAccount; newEmail: string } | { ok: false }>
+  ): Promise<{ ok: true; account: AuthAccount; oldEmail: string; newEmail: string } | { ok: false }>
 }
 
 /**

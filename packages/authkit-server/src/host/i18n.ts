@@ -156,6 +156,8 @@ export const DEFAULT_MESSAGES = {
   'account.security.email_change_requested':
     'We sent a confirmation link to {email}. Click it to complete the change.',
   'account.security.email_changed': 'Email changed successfully.',
+  'account.security.email_change_disabled': 'Email change is currently disabled.',
+  'account.security.email_change_cancelled': 'Email change request cancelled.',
   // Trusted devices (account/security).
   'account.security.trusted_devices_section': 'Trusted devices',
   'account.security.trusted_devices_intro':
@@ -632,6 +634,62 @@ export const DEFAULT_MESSAGES = {
   'mail.email_change.cta': 'Confirm new email',
   'mail.email_change.fallback': 'If you did not request this, you can ignore this email.',
   'mail.email_change.expires': 'This link expires in {minutes} minutes.',
+
+  // E-mail de aviso ao endereço ATUAL quando troca de e-mail é solicitada.
+  'mail.email_change_notice.subject': 'Email change requested',
+  'mail.email_change_notice.heading': 'Email change requested',
+  'mail.email_change_notice.intro':
+    'A request was made to change the email address on your account to {newEmail}. A confirmation link was sent to the new address.',
+  'mail.email_change_notice.cta': 'Review account security',
+  'mail.email_change_notice.fallback':
+    'If this was not you, your account may be compromised — change your password immediately.',
+
+  // E-mail de confirmação ao endereço ANTIGO após troca concluída.
+  'mail.email_changed_completed.subject': 'Your email address has been changed',
+  'mail.email_changed_completed.heading': 'Email address changed',
+  'mail.email_changed_completed.intro':
+    'The email address on your account has been changed from {oldEmail} to {newEmail}.',
+  'mail.email_changed_completed.cta': 'Review account security',
+  'mail.email_changed_completed.fallback':
+    'If this was not you, contact support immediately.',
+
+  // E-mails de notificação de segurança (senha alterada, MFA, passkey, e-mail).
+  'mail.security_notice.subject': 'Security alert: {kind}',
+  'mail.security_notice.heading': 'Security alert',
+  'mail.security_notice.intro': 'A security event occurred on your account: {kind}.',
+  'mail.security_notice.when': 'When: {date}',
+  'mail.security_notice.ip': 'IP address: {ip}',
+  'mail.security_notice.fallback':
+    'If this was you, no action is needed. If not, secure your account immediately.',
+  'mail.security_notice.kind_password_changed': 'password changed',
+  'mail.security_notice.kind_mfa_enabled': 'two-factor authentication enabled',
+  'mail.security_notice.kind_mfa_disabled': 'two-factor authentication disabled',
+  'mail.security_notice.kind_passkey_added': 'passkey added',
+  'mail.security_notice.kind_passkey_removed': 'passkey removed',
+  'mail.security_notice.kind_email_changed': 'email address changed',
+
+  // Admin settings — email_change card.
+  'admin.settings.email_change_section': 'Email change',
+  'admin.settings.email_change_intro':
+    'Controls the verified email-change flow. When enabled, users can request an email change from /account/security; a confirmation link is sent to the new address and a security notice to the current one.',
+  'admin.settings.email_change_ttl_label': 'Token TTL (hours)',
+  'admin.settings.email_change_require_password_label': 'Require current password',
+  'admin.settings.email_change_from_config': 'Source: defaults',
+  'admin.settings.email_change_from_setting': 'Source: runtime setting',
+
+  // Admin settings — security_notifications card.
+  'admin.settings.security_notifications_section': 'Security notifications',
+  'admin.settings.security_notifications_intro':
+    'Sends an email alert to the account when security-sensitive events occur (password change, MFA on/off, passkey add/remove, email change). Each kind can be toggled individually.',
+  'admin.settings.security_notifications_kinds_label': 'Notify on',
+  'admin.settings.security_notifications_from_config': 'Source: defaults',
+  'admin.settings.security_notifications_from_setting': 'Source: runtime setting',
+  'admin.settings.security_notifications_kind_password_changed': 'Password changed',
+  'admin.settings.security_notifications_kind_mfa_enabled': 'MFA enabled',
+  'admin.settings.security_notifications_kind_mfa_disabled': 'MFA disabled',
+  'admin.settings.security_notifications_kind_passkey_added': 'Passkey added',
+  'admin.settings.security_notifications_kind_passkey_removed': 'Passkey removed',
+  'admin.settings.security_notifications_kind_email_changed': 'Email changed',
 } satisfies AuthMessages
 
 /**
@@ -760,6 +818,8 @@ export const PT_BR_MESSAGES = {
   'account.security.email_change_requested':
     'Enviamos um link de confirmação para {email}. Clique nele para concluir a troca.',
   'account.security.email_changed': 'E-mail alterado com sucesso.',
+  'account.security.email_change_disabled': 'A troca de e-mail está desabilitada no momento.',
+  'account.security.email_change_cancelled': 'Solicitação de troca de e-mail cancelada.',
   // Trusted devices (account/security).
   'account.security.trusted_devices_section': 'Dispositivos confiáveis',
   'account.security.trusted_devices_intro':
@@ -1234,6 +1294,62 @@ export const PT_BR_MESSAGES = {
   'mail.email_change.cta': 'Confirmar novo e-mail',
   'mail.email_change.fallback': 'Se você não solicitou isso, pode ignorar este e-mail.',
   'mail.email_change.expires': 'Este link expira em {minutes} minutos.',
+
+  // E-mail de aviso ao endereço ATUAL quando troca de e-mail é solicitada.
+  'mail.email_change_notice.subject': 'Solicitação de troca de e-mail',
+  'mail.email_change_notice.heading': 'Solicitação de troca de e-mail',
+  'mail.email_change_notice.intro':
+    'Foi feita uma solicitação para trocar o e-mail da sua conta para {newEmail}. Um link de confirmação foi enviado para o novo endereço.',
+  'mail.email_change_notice.cta': 'Verificar segurança da conta',
+  'mail.email_change_notice.fallback':
+    'Se não foi você, sua conta pode estar comprometida — troque sua senha imediatamente.',
+
+  // E-mail de confirmação ao endereço ANTIGO após troca concluída.
+  'mail.email_changed_completed.subject': 'Seu e-mail foi alterado',
+  'mail.email_changed_completed.heading': 'E-mail alterado',
+  'mail.email_changed_completed.intro':
+    'O e-mail da sua conta foi alterado de {oldEmail} para {newEmail}.',
+  'mail.email_changed_completed.cta': 'Verificar segurança da conta',
+  'mail.email_changed_completed.fallback':
+    'Se não foi você, entre em contato com o suporte imediatamente.',
+
+  // E-mails de notificação de segurança (senha alterada, MFA, passkey, e-mail).
+  'mail.security_notice.subject': 'Alerta de segurança: {kind}',
+  'mail.security_notice.heading': 'Alerta de segurança',
+  'mail.security_notice.intro': 'Um evento de segurança ocorreu na sua conta: {kind}.',
+  'mail.security_notice.when': 'Quando: {date}',
+  'mail.security_notice.ip': 'Endereço IP: {ip}',
+  'mail.security_notice.fallback':
+    'Se foi você, nenhuma ação é necessária. Caso contrário, proteja sua conta imediatamente.',
+  'mail.security_notice.kind_password_changed': 'senha alterada',
+  'mail.security_notice.kind_mfa_enabled': 'verificação em duas etapas habilitada',
+  'mail.security_notice.kind_mfa_disabled': 'verificação em duas etapas desabilitada',
+  'mail.security_notice.kind_passkey_added': 'passkey adicionada',
+  'mail.security_notice.kind_passkey_removed': 'passkey removida',
+  'mail.security_notice.kind_email_changed': 'e-mail alterado',
+
+  // Admin settings — email_change card.
+  'admin.settings.email_change_section': 'Troca de e-mail',
+  'admin.settings.email_change_intro':
+    'Controla o fluxo de troca de e-mail verificada. Quando habilitado, usuários podem solicitar troca de e-mail em /account/security; um link de confirmação é enviado para o novo endereço e um aviso de segurança para o atual.',
+  'admin.settings.email_change_ttl_label': 'Validade do token (horas)',
+  'admin.settings.email_change_require_password_label': 'Exigir senha atual',
+  'admin.settings.email_change_from_config': 'Fonte: padrão',
+  'admin.settings.email_change_from_setting': 'Fonte: setting em runtime',
+
+  // Admin settings — security_notifications card.
+  'admin.settings.security_notifications_section': 'Notificações de segurança',
+  'admin.settings.security_notifications_intro':
+    'Envia alerta por e-mail à conta quando eventos de segurança ocorrem (troca de senha, MFA ligado/desligado, passkey adicionada/removida, e-mail alterado). Cada tipo pode ser habilitado individualmente.',
+  'admin.settings.security_notifications_kinds_label': 'Notificar em',
+  'admin.settings.security_notifications_from_config': 'Fonte: padrão',
+  'admin.settings.security_notifications_from_setting': 'Fonte: setting em runtime',
+  'admin.settings.security_notifications_kind_password_changed': 'Senha alterada',
+  'admin.settings.security_notifications_kind_mfa_enabled': 'MFA habilitado',
+  'admin.settings.security_notifications_kind_mfa_disabled': 'MFA desabilitado',
+  'admin.settings.security_notifications_kind_passkey_added': 'Passkey adicionada',
+  'admin.settings.security_notifications_kind_passkey_removed': 'Passkey removida',
+  'admin.settings.security_notifications_kind_email_changed': 'E-mail alterado',
 } satisfies AuthMessages
 
 /**

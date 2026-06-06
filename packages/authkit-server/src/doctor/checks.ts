@@ -572,6 +572,56 @@ export function checkAuthMethodsSetting(input: DoctorInput): Finding | null {
   }
 }
 
+/**
+ * Verifica se o fluxo de troca de e-mail verificada está disponível.
+ * Reporta se o store suporta a capability de security (requestEmailChange/confirmEmailChange).
+ */
+export function checkEmailChange(input: DoctorInput): Finding | null {
+  const cfg = input.authkitConfig
+  if (!cfg) return null
+  const store = cfg.accountStore
+  // A capability de security é identificada pelo método changePassword no store.
+  if (!has(store, 'changePassword')) {
+    return {
+      level: 'warn',
+      message:
+        'accountStore does not implement AccountSecurityCapability (changePassword/requestEmailChange/confirmEmailChange) — verified email-change flow is unavailable. The /account/security email-change form will be hidden.',
+    }
+  }
+  return {
+    level: 'ok',
+    message: 'accountStore supports AccountSecurityCapability — verified email-change flow available.',
+  }
+}
+
+/**
+ * Verifica a capability de notificações de segurança:
+ * - mail configurado (para envio dos alertas)
+ * - store com suporte a AccountSecurityCapability
+ */
+export function checkSecurityNotifications(input: DoctorInput): Finding | null {
+  const cfg = input.authkitConfig
+  if (!cfg) return null
+  // Notificações de segurança são best-effort; reportamos apenas informativo.
+  const hasMail = !!(cfg.mail || cfg.mailer)
+  const hasStore = has(cfg.accountStore, 'changePassword')
+  if (!hasMail) {
+    return {
+      level: 'warn',
+      message:
+        'No mail hook (mail.onSecurityNotice) or @adonisjs/mail configured — security notifications will fall back to dev-mode logging. Configure mail or provide mail.onSecurityNotice in config/authkit.ts.',
+    }
+  }
+  if (!hasStore) {
+    return {
+      level: 'warn',
+      message:
+        'accountStore does not implement AccountSecurityCapability — security notification triggers in the account console are unavailable.',
+    }
+  }
+  return null // Silencioso quando tudo está ok (não-obrigatório).
+}
+
 /** Roda todos os checks e devolve a lista plana de findings. */
 export function runAllChecks(input: DoctorInput): Finding[] {
   const findings: Finding[] = []
@@ -605,6 +655,10 @@ export function runAllChecks(input: DoctorInput): Finding[] {
   if (settings) findings.push(settings)
   const authMethods = checkAuthMethodsSetting(input)
   if (authMethods) findings.push(authMethods)
+  const emailChange = checkEmailChange(input)
+  if (emailChange) findings.push(emailChange)
+  const securityNotifications = checkSecurityNotifications(input)
+  if (securityNotifications) findings.push(securityNotifications)
   return findings
 }
 

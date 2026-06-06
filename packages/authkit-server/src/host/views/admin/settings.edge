@@ -334,6 +334,110 @@
           </form>
         </div>
 
+        {{-- Email change card --}}
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+          <h2 class="mb-1 text-sm font-semibold text-gray-900">{{ t('admin.settings.email_change_section') }}</h2>
+          <p class="mb-1 text-xs text-gray-400">
+            @if(currentEmailChangeSetting !== null)
+              {{ t('admin.settings.email_change_from_setting') }}
+            @else
+              {{ t('admin.settings.email_change_from_config') }}
+            @end
+          </p>
+          <p class="mb-4 text-xs text-gray-500">{{ t('admin.settings.email_change_intro') }}</p>
+
+          <form method="POST" action="{{ adminBase }}/settings/email-change">
+            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+
+            <label class="flex items-center gap-2 mb-3">
+              <input type="checkbox" name="enabled" value="1"
+                {{ emailChangeEffective && emailChangeEffective.enabled !== false ? 'checked' : '' }}
+                class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.enabled_label') }}</span>
+            </label>
+
+            <div class="mb-3">
+              <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.email_change_ttl_label') }}</label>
+              <input type="number" name="ttl_hours" min="1" max="168"
+                value="{{ emailChangeEffective ? emailChangeEffective.ttlHours : 24 }}"
+                class="w-24 rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+            </div>
+
+            <label class="flex items-center gap-2 mb-4">
+              <input type="checkbox" name="require_password" value="1"
+                {{ emailChangeEffective && emailChangeEffective.requirePassword !== false ? 'checked' : '' }}
+                class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.email_change_require_password_label') }}</span>
+            </label>
+
+            <div class="flex items-center gap-3">
+              <button type="submit"
+                class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
+                {{ t('admin.settings.save') }}
+              </button>
+              @if(currentEmailChangeSetting !== null)
+                <form method="POST" action="{{ adminBase }}/settings/email-change/reset" class="inline">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <button type="submit" class="text-sm text-gray-500 hover:underline">
+                    {{ t('admin.settings.reset_to_config') }}
+                  </button>
+                </form>
+              @end
+            </div>
+          </form>
+        </div>
+
+        {{-- Security notifications card --}}
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+          <h2 class="mb-1 text-sm font-semibold text-gray-900">{{ t('admin.settings.security_notifications_section') }}</h2>
+          <p class="mb-1 text-xs text-gray-400">
+            @if(currentSecurityNotificationsSetting !== null)
+              {{ t('admin.settings.security_notifications_from_setting') }}
+            @else
+              {{ t('admin.settings.security_notifications_from_config') }}
+            @end
+          </p>
+          <p class="mb-4 text-xs text-gray-500">{{ t('admin.settings.security_notifications_intro') }}</p>
+
+          <form method="POST" action="{{ adminBase }}/settings/security-notifications">
+            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+
+            <label class="flex items-center gap-2 mb-4">
+              <input type="checkbox" name="enabled" value="1"
+                {{ securityNotificationsEffective && securityNotificationsEffective.enabled !== false ? 'checked' : '' }}
+                class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.enabled_label') }}</span>
+            </label>
+
+            <fieldset class="mb-4">
+              <legend class="mb-2 text-xs font-medium text-gray-500 uppercase tracking-wide">{{ t('admin.settings.security_notifications_kinds_label') }}</legend>
+              @each(kind in allSecurityNotificationKinds)
+                <label class="flex items-center gap-2 mb-2">
+                  <input type="checkbox" name="kinds" value="{{ kind }}"
+                    {{ securityNotificationsEffective && securityNotificationsEffective.kinds && securityNotificationsEffective.kinds.includes(kind) ? 'checked' : '' }}
+                    class="h-4 w-4 rounded border-gray-300">
+                  <span class="text-sm text-gray-700">{{ t('admin.settings.security_notifications_kind_' + kind) }}</span>
+                </label>
+              @end
+            </fieldset>
+
+            <div class="flex items-center gap-3">
+              <button type="submit"
+                class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
+                {{ t('admin.settings.save') }}
+              </button>
+              @if(currentSecurityNotificationsSetting !== null)
+                <form method="POST" action="{{ adminBase }}/settings/security-notifications/reset" class="inline">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <button type="submit" class="text-sm text-gray-500 hover:underline">
+                    {{ t('admin.settings.reset_to_config') }}
+                  </button>
+                </form>
+              @end
+            </div>
+          </form>
+        </div>
+
       </div>
     @end
   </div>

@@ -12,6 +12,7 @@ import {
   resolveEffectiveMaintenanceMode,
   resolveEffectiveAuthMethods,
 } from '../runtime_toggles.js'
+import { dispatchSecurityNotice } from '../security_notice_service.js'
 
 /** Best-effort: returns a RuntimeSettings backed by the container DB, or a no-op fallback. */
 async function getRuntimeSettings(ctx: HttpContext): Promise<RuntimeSettings> {
@@ -316,6 +317,23 @@ export default class AuthRegistrationController {
     const render = cfg.render!
     const { token, password } = await ctx.request.validateUsing(resetPasswordValidator)
     const accountStore = cfg.accountStore
+
+    // Pré-lookup da conta pelo token (best-effort) para a notificação de segurança.
+    // O token é consumido a seguir, então buscamos antes de chamar consumePasswordResetToken.
+    let accountForNotice: { id: string; email: string } | undefined
+    try {
+      // issuePasswordResetToken coloca o token no campo passwordResetToken; podemos
+      // procurar pelo e-mail via store se ele suportar lookup por token (não é um
+      // método público). Tentamos via findByPasswordResetToken se disponível; senão
+      // pulamos o aviso graciosamente.
+      const storeAny = accountStore as any
+      if (typeof storeAny.findByPasswordResetToken === 'function') {
+        accountForNotice = await storeAny.findByPasswordResetToken(token)
+      }
+    } catch {
+      // Silencioso — aviso é best-effort.
+    }
+
     let ok: boolean
     try {
       ok = await accountStore.consumePasswordResetToken(token, password)
@@ -337,6 +355,20 @@ export default class AuthRegistrationController {
       type: 'password_reset.consumed',
       ip: ctx.request.ip?.() ?? null,
     })
+    // Notificação de segurança: senha alterada via reset (best-effort, fail-safe).
+    if (accountForNotice) {
+      await dispatchSecurityNotice(
+        ctx,
+        {
+          account: accountForNotice,
+          kind: 'password_changed',
+          ip: ctx.request.ip?.() ?? null,
+          timestamp: new Date().toISOString(),
+        },
+        cfg.mail,
+        cfg.audit
+      )
+    }
     return render(ctx, 'reset', {
       token: '',
       csrfToken: ctx.request.csrfToken,

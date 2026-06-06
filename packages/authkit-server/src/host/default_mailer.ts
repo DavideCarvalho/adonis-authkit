@@ -331,6 +331,145 @@ export async function sendMagicLinkEmail(
 }
 
 /**
+ * Envia o e-mail de aviso de segurança ao e-mail ATUAL quando uma troca de
+ * e-mail é solicitada ("Alguém pediu troca para X — se não foi você...").
+ * Best-effort: no fallback (sem mail) loga o evento; nunca lança.
+ */
+export async function sendEmailChangeNoticeEmail(
+  ctx: HttpContext,
+  data: { email: string; newEmail: string }
+): Promise<void> {
+  try {
+    const brand = resolveBrand(ctx)
+    const { messages: t, locale } = resolveMailMessages(ctx)
+    const origin = `${ctx.request.protocol()}://${ctx.request.host()}`
+    const content = renderTransactionalEmail({
+      brand,
+      locale,
+      linkFallback: translate(t, 'mail.common.link_fallback'),
+      subject: translate(t, 'mail.email_change_notice.subject'),
+      heading: translate(t, 'mail.email_change_notice.heading'),
+      intro: translate(t, 'mail.email_change_notice.intro', { newEmail: data.newEmail }),
+      ctaLabel: translate(t, 'mail.email_change_notice.cta'),
+      ctaUrl: `${origin}/account/security`,
+      footnote: translate(t, 'mail.email_change_notice.fallback'),
+    })
+    const sent = await sendEmail(ctx, data.email, content)
+    if (!sent) {
+      ctx.logger.info(
+        { newEmail: data.newEmail, email: data.email },
+        'authkit: aviso de troca de e-mail (dev — @adonisjs/mail ausente)'
+      )
+    }
+  } catch (error) {
+    ctx.logger.error(
+      { err: error, email: data.email },
+      'authkit: falha ao enviar aviso de troca de e-mail'
+    )
+  }
+}
+
+/**
+ * Envia o e-mail de aviso de segurança ao e-mail ANTIGO confirmando que a
+ * troca foi concluída ("Seu e-mail foi alterado de A para B — se não foi você...").
+ * Best-effort: no fallback (sem mail) loga o evento; nunca lança.
+ */
+export async function sendEmailChangedCompletedEmail(
+  ctx: HttpContext,
+  data: { oldEmail: string; newEmail: string }
+): Promise<void> {
+  try {
+    const brand = resolveBrand(ctx)
+    const { messages: t, locale } = resolveMailMessages(ctx)
+    const origin = `${ctx.request.protocol()}://${ctx.request.host()}`
+    const content = renderTransactionalEmail({
+      brand,
+      locale,
+      linkFallback: translate(t, 'mail.common.link_fallback'),
+      subject: translate(t, 'mail.email_changed_completed.subject'),
+      heading: translate(t, 'mail.email_changed_completed.heading'),
+      intro: translate(t, 'mail.email_changed_completed.intro', {
+        oldEmail: data.oldEmail,
+        newEmail: data.newEmail,
+      }),
+      ctaLabel: translate(t, 'mail.email_changed_completed.cta'),
+      ctaUrl: `${origin}/account/security`,
+      footnote: translate(t, 'mail.email_changed_completed.fallback'),
+    })
+    const sent = await sendEmail(ctx, data.oldEmail, content)
+    if (!sent) {
+      ctx.logger.info(
+        { oldEmail: data.oldEmail, newEmail: data.newEmail },
+        'authkit: confirmação de troca de e-mail concluída (dev — @adonisjs/mail ausente)'
+      )
+    }
+  } catch (error) {
+    ctx.logger.error(
+      { err: error, email: data.oldEmail },
+      'authkit: falha ao enviar confirmação de troca de e-mail concluída'
+    )
+  }
+}
+
+/**
+ * Envia um e-mail de notificação de segurança para a conta (senha alterada,
+ * MFA habilitado/desabilitado, passkey adicionada/removida, e-mail alterado).
+ * Best-effort: no fallback (sem mail) loga o evento; nunca lança.
+ */
+export async function sendSecurityNoticeEmail(
+  ctx: HttpContext,
+  data: {
+    email: string
+    kind:
+      | 'password_changed'
+      | 'mfa_enabled'
+      | 'mfa_disabled'
+      | 'passkey_added'
+      | 'passkey_removed'
+      | 'email_changed'
+    timestamp: string
+    ip?: string | null
+    metadata?: Record<string, string>
+  }
+): Promise<void> {
+  try {
+    const brand = resolveBrand(ctx)
+    const { messages: t, locale } = resolveMailMessages(ctx)
+    const origin = `${ctx.request.protocol()}://${ctx.request.host()}`
+    const kindKey = `mail.security_notice.kind_${data.kind}`
+    const kindLabel = translate(t, kindKey)
+    const intro = [
+      translate(t, 'mail.security_notice.intro', { kind: kindLabel }),
+      translate(t, 'mail.security_notice.when', { date: data.timestamp }),
+    ]
+    if (data.ip) intro.push(translate(t, 'mail.security_notice.ip', { ip: data.ip }))
+    const content = renderTransactionalEmail({
+      brand,
+      locale,
+      linkFallback: translate(t, 'mail.common.link_fallback'),
+      subject: translate(t, 'mail.security_notice.subject', { kind: kindLabel }),
+      heading: translate(t, 'mail.security_notice.heading'),
+      intro: intro.join(' '),
+      ctaLabel: translate(t, 'account.security.title'),
+      ctaUrl: `${origin}/account/security`,
+      footnote: translate(t, 'mail.security_notice.fallback'),
+    })
+    const sent = await sendEmail(ctx, data.email, content)
+    if (!sent) {
+      ctx.logger.info(
+        { kind: data.kind, email: data.email },
+        'authkit: notificação de segurança (dev — @adonisjs/mail ausente)'
+      )
+    }
+  } catch (error) {
+    ctx.logger.error(
+      { err: error, email: data.email, kind: data.kind },
+      'authkit: falha ao enviar notificação de segurança'
+    )
+  }
+}
+
+/**
  * Envia o e-mail de verificação pelo mailer default do host.
  * Best-effort: no fallback (sem mail) loga o link; nunca lança.
  */

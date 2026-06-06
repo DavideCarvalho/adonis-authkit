@@ -4,6 +4,7 @@ import QRCode from 'qrcode'
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
 import { translate } from '../i18n.js'
 import { supportsPasskeys } from '../../accounts/account_store.js'
+import { dispatchSecurityNotice } from '../security_notice_service.js'
 
 /** Desafio WebAuthn pendente (registro) guardado na sessão entre begin/finish. */
 const PASSKEY_REG_CHALLENGE_KEY = 'authkit_passkey_reg_challenge'
@@ -86,6 +87,14 @@ export default class AccountMfaController {
       accountId: userId,
       ip: ctx.request.ip?.() ?? null,
     })
+    // Notificações de segurança: passkey_added + mfa_enabled (best-effort).
+    const accountForNotice = await cfg.accountStore.findById(userId)
+    if (accountForNotice) {
+      const ts = new Date().toISOString()
+      const ip = ctx.request.ip?.() ?? null
+      await dispatchSecurityNotice(ctx, { account: { id: userId, email: accountForNotice.email }, kind: 'passkey_added', ip, timestamp: ts }, cfg.mail, cfg.audit)
+      await dispatchSecurityNotice(ctx, { account: { id: userId, email: accountForNotice.email }, kind: 'mfa_enabled', ip, timestamp: ts }, cfg.mail, cfg.audit)
+    }
     return { ok: true }
   }
 
@@ -102,6 +111,11 @@ export default class AccountMfaController {
       ip: ctx.request.ip?.() ?? null,
       metadata: { credentialId },
     })
+    // Notificação de segurança: passkey_removed (best-effort).
+    const accountForNotice = await cfg.accountStore.findById(userId)
+    if (accountForNotice) {
+      await dispatchSecurityNotice(ctx, { account: { id: userId, email: accountForNotice.email }, kind: 'passkey_removed', ip: ctx.request.ip?.() ?? null, timestamp: new Date().toISOString() }, cfg.mail, cfg.audit)
+    }
     return ctx.response.redirect('/account/mfa')
   }
 
@@ -160,6 +174,11 @@ export default class AccountMfaController {
       accountId: userId,
       ip: ctx.request.ip?.() ?? null,
     })
+    // Notificação de segurança: mfa_enabled (best-effort).
+    const accountForMfaNotice = await cfg.accountStore.findById(userId)
+    if (accountForMfaNotice) {
+      await dispatchSecurityNotice(ctx, { account: { id: userId, email: accountForMfaNotice.email }, kind: 'mfa_enabled', ip: ctx.request.ip?.() ?? null, timestamp: new Date().toISOString() }, cfg.mail, cfg.audit)
+    }
     // Mostra os recovery codes UMA vez (flash) e volta pro estado "ativado".
     ctx.session.flash('recoveryCodes', result.recoveryCodes ?? [])
     return ctx.response.redirect('/account/mfa')
@@ -177,6 +196,11 @@ export default class AccountMfaController {
       accountId: userId,
       ip: ctx.request.ip?.() ?? null,
     })
+    // Notificação de segurança: mfa_disabled (best-effort).
+    const accountForDisableNotice = await cfg.accountStore.findById(userId)
+    if (accountForDisableNotice) {
+      await dispatchSecurityNotice(ctx, { account: { id: userId, email: accountForDisableNotice.email }, kind: 'mfa_disabled', ip: ctx.request.ip?.() ?? null, timestamp: new Date().toISOString() }, cfg.mail, cfg.audit)
+    }
     return ctx.response.redirect('/account/mfa')
   }
 }

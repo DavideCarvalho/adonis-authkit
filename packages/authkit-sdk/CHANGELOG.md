@@ -1,5 +1,11 @@
 # @dudousxd/adonis-authkit-sdk
 
+## 0.4.0
+
+### Patch Changes
+
+- Re-baseline de versionamento: 1.3.0 → 0.4.0 (código idêntico ao 1.3.0). O SDK nasceu por engano em 1.0.0; volta para 0.x para sinalizar a mesma maturidade dos demais pacotes do ecossistema (server 0.13, client 0.4, react 0.3). As versões 1.x ficam deprecadas no npm.
+
 ## 1.3.0
 
 ### Minor Changes

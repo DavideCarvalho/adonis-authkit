@@ -45,6 +45,16 @@ export interface RemoteOptions {
   baseUrl: string
   /** Admin API key sent as `Authorization: Bearer <apiKey>`. */
   apiKey: string
+  /**
+   * Path prefix of the Admin REST API on the IdP host.
+   * Must match the `adminApi` prefix configured in `registerAuthHost`.
+   * Defaults to `'/api/authkit/v1'` (back-compat).
+   *
+   * @example
+   * // Custom prefix
+   * createAuthkit({ mode: 'remote', baseUrl, apiKey, apiPrefix: '/authkit/api' })
+   */
+  apiPrefix?: string
   /** Override the fetch implementation (defaults to global `fetch`). */
   fetchImpl?: typeof fetch
 }
@@ -71,7 +81,10 @@ function buildQuery(params: Record<string, unknown>): string {
  */
 export function createRemoteAuthkit(opts: RemoteOptions): Authkit {
   const baseUrl = opts.baseUrl.replace(/\/+$/, '')
-  const root = `${baseUrl}/api/authkit/v1`
+  const rawApiPrefix = (opts.apiPrefix ?? '/api/authkit/v1').trim()
+  // Normalize: ensure leading slash, strip trailing slash.
+  const normalizedApiPrefix = (rawApiPrefix.startsWith('/') ? rawApiPrefix : '/' + rawApiPrefix).replace(/\/+$/, '') || '/'
+  const root = `${baseUrl}${normalizedApiPrefix}`
   const doFetch: FetchLike = opts.fetchImpl ?? (globalThis.fetch as FetchLike)
 
   if (typeof doFetch !== 'function') {

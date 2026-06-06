@@ -418,3 +418,102 @@ test.group('remote driver — organizations', () => {
     )
   })
 })
+
+test.group('remote driver — apiPrefix option', () => {
+  async function withCustomPrefixApi(
+    apiPrefix: string,
+    handler: Parameters<typeof fakeApi>[0],
+    run: (sdk: Authkit, api: ReturnType<typeof fakeApi>) => Promise<void>
+  ) {
+    const api = fakeApi(handler)
+    const baseUrl = await api.listen()
+    try {
+      const sdk = await createAuthkit({ mode: 'remote', baseUrl, apiKey: 'key-123', apiPrefix })
+      await run(sdk, api)
+    } finally {
+      await api.close()
+    }
+  }
+
+  test('custom apiPrefix: hits correct path for users.list', async ({ assert }) => {
+    await withCustomPrefixApi(
+      '/authkit/api',
+      () => ({
+        status: 200,
+        body: { data: [], total: 0, page: 1, limit: 20 },
+      }),
+      async (sdk, api) => {
+        await sdk.users.list()
+        assert.match(api.last!.url, /^\/authkit\/api\/users/)
+      }
+    )
+  })
+
+  test('custom apiPrefix: hits correct path for clients.list', async ({ assert }) => {
+    await withCustomPrefixApi(
+      '/authkit/api',
+      () => ({ status: 200, body: { canList: true, data: [] } }),
+      async (sdk, api) => {
+        await sdk.clients.list()
+        assert.equal(api.last!.url, '/authkit/api/clients')
+      }
+    )
+  })
+
+  test('custom apiPrefix: hits correct path for stats', async ({ assert }) => {
+    const statsPayload = {
+      totalUsers: 0,
+      activeSessions: 0,
+      mau: 0,
+      signInsTotal: 0,
+      signUpsTotal: 0,
+      signInsPerDay: [],
+      signUpsPerDay: [],
+      auditSupported: false,
+      windowDays: 30,
+    }
+    await withCustomPrefixApi(
+      '/my/api/v2',
+      () => ({ status: 200, body: statsPayload }),
+      async (sdk, api) => {
+        await sdk.stats()
+        assert.equal(api.last!.url, '/my/api/v2/stats')
+      }
+    )
+  })
+
+  test('custom apiPrefix normalizes: trailing slash stripped, leading slash added', async ({ assert }) => {
+    await withCustomPrefixApi(
+      'authkit/api/',
+      () => ({ status: 200, body: { data: [], total: 0, page: 1, limit: 20 } }),
+      async (sdk, api) => {
+        await sdk.users.list()
+        assert.match(api.last!.url, /^\/authkit\/api\/users/)
+      }
+    )
+  })
+
+  test('default (no apiPrefix): still uses /api/authkit/v1 (back-compat)', async ({ assert }) => {
+    const api = fakeApi(() => ({ status: 200, body: { data: [], total: 0, page: 1, limit: 20 } }))
+    const baseUrl = await api.listen()
+    try {
+      // No apiPrefix passed — back-compat
+      const sdk = await createAuthkit({ mode: 'remote', baseUrl, apiKey: 'key-123' })
+      await sdk.users.list()
+      assert.match(api.last!.url, /^\/api\/authkit\/v1\/users/)
+    } finally {
+      await api.close()
+    }
+  })
+
+  test('custom apiPrefix: token verify uses new prefix', async ({ assert }) => {
+    await withCustomPrefixApi(
+      '/authkit/api',
+      () => ({ status: 200, body: { active: false } }),
+      async (sdk, api) => {
+        await sdk.tokens.verify('some-token')
+        assert.equal(api.last!.url, '/authkit/api/tokens/verify')
+      }
+    )
+  })
+})

@@ -290,3 +290,10 @@ export type {
   RegistrationConfigInput,
   ResolvedRegistrationConfig,
 } from './src/define_config.js'
+
+export {
+  getAccountId,
+  hasAccountSession,
+  consoleLoginUrl,
+} from './src/host/console_session.js'
+export { ACCOUNT_SESSION_KEY } from './src/host/middleware/account_auth.js'

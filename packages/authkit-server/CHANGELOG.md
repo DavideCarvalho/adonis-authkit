@@ -1,5 +1,11 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.19.0
+
+### Minor Changes
+
+- Helpers públicos da sessão do console: `getAccountId(ctx)`, `hasAccountSession(ctx)` e `consoleLoginUrl(returnTo?)` (+ re-export de `ACCOUNT_SESSION_KEY`) — para proteger rotas próprias e integrar pacotes de terceiros (ex.: adonis-telescope) sem depender de detalhes internos.
+
 ## 0.18.3
 
 ### Patch Changes

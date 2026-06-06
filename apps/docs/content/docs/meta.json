@@ -33,6 +33,7 @@
     "account-store",
     "resolvers",
     "admin-console",
+    "console-session",
     "admin-api",
     "sdk",
     "events",

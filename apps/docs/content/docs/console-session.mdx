@@ -1,0 +1,81 @@
+---
+title: Sessão do console em outras rotas
+description: Use a sessão de conta do console do AuthKit para proteger qualquer rota ou integrar pacotes de terceiros — como o dashboard do adonis-telescope.
+---
+
+O console do AuthKit (`/account/*`, `/auth/admin`) mantém uma sessão de
+conta própria. Às vezes você quer reaproveitar essa sessão **fora** do
+console: proteger uma rota administrativa sua, ou liberar o dashboard de
+um pacote de terceiros só para quem está logado.
+
+Para isso o `@dudousxd/adonis-authkit-server` exporta helpers públicos —
+use-os em vez de ler `ctx.session` com a key interna (`account_user_id`),
+que é detalhe de implementação e pode mudar:
+
+```ts
+import {
+  getAccountId,       // string | null — id da conta logada
+  hasAccountSession,  // boolean
+  consoleLoginUrl,    // URL do login com return_to opcional
+} from '@dudousxd/adonis-authkit-server'
+```
+
+## Protegendo uma rota sua
+
+```ts
+router
+  .get('/relatorios', [RelatoriosController])
+  .use(async (ctx, next) => {
+    if (!hasAccountSession(ctx)) {
+      return ctx.response.redirect(consoleLoginUrl('/relatorios'))
+    }
+    return next()
+  })
+```
+
+Depois do login, o `return_to` devolve a pessoa para `/relatorios`.
+
+## Recipe: protegendo o adonis-telescope
+
+O [`@dudousxd/adonis-telescope`](https://davidecarvalho.github.io/adonis-telescope/)
+aceita um `authorize` que pode retornar `{ redirectTo }` — encaixe
+perfeito para a sessão do console:
+
+```ts
+// config/telescope.ts
+import { defineConfig } from '@dudousxd/adonis-telescope'
+import { hasAccountSession, consoleLoginUrl } from '@dudousxd/adonis-authkit-server'
+
+export default defineConfig({
+  enabled: true,
+
+  /**
+   * Humanos entram pela sessão do console: sem sessão, redireciona pro
+   * login do AuthKit e volta pro /telescope depois de autenticar.
+   */
+  authorize: async (ctx) =>
+    hasAccountSession(ctx) ? true : { redirectTo: consoleLoginUrl('/telescope') },
+
+  /**
+   * Agentes (MCP) não têm sessão de browser — eles usam um Bearer token
+   * próprio, separado do fluxo humano.
+   */
+  mcp: { token: process.env.TELESCOPE_TOKEN },
+})
+```
+
+## Restringindo por papel
+
+`getAccountId()` devolve o id da conta — combine com o seu
+`accountStore` para checar papéis antes de liberar:
+
+```ts
+authorize: async (ctx) => {
+  const accountId = getAccountId(ctx)
+  if (!accountId) return { redirectTo: consoleLoginUrl('/telescope') }
+
+  const store = await ctx.containerResolver.make('authkit.accountStore')
+  const account = await store.findById(accountId)
+  return account?.role === 'ADMIN'
+}
+```

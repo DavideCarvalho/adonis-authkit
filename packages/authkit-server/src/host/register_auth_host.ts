@@ -403,8 +403,13 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
         // Quando ui='edge': as rotas Edge clássicas são registradas (compatibilidade total).
 
         if (uiMode === 'react') {
+          // ─── Missão B: assets estáticos do Vite build ─────────────────────
+          // Servidos por serveAsset (readFile + Cache-Control: immutable).
+          // DEVE ser registrado ANTES do catch-all `${ap}/*`.
+          router.get(`${ap}/assets/*`, [C.consoleShell, 'serveAsset'])
+
           // Shell HTML — serve para TODAS as rotas de página do console React.
-          // O roteamento client-side (hash ou history) é tratado pela SPA.
+          // O roteamento client-side (hash) é tratado pela SPA.
           router.get(ap, [C.consoleShell, 'serve'])
           router.get(`${ap}/*`, [C.consoleShell, 'serve'])
 

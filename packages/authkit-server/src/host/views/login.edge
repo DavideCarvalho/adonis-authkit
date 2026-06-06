@@ -20,6 +20,7 @@
         <div class="mt-6">
           <label for="email" class="mb-1 block text-sm font-medium text-gray-700">{{ t('login.email_label') }}</label>
           <input id="email" name="email" type="email" required autofocus
+            autocomplete="{{ authMethods && authMethods.passkeyAutofill ? 'username webauthn' : 'username' }}"
             class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900" />
         </div>
 
@@ -61,6 +62,58 @@
             @end
           </a>
         @end
+      @end
+
+      {{-- WebAuthn autofill (conditional mediation): quando passkey + passkeyAutofill estão on
+           e o browser suporta, o input de e-mail mostra sugestões de passkeys diretamente.
+           Sucesso → submete o verify e completa o login sem precisar da senha.
+           Fail-safe total: browser sem suporte, abort ou erro = silêncio, login normal segue. --}}
+      @if(authMethods && authMethods.passkeyAutofill && authMethods.passkey)
+        <form id="autofill-passkey-form" method="POST" action="/auth/interaction/{{ uid }}/passkey/verify" class="hidden">
+          <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+          <input type="hidden" name="response" id="autofill-passkey-response">
+        </form>
+        <script type="module">
+          (async () => {
+            try {
+              // SSR-safe: só roda no browser.
+              if (typeof window === 'undefined' || typeof navigator === 'undefined') return
+              if (!window.PublicKeyCredential) return
+              // Detecta suporte a conditional mediation.
+              const supported = await PublicKeyCredential.isConditionalMediationAvailable?.()
+              if (!supported) return
+
+              const { startAuthentication } = await import(
+                'https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@13/dist/bundle/index.js'
+              )
+              const csrf = document.querySelector('input[name="_csrf"]')?.value ?? ''
+              const optRes = await fetch('/auth/interaction/{{ uid }}/passkey/options', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json', 'x-csrf-token': csrf },
+                body: JSON.stringify({}),
+              })
+              if (!optRes.ok) return
+              const optionsJSON = await optRes.json()
+              // Remove flag interna antes de passar ao browser.
+              delete optionsJSON._discoverable
+
+              // AbortController: cancela ao navegar/desmontar.
+              const ac = new AbortController()
+              window.addEventListener('beforeunload', () => ac.abort(), { once: true })
+
+              const assertion = await startAuthentication({
+                optionsJSON,
+                useBrowserAutofill: true,
+                verifyBrowserAutofillInput: true,
+              }, ac.signal)
+
+              document.getElementById('autofill-passkey-response').value = JSON.stringify(assertion)
+              document.getElementById('autofill-passkey-form').submit()
+            } catch {
+              // Fail-safe: abort, suporte ausente ou qualquer erro = login normal.
+            }
+          })()
+        </script>
       @end
     </div>
   @else

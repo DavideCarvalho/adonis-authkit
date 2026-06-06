@@ -255,6 +255,38 @@
       ],
       "options": { "startApp": true },
       "filePath": "settings_unset.js"
+    },
+    {
+      "commandName": "authkit:accounts:expire-scan",
+      "description": "Varre contas inativas (account_expiration setting) e reporta expiradas/a expirar. Com --warn envia e-mail de aviso. Pensado para cron do host.",
+      "namespace": "authkit",
+      "aliases": [],
+      "flags": [
+        {
+          "name": "dryRun",
+          "flagName": "dry-run",
+          "required": false,
+          "type": "boolean",
+          "description": "Reporta sem enviar e-mails nem auditar."
+        },
+        {
+          "name": "warn",
+          "flagName": "warn",
+          "required": false,
+          "type": "boolean",
+          "description": "Envia e-mail de aviso às contas a expirar em breve (deduplicado via audit)."
+        },
+        {
+          "name": "json",
+          "flagName": "json",
+          "required": false,
+          "type": "boolean",
+          "description": "Output em JSON machine-readable."
+        }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "expire_scan.js"
     }
   ]
 }

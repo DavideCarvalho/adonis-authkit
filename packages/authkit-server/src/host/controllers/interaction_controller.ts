@@ -281,7 +281,9 @@ export default class AuthInteractionController {
             ? translate(cfg.messages, 'errors.account_disabled')
             : result.unverified
               ? translate(cfg.messages, 'errors.email_unverified')
-              : translate(cfg.messages, 'errors.invalid_credentials'),
+              : result.accountExpired
+                ? translate(cfg.messages, 'errors.account_expired')
+                : translate(cfg.messages, 'errors.invalid_credentials'),
         brand,
         botProtection: effectiveBotLogin?.on.includes('login') ? effectiveBotLogin.widget : undefined,
       })
@@ -760,18 +762,50 @@ export default class AuthInteractionController {
 
   /**
    * POST /auth/interaction/:uid/passkey/options
-   * Gera as opções de autenticação por passkey para o accountId pendente do MFA,
-   * guarda o challenge na sessão e devolve as opções JSON para o browser.
+   *
+   * Gera as opções de autenticação por passkey. Suporta dois modos:
+   *
+   * 1. **Modo normal** (MFA gate ou passkey-first com e-mail na sessão):
+   *    resolve o `accountId` e gera opções com `allowCredentials` restrito às
+   *    credenciais da conta (comportamento original).
+   *
+   * 2. **Modo discoverable** (WebAuthn autofill / conditional mediation):
+   *    chamado sem accountId resolvível (tela de identifier sem e-mail ainda).
+   *    Neste caso, delega a `generatePasskeyAuthenticationOptions` com accountId
+   *    especial `'__discoverable__'` — o store deve retornar opções com
+   *    `allowCredentials: []` (deixa o browser apresentar TODAS as passkeys
+   *    disponíveis). Quando o store não suporta este modo, devolve 400 com
+   *    `discoverable: false` (o JS de autofill trata silenciosamente).
+   *
+   * Guarda o challenge na sessão e devolve as opções JSON.
    */
   async passkeyOptions(ctx: HttpContext) {
     const service = await ctx.containerResolver.make('authkit.server')
     const cfg = service.config
+
+    // Tenta resolver o accountId do contexto corrente (MFA gate ou passkey-first).
     const accountId = await this.resolvePasskeyAccountId(ctx, cfg)
+
     if (!accountId) {
-      return ctx.response.badRequest({
-        message: translate(cfg.messages, 'errors.session_expired'),
-      })
+      // Modo discoverable: sem accountId na sessão, gera options sem restrição
+      // de credenciais (allowCredentials vazio = o browser apresenta todas).
+      if (!supportsPasskeys(cfg.accountStore)) {
+        return ctx.response.badRequest({ message: translate(cfg.messages, 'errors.passkeys_unavailable'), discoverable: false })
+      }
+      // Passa '__discoverable__' como sentinel — o store (LucidStore) detecta e
+      // retorna options com allowCredentials:[] se suportar; caso contrário null.
+      const generated = await cfg.accountStore.generatePasskeyAuthenticationOptions?.(
+        '__discoverable__'
+      )
+      if (!generated) {
+        // Store não suporta discoverable credentials — autofill não disponível.
+        return ctx.response.badRequest({ message: translate(cfg.messages, 'errors.passkeys_unavailable'), discoverable: false })
+      }
+      ctx.session.put(PASSKEY_AUTH_CHALLENGE_KEY, generated.challenge)
+      return { ...generated.options, _discoverable: true }
     }
+
+    // Modo normal: opções restritas à conta.
     const generated = await cfg.accountStore.generatePasskeyAuthenticationOptions?.(accountId)
     if (!generated) {
       return ctx.response.notFound({
@@ -799,14 +833,32 @@ export default class AuthInteractionController {
       details.params.client_id as string | undefined,
       details.params.audience as string | undefined
     )
-    const accountId = await this.resolvePasskeyAccountId(ctx, cfg)
+    let accountId = await this.resolvePasskeyAccountId(ctx, cfg)
     const challenge = ctx.session.get(PASSKEY_AUTH_CHALLENGE_KEY) as string | undefined
     const ip = ctx.request.ip?.() ?? null
     const clientId = (details.params.client_id as string | undefined) ?? null
 
-    if (!accountId || !challenge) {
+    if (!challenge) {
       // Sessão expirou/foi adulterada — volta ao início do login.
       return ctx.response.redirect(`/auth/interaction/${ctx.request.param('uid')}`)
+    }
+
+    // Modo discoverable: quando não temos accountId na sessão, precisamos
+    // descobri-lo a partir da credencial na assertion (rawId/id). O store
+    // pode implementar `findByPasskeyCredentialId` para isso; se não suportar,
+    // não podemos completar o autofill e redirecionamos para o início.
+    if (!accountId) {
+      const rawResponse = ctx.request.input('response') as string | undefined
+      let parsedEarly: any = null
+      try { parsedEarly = rawResponse ? JSON.parse(rawResponse) : null } catch { parsedEarly = null }
+      const credId = parsedEarly?.id ?? parsedEarly?.rawId ?? null
+      if (credId && typeof (cfg.accountStore as any).findByPasskeyCredentialId === 'function') {
+        const found = await (cfg.accountStore as any).findByPasskeyCredentialId(credId)
+        accountId = found?.id ?? null
+      }
+      if (!accountId) {
+        return ctx.response.redirect(`/auth/interaction/${ctx.request.param('uid')}`)
+      }
     }
 
     // A assertion vem serializada como JSON no campo `response` do form.

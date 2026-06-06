@@ -73,6 +73,9 @@ export type AuditEventType =
   | 'sudo.confirmed'
   // Session
   | 'session.single_enforced'
+  // Account expiration
+  | 'account.expired_login_blocked'
+  | 'account.expiration_warned'
 
 /**
  * Evento de auditoria a registrar. O timestamp é definido pelo sink (não aqui).

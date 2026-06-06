@@ -44,6 +44,7 @@ export const SETTING_KEYS = {
   ROLES_CATALOG: 'roles_catalog',
   OTP_LOCKOUT: 'otp_lockout',
   SUDO_MODE: 'sudo_mode',
+  ACCOUNT_EXPIRATION: 'account_expiration',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]
@@ -250,6 +251,14 @@ export interface AuthMethodsSetting {
   passkey?: boolean
   social?: string[]
   forgotPassword?: boolean
+  /**
+   * Habilita WebAuthn conditional mediation (autofill) na tela de login.
+   * Quando true (default quando passkey on), o input de e-mail exibe sugestões
+   * de passkey direto no autofill do browser (discoverable credentials).
+   * Fail-safe: browsers sem suporte ou abort → silêncio (login normal segue).
+   * Default: true (quando passkey habilitado).
+   */
+  passkeyAutofill?: boolean
 }
 
 /**
@@ -261,6 +270,8 @@ export interface ResolvedAuthMethods {
   passkey: boolean
   social: string[]
   forgotPassword: boolean
+  /** WebAuthn conditional mediation ativa (autofill de passkey no input de e-mail). */
+  passkeyAutofill: boolean
 }
 
 /**
@@ -308,6 +319,7 @@ export async function resolveEffectiveAuthMethods(
     passkey: passkeyCapable,
     social: configuredSocialProviders,
     forgotPassword: true,
+    passkeyAutofill: passkeyCapable, // on por default quando passkey disponível
   }
 
   const raw = await settings.getSetting(SETTING_KEYS.AUTH_METHODS)
@@ -333,12 +345,18 @@ export async function resolveEffectiveAuthMethods(
   const forgotPasswordEnabled =
     passwordEnabled && (typeof s.forgotPassword === 'boolean' ? s.forgotPassword : true)
 
+  // passkeyAutofill: só faz sentido quando passkey está ligado.
+  const passkeyAutofillEnabled =
+    passkeyEnabled &&
+    (typeof s.passkeyAutofill === 'boolean' ? s.passkeyAutofill : configDefaults.passkeyAutofill)
+
   const resolved: ResolvedAuthMethods = {
     password: passwordEnabled,
     magicLink: magicLinkEnabled,
     passkey: passkeyEnabled,
     social: socialEnabled,
     forgotPassword: forgotPasswordEnabled,
+    passkeyAutofill: passkeyAutofillEnabled,
   }
 
   // FAIL-SAFE all-off: se todos ficaram false/vazio, volta ao config derivado.
@@ -1339,6 +1357,68 @@ export async function resolveEffectiveOrganizationsPolicy(
       allowSelfCreate: typeof s.allowSelfCreate === 'boolean' ? s.allowSelfCreate : defaults.allowSelfCreate,
       invitationTtlHours: typeof s.invitationTtlHours === 'number' && s.invitationTtlHours >= 1 ? Math.floor(s.invitationTtlHours) : defaults.invitationTtlHours,
       roles,
+    }
+  } catch {
+    return defaults
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 19. account_expiration setting
+// ---------------------------------------------------------------------------
+
+/**
+ * Shape da setting `account_expiration` em `auth_settings`.
+ *
+ * Quando `enabled: true` E o audit suporta `list` (capability-probed):
+ *   - O login de contas inativas (sem `login.success` há mais de `inactiveDays`
+ *     dias) é BLOQUEADO com mensagem i18n clara e auditado como
+ *     `account.expired_login_blocked`. A reativação se dá via reset de senha
+ *     (link exibido na mensagem de erro) — um reset bem-sucedido registra
+ *     atividade e reativa implicitamente.
+ *   - Comando de varredura `authkit:accounts:expire-scan` (cron do host):
+ *     reporta expiradas e "a expirar em warnDays dias"; com `--warn` envia
+ *     e-mail de aviso via hook `mail.onAccountExpirationWarning` (deduplicado
+ *     via audit `account.expiration_warned` na janela de `warnDays` dias).
+ *
+ * SEM audit queryável → feature indisponível (no-op + doctor explica).
+ * SEM coluna nova — "última atividade" = último `login.success` no audit.
+ *
+ * FAIL-SAFE: qualquer erro → `{ enabled: false, inactiveDays: 365, warnDays: 14 }`.
+ */
+export interface AccountExpirationSetting {
+  enabled?: boolean
+  /** Dias de inatividade para expirar. Default: 365. */
+  inactiveDays?: number
+  /** Dias de antecipação para enviar aviso. Default: 14. */
+  warnDays?: number
+}
+
+/** Resultado resolvido de `account_expiration`. */
+export interface ResolvedAccountExpiration {
+  enabled: boolean
+  inactiveDays: number
+  warnDays: number
+}
+
+/**
+ * Resolve as configurações efetivas de expiração de conta.
+ *
+ * FAIL-SAFE: qualquer erro → `{ enabled: false, inactiveDays: 365, warnDays: 14 }`.
+ */
+export async function resolveEffectiveAccountExpiration(
+  settings: SettingsCapability
+): Promise<ResolvedAccountExpiration> {
+  const defaults: ResolvedAccountExpiration = { enabled: false, inactiveDays: 365, warnDays: 14 }
+  try {
+    const raw = await settings.getSetting(SETTING_KEYS.ACCOUNT_EXPIRATION)
+    if (raw === null || raw === undefined) return defaults
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
+    const s = raw as AccountExpirationSetting
+    return {
+      enabled: typeof s.enabled === 'boolean' ? s.enabled : defaults.enabled,
+      inactiveDays: typeof s.inactiveDays === 'number' && s.inactiveDays >= 1 ? Math.floor(s.inactiveDays) : defaults.inactiveDays,
+      warnDays: typeof s.warnDays === 'number' && s.warnDays >= 0 ? Math.floor(s.warnDays) : defaults.warnDays,
     }
   } catch {
     return defaults

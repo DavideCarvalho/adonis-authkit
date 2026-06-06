@@ -20,6 +20,7 @@ import {
   resolveEffectiveTokenTtl,
   resolveEffectiveAdminImpersonation,
   resolveEffectiveOrganizationsPolicy,
+  resolveEffectiveAccountExpiration,
   ALL_SECURITY_NOTIFICATION_KINDS,
   type AuthMethodsSetting,
   type EmailChangeSetting,
@@ -35,6 +36,7 @@ import {
   type TokenTtlSetting,
   type AdminImpersonationSetting,
   type OrganizationsPolicySetting,
+  type AccountExpirationSetting,
 } from '../../runtime_toggles.js'
 import { getAdminPrefix } from '../../admin_prefix.js'
 import {
@@ -151,7 +153,7 @@ export default class AdminSettingsController {
           magicLinkCapable,
           passkeyCapable,
         })
-      : { password: true, magicLink: magicLinkCapable, passkey: passkeyCapable, social: configuredSocialProviders, forgotPassword: true }
+      : { password: true, magicLink: magicLinkCapable, passkey: passkeyCapable, social: configuredSocialProviders, forgotPassword: true, passkeyAutofill: passkeyCapable }
 
     // ---- email_change ----
     let currentEmailChangeSetting: EmailChangeSetting | null = null
@@ -379,6 +381,20 @@ export default class AdminSettingsController {
       ? await _resolveSudoMode(runtimeSettings)
       : { enabled: true, graceMinutes: 15 }
 
+    // ---- account_expiration ----
+    let currentAccountExpirationSetting: AccountExpirationSetting | null = null
+    if (runtimeSettings && hasTable) {
+      const raw = await runtimeSettings.getSetting('account_expiration')
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        currentAccountExpirationSetting = raw as AccountExpirationSetting
+      }
+    }
+    const accountExpirationEffective = runtimeSettings
+      ? await resolveEffectiveAccountExpiration(runtimeSettings)
+      : { enabled: false, inactiveDays: 365, warnDays: 14 }
+    // Audit queryable = audit sink implements list (capability-probed).
+    const auditQuerySupported = typeof cfg.audit?.list === 'function'
+
     return render(ctx, 'admin/settings', {
       csrfToken: ctx.request.csrfToken,
       adminBase: getAdminPrefix(),
@@ -456,6 +472,10 @@ export default class AdminSettingsController {
       // sudo_mode
       currentSudoModeSetting,
       sudoModeEffective,
+      // account_expiration
+      currentAccountExpirationSetting,
+      accountExpirationEffective,
+      auditQuerySupported,
     })
   }
 
@@ -719,6 +739,7 @@ export default class AdminSettingsController {
     const magicLink = ctx.request.input('magic_link') === '1' || ctx.request.input('magic_link') === 'true'
     const passkey = ctx.request.input('passkey') === '1' || ctx.request.input('passkey') === 'true'
     const forgotPassword = ctx.request.input('forgot_password') === '1' || ctx.request.input('forgot_password') === 'true'
+    const passkeyAutofill = ctx.request.input('passkey_autofill') === '1' || ctx.request.input('passkey_autofill') === 'true'
 
     // Social providers: multi-value checkbox (array or single string).
     const rawSocial = ctx.request.input('social')
@@ -734,6 +755,7 @@ export default class AdminSettingsController {
       passkey,
       social,
       forgotPassword,
+      passkeyAutofill,
     }
 
     await runtimeSettings.setSetting('auth_methods', setting, accountId)
@@ -1514,6 +1536,50 @@ export default class AdminSettingsController {
     if (runtimeSettings) {
       await runtimeSettings.deleteSetting('sudo_mode')
       await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'sudo_mode', action: 'reset_to_config' } })
+    }
+    ctx.session?.flash('flash', t('admin.settings.reset_done'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  // -------------------------------------------------------------------------
+  // Account expiration
+  // -------------------------------------------------------------------------
+
+  async updateAccountExpiration(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (!runtimeSettings || !(await runtimeSettings.isTablePresent())) {
+      ctx.session?.flash('flash', t('admin.settings.no_settings_table'))
+      return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+    }
+
+    const enabled = ctx.request.input('enabled') === '1' || ctx.request.input('enabled') === 'true'
+    const rawInactive = ctx.request.input('inactive_days')
+    const inactiveDays = typeof rawInactive === 'string' && rawInactive.trim() !== '' ? Math.max(1, parseInt(rawInactive, 10) || 365) : 365
+    const rawWarn = ctx.request.input('warn_days')
+    const warnDays = typeof rawWarn === 'string' && rawWarn.trim() !== '' ? Math.max(0, parseInt(rawWarn, 10) || 14) : 14
+
+    const setting: AccountExpirationSetting = { enabled, inactiveDays, warnDays }
+    await runtimeSettings.setSetting('account_expiration', setting, accountId)
+    await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'account_expiration', value: setting } })
+
+    ctx.session?.flash('flash', t('admin.settings.saved'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  async resetAccountExpiration(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (runtimeSettings) {
+      await runtimeSettings.deleteSetting('account_expiration')
+      await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'account_expiration', action: 'reset_to_config' } })
     }
     ctx.session?.flash('flash', t('admin.settings.reset_done'))
     return ctx.response.redirect(`${getAdminPrefix()}/settings`)

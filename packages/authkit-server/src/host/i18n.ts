@@ -535,6 +535,7 @@ export const DEFAULT_MESSAGES = {
   'admin.settings.auth_methods_passkey_unavailable': 'Unavailable — requires WebAuthn configured in config.',
   'admin.settings.auth_methods_forgot_disabled_hint': 'Automatically disabled when password method is off.',
   'admin.settings.auth_methods_no_social': 'No social providers configured in the static config.',
+  'admin.settings.auth_methods_passkey_autofill_label': 'Enable passkey autofill (conditional mediation — suggests passkeys in the email input)',
 
   // Generic social provider label (fallback when no specific translation exists).
   'login.social_provider': 'Sign in with {provider}',
@@ -902,6 +903,30 @@ export const DEFAULT_MESSAGES = {
   'admin.users.roles_section': 'Global roles',
   'admin.users.out_of_catalog_label': 'Roles outside catalog:',
   'admin.users.out_of_catalog_badge': 'out of catalog',
+
+  // Account expiration — login error.
+  'errors.account_expired':
+    'Your account has been deactivated due to inactivity. To reactivate it, reset your password.',
+
+  // Admin settings — account_expiration card.
+  'admin.settings.account_expiration_section': 'Account inactivity expiration',
+  'admin.settings.account_expiration_intro':
+    'Blocks login for accounts inactive for more than N days (measured by last successful login in the audit log). Requires a queryable audit sink (list capability). Reactivation: user resets their password. No new columns — "last activity" is read from audit.',
+  'admin.settings.account_expiration_from_config': 'Source: defaults',
+  'admin.settings.account_expiration_from_setting': 'Source: runtime setting',
+  'admin.settings.account_expiration_inactive_days_label': 'Inactivity threshold (days)',
+  'admin.settings.account_expiration_warn_days_label': 'Warn N days before expiry (0 = off)',
+  'admin.settings.account_expiration_no_audit':
+    'Queryable audit sink not available. Account expiration requires an audit sink that implements the `list` method (e.g. lucidAuditSink). Enable audit first.',
+
+  // E-mail de aviso de expiração de conta iminente.
+  'mail.account_expiration_warn.subject': 'Your account will be deactivated due to inactivity',
+  'mail.account_expiration_warn.heading': 'Account inactivity notice',
+  'mail.account_expiration_warn.intro':
+    'Your account will be deactivated in {days} day(s) due to inactivity. Sign in to keep your account active.',
+  'mail.account_expiration_warn.cta': 'Sign in now',
+  'mail.account_expiration_warn.fallback':
+    'If you no longer use this account, you can ignore this email.',
 } satisfies AuthMessages
 
 /**
@@ -1407,6 +1432,7 @@ export const PT_BR_MESSAGES = {
   'admin.settings.auth_methods_passkey_unavailable': 'Indisponível — requer WebAuthn configurado no config.',
   'admin.settings.auth_methods_forgot_disabled_hint': 'Desabilitado automaticamente quando o método senha está desligado.',
   'admin.settings.auth_methods_no_social': 'Nenhum provider social configurado no config estático.',
+  'admin.settings.auth_methods_passkey_autofill_label': 'Habilitar autofill de passkey (conditional mediation — sugere passkeys no campo de e-mail)',
 
   // Rótulo genérico de provider social (fallback quando não há tradução específica).
   'login.social_provider': 'Entrar com {provider}',
@@ -1774,6 +1800,30 @@ export const PT_BR_MESSAGES = {
   'admin.users.roles_section': 'Roles globais',
   'admin.users.out_of_catalog_label': 'Roles fora do catálogo:',
   'admin.users.out_of_catalog_badge': 'fora do catálogo',
+
+  // Expiração de conta por inatividade — erro de login (pt-BR).
+  'errors.account_expired':
+    'Sua conta foi desativada por inatividade. Para reativá-la, redefina sua senha.',
+
+  // Admin settings — account_expiration card (pt-BR).
+  'admin.settings.account_expiration_section': 'Expiração de conta por inatividade',
+  'admin.settings.account_expiration_intro':
+    'Bloqueia o login de contas inativas há mais de N dias (medido pelo último login bem-sucedido no audit). Requer um audit sink queryável (método `list`). Reativação: o usuário redefine a senha. Sem novas colunas — "última atividade" é lida do audit.',
+  'admin.settings.account_expiration_from_config': 'Fonte: padrão',
+  'admin.settings.account_expiration_from_setting': 'Fonte: setting em runtime',
+  'admin.settings.account_expiration_inactive_days_label': 'Limiar de inatividade (dias)',
+  'admin.settings.account_expiration_warn_days_label': 'Avisar N dias antes de expirar (0 = desligado)',
+  'admin.settings.account_expiration_no_audit':
+    'Audit sink queryável não disponível. A expiração de conta requer um audit sink com o método `list` (ex.: lucidAuditSink). Habilite o audit primeiro.',
+
+  // E-mail de aviso de expiração iminente (pt-BR).
+  'mail.account_expiration_warn.subject': 'Sua conta será desativada por inatividade',
+  'mail.account_expiration_warn.heading': 'Aviso de inatividade de conta',
+  'mail.account_expiration_warn.intro':
+    'Sua conta será desativada em {days} dia(s) por inatividade. Entre na plataforma para manter sua conta ativa.',
+  'mail.account_expiration_warn.cta': 'Entrar agora',
+  'mail.account_expiration_warn.fallback':
+    'Se você não usa mais esta conta, pode ignorar este e-mail.',
 } satisfies AuthMessages
 
 /**

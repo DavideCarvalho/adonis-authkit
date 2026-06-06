@@ -41,6 +41,8 @@ export { useOrgInvitations } from './src/hooks/use_org_invitations.js'
 export type { UseOrgInvitationsResult, OrgInvitationEntry } from './src/hooks/use_org_invitations.js'
 export { jsonRequest, useResource } from './src/hooks/use_resource.js'
 export type { ResourceState } from './src/hooks/use_resource.js'
+export { usePasskeyAutofill } from './src/hooks/use_passkey_autofill.js'
+export type { UsePasskeyAutofillOptions } from './src/hooks/use_passkey_autofill.js'
 export {
   usePasswordStrength,
   heuristicScorer,

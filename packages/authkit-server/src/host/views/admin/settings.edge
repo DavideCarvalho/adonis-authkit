@@ -201,11 +201,18 @@
 
             {{-- Passkey --}}
             @if(passkeyCapable)
-              <label class="flex items-center gap-2 mb-3">
+              <label class="flex items-center gap-2 mb-1">
                 <input type="checkbox" name="passkey" value="1"
                   {{ authMethodsEffective && authMethodsEffective.passkey !== false ? 'checked' : '' }}
-                  class="h-4 w-4 rounded border-gray-300">
+                  class="h-4 w-4 rounded border-gray-300"
+                  id="auth_methods_passkey">
                 <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.auth_methods_passkey_label') }}</span>
+              </label>
+              <label class="flex items-center gap-2 mb-3 ml-6">
+                <input type="checkbox" name="passkey_autofill" value="1"
+                  {{ authMethodsEffective && authMethodsEffective.passkeyAutofill !== false ? 'checked' : '' }}
+                  class="h-4 w-4 rounded border-gray-300">
+                <span class="text-sm text-gray-600">{{ t('admin.settings.auth_methods_passkey_autofill_label') }}</span>
               </label>
             @else
               <div class="mb-3 flex items-center gap-2 opacity-50 cursor-not-allowed">
@@ -667,6 +674,62 @@
               <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">{{ t('admin.settings.save') }}</button>
               @if(currentTrustedDevicesSetting !== null)
                 <form method="POST" action="{{ adminBase }}/settings/trusted-devices/reset" class="inline">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('admin.settings.reset_to_config') }}</button>
+                </form>
+              @end
+            </div>
+          </form>
+        </div>
+
+        {{-- Account expiration card --}}
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+          <div class="mb-1 flex items-center gap-2">
+            <h2 class="text-sm font-semibold text-gray-900">{{ t('admin.settings.account_expiration_section') }}</h2>
+            @if(currentAccountExpirationSetting !== null)
+              <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">{{ t('admin.settings.account_expiration_from_setting') }}</span>
+            @else
+              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{{ t('admin.settings.account_expiration_from_config') }}</span>
+            @end
+          </div>
+          <p class="mb-4 text-xs text-gray-500">{{ t('admin.settings.account_expiration_intro') }}</p>
+
+          @if(!auditQuerySupported)
+            <p class="mb-4 text-xs text-amber-700">{{ t('admin.settings.account_expiration_no_audit') }}</p>
+          @end
+
+          <form method="POST" action="{{ adminBase }}/settings/account-expiration">
+            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+            <label class="flex items-center gap-2 mb-3">
+              <input type="checkbox" name="enabled" value="1"
+                {{ accountExpirationEffective && accountExpirationEffective.enabled ? 'checked' : '' }}
+                {{ !auditQuerySupported ? 'disabled' : '' }}
+                class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.enabled_label') }}</span>
+            </label>
+            <div class="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.account_expiration_inactive_days_label') }}</label>
+                <input type="number" name="inactive_days" min="1" max="3650"
+                  value="{{ accountExpirationEffective ? accountExpirationEffective.inactiveDays : 365 }}"
+                  {{ !auditQuerySupported ? 'disabled' : '' }}
+                  class="w-24 rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.account_expiration_warn_days_label') }}</label>
+                <input type="number" name="warn_days" min="0" max="365"
+                  value="{{ accountExpirationEffective ? accountExpirationEffective.warnDays : 14 }}"
+                  {{ !auditQuerySupported ? 'disabled' : '' }}
+                  class="w-24 rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <button type="submit" {{ !auditQuerySupported ? 'disabled' : '' }}
+                class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50">
+                {{ t('admin.settings.save') }}
+              </button>
+              @if(currentAccountExpirationSetting !== null)
+                <form method="POST" action="{{ adminBase }}/settings/account-expiration/reset" class="inline">
                   <input type="hidden" name="_csrf" value="{{ csrfToken }}">
                   <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('admin.settings.reset_to_config') }}</button>
                 </form>

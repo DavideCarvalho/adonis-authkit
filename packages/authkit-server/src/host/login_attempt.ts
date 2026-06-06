@@ -4,6 +4,7 @@ import {
   supportsEmailVerificationStatus,
   supportsPasswordExpiration,
 } from '../accounts/account_store.js'
+import type { AuditSink } from '../audit/audit_sink.js'
 import type { ResolvedServerConfig } from '../define_config.js'
 import { createAccountLockout } from './account_lockout.js'
 import type { SettingsCapability } from './runtime_settings.js'
@@ -11,6 +12,7 @@ import {
   resolveEffectiveRequireVerifiedEmail,
   resolveEffectiveRequireVerifiedEmailFull,
   resolveEffectivePasswordExpiration,
+  resolveEffectiveAccountExpiration,
 } from './runtime_toggles.js'
 
 /**
@@ -99,6 +101,48 @@ export async function isPasswordExpired(
   return Date.now() - changedAt.getTime() > maxAgeMs
 }
 
+/**
+ * Verifica se a conta está expirada por inatividade (account_expiration setting).
+ *
+ * "Última atividade" = timestamp do último `login.success` da conta no audit.
+ * Capability-probed: sem `audit.list` → retorna false (feature indisponível).
+ * Quando enabled=false ou sem audit queryável → false (no-op).
+ *
+ * @param audit - AuditSink. Quando ausente ou sem `list`, retorna false.
+ * @param accountId - ID da conta a verificar.
+ * @param settings - SettingsCapability para ler a setting `account_expiration`.
+ * @returns true se a conta está expirada e o login deve ser bloqueado.
+ */
+export async function isAccountExpired(
+  audit: AuditSink | null | undefined,
+  accountId: string,
+  settings: SettingsCapability
+): Promise<boolean> {
+  const expiration = await resolveEffectiveAccountExpiration(settings)
+  if (!expiration.enabled) return false
+  // Sem audit queryável → feature indisponível → não bloqueia.
+  if (typeof audit?.list !== 'function') return false
+
+  try {
+    // Busca o último login.success da conta (ordem desc, limit 1).
+    const result = await audit.list({ type: 'login.success', subject: accountId, page: 1, limit: 1 })
+    if (result.data.length === 0) {
+      // Nunca logou → considera ativa (conta nova, não inativa).
+      return false
+    }
+    const lastLogin = result.data[0]
+    const createdAt = lastLogin.createdAt
+    if (!createdAt) return false
+    const lastMs = createdAt instanceof Date ? createdAt.getTime() : Date.parse(createdAt as string)
+    if (!Number.isFinite(lastMs)) return false
+    const cutoffMs = Date.now() - expiration.inactiveDays * 24 * 60 * 60 * 1000
+    return lastMs < cutoffMs
+  } catch {
+    // Fail-safe: erro de DB → não bloqueia.
+    return false
+  }
+}
+
 /** Entrada de uma tentativa de login por senha (keyed por email). */
 export interface PasswordLoginInput {
   email: string
@@ -120,7 +164,7 @@ export interface PasswordLoginInput {
 /** Resultado de {@link attemptPasswordLogin}. */
 export type PasswordLoginResult =
   | { ok: true; account: AuthAccount }
-  | { ok: false; locked: boolean; retryAfterSec?: number; disabled?: boolean; unverified?: boolean; unverifiedGraceDays?: number; passwordExpired?: boolean; account?: AuthAccount }
+  | { ok: false; locked: boolean; retryAfterSec?: number; disabled?: boolean; unverified?: boolean; unverifiedGraceDays?: number; passwordExpired?: boolean; accountExpired?: boolean; account?: AuthAccount }
 
 /**
  * Sequência canônica de login por senha + bloqueio progressivo, compartilhada
@@ -202,6 +246,23 @@ export async function attemptPasswordLogin(
           : { type: 'password.expired_change_forced', accountId: account.id, email, ip }
       )
       return { ok: false, locked: false, passwordExpired: true, account: account as any }
+    }
+  }
+
+  // Conta expirada por inatividade (account_expiration setting): bloqueia o login
+  // se a conta não teve login.success há mais de `inactiveDays` dias (via audit).
+  // Capability-probed: sem audit.list ou sem setting → no-op.
+  // Reativação: fluxo de reset de senha (link exibido pelo controller na mensagem).
+  if (input.settings) {
+    const expired = await isAccountExpired(cfg.audit, account.id, input.settings)
+    if (expired) {
+      await lockout.clearFailures(email)
+      await cfg.audit?.record(
+        input.clientId !== undefined
+          ? { type: 'account.expired_login_blocked', accountId: account.id, email, ip, clientId: input.clientId }
+          : { type: 'account.expired_login_blocked', accountId: account.id, email, ip }
+      )
+      return { ok: false, locked: false, accountExpired: true }
     }
   }
 

@@ -450,6 +450,8 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
         router.post(`${ap}/settings/otp-lockout/reset`, [C.adminSettings, 'resetOtpLockout'])
         router.post(`${ap}/settings/sudo-mode`, [C.adminSettings, 'updateSudoMode'])
         router.post(`${ap}/settings/sudo-mode/reset`, [C.adminSettings, 'resetSudoMode'])
+        router.post(`${ap}/settings/account-expiration`, [C.adminSettings, 'updateAccountExpiration'])
+        router.post(`${ap}/settings/account-expiration/reset`, [C.adminSettings, 'resetAccountExpiration'])
       })
       .use([adminGuard])
   }

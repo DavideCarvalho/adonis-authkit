@@ -809,6 +809,61 @@ export function checkRolesCatalog(input: DoctorInput): Finding | null {
   }
 }
 
+/**
+ * Verifica a feature de expiração de conta por inatividade.
+ *
+ * - Capability-probed: sem audit com `list` → a feature fica indisponível; explica o motivo.
+ * - Quando a setting `account_expiration` está presente, valida a coerência dos campos.
+ */
+export function checkAccountExpiration(input: DoctorInput): Finding | null {
+  const cfg = input.authkitConfig
+  if (!cfg) return null
+
+  // Sem audit configurado → feature completamente indisponível.
+  if (!cfg.audit) return null
+
+  // Verifica se o audit implementa `list` (capability-probed).
+  const auditHasList = typeof cfg.audit.list === 'function'
+  if (!auditHasList) {
+    return {
+      level: 'warn',
+      message:
+        'account_expiration: the configured audit sink does not implement the `list` method. ' +
+        'Account inactivity expiration requires a queryable audit sink (e.g. lucidAuditSink). ' +
+        'The feature is unavailable until you configure a queryable audit sink.',
+    }
+  }
+
+  return {
+    level: 'ok',
+    message:
+      'account_expiration: audit sink supports list() — feature is available when enabled via auth_settings.',
+  }
+}
+
+/**
+ * Verifica a disponibilidade do WebAuthn passkey autofill (conditional mediation).
+ *
+ * Informativo: se webauthn não estiver configurado, o autofill nunca será exibido.
+ */
+export function checkPasskeyAutofill(input: DoctorInput): Finding | null {
+  const cfg = input.authkitConfig
+  if (!cfg) return null
+
+  if (!cfg.webauthn) {
+    // WebAuthn não configurado → autofill nunca ativo. Só info quando webauthn ausente.
+    return null
+  }
+
+  return {
+    level: 'ok',
+    message:
+      'passkey_autofill: WebAuthn is configured — conditional mediation (passkey autofill) is supported. ' +
+      'Control via auth_methods.passkeyAutofill setting (default on when passkey is on). ' +
+      'Requires browsers with PublicKeyCredential.isConditionalMediationAvailable() support.',
+  }
+}
+
 /** Roda todos os checks e devolve a lista plana de findings. */
 export function runAllChecks(input: DoctorInput): Finding[] {
   const findings: Finding[] = []
@@ -860,6 +915,10 @@ export function runAllChecks(input: DoctorInput): Finding[] {
   if (otpLockout) findings.push(otpLockout)
   const sudoMode = checkSudoMode(input)
   if (sudoMode) findings.push(sudoMode)
+  const accountExpiration = checkAccountExpiration(input)
+  if (accountExpiration) findings.push(accountExpiration)
+  const passkeyAutofill = checkPasskeyAutofill(input)
+  if (passkeyAutofill) findings.push(passkeyAutofill)
   return findings
 }
 

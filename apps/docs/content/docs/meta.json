@@ -27,6 +27,7 @@
     "---Frontend---",
     "react",
     "components",
+    "data-fetching",
     "---Reference---",
     "host-kit",
     "client",

@@ -1,0 +1,494 @@
+---
+title: Typed Client & TanStack Query
+description: createAuthkitClient, AuthkitClientProvider, query/mutation hooks, query keys, and error handling for the admin and account APIs.
+---
+
+`@dudousxd/adonis-authkit-react` ships a **typed HTTP client** and a full set of
+**TanStack Query hooks** for both the admin console API and the account self-service API.
+This lets your React UI fetch and mutate data with full TypeScript inference — no hand-written
+fetch calls, no manual cache invalidation boilerplate.
+
+The login and consent flows remain server-side postback for security. The client/hooks layer
+is for **management screens** (admin UIs, account pages) that need rich, reactive data.
+
+```
+┌────────────────────────────────┐
+│  createAuthkitClient(opts?)    │  ← low-level typed fetch wrapper
+│    client.admin.*              │
+│    client.account.*            │
+└──────────────┬─────────────────┘
+               │  wrapped by
+┌──────────────▼─────────────────┐
+│  TanStack Query hooks          │  ← useUsersQueryOptions(), useMutation(…)
+│  authkitKeys.*                 │  ← structured cache keys
+└────────────────────────────────┘
+```
+
+## Install
+
+`@tanstack/react-query` is a **peer dependency**. Install it alongside the package:
+
+```bash
+pnpm add @dudousxd/adonis-authkit-react @tanstack/react-query
+```
+
+## Provider setup
+
+Wrap your app (or the subtree that needs data access) once:
+
+```tsx title="app/layouts/admin_layout.tsx"
+import { QueryClientProvider } from '@tanstack/react-query'
+import {
+  createAuthkitQueryClient,
+  AuthkitClientProvider,
+} from '@dudousxd/adonis-authkit-react'
+
+const queryClient = createAuthkitQueryClient()
+
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthkitClientProvider>
+        {children}
+      </AuthkitClientProvider>
+    </QueryClientProvider>
+  )
+}
+```
+
+`createAuthkitQueryClient()` creates a `QueryClient` pre-tuned for AuthKit:
+
+| Default | Value |
+| --- | --- |
+| `staleTime` | 30 s |
+| `gcTime` | 5 min |
+| `retry` | 1 |
+| `refetchOnWindowFocus` | `false` |
+
+You can bring your own `QueryClient` — the helper is purely optional.
+
+`AuthkitClientProvider` reads `window.__AUTHKIT__` (injected by the admin shell) to
+configure the base URLs and CSRF token automatically. In SSR or tests, pass an explicit
+client:
+
+```tsx
+import { createAuthkitClient, AuthkitClientProvider } from '@dudousxd/adonis-authkit-react'
+
+const client = createAuthkitClient({ baseUrl: '/admin/api', csrfToken: 'test-token' })
+
+<AuthkitClientProvider client={client}>
+  <App />
+</AuthkitClientProvider>
+```
+
+## The typed client
+
+`createAuthkitClient(opts?)` returns a typed wrapper around `fetch`. It uses
+`window.__AUTHKIT__` for URLs and CSRF by default.
+
+```ts
+import { createAuthkitClient } from '@dudousxd/adonis-authkit-react'
+
+// Browser — reads window.__AUTHKIT__ automatically
+const client = createAuthkitClient()
+
+// Explicit (SSR, tests, custom topologies)
+const client = createAuthkitClient({
+  baseUrl: '/admin/api',       // default: window.__AUTHKIT__.endpoints.api
+  accountBaseUrl: '/account/api', // default: '/account/api'
+  csrfToken: 'my-token',
+  fetch: customFetch,          // optional — inject a mock in tests
+})
+```
+
+### Admin surface — `client.admin.*`
+
+| Method | HTTP | Notes |
+| --- | --- | --- |
+| `admin.overview()` | `GET /overview` | Dashboard metrics |
+| `admin.users.list(params?)` | `GET /users` | `{ search?, page?, limit? }` |
+| `admin.users.get(id)` | `GET /users/:id` | Single user |
+| `admin.users.create(data)` | `POST /users` | Creates or invites |
+| `admin.users.update(id, data)` | `PATCH /users/:id` | Partial update |
+| `admin.users.disable(id)` | `POST /users/:id/disable` | Blocks login |
+| `admin.users.enable(id)` | `POST /users/:id/enable` | Re-enables account |
+| `admin.users.resetPassword(id)` | `POST /users/:id/reset-password` | Sends email |
+| `admin.users.remove(id)` | `DELETE /users/:id` | Cascade delete |
+| `admin.users.getSessions(id)` | `GET /users/:id/sessions` | Active sessions |
+| `admin.users.revokeSessions(id)` | `POST /users/:id/revoke-sessions` | Revoke all |
+| `admin.sessions.list(accountId?)` | `GET /sessions` | All active sessions |
+| `admin.sessions.revokeAll(accountId?)` | `POST /sessions/revoke-all` | — |
+| `admin.clients.list()` | `GET /clients` | — |
+| `admin.clients.get(id)` | `GET /clients/:id` | — |
+| `admin.clients.create(data?)` | `POST /clients` | — |
+| `admin.clients.update(id, data?)` | `PATCH /clients/:id` | — |
+| `admin.clients.remove(id)` | `DELETE /clients/:id` | — |
+| `admin.clients.regenerateSecret(id)` | `POST /clients/:id/regenerate-secret` | Shown once |
+| `admin.roles.list()` | `GET /roles` | — |
+| `admin.roles.create(data)` | `POST /roles` | — |
+| `admin.roles.update(name, data)` | `PATCH /roles/:name` | — |
+| `admin.roles.remove(name)` | `DELETE /roles/:name` | — |
+| `admin.orgs.list()` | `GET /orgs` | — |
+| `admin.orgs.get(id)` | `GET /orgs/:id` | — |
+| `admin.orgs.create(data)` | `POST /orgs` | — |
+| `admin.orgs.update(id, data)` | `PATCH /orgs/:id` | — |
+| `admin.orgs.remove(id)` | `DELETE /orgs/:id` | — |
+| `admin.audit.list(params?)` | `GET /audit` | `{ type?, page?, limit?, subject? }` |
+| `admin.settings.list()` | `GET /settings` | — |
+| `admin.settings.set(key, value)` | `PUT /settings/:key` | — |
+| `admin.settings.remove(key)` | `DELETE /settings/:key` | — |
+| `admin.impersonation.get(userId)` | `GET /impersonation/:userId` | Panel data |
+
+All methods under `admin.*` hit `{adminBase}/api/*` — the prefix is derived from
+`window.__AUTHKIT__.endpoints.api` or `opts.baseUrl`.
+
+### Account surface — `client.account.*`
+
+| Method | HTTP | Notes |
+| --- | --- | --- |
+| `account.me()` | `GET /account/api/me` | Profile + capability flags + sudo state |
+| `account.security()` | `GET /account/api/security` | Sessions, MFA state, pending email |
+| `account.updateProfile(data)` | `PATCH /account/api/profile` | Name / avatar URL |
+| `account.changePassword(data)` | `POST /account/api/password` | Requires sudo + current pw |
+| `account.emailChange(data)` | `POST /account/api/email-change` | Requires sudo |
+| `account.cancelEmailChange()` | `POST /account/api/email-change/cancel` | — |
+| `account.sessions.list()` | `GET /account/api/sessions` | — |
+| `account.sessions.revoke(id)` | `DELETE /account/api/sessions/:id` | — |
+| `account.sessions.revokeOthers()` | `POST /account/api/sessions/revoke-others` | — |
+| `account.apps.list()` | `GET /account/api/apps` | Authorized OAuth grants |
+| `account.apps.revoke(clientId)` | `DELETE /account/api/apps/:clientId` | — |
+| `account.mfa()` | `GET /account/api/mfa` | TOTP + passkeys + recovery status |
+| `account.passkeys.list()` | `GET /account/api/passkeys` | — |
+| `account.passkeys.remove(id)` | `DELETE /account/api/passkeys/:id` | Requires sudo |
+| `account.tokens.list()` | `GET /account/api/tokens` | Personal Access Tokens |
+| `account.tokens.create(data?)` | `POST /account/api/tokens` | Requires sudo; secret returned once |
+| `account.tokens.remove(id)` | `DELETE /account/api/tokens/:id` | Requires sudo |
+| `account.orgs.list()` | `GET /account/api/orgs` | Orgs the signed-in user belongs to |
+| `account.orgs.get(id)` | `GET /account/api/orgs/:id` | Org detail; requires membership |
+| `account.orgs.invitations()` | `GET /account/api/orgs/invitations` | Pending invitations |
+
+All `account.*` methods use session authentication (the `accountGuard` cookie). Mutating
+operations (`PATCH`, `POST`, `DELETE`) send `X-CSRF-TOKEN` automatically.
+
+### `AuthkitClientError`
+
+Every non-2xx response throws `AuthkitClientError`:
+
+```ts
+import { AuthkitClientError } from '@dudousxd/adonis-authkit-react'
+
+try {
+  await client.admin.users.get('u_missing')
+} catch (err) {
+  if (err instanceof AuthkitClientError) {
+    console.log(err.status)   // 404
+    console.log(err.code)     // 'not_found' (from the error envelope)
+    console.log(err.message)  // human-readable message
+    console.log(err.body)     // raw JSON response
+    console.log(err.isUnauthorized) // true when status === 401
+  }
+}
+```
+
+Detect session expiry with `isUnauthorized` and redirect to login:
+
+```ts
+catch (err) {
+  if (err instanceof AuthkitClientError && err.isUnauthorized) {
+    window.location.href = '/auth/login'
+  }
+}
+```
+
+## Query hooks
+
+All query hooks return `UseQueryOptions` — pass them directly to `useQuery`:
+
+```ts
+const { data } = useQuery(useUsersQueryOptions({ search: 'alice', page: 1 }))
+```
+
+### Admin query hooks
+
+| Hook | Query key | Notes |
+| --- | --- | --- |
+| `useOverviewQueryOptions()` | `authkitKeys.admin.overview()` | Dashboard metrics |
+| `useUsersQueryOptions(params?)` | `authkitKeys.admin.users(params)` | `{ search?, page?, limit? }` |
+| `useUserQueryOptions(id)` | `authkitKeys.admin.user(id)` | Disabled when `id` is empty |
+| `useUserSessionsQueryOptions(id)` | `authkitKeys.admin.userSessions(id)` | — |
+| `useSessionsQueryOptions(accountId?)` | `authkitKeys.admin.sessions(accountId)` | — |
+| `useClientsQueryOptions()` | `authkitKeys.admin.clients()` | — |
+| `useClientQueryOptions(id)` | `authkitKeys.admin.client(id)` | — |
+| `useRolesQueryOptions()` | `authkitKeys.admin.roles()` | — |
+| `useOrgsQueryOptions()` | `authkitKeys.admin.orgs()` | — |
+| `useOrgQueryOptions(id)` | `authkitKeys.admin.org(id)` | — |
+| `useAuditQueryOptions(params?)` | `authkitKeys.admin.audit(params)` | `{ type?, page?, limit?, subject? }` |
+| `useSettingsQueryOptions()` | `authkitKeys.admin.settings()` | — |
+| `useImpersonationQueryOptions(userId)` | `authkitKeys.admin.impersonation(userId)` | — |
+
+### Account query hooks
+
+| Hook | Query key | Notes |
+| --- | --- | --- |
+| `useMeQueryOptions()` | `authkitKeys.account.me()` | Profile + capability flags |
+| `useSecurityQueryOptions()` | `authkitKeys.account.security()` | Security overview |
+| `useAccountSessionsQueryOptions()` | `authkitKeys.account.sessions()` | — |
+| `useAppsQueryOptions()` | `authkitKeys.account.apps()` | Authorized apps |
+| `useMfaQueryOptions()` | `authkitKeys.account.mfa()` | MFA status |
+| `usePasskeysQueryOptions()` | `authkitKeys.account.passkeys()` | — |
+| `useTokensQueryOptions()` | `authkitKeys.account.tokens()` | PATs |
+| `useAccountOrgsQueryOptions()` | `authkitKeys.account.orgs()` | — |
+| `useAccountOrgQueryOptions(id)` | `authkitKeys.account.org(id)` | — |
+| `useAccountOrgInvitationsQueryOptions()` | `authkitKeys.account.orgInvitations()` | — |
+
+## Mutation hooks
+
+Mutation hooks also return options objects — pass them to `useMutation`:
+
+```ts
+const m = useMutation(useCreateUserMutationOptions())
+```
+
+Put `onSuccess`/`onError` logic and query invalidation in the calling component's handler,
+not inside the hook options. This keeps hooks as pure configuration and gives each component
+full control.
+
+### Admin mutation hooks
+
+| Hook | Argument | Notes |
+| --- | --- | --- |
+| `useCreateUserMutationOptions()` | `CreateUserInput` | — |
+| `useUpdateUserMutationOptions(id)` | `UpdateUserInput` | `id` bound at hook call |
+| `useDisableUserMutationOptions(id)` | `void` | — |
+| `useEnableUserMutationOptions(id)` | `void` | — |
+| `useResetPasswordMutationOptions(id)` | `void` | Sends email |
+| `useDeleteUserMutationOptions(id)` | `void` | Cascade delete |
+| `useRevokeUserSessionsMutationOptions(id)` | `void` | — |
+| `useRevokeAllSessionsMutationOptions(accountId?)` | `void` | — |
+| `useCreateClientMutationOptions()` | `CreateClientInput?` | — |
+| `useUpdateClientMutationOptions(id)` | `UpdateClientInput?` | — |
+| `useDeleteClientMutationOptions(id)` | `void` | — |
+| `useRegenerateClientSecretMutationOptions(id)` | `void` | Secret returned once |
+| `useCreateRoleMutationOptions()` | `CreateRoleInput` | — |
+| `useUpdateRoleMutationOptions(name)` | `UpdateRoleInput` | — |
+| `useDeleteRoleMutationOptions(name)` | `void` | — |
+| `useCreateOrgMutationOptions()` | `CreateOrgInput` | — |
+| `useUpdateOrgMutationOptions(id)` | `UpdateOrgInput` | — |
+| `useDeleteOrgMutationOptions(id)` | `void` | — |
+| `useSetSettingMutationOptions()` | `{ key: string; value: unknown }` | — |
+| `useRemoveSettingMutationOptions()` | `string` (key) | Resets to lib default |
+
+### Account mutation hooks
+
+| Hook | Argument | Notes |
+| --- | --- | --- |
+| `useUpdateProfileMutationOptions()` | `UpdateProfileInput` | — |
+| `useChangePasswordMutationOptions()` | `ChangePasswordInput` | Requires sudo + current password |
+| `useEmailChangeMutationOptions()` | `RequestEmailChangeInput` | Requires sudo |
+| `useCancelEmailChangeMutationOptions()` | `void` | — |
+| `useRevokeSessionMutationOptions()` | `string` (session id) | — |
+| `useRevokeOtherSessionsMutationOptions()` | `void` | — |
+| `useRevokeAppMutationOptions()` | `string` (clientId) | — |
+| `useRemovePasskeyMutationOptions()` | `string` (passkey id) | Requires sudo |
+| `useCreateTokenMutationOptions()` | `CreateTokenInput?` | Requires sudo; secret returned once |
+| `useRevokeTokenMutationOptions()` | `string` (token id) | Requires sudo |
+
+## Full example — users page
+
+The pattern: call the hook to get options, pass to `useQuery`/`useMutation`, put all
+success/error/invalidation logic in the handler.
+
+```tsx title="app/admin/ui/pages/users_page.tsx"
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  authkitKeys,
+  useUsersQueryOptions,
+  useCreateUserMutationOptions,
+  useDisableUserMutationOptions,
+  useDeleteUserMutationOptions,
+  AuthkitClientError,
+} from '@dudousxd/adonis-authkit-react'
+
+export default function UsersPage() {
+  const queryClient = useQueryClient()
+  const [search, setSearch] = useState('')
+  const [disablingId, setDisablingId] = useState<string | null>(null)
+
+  // ── Queries ──────────────────────────────────────────────────────────────
+  const { data, isLoading } = useQuery(useUsersQueryOptions({ search }))
+
+  // ── Mutations ─────────────────────────────────────────────────────────────
+  const createMutation = useMutation(useCreateUserMutationOptions())
+  const disableMutation = useMutation(useDisableUserMutationOptions(disablingId ?? ''))
+  const deleteMutation = useMutation(useDeleteUserMutationOptions(''))
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+  async function handleCreate(formData: { email: string; name?: string }) {
+    try {
+      await createMutation.mutateAsync(formData)
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.users() })
+    } catch (err) {
+      if (err instanceof AuthkitClientError) {
+        alert(err.message)
+      }
+    }
+  }
+
+  async function handleDisable(id: string) {
+    setDisablingId(id)
+    try {
+      await disableMutation.mutateAsync()
+      // Invalidate both the list and the single-user query
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.users() })
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.user(id) })
+    } finally {
+      setDisablingId(null)
+    }
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  if (isLoading) return <p>Loading…</p>
+
+  return (
+    <ul>
+      {data?.users.map((u) => (
+        <li key={u.id}>
+          {u.email}
+          <button onClick={() => handleDisable(u.id)}>Disable</button>
+        </li>
+      ))}
+    </ul>
+  )
+}
+```
+
+## Query key reference
+
+`authkitKeys` provides stable, hierarchical cache keys. Use them when calling
+`queryClient.invalidateQueries`:
+
+```ts
+import { authkitKeys } from '@dudousxd/adonis-authkit-react'
+
+// Invalidate all admin data
+queryClient.invalidateQueries({ queryKey: authkitKeys.admin.all })
+
+// Invalidate the users list (all search params)
+queryClient.invalidateQueries({ queryKey: authkitKeys.admin.users() })
+
+// Invalidate a specific user + their sessions
+queryClient.invalidateQueries({ queryKey: authkitKeys.admin.user(id) })
+queryClient.invalidateQueries({ queryKey: authkitKeys.admin.userSessions(id) })
+
+// Account data
+queryClient.invalidateQueries({ queryKey: authkitKeys.account.me() })
+queryClient.invalidateQueries({ queryKey: authkitKeys.account.sessions() })
+```
+
+All key shapes:
+
+```ts
+authkitKeys.admin.all             // ['authkit', 'admin']
+authkitKeys.admin.overview()      // ['authkit', 'admin', 'overview']
+authkitKeys.admin.users(params?)  // ['authkit', 'admin', 'users', params]
+authkitKeys.admin.user(id)        // ['authkit', 'admin', 'users', id]
+authkitKeys.admin.userSessions(id)
+authkitKeys.admin.sessions(accountId?)
+authkitKeys.admin.clients()
+authkitKeys.admin.client(id)
+authkitKeys.admin.roles()
+authkitKeys.admin.orgs()
+authkitKeys.admin.org(id)
+authkitKeys.admin.audit(params?)
+authkitKeys.admin.settings()
+authkitKeys.admin.impersonation(userId)
+
+authkitKeys.account.all
+authkitKeys.account.me()
+authkitKeys.account.security()
+authkitKeys.account.sessions()
+authkitKeys.account.apps()
+authkitKeys.account.mfa()
+authkitKeys.account.passkeys()
+authkitKeys.account.tokens()
+authkitKeys.account.orgs()
+authkitKeys.account.org(id)
+authkitKeys.account.orgInvitations()
+```
+
+## SSR and testing
+
+In SSR environments `window` is not available. Pass options explicitly:
+
+```ts
+// Next.js server component or test
+const client = createAuthkitClient({
+  baseUrl: process.env.AUTHKIT_ADMIN_API_URL,
+  accountBaseUrl: process.env.AUTHKIT_ACCOUNT_API_URL,
+  csrfToken: 'test-csrf',
+})
+```
+
+In tests, inject a mock `fetch`:
+
+```ts
+const client = createAuthkitClient({
+  baseUrl: 'http://localhost:3333/admin/api',
+  csrfToken: 'test',
+  fetch: vi.fn().mockResolvedValue(
+    new Response(JSON.stringify({ users: [], total: 0 }), { status: 200 })
+  ),
+})
+```
+
+## Account self-service API
+
+The account API (`/account/api/*`) is a session-authenticated JSON API served by
+`@dudousxd/adonis-authkit-server`. It is **not** the admin API — it only exposes data and
+actions for the currently signed-in user.
+
+Authentication uses the account console session cookie (set at login). All mutating
+endpoints require the `X-CSRF-TOKEN` header (the client sends it automatically). Sensitive
+actions (change password, create/revoke PAT, remove passkey) additionally require an active
+**sudo session** (`authkit_sudo_at`) — the server returns `403 sudo_required` if the sudo
+grace period has expired.
+
+The account API is what `client.account.*` and all `use*` account hooks consume internally.
+Routes registered by `registerAuthHost` (always on when the account console is mounted):
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/account/api/me` | Profile, capability flags, sudo state |
+| `GET` | `/account/api/security` | Sessions, MFA, passkeys, pending email change |
+| `PATCH` | `/account/api/profile` | Update name / avatar |
+| `POST` | `/account/api/password` | Change password (sudo + current password required) |
+| `POST` | `/account/api/email-change` | Request email change (sudo required) |
+| `POST` | `/account/api/email-change/cancel` | Cancel pending email change |
+| `GET` | `/account/api/sessions` | List active OIDC sessions |
+| `DELETE` | `/account/api/sessions/:id` | Revoke one session |
+| `POST` | `/account/api/sessions/revoke-others` | Revoke all other sessions |
+| `GET` | `/account/api/apps` | List authorized OAuth grants |
+| `DELETE` | `/account/api/apps/:clientId` | Revoke an app's access |
+| `GET` | `/account/api/mfa` | MFA status (TOTP + passkeys + recovery) |
+| `GET` | `/account/api/passkeys` | List passkeys |
+| `DELETE` | `/account/api/passkeys/:id` | Remove a passkey (sudo required) |
+| `GET` | `/account/api/tokens` | List Personal Access Tokens |
+| `POST` | `/account/api/tokens` | Create a PAT (sudo required; secret returned once) |
+| `DELETE` | `/account/api/tokens/:id` | Revoke a PAT (sudo required) |
+| `GET` | `/account/api/orgs` | List orgs the user belongs to |
+| `GET` | `/account/api/orgs/invitations` | List pending org invitations |
+| `GET` | `/account/api/orgs/:id` | Org detail (requires membership) |
+
+All endpoints are capability-probed — if the underlying store doesn't support a feature
+(e.g. passkeys, orgs, PATs), the route returns `{ supported: false, ... }` rather than
+erroring. This means the client can safely call any endpoint regardless of the specific
+store configuration; check the `supported` field in the response before rendering controls.
+
+## Admin Console (dogfood)
+
+The built-in React SPA admin console (`ui: 'react'`) uses `AuthkitClientProvider` and all
+the admin hooks internally — it is the canonical reference implementation. If you are
+building a custom admin interface or embedding management panels in your app, use the same
+hooks the console does. See [Admin Console](/docs/admin-console) for the full route
+table and how to mount it.

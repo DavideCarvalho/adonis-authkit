@@ -3,11 +3,15 @@ title: React Components
 description: Pre-built, themeable components — SignInButton, SignOutButton, UserButton, UserProfile, AuthorizedApps, Avatar, PasswordStrengthMeter, OrganizationSwitcher, OrganizationProfile.
 ---
 
-`@dudousxd/adonis-authkit-react` ships a small set of accessible, themeable components built
-on top of the [headless hooks](/docs/react#6-headless-hooks). They consume the same auth
-state and `AuthkitProvider` config — no extra wiring beyond what
+`@dudousxd/adonis-authkit-react` exports three layers: auth-state primitives, a typed HTTP
+client with TanStack Query hooks, and the pre-built UI components documented here. The
+components are built on the [headless hooks](/docs/react#6-headless-hooks) and consume the
+same auth state and `AuthkitProvider` config — no extra wiring beyond what
 [React](/docs/react) sets up. Several render **nothing** when the user is unauthenticated,
 so they're safe to drop into a shared layout.
+
+For data-fetching in management screens (admin panels, account pages), see
+**[Typed Client & TanStack Query](/docs/data-fetching)**.
 
 Import the stylesheet once (anywhere in your app entry):
 

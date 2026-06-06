@@ -124,9 +124,16 @@ The SPA (`ui: 'react'`) is:
   No separate build, no Vite dev server, no extra npm scripts on the host.
 - **Hash-routing** — every URL like `{prefix}#/users` or `{prefix}#/settings` is served by
   the same `index.html` shell. Deep links work without server-side route matching.
-- **JSON API** — the SPA fetches data from session-authenticated endpoints under
-  `{prefix}/api/*` (overview, users, sessions, clients, roles, orgs, audit, settings,
-  impersonation). These endpoints are protected by the same `adminGuard` as the shell.
+- **JSON API + TanStack Query** — the SPA fetches all data client-side via
+  `@dudousxd/adonis-authkit-react`'s typed client and TanStack Query hooks
+  (`useUsersQueryOptions`, `useCreateUserMutationOptions`, etc.). The API endpoints live
+  under `{prefix}/api/*` and are protected by the same `adminGuard` as the shell.
+  See **[Typed Client & TanStack Query](/docs/data-fetching)** for the full hook catalog —
+  the SPA is the canonical dogfood implementation; if you are building a custom admin
+  interface, use the same hooks.
+- **`AuthkitClientProvider`** — the shell wraps the app in `<QueryClientProvider>` and
+  `<AuthkitClientProvider>`. The client reads `window.__AUTHKIT__.endpoints.api` for the
+  base URL and `window.__AUTHKIT__.csrfToken` for CSRF — no hard-coded paths anywhere.
 - **Assets** — `{prefix}/assets/:file` serves the hashed JS/CSS files with
   `Cache-Control: public, max-age=31536000, immutable`.
 - **Dark/light theme** — respects the OS preference (`prefers-color-scheme`). Accent colour

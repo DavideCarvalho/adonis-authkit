@@ -3,10 +3,19 @@ title: React (Frontend)
 description: useAuth, gating components, and role helpers for Inertia + React.
 ---
 
-`@dudousxd/adonis-authkit-react` is frontend ergonomics over AuthKit for **AdonisJS +
-Inertia + React** apps: a typed `useAuth()`, role helpers, and gating components.
+`@dudousxd/adonis-authkit-react` is the complete frontend SDK for AuthKit. It exports
+three orthogonal layers:
 
-It does **not** authenticate — it consumes the auth state the AdonisJS host already
+| Layer | What it does |
+| --- | --- |
+| **Auth state** | `useAuth()`, gating components (`Authenticated`, `Can`), role helpers |
+| **Headless hooks** | `useProfile()`, `useSessions()`, `useOrganizations()`, … — plain `useState`/`useEffect`, no React Query |
+| **Typed client + TanStack Query hooks** | `createAuthkitClient()`, `useUsersQueryOptions()`, `useMutation(useCreateUserMutationOptions())`, … — for management screens |
+
+The first two layers are covered here. The typed client and TanStack hooks have their own
+page: **[Typed Client & TanStack Query](/docs/data-fetching)**.
+
+The package does **not** authenticate — it consumes the auth state the AdonisJS host already
 resolved (via [`@dudousxd/adonis-authkit-client`](/docs/client)) and shared as an Inertia
 shared-prop.
 

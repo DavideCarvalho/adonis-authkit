@@ -301,3 +301,122 @@ Additional exports beyond the resolver factories:
 | --- | --- |
 | `verifyJwtAccessToken(token, options)` | Verify a JWT AT (RFC 9068) locally against the IdP's JWKS. See [Client](/docs/client#jwt-access-token-verification). |
 | `clearJwksCache()` | Clear the in-process JWKS cache (useful in tests). |
+
+## Account Self-Service API — `/account/api/*`
+
+Session-authenticated JSON API served by `@dudousxd/adonis-authkit-server`. Mounted
+automatically when the account console is enabled (always on by default with `registerAuthHost`).
+Mutating routes require an `X-CSRF-TOKEN` header. Sensitive actions require an active
+**sudo session** — the server returns `403 { error: { code: 'sudo_required' } }` when the
+grace period has expired.
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| `GET` | `/account/api/me` | Profile + capability flags (`capabilities.*`) + sudo state |
+| `GET` | `/account/api/security` | Active sessions, MFA status, passkeys, pending email change |
+| `PATCH` | `/account/api/profile` | `{ name?, avatarUrl? }` — update profile |
+| `POST` | `/account/api/password` | `{ currentPassword, newPassword }` — sudo + current password required |
+| `POST` | `/account/api/email-change` | `{ newEmail, currentPassword? }` — sudo required; obeys `email_change` setting |
+| `POST` | `/account/api/email-change/cancel` | Cancel pending email change |
+| `GET` | `/account/api/sessions` | `{ supported, sessions[] }` |
+| `DELETE` | `/account/api/sessions/:id` | Revoke one session |
+| `POST` | `/account/api/sessions/revoke-others` | Revoke all other OIDC sessions |
+| `GET` | `/account/api/apps` | `{ supported, apps[] }` — OAuth grants |
+| `DELETE` | `/account/api/apps/:clientId` | Revoke an app's grants |
+| `GET` | `/account/api/mfa` | `{ enabled, totp, passkeys, recovery }` |
+| `GET` | `/account/api/passkeys` | `{ supported, passkeys[] }` |
+| `DELETE` | `/account/api/passkeys/:id` | Remove passkey — sudo required |
+| `GET` | `/account/api/tokens` | `{ supported, tokens[] }` — Personal Access Tokens |
+| `POST` | `/account/api/tokens` | `{ name? }` — create PAT (sudo required); `secret` returned **once** |
+| `DELETE` | `/account/api/tokens/:id` | Revoke PAT — sudo required |
+| `GET` | `/account/api/orgs` | `{ supported, activeOrgId, orgs[] }` |
+| `GET` | `/account/api/orgs/invitations` | `{ supported, invitations[] }` — pending invitations |
+| `GET` | `/account/api/orgs/:id` | Org detail — requires membership |
+
+All routes are capability-probed: if the store doesn't support a feature, the response
+contains `{ supported: false }` instead of an error. The TypeScript types for every response
+are exported from `@dudousxd/adonis-authkit-react` (see below).
+
+## React SDK — `@dudousxd/adonis-authkit-react`
+
+Full export list. For usage and examples see
+[React (Frontend)](/docs/react), [React Components](/docs/components), and
+[Typed Client & TanStack Query](/docs/data-fetching).
+
+### Auth state
+
+| Export | Notes |
+| --- | --- |
+| `useAuth()` | `{ user, isAuthenticated, hasGlobalRole, hasAppRole }` |
+| `AuthProvider` | Inject auth state outside Inertia |
+| `AuthkitProvider` | Configure URLs and endpoints |
+| `Authenticated` / `Guest` | Gating components |
+| `Can` | Role-gating component (`role`, `roles`, `mode`, `appRole`, `fallback`) |
+| `hasGlobalRole` / `hasAnyGlobalRole` / `hasAllGlobalRoles` | Pure role helpers |
+| `hasAppRole` / `hasAnyAppRole` / `hasAllAppRoles` | App-role helpers |
+
+### Headless hooks
+
+| Export | Notes |
+| --- | --- |
+| `useSignIn` / `useSignOut` | OIDC redirect |
+| `useUser` | Alias over `useAuth` |
+| `useProfile` | `{ data, loading, error, actions: { update } }` |
+| `useSessions` | `{ data, loading, error, actions: { revoke, refetch } }` |
+| `useAuthorizedApps` | `{ data, loading, error, actions: { revoke } }` |
+| `useOrganizations` | `{ data, loading, error, activeOrgId, supported, actions }` |
+| `useOrganization(orgId)` | Org detail + members |
+| `useSwitchOrganization` | `{ activate(orgId), deactivate() }` |
+| `useOrgInvitations` | `{ data, loading, error, actions: { accept } }` |
+| `usePasswordStrength(password)` | `{ score: 0–4, feedback }` |
+| `usePasskeyAutofill(opts)` | WebAuthn conditional mediation |
+| `useResource` / `jsonRequest` | Generic JSON fetch primitive |
+
+### Typed client
+
+| Export | Notes |
+| --- | --- |
+| `createAuthkitClient(opts?)` | Factory — returns `AuthkitClient` |
+| `AuthkitClientError` | `{ status, code?, message, body, isUnauthorized }` |
+| `AuthkitClientProvider` | React context provider for the client |
+| `useAuthkitClient()` | Read the client from context |
+| `createAuthkitQueryClient()` | Pre-configured `QueryClient` (staleTime 30s, gcTime 5min, retry 1) |
+
+### Query keys
+
+| Export | Notes |
+| --- | --- |
+| `authkitKeys.admin.*` | Structured keys for all admin queries |
+| `authkitKeys.account.*` | Structured keys for all account queries |
+
+### Admin query hooks
+
+`useOverviewQueryOptions`, `useUsersQueryOptions`, `useUserQueryOptions`,
+`useUserSessionsQueryOptions`, `useSessionsQueryOptions`, `useClientsQueryOptions`,
+`useClientQueryOptions`, `useRolesQueryOptions`, `useOrgsQueryOptions`, `useOrgQueryOptions`,
+`useAuditQueryOptions`, `useSettingsQueryOptions`, `useImpersonationQueryOptions`.
+
+### Admin mutation hooks
+
+`useCreateUserMutationOptions`, `useUpdateUserMutationOptions`, `useDisableUserMutationOptions`,
+`useEnableUserMutationOptions`, `useResetPasswordMutationOptions`, `useDeleteUserMutationOptions`,
+`useRevokeUserSessionsMutationOptions`, `useRevokeAllSessionsMutationOptions`,
+`useCreateClientMutationOptions`, `useUpdateClientMutationOptions`, `useDeleteClientMutationOptions`,
+`useRegenerateClientSecretMutationOptions`, `useCreateRoleMutationOptions`,
+`useUpdateRoleMutationOptions`, `useDeleteRoleMutationOptions`, `useCreateOrgMutationOptions`,
+`useUpdateOrgMutationOptions`, `useDeleteOrgMutationOptions`, `useSetSettingMutationOptions`,
+`useRemoveSettingMutationOptions`.
+
+### Account query hooks
+
+`useMeQueryOptions`, `useSecurityQueryOptions`, `useAccountSessionsQueryOptions`,
+`useAppsQueryOptions`, `useMfaQueryOptions`, `usePasskeysQueryOptions`, `useTokensQueryOptions`,
+`useAccountOrgsQueryOptions`, `useAccountOrgQueryOptions`, `useAccountOrgInvitationsQueryOptions`.
+
+### Account mutation hooks
+
+`useUpdateProfileMutationOptions`, `useChangePasswordMutationOptions`,
+`useEmailChangeMutationOptions`, `useCancelEmailChangeMutationOptions`,
+`useRevokeSessionMutationOptions`, `useRevokeOtherSessionsMutationOptions`,
+`useRevokeAppMutationOptions`, `useRemovePasskeyMutationOptions`,
+`useCreateTokenMutationOptions`, `useRevokeTokenMutationOptions`.

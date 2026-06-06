@@ -11,6 +11,8 @@ import {
 import { sendPasswordResetEmail } from '../default_mailer.js'
 import { AccountDeletionService, type DeletionResult } from '../account_deletion_service.js'
 import { PasswordPolicyError } from '../../password/password_manager.js'
+import type { SettingsCapability } from '../runtime_settings.js'
+import { resolveEffectiveRolesCatalog } from '../runtime_toggles.js'
 
 /** Quem disparou a operação (para auditoria). `admin-api` quando via REST API. */
 export interface AdminActor {
@@ -133,6 +135,44 @@ export class AdminUsersService {
       ...(actor.source ? { metadata: { actor: actor.source } } : {}),
     })
     return true
+  }
+
+  /**
+   * Substitui as roles globais de uma conta validando contra o catálogo runtime.
+   *
+   * Regras:
+   *   - Roles presentes no catálogo são aceitas.
+   *   - Roles que o usuário JÁ TEM mas que não estão no catálogo ("fora do catálogo")
+   *     podem ser REMOVIDAS (não incluir no array roles = remoção normal).
+   *   - Roles desconhecidas que não estão no catálogo E que o usuário não tinha
+   *     são REJEITADAS (retorna erro i18n).
+   *   - Quando settings não disponível, aceita tudo (fail-safe).
+   *
+   * @returns `null` quando OK; string i18n key quando há role inválida nova.
+   */
+  async setGlobalRolesValidated(
+    accountId: string,
+    roles: string[],
+    settings: SettingsCapability | null
+  ): Promise<string | null> {
+    if (settings) {
+      const catalog = await resolveEffectiveRolesCatalog(settings)
+      const catalogNames = new Set(catalog.roles.map((r) => r.name))
+
+      // Carrega as roles atuais do usuário para saber quais são "fora do catálogo".
+      const account = await this.cfg.accountStore.findById(accountId)
+      const currentRoles = new Set(account?.globalRoles ?? [])
+
+      // Roles que o usuário não tinha E que não estão no catálogo = inválidas.
+      for (const role of roles) {
+        if (!catalogNames.has(role) && !currentRoles.has(role)) {
+          return 'admin.roles.unknown_role'
+        }
+      }
+    }
+
+    await this.cfg.accountStore.setGlobalRoles(accountId, roles)
+    return null
   }
 
   /** Substitui as roles globais de uma conta (normaliza nada — recebe array pronto). */

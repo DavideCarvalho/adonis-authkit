@@ -739,6 +739,52 @@ export function checkSessionPolicy(input: DoctorInput): Finding | null {
   }
 }
 
+/**
+ * Verifica o catálogo de roles globais (informativo).
+ *
+ * Checks:
+ *   - Informa o número de roles no catálogo quando a setting está presente.
+ *   - Avisa se `cfg.admin.roles` contém role(s) fora do catálogo (o gate do console
+ *     pode não funcionar como esperado se a role não existir no catálogo).
+ */
+export function checkRolesCatalog(input: DoctorInput): Finding | null {
+  const cfg = input.authkitConfig
+  if (!cfg) return null
+
+  const raw = (input as any).rolesCatalogSetting
+  if (raw === undefined || raw === null) return null // setting não presente — silencioso
+
+  if (typeof raw !== 'object' || !Array.isArray((raw as any).roles)) {
+    return {
+      level: 'warn',
+      message:
+        'roles_catalog setting has an invalid shape — expected { roles: [...] }. The setting will be ignored (default catalog applies).',
+    }
+  }
+
+  const catalogRoles: string[] = ((raw as any).roles as any[])
+    .filter((r) => typeof r === 'object' && typeof r.name === 'string')
+    .map((r) => r.name)
+
+  // Verifica se admin.roles referencia roles fora do catálogo.
+  const adminRoles: string[] = Array.isArray(cfg.admin?.roles) ? cfg.admin.roles : ['ADMIN']
+  const outOfCatalog = adminRoles.filter((r: string) => !catalogRoles.includes(r))
+
+  if (outOfCatalog.length > 0) {
+    return {
+      level: 'warn',
+      message:
+        `roles_catalog: ${catalogRoles.length} role(s) in catalog, but cfg.admin.roles references [${outOfCatalog.join(', ')}] which are not in the catalog. ` +
+        'Admin access depends on these roles — add them to the catalog at /admin/roles.',
+    }
+  }
+
+  return {
+    level: 'ok',
+    message: `roles_catalog: ${catalogRoles.length} role(s) in catalog (${catalogRoles.join(', ')}).`,
+  }
+}
+
 /** Roda todos os checks e devolve a lista plana de findings. */
 export function runAllChecks(input: DoctorInput): Finding[] {
   const findings: Finding[] = []
@@ -784,6 +830,8 @@ export function runAllChecks(input: DoctorInput): Finding[] {
   if (passwordExpiration) findings.push(passwordExpiration)
   const sessionPolicy = checkSessionPolicy(input)
   if (sessionPolicy) findings.push(sessionPolicy)
+  const rolesCatalog = checkRolesCatalog(input)
+  if (rolesCatalog) findings.push(rolesCatalog)
   return findings
 }
 

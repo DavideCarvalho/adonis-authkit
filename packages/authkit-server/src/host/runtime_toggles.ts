@@ -41,6 +41,7 @@ export const SETTING_KEYS = {
   TOKEN_TTL: 'token_ttl',
   ADMIN_IMPERSONATION: 'admin_impersonation',
   ORGANIZATIONS_POLICY: 'organizations_policy',
+  ROLES_CATALOG: 'roles_catalog',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]
@@ -1204,6 +1205,90 @@ const ORGS_POLICY_LIB_DEFAULTS: ResolvedOrganizationsPolicySetting = {
   allowSelfCreate: false,
   invitationTtlHours: 168,
   roles: ['owner', 'admin', 'member'],
+}
+
+// ---------------------------------------------------------------------------
+// 18. roles_catalog setting
+// ---------------------------------------------------------------------------
+
+/**
+ * Uma entrada do catálogo de roles globais.
+ */
+export interface RoleCatalogEntry {
+  /** Nome da role — maiúsculas e underscores (ex.: ADMIN, EDITOR). */
+  name: string
+  /** Descrição legível (opcional). */
+  description?: string
+}
+
+/**
+ * Shape da setting `roles_catalog` em `auth_settings`.
+ *
+ * Catálogo de roles globais disponíveis para atribuição a usuários no console
+ * admin. O catálogo substitui o campo de texto livre na página de usuários por
+ * checkboxes derivadas deste catálogo.
+ *
+ * INVARIANTE: `ADMIN` é sempre garantido no catálogo (merge defensivo) — é o
+ * gate do console admin (cfg.admin.roles default ['ADMIN']).
+ */
+export interface RolesCatalogSetting {
+  roles: RoleCatalogEntry[]
+}
+
+/** Resultado resolvido do catálogo de roles, ordenado por nome. */
+export interface ResolvedRolesCatalog {
+  roles: RoleCatalogEntry[]
+}
+
+/** Default da lib: apenas ADMIN. */
+export const ROLES_CATALOG_DEFAULT: ResolvedRolesCatalog = {
+  roles: [{ name: 'ADMIN', description: 'Full access to the admin console' }],
+}
+
+/**
+ * Resolve o catálogo efetivo de roles globais a partir da setting persistida.
+ *
+ * Regras:
+ *   - ADMIN é SEMPRE garantido no resultado (merge defensivo — é o gate do console).
+ *   - setting ausente/inválida/erro → default (apenas ADMIN).
+ *   - O resultado é ordenado por nome (ADMIN sempre incluído).
+ *   - Entradas com `name` inválido (não-string ou vazio) são descartadas silenciosamente.
+ *
+ * FAIL-SAFE: qualquer erro DB → default.
+ */
+export async function resolveEffectiveRolesCatalog(
+  settings: SettingsCapability
+): Promise<ResolvedRolesCatalog> {
+  try {
+    const raw = await settings.getSetting(SETTING_KEYS.ROLES_CATALOG)
+    if (raw === null || raw === undefined) return ROLES_CATALOG_DEFAULT
+    if (typeof raw !== 'object' || Array.isArray(raw)) return ROLES_CATALOG_DEFAULT
+    const s = raw as RolesCatalogSetting
+    if (!Array.isArray(s.roles)) return ROLES_CATALOG_DEFAULT
+
+    // Filtra entradas válidas (name deve ser string não-vazia).
+    const entries: RoleCatalogEntry[] = s.roles
+      .filter((r) => typeof r === 'object' && r !== null && typeof r.name === 'string' && r.name.trim().length > 0)
+      .map((r) => ({
+        name: r.name.trim(),
+        ...(typeof r.description === 'string' && r.description.trim().length > 0
+          ? { description: r.description.trim() }
+          : {}),
+      }))
+
+    // Merge defensivo: ADMIN sempre presente.
+    const hasAdmin = entries.some((r) => r.name === 'ADMIN')
+    if (!hasAdmin) {
+      entries.unshift({ name: 'ADMIN', description: 'Full access to the admin console' })
+    }
+
+    // Ordena por nome (ADMIN pode ficar em qualquer posição; deixamos sort alfabético).
+    entries.sort((a, b) => a.name.localeCompare(b.name))
+
+    return { roles: entries }
+  } catch {
+    return ROLES_CATALOG_DEFAULT
+  }
 }
 
 /**

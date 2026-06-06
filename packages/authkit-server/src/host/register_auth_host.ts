@@ -217,6 +217,7 @@ const C = {
   accountOrgs: () => import('./controllers/account_orgs_controller.js'),
   adminDashboard: () => import('./controllers/admin/admin_dashboard_controller.js'),
   adminUsers: () => import('./controllers/admin/admin_users_controller.js'),
+  adminRoles: () => import('./controllers/admin/admin_roles_controller.js'),
   adminSessions: () => import('./controllers/admin/admin_sessions_controller.js'),
   adminClients: () => import('./controllers/admin/admin_clients_controller.js'),
   adminAudit: () => import('./controllers/admin/admin_audit_controller.js'),
@@ -372,6 +373,11 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
         router.post(`${ap}/users/:id/disable`, [C.adminUsers, 'disable'])
         router.post(`${ap}/users/:id/enable`, [C.adminUsers, 'enable'])
         router.post(`${ap}/users/:id/delete`, [C.adminUsers, 'destroy'])
+        // Catálogo de roles.
+        router.get(`${ap}/roles`, [C.adminRoles, 'index'])
+        router.post(`${ap}/roles`, [C.adminRoles, 'store'])
+        router.post(`${ap}/roles/:name/edit`, [C.adminRoles, 'update'])
+        router.post(`${ap}/roles/:name/delete`, [C.adminRoles, 'destroy'])
         // Sessões/grants ativos da conta + revogação em massa.
         router.get(`${ap}/users/:id/sessions`, [C.adminSessions, 'index'])
         router.post(`${ap}/users/:id/revoke-sessions`, [C.adminSessions, 'revoke'])

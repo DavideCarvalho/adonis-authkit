@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="pt-br"><head><meta charset="utf-8"><title>{{ t('admin.sessions.page_title') }}</title>
-<script src="https://cdn.tailwindcss.com"></script></head>
+@include('authkit::partials/styles')</head>
 <body class="min-h-screen bg-gray-100 p-4">
   <div class="mx-auto max-w-4xl">
     <div class="flex items-center justify-between py-6">
@@ -20,6 +20,7 @@
     <nav class="mb-6 flex gap-4 text-sm font-medium">
       <a href="{{ adminBase }}" class="text-gray-500 hover:underline">{{ t('admin.nav.dashboard') }}</a>
       <a href="{{ adminBase }}/users" class="text-gray-900 underline">{{ t('admin.nav.users') }}</a>
+      <a href="{{ adminBase }}/roles" class="text-gray-500 hover:underline">{{ t('admin.nav.roles') }}</a>
       <a href="{{ adminBase }}/clients" class="text-gray-500 hover:underline">{{ t('admin.nav.clients') }}</a>
       <a href="{{ adminBase }}/audit" class="text-gray-500 hover:underline">{{ t('admin.nav.audit') }}</a>
       <a href="{{ adminBase }}/settings" class="text-gray-500 hover:underline">{{ t('admin.nav.settings') }}</a>

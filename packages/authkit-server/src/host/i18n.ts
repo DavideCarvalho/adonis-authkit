@@ -296,6 +296,7 @@ export const DEFAULT_MESSAGES = {
   'mfa.passkey.unsupported': 'Your browser does not support passkeys.',
 
   // Console admin (B6) — navegação compartilhada.
+  'admin.nav.roles': 'Roles',
   'admin.nav.dashboard': 'Dashboard',
   'admin.nav.users': 'Users',
   'admin.nav.orgs': 'Organizations',
@@ -817,6 +818,35 @@ export const DEFAULT_MESSAGES = {
   'admin.settings.organizations_policy_allow_self_create_label': 'Allow users to self-create organizations',
   'admin.settings.organizations_policy_invitation_ttl_label': 'Invitation TTL (hours)',
   'admin.settings.organizations_policy_roles_label': 'Available roles (comma-separated, owner always included)',
+
+  // Console admin — roles catalog (admin/roles).
+  'admin.roles.page_title': 'Roles catalog',
+  'admin.roles.title': 'Roles catalog',
+  'admin.roles.create_section': 'Create role',
+  'admin.roles.create_intro': 'Role names must be uppercase letters and underscores only (e.g. EDITOR, CONTENT_MANAGER). The ADMIN role is always present and cannot be removed.',
+  'admin.roles.name_placeholder': 'ROLE_NAME',
+  'admin.roles.name_pattern_hint': 'Uppercase letters, digits and underscores only. Must start with a letter.',
+  'admin.roles.description_placeholder': 'Description (optional)',
+  'admin.roles.create_submit': 'Create role',
+  'admin.roles.empty': 'No roles in the catalog.',
+  'admin.roles.protected_badge': 'Protected',
+  'admin.roles.save_description': 'Save',
+  'admin.roles.delete': 'Remove',
+  'admin.roles.delete_confirm': 'Remove role {name} from the catalog? Users who have this role will keep it — it will just no longer appear in the catalog for new assignments.',
+  'admin.roles.delete_note': 'Removing a role from the catalog does NOT remove it from users who already have it. Use the user page to update individual user roles.',
+  'admin.roles.created': 'Role created.',
+  'admin.roles.updated': 'Role description updated.',
+  'admin.roles.deleted': 'Role removed from catalog.',
+  'admin.roles.name_invalid': 'Invalid role name. Use uppercase letters, digits and underscores only, starting with a letter (e.g. EDITOR, CONTENT_MANAGER).',
+  'admin.roles.name_taken': 'A role with this name already exists in the catalog.',
+  'admin.roles.admin_protected': 'The ADMIN role cannot be removed — it is the gate for the admin console.',
+  'admin.roles.no_settings_table': 'The `auth_settings` table is not present. The roles catalog requires runtime settings — create the table first.',
+  'admin.roles.unknown_role': 'One or more selected roles are not in the catalog. Manage the catalog at /admin/roles.',
+
+  // Console admin — users: roles section (updated UI keys).
+  'admin.users.roles_section': 'Global roles',
+  'admin.users.out_of_catalog_label': 'Roles outside catalog:',
+  'admin.users.out_of_catalog_badge': 'out of catalog',
 } satisfies AuthMessages
 
 /**
@@ -1083,6 +1113,7 @@ export const PT_BR_MESSAGES = {
   'mfa.passkey.unsupported': 'Seu navegador não suporta passkeys.',
 
   // Console admin (B6) — navegação compartilhada.
+  'admin.nav.roles': 'Roles',
   'admin.nav.dashboard': 'Painel',
   'admin.nav.users': 'Usuários',
   'admin.nav.orgs': 'Organizações',
@@ -1604,6 +1635,35 @@ export const PT_BR_MESSAGES = {
   'admin.settings.organizations_policy_allow_self_create_label': 'Permitir que usuários criem suas próprias organizações',
   'admin.settings.organizations_policy_invitation_ttl_label': 'TTL dos convites (horas)',
   'admin.settings.organizations_policy_roles_label': 'Roles disponíveis (separadas por vírgula; owner sempre incluída)',
+
+  // Console admin — catálogo de roles (admin/roles) — pt-BR.
+  'admin.roles.page_title': 'Catálogo de roles',
+  'admin.roles.title': 'Catálogo de roles',
+  'admin.roles.create_section': 'Criar role',
+  'admin.roles.create_intro': 'Os nomes de role devem usar apenas letras maiúsculas e underscores (ex.: EDITOR, GESTOR_CONTEUDO). A role ADMIN é sempre presente e não pode ser removida.',
+  'admin.roles.name_placeholder': 'NOME_DA_ROLE',
+  'admin.roles.name_pattern_hint': 'Apenas letras maiúsculas, dígitos e underscores. Deve começar com uma letra.',
+  'admin.roles.description_placeholder': 'Descrição (opcional)',
+  'admin.roles.create_submit': 'Criar role',
+  'admin.roles.empty': 'Nenhuma role no catálogo.',
+  'admin.roles.protected_badge': 'Protegida',
+  'admin.roles.save_description': 'Salvar',
+  'admin.roles.delete': 'Remover',
+  'admin.roles.delete_confirm': 'Remover a role {name} do catálogo? Os usuários que já têm esta role continuarão com ela — ela apenas deixará de aparecer no catálogo para novas atribuições.',
+  'admin.roles.delete_note': 'Remover uma role do catálogo NÃO a remove dos usuários que já a possuem. Use a página de usuários para atualizar as roles individualmente.',
+  'admin.roles.created': 'Role criada.',
+  'admin.roles.updated': 'Descrição da role atualizada.',
+  'admin.roles.deleted': 'Role removida do catálogo.',
+  'admin.roles.name_invalid': 'Nome de role inválido. Use apenas letras maiúsculas, dígitos e underscores, começando com uma letra (ex.: EDITOR, GESTOR_CONTEUDO).',
+  'admin.roles.name_taken': 'Já existe uma role com este nome no catálogo.',
+  'admin.roles.admin_protected': 'A role ADMIN não pode ser removida — ela é o gate de acesso ao console admin.',
+  'admin.roles.no_settings_table': 'A tabela `auth_settings` não existe. O catálogo de roles requer configurações em runtime — crie a tabela primeiro.',
+  'admin.roles.unknown_role': 'Uma ou mais roles selecionadas não estão no catálogo. Gerencie o catálogo em /admin/roles.',
+
+  // Console admin — usuários: seção de roles (UI atualizada) — pt-BR.
+  'admin.users.roles_section': 'Roles globais',
+  'admin.users.out_of_catalog_label': 'Roles fora do catálogo:',
+  'admin.users.out_of_catalog_badge': 'fora do catálogo',
 } satisfies AuthMessages
 
 /**

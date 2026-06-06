@@ -60,14 +60,10 @@ async function setupDb() {
 // --------------------------------------------------------------------------
 
 test.group('trusted devices (helper puro)', () => {
-  test('resolve defaults: ligado, 30 dias', ({ assert }) => {
+  test('resolve defaults: ligado, 30 dias (política via runtime setting)', ({ assert }) => {
+    // resolveTrustedDevices sempre retorna lib defaults — política via settings.
     assert.deepEqual(resolveTrustedDevices(), { enabled: true, days: 30 })
-    assert.deepEqual(resolveTrustedDevices({ enabled: false, days: 7 }), {
-      enabled: false,
-      days: 7,
-    })
-    // dias inválido cai no default.
-    assert.equal(resolveTrustedDevices({ days: 0 }).days, 30)
+    assert.deepEqual(resolveTrustedDevices({}), { enabled: true, days: 30 })
   })
 
   test('cookie válido pula o MFA no 2º login (mesma conta, não expirado)', ({ assert }) => {
@@ -85,7 +81,8 @@ test.group('trusted devices (helper puro)', () => {
   })
 
   test('cookie expirado não é válido', ({ assert }) => {
-    const cfg = resolveTrustedDevices({ days: 1 })
+    // Usa cfg diretamente com 1 dia para testar expiração.
+    const cfg = { enabled: true, days: 1 }
     const payload = buildTrustedDevicePayload('acc-1', cfg, 0)
     const afterExpiry = 2 * 24 * 60 * 60 * 1000
     assert.isFalse(isTrustedDeviceValid(payload, { accountId: 'acc-1', now: afterExpiry }))

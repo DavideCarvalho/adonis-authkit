@@ -14,9 +14,6 @@
  *   `"[]"`). Default: `'null'`.
  * - `treatEmptyArrayAsEmpty`: quando true, um array vazio também conta como "vazio"
  *   no write (caso do `transports`, que grava null em `[]`). Default: false.
- * - `passthroughParsed`: quando true, `consume` aceita um valor JÁ desserializado
- *   (array/objeto) e o devolve sem reparsear — alguns dialetos/drivers entregam o
- *   JSON já decodificado. Default: false.
  */
 export interface JsonColumnOptions<T> {
   /** Valor devolvido por `consume` quando a coluna está null/undefined. */
@@ -25,11 +22,6 @@ export interface JsonColumnOptions<T> {
   emptyOnWrite?: 'null' | 'serialize'
   /** Trata array vazio como "vazio" no write (grava null). Default: false. */
   treatEmptyArrayAsEmpty?: boolean
-  /**
-   * @deprecated `consume` agora SEMPRE aceita valores já desserializados
-   * (drivers de Postgres entregam json/jsonb como objeto). Opção sem efeito.
-   */
-  passthroughParsed?: boolean
 }
 
 /**

@@ -972,21 +972,21 @@ test.group('lucidAccountStore — senha (rehash/legacy/política/import)', (grou
     assert.equal(ok.email, 'p2@b.com')
   })
 
-  test('política: changePassword e reset também aplicam', async ({ assert }) => {
-    const store = lucidAccountStore(TestAccount, { password: { policy: { minLength: 10 } } })
-    const acc = await store.create({ email: 'pc@b.com', password: 'longenoughpw' })
+  test('política via policyOverride: assertAcceptable com minLength > 8 rejeita senha curta', async ({ assert }) => {
+    // Política vive em runtime settings; testamos via assertAcceptable(password, policyOverride).
+    const store = lucidAccountStore(TestAccount)
+    // Acessa o PasswordManager interno via __passwordManager.
+    const pm = (store as any).__passwordManager
+    assert.isOk(pm, 'deve expor __passwordManager')
     await assert.rejects(
-      () => store.changePassword!(acc.id, 'short'),
+      () => pm.assertAcceptable('short', { minLength: 10 }),
       PasswordPolicyError as any
     )
-    const issued = await store.issuePasswordResetToken('pc@b.com')
-    await assert.rejects(
-      () => store.consumePasswordResetToken(issued!.token, 'short'),
-      PasswordPolicyError as any
-    )
+    // Senha longa o suficiente passa.
+    await pm.assertAcceptable('longenoughpw', { minLength: 10 })
   })
 
-  test('política: checkPwned bloqueia senha vazada (fetch injetado)', async ({ assert }) => {
+  test('política: checkPwned via policyOverride bloqueia senha vazada (fetch injetado)', async ({ assert }) => {
     const { createHash } = await import('node:crypto')
     const suffix = createHash('sha1').update('leakedpass1', 'utf8').digest('hex').toUpperCase().slice(5)
     const fetchImpl: FetchLike = async () => ({
@@ -995,11 +995,11 @@ test.group('lucidAccountStore — senha (rehash/legacy/política/import)', (grou
       text: async () => `${suffix}:5\n`,
     })
     const store = lucidAccountStore(TestAccount, {
-      password: { checkPwned: true },
       pwnedFetch: fetchImpl,
     })
+    const pm = (store as any).__passwordManager
     await assert.rejects(
-      () => store.create({ email: 'pw@b.com', password: 'leakedpass1' }),
+      () => pm.assertAcceptable('leakedpass1', { checkPwned: true }),
       PasswordPolicyError as any
     )
   })

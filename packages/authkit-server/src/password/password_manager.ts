@@ -3,8 +3,7 @@ import {
   checkPasswordPolicy,
   policyViolationParams,
   resolvePasswordConfig,
-  type PasswordPolicyInput,
-  type CheckPwnedInput,
+  DEFAULT_PWNED_TIMEOUT_MS,
   type PasswordPolicyViolation,
   type ResolvedPasswordConfig,
 } from './policy.js'
@@ -34,20 +33,19 @@ export type LegacyPasswordVerifier = (
   plainPassword: string
 ) => Promise<boolean | null>
 
-/** Config de senha aceita pelo store (entrada do host). */
+/**
+ * Config de senha aceita pelo store (entrada do host).
+ *
+ * Política de complexidade e checagem de vazamento são gerenciadas em runtime
+ * via setting `password_policy` no admin console ou Admin API.
+ * Aqui ficam apenas os parâmetros de infra/código.
+ */
 export interface PasswordConfigInput {
   /**
    * Verificador de hashes legados de outros sistemas. Acionado quando a
    * verificação nativa falha. Veja {@link LegacyPasswordVerifier}.
    */
   legacyVerifier?: LegacyPasswordVerifier
-  /** Política de complexidade aplicada a TODA senha nova. */
-  policy?: PasswordPolicyInput
-  /**
-   * Checagem contra vazamentos (HaveIBeenPwned, k-anonymity). `true` usa os
-   * defaults; um objeto ajusta o `timeoutMs`. Fail-safe (erro/timeout permite).
-   */
-  checkPwned?: CheckPwnedInput
   /**
    * Pepper de infra (segredo de boot). HMAC-SHA256 da senha ANTES do hasher
    * seguindo OWASP (defense-in-depth: DB comprometido sem o pepper = hashes
@@ -70,6 +68,12 @@ export interface PasswordConfigInput {
    * password: { pepper: [env.get('PEPPER_V2'), env.get('PEPPER_V1')] }
    */
   pepper?: string | string[]
+  /**
+   * Timeout em ms para a checagem de vazamento HIBP (HaveIBeenPwned). Infra.
+   * Default: 2000 ms. A checagem é habilitada/desabilitada via runtime setting
+   * `password_policy.checkPwned` no admin console.
+   */
+  pwnedTimeoutMs?: number
 }
 
 /** Erro de política/vazamento de senha — carrega a chave i18n + params. */
@@ -134,8 +138,8 @@ export interface PasswordVerifyResult {
 /**
  * Concentra a lógica de senha do store: validação de política + vazamento (ao
  * DEFINIR uma senha) e verificação com lazy rehash + legacy verifier (ao
- * AUTENTICAR). É construído a partir da config do host; sem config, a política
- * cai no default (min 8) e nada mais é exigido.
+ * AUTENTICAR). A política usa lib defaults — a runtime setting `password_policy`
+ * é a única fonte de customização (via `assertAcceptable` com override).
  */
 export class PasswordManager {
   readonly config: ResolvedPasswordConfig
@@ -144,16 +148,20 @@ export class PasswordManager {
   private readonly fetchImpl?: FetchLike
   /** Pepper configurado (secret de boot). Pode ser string ou array para rotação. */
   readonly pepper: string | string[] | undefined
+  /** Timeout em ms para a checagem de vazamento HIBP. */
+  readonly pwnedTimeoutMs: number
 
   constructor(
     input: PasswordConfigInput = {},
     deps: { logger?: PwnedLogger; fetchImpl?: FetchLike } = {}
   ) {
-    this.config = resolvePasswordConfig(input)
+    // Lib defaults: minLength=8, sem complexidade, sem checkPwned (setting-driven).
+    this.config = resolvePasswordConfig({})
     this.legacyVerifier = input.legacyVerifier
     this.logger = deps.logger
     this.fetchImpl = deps.fetchImpl
     this.pepper = input.pepper
+    this.pwnedTimeoutMs = input.pwnedTimeoutMs ?? DEFAULT_PWNED_TIMEOUT_MS
   }
 
   /** Há um verificador de hash legado configurado? */
@@ -172,15 +180,31 @@ export class PasswordManager {
   /**
    * Valida uma senha NOVA: política primeiro (barata, local), depois vazamento
    * (rede, opcional, fail-safe). Lança {@link PasswordPolicyError} na 1ª falha.
+   *
+   * @param policyOverride - Política resolvida em runtime (via setting `password_policy`).
+   *   Quando fornecida, sobrescreve os defaults da lib para esta chamada.
    */
-  async assertAcceptable(plainPassword: string): Promise<void> {
-    const violation = checkPasswordPolicy(plainPassword, this.config.policy)
+  async assertAcceptable(
+    plainPassword: string,
+    policyOverride?: { minLength?: number; requireUppercase?: boolean; requireLowercase?: boolean; requireNumbers?: boolean; requireSymbols?: boolean; checkPwned?: boolean }
+  ): Promise<void> {
+    const effectivePolicy = policyOverride
+      ? {
+          minLength: policyOverride.minLength ?? this.config.policy.minLength,
+          requireUppercase: policyOverride.requireUppercase ?? this.config.policy.requireUppercase,
+          requireLowercase: policyOverride.requireLowercase ?? this.config.policy.requireLowercase,
+          requireNumbers: policyOverride.requireNumbers ?? this.config.policy.requireNumbers,
+          requireSymbols: policyOverride.requireSymbols ?? this.config.policy.requireSymbols,
+        }
+      : this.config.policy
+
+    const violation = checkPasswordPolicy(plainPassword, effectivePolicy)
     if (violation) {
-      throw new PasswordPolicyError(violation, policyViolationParams(violation, this.config.policy))
+      throw new PasswordPolicyError(violation, policyViolationParams(violation, effectivePolicy))
     }
-    if (this.config.checkPwned.enabled) {
+    if (policyOverride?.checkPwned) {
       const pwned = await isPasswordPwned(plainPassword, {
-        timeoutMs: this.config.checkPwned.timeoutMs,
+        timeoutMs: this.pwnedTimeoutMs,
         logger: this.logger,
         fetchImpl: this.fetchImpl,
       })

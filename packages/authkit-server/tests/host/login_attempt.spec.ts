@@ -1,8 +1,7 @@
 import { test } from '@japa/runner'
 import { attemptPasswordLogin, isEmailUnverifiedBlock } from '../../src/host/login_attempt.js'
 import { __setLockoutLimiterLoaderForTests } from '../../src/host/account_lockout.js'
-import { resolveLockout } from '../../src/define_config.js'
-import type { ResolvedServerConfig } from '../../src/define_config.js'
+import type { ResolvedLockoutConfig, ResolvedServerConfig } from '../../src/define_config.js'
 import type { AuditEvent, AuditSink } from '../../src/audit/audit_sink.js'
 import type { AccountStore, AuthAccount } from '../../src/accounts/account_store.js'
 import { RuntimeSettings } from '../../src/host/runtime_settings.js'
@@ -43,6 +42,17 @@ function makeLimiterStub() {
 
 const ACCOUNT: AuthAccount = { id: 'u1', email: 'a@b.com', globalRoles: [] }
 
+/** Constrói uma ResolvedLockoutConfig diretamente para testes. */
+function makeLockout(opts: { enabled?: boolean; maxAttempts?: number } = {}): ResolvedLockoutConfig {
+  return {
+    enabled: opts.enabled ?? true,
+    maxAttempts: opts.maxAttempts ?? 5,
+    windowSec: 900,
+    baseLockoutSec: 60,
+    maxLockoutSec: 3600,
+  }
+}
+
 /** Config mínima: só os campos que attemptPasswordLogin toca. */
 function makeCfg(opts: {
   verify?: AccountStore['verifyCredentials']
@@ -57,7 +67,7 @@ function makeCfg(opts: {
   return {
     accountStore,
     audit: opts.audit,
-    lockout: resolveLockout({
+    lockout: makeLockout({
       enabled: opts.lockoutEnabled ?? true,
       maxAttempts: opts.maxAttempts ?? 5,
     }),
@@ -155,7 +165,7 @@ test.group('attemptPasswordLogin', (group) => {
     const cfg = {
       accountStore,
       audit: sink,
-      lockout: resolveLockout({ enabled: true, maxAttempts: 5 }),
+      lockout: makeLockout({ enabled: true, maxAttempts: 5 }),
     } as unknown as ResolvedServerConfig
 
     const res = await attemptPasswordLogin(cfg, {
@@ -182,7 +192,7 @@ test.group('attemptPasswordLogin', (group) => {
     } as unknown as AccountStore
     const cfg = {
       accountStore,
-      lockout: resolveLockout({ enabled: true, maxAttempts: 5 }),
+      lockout: makeLockout({ enabled: true, maxAttempts: 5 }),
     } as unknown as ResolvedServerConfig
     const res = await attemptPasswordLogin(cfg, { email: 'a@b.com', password: 'secret', ip: null })
     assert.isTrue(res.ok)
@@ -201,7 +211,7 @@ test.group('attemptPasswordLogin', (group) => {
     const cfg = {
       accountStore,
       audit: sink,
-      lockout: resolveLockout({ enabled: true, maxAttempts: 5 }),
+      lockout: makeLockout({ enabled: true, maxAttempts: 5 }),
       login: { requireVerifiedEmail: true },
     } as unknown as ResolvedServerConfig
 
@@ -220,7 +230,7 @@ test.group('attemptPasswordLogin', (group) => {
     } as unknown as AccountStore
     const cfg = {
       accountStore,
-      lockout: resolveLockout({ enabled: true, maxAttempts: 5 }),
+      lockout: makeLockout({ enabled: true, maxAttempts: 5 }),
       login: { requireVerifiedEmail: true },
     } as unknown as ResolvedServerConfig
     const res = await attemptPasswordLogin(cfg, { email: 'a@b.com', password: 'secret', ip: null })
@@ -249,7 +259,7 @@ test.group('attemptPasswordLogin', (group) => {
     const cfg = {
       accountStore,
       audit: { record: async () => {} },
-      lockout: resolveLockout({ enabled: true, maxAttempts: 5 }),
+      lockout: makeLockout({ enabled: true, maxAttempts: 5 }),
       login: { requireVerifiedEmail: false }, // config OFF
     } as unknown as ResolvedServerConfig
 
@@ -296,7 +306,7 @@ test.group('attemptPasswordLogin', (group) => {
     const cfg = {
       accountStore,
       audit: { record: async () => {} },
-      lockout: resolveLockout({ enabled: true, maxAttempts: 5 }),
+      lockout: makeLockout({ enabled: true, maxAttempts: 5 }),
       login: { requireVerifiedEmail: true }, // config ON
     } as unknown as ResolvedServerConfig
 

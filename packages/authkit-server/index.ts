@@ -102,16 +102,11 @@ export type {
 } from './src/password/password_manager.js'
 export {
   checkPasswordPolicy,
-  resolvePasswordPolicy,
-  resolveCheckPwned,
-  resolvePasswordConfig,
   policyViolationParams,
   DEFAULT_PWNED_TIMEOUT_MS,
 } from './src/password/policy.js'
 export type {
-  PasswordPolicyInput,
   ResolvedPasswordPolicy,
-  CheckPwnedInput,
   ResolvedPasswordConfig,
   PasswordPolicyViolation,
 } from './src/password/policy.js'
@@ -174,7 +169,6 @@ export {
 } from './src/host/admin_prefix.js'
 export { resolveRateLimit, resolveNotifications } from './src/define_config.js'
 export type {
-  NotificationsConfigInput,
   ResolvedNotificationsConfig,
 } from './src/define_config.js'
 export type {

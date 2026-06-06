@@ -60,7 +60,7 @@ function randomId(): string {
  *     igual ao que o registro dinâmico — RFC 7591 — grava);
  *   - a invalidação do cache de clients dinâmicos do provider após cada escrita
  *     (ver {@link OidcService.evictDynamicClientCache});
- *   - a enumeração via a capacidade opcional `listClients` do adapter.
+ *   - a enumeração via a capacidade opcional `list` do adapter.
  */
 export class AdminClientsService {
   #adapter: OidcAdapter
@@ -73,20 +73,14 @@ export class AdminClientsService {
 
   /** Indica se o adapter suporta enumeração (capacidade opcional). */
   get canList(): boolean {
-    return typeof this.#adapter.list === 'function' || typeof this.#adapter.listClients === 'function'
+    return typeof this.#adapter.list === 'function'
   }
 
   /** Lista os clients persistidos (vazio quando o adapter não enumera; cheque canList). */
   async list(): Promise<AdminClient[]> {
-    // Prefere a enumeração genérica `list`; cai no `listClients` legado se for o
-    // único disponível (adapters customizados antigos).
     if (this.#adapter.list) {
       const rows = await this.#adapter.list()
       return rows.map((r) => this.#present({ clientId: r.id, payload: r.payload }))
-    }
-    if (this.#adapter.listClients) {
-      const rows = await this.#adapter.listClients()
-      return rows.map((r) => this.#present(r))
     }
     return []
   }

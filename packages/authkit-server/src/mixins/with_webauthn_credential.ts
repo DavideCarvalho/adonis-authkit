@@ -52,12 +52,11 @@ export function withWebauthnCredential() {
       @column()
       declare counter: number
 
-      // Array vazio também grava null; aceita valor já desserializado na leitura.
+      // Array vazio também grava null; consume lida com valores pré-desserializados (Postgres json/jsonb).
       @column(
         jsonColumn<string[] | null>({
           fallback: null,
           treatEmptyArrayAsEmpty: true,
-          passthroughParsed: true,
         })
       )
       declare transports: string[] | null

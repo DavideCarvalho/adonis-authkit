@@ -84,59 +84,32 @@ export function checkIssuer(input: DoctorInput): Finding[] {
 }
 
 /**
- * Clients estáticos no config: verifica redirectUris e emite aviso de deprecação.
- * Zero clients estáticos é agora um estado VÁLIDO — clients são gerenciados via
- * console/Admin API em runtime.
+ * Clients: verifica que não há clients estáticos no config (clients são 100%
+ * runtime via console admin / Admin API).
  */
 export function checkClients(input: DoctorInput): Finding {
   const cfg = input.authkitConfig
   if (!cfg) return { level: 'error', message: 'no config to validate clients.' }
-  const clients = Array.isArray(cfg.clients) ? cfg.clients : []
-  if (clients.length === 0) {
-    return {
-      level: 'ok',
-      message:
-        'no static clients in config — clients are managed at runtime via admin console / Admin API (recommended).',
-    }
-  }
-  const withRedirects = clients.filter(
-    (c: any) => Array.isArray(c?.redirectUris) && c.redirectUris.length > 0
-  )
-  if (withRedirects.length === 0) {
-    return {
-      level: 'error',
-      message: `${clients.length} static client(s) configured, but none has redirectUris.`,
-    }
-  }
-  // Clients estáticos presentes — deprecation warn.
+  // clients sempre é [] no config resolvido — info apenas.
   return {
-    level: 'warn',
+    level: 'ok',
     message:
-      `${withRedirects.length}/${clients.length} static client(s) in config (deprecated) — ` +
-      'manage clients at runtime via admin console / Admin API instead. ' +
-      'Run `node ace authkit:clients:import` to migrate them to the adapter/DB.',
+      'clients are managed at runtime via admin console / Admin API — use `node ace authkit:clients:create` to add clients.',
   }
 }
 
 /**
- * Aviso de adapter volátil com clients sem configuração estática. Quando o adapter
- * não é persistente (Redis) ou é desconhecido E não há clients estáticos, os clients
- * gerenciados via console/API serão perdidos num restart sem aviso prévio visível.
+ * Aviso de adapter volátil. Como clients são 100% runtime (sem config estático),
+ * um adapter volátil (Redis sem persistência, in-memory) pode perder os clients
+ * num restart sem aviso prévio.
  *
  * Detecção de volatilidade: o `AdapterClass` é inspecionado estruturalmente:
  *   - `DatabaseAdapter` (ou subclasse) → persistente (sem warn)
  *   - qualquer outra classe → pode ser volátil → warn informativo
- *
- * A heurística é conservadora: falso-positivo em Redis personalizado é aceitável
- * (o Redis com AOF/RDB também perde dados num restart fresh). Falso-negativo em
- * adapter DB customizado nunca acontece porque DatabaseAdapter é a base.
  */
 export function checkAdapterVolatility(input: DoctorInput): Finding | null {
   const cfg = input.authkitConfig
   if (!cfg) return null
-  // Só relevante quando NÃO há clients estáticos (o novo modo recomendado).
-  const clients = Array.isArray(cfg.clients) ? cfg.clients : []
-  if (clients.length > 0) return null
 
   const AdapterClass = cfg.AdapterClass
   if (!AdapterClass) return null
@@ -766,147 +739,6 @@ export function checkSessionPolicy(input: DoctorInput): Finding | null {
   }
 }
 
-/**
- * Verifica campos de POLÍTICA presentes no config estático que foram deprecados
- * em favor de runtime settings. Lista CADA campo legado encontrado como um warn
- * individual, recomendando migrar para a setting correspondente.
- *
- * NÃO é breaking: os campos continuam funcionando como fallback. Esta verificação
- * é informativa e aparece uma única vez no relatório do doctor.
- */
-export function checkLegacyPolicyConfig(input: DoctorInput): Finding[] {
-  const cfg = input.authkitConfig
-  if (!cfg) return []
-
-  const findings: Finding[] = []
-
-  // lockout policy fields
-  const lockout = cfg.lockout
-  if (lockout) {
-    const legacyLockoutFields: string[] = []
-    if (lockout.enabled !== undefined) legacyLockoutFields.push('lockout.enabled')
-    if (lockout.maxAttempts !== undefined) legacyLockoutFields.push('lockout.maxAttempts')
-    if (lockout.windowSec !== undefined) legacyLockoutFields.push('lockout.windowSec')
-    if (lockout.baseLockoutSec !== undefined) legacyLockoutFields.push('lockout.baseLockoutSec')
-    if (lockout.maxLockoutSec !== undefined) legacyLockoutFields.push('lockout.maxLockoutSec')
-    for (const field of legacyLockoutFields) {
-      findings.push({
-        level: 'warn',
-        message: `config.${field} is deprecated — manage lockout policy via runtime setting \`lockout\` in the admin console or Admin API (Auth API). The field still works as fallback.`,
-      })
-    }
-  }
-
-  // rateLimit bucket fields
-  const rateLimit = cfg.rateLimit
-  if (rateLimit) {
-    if (rateLimit.login) {
-      findings.push({
-        level: 'warn',
-        message: `config.rateLimit.login bucket is deprecated — manage rate-limit policy via runtime setting \`rate_limit\`. NOTE: the route throttle middleware uses boot-time values; runtime setting only affects lockout-side. The field still works as fallback.`,
-      })
-    }
-    if (rateLimit.introspection) {
-      findings.push({
-        level: 'warn',
-        message: `config.rateLimit.introspection bucket is deprecated — manage rate-limit policy via runtime setting \`rate_limit\`. NOTE: see rate_limit setting limitations. The field still works as fallback.`,
-      })
-    }
-  }
-
-  // notifications fields
-  const notifications = cfg.notifications
-  if (notifications) {
-    if (notifications.newLoginEmail !== undefined) {
-      findings.push({
-        level: 'warn',
-        message: `config.notifications.newLoginEmail is deprecated — manage via runtime setting \`notifications\`. The field still works as fallback.`,
-      })
-    }
-    if (notifications.newDeviceEmail !== undefined) {
-      findings.push({
-        level: 'warn',
-        message: `config.notifications.newDeviceEmail is deprecated — manage via runtime setting \`notifications\`. The field still works as fallback.`,
-      })
-    }
-  }
-
-  // trustedDevices policy fields
-  const trustedDevices = cfg.trustedDevices
-  if (trustedDevices) {
-    if (trustedDevices.enabled !== undefined) {
-      findings.push({
-        level: 'warn',
-        message: `config.trustedDevices.enabled is deprecated — manage via runtime setting \`trusted_devices\`. The field still works as fallback.`,
-      })
-    }
-    if (trustedDevices.days !== undefined) {
-      findings.push({
-        level: 'warn',
-        message: `config.trustedDevices.days is deprecated — manage via runtime setting \`trusted_devices\`. The field still works as fallback.`,
-      })
-    }
-  }
-
-  // admin.impersonation
-  const admin = cfg.admin
-  if (admin?.impersonation !== undefined) {
-    findings.push({
-      level: 'warn',
-      message: `config.admin.impersonation is deprecated — manage via runtime setting \`admin_impersonation\`. The field still works as fallback.`,
-    })
-  }
-
-  // organizations policy fields
-  const orgs = cfg.organizations
-  if (orgs) {
-    if (orgs.allowSelfCreate !== undefined) {
-      findings.push({
-        level: 'warn',
-        message: `config.organizations.allowSelfCreate is deprecated — manage via runtime setting \`organizations_policy\`. The field still works as fallback.`,
-      })
-    }
-    if (orgs.invitationTtlHours !== undefined) {
-      findings.push({
-        level: 'warn',
-        message: `config.organizations.invitationTtlHours is deprecated — manage via runtime setting \`organizations_policy\`. The field still works as fallback.`,
-      })
-    }
-    if (orgs.roles !== undefined) {
-      findings.push({
-        level: 'warn',
-        message: `config.organizations.roles is deprecated — manage via runtime setting \`organizations_policy\`. The field still works as fallback.`,
-      })
-    }
-  }
-
-  // password policy fields (from accountStore.__passwordConfig)
-  const store = cfg.accountStore
-  const pwConfig = store?.__passwordConfig as { policy?: Record<string, unknown>; checkPwned?: unknown } | undefined
-  if (pwConfig) {
-    const policy = pwConfig.policy
-    if (policy) {
-      const pwFields = ['minLength', 'requireUppercase', 'requireLowercase', 'requireNumbers', 'requireSymbols']
-      for (const field of pwFields) {
-        if (policy[field] !== undefined) {
-          findings.push({
-            level: 'warn',
-            message: `password.policy.${field} is deprecated — manage via runtime setting \`password_policy\`. The field still works as fallback.`,
-          })
-        }
-      }
-    }
-    if (pwConfig.checkPwned !== undefined) {
-      findings.push({
-        level: 'warn',
-        message: `password.checkPwned is deprecated — manage the checkPwned flag via runtime setting \`password_policy\`. The field still works as fallback.`,
-      })
-    }
-  }
-
-  return findings
-}
-
 /** Roda todos os checks e devolve a lista plana de findings. */
 export function runAllChecks(input: DoctorInput): Finding[] {
   const findings: Finding[] = []
@@ -952,8 +784,6 @@ export function runAllChecks(input: DoctorInput): Finding[] {
   if (passwordExpiration) findings.push(passwordExpiration)
   const sessionPolicy = checkSessionPolicy(input)
   if (sessionPolicy) findings.push(sessionPolicy)
-  // Legacy policy config deprecation warnings (aggregated).
-  findings.push(...checkLegacyPolicyConfig(input))
   return findings
 }
 

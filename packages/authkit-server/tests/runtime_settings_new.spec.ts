@@ -1,8 +1,8 @@
 /**
- * Tests for new runtime settings (mission 4/5):
+ * Tests for runtime settings (mission 4/5):
  *   lockout, rate_limit, password_policy, notifications, trusted_devices,
  *   token_ttl, admin_impersonation, organizations_policy
- * Also tests: TokenTtlHolder, checkLegacyPolicyConfig doctor check,
+ * Also tests: TokenTtlHolder,
  *   settings CLI commands (settingsList/settingsGet/settingsSet/settingsUnset).
  */
 
@@ -23,10 +23,6 @@ import {
   updateTokenTtlHolder,
   type TokenTtlHolder,
 } from '../src/provider/build_provider.js'
-import {
-  checkLegacyPolicyConfig,
-  type DoctorInput,
-} from '../src/doctor/checks.js'
 import {
   settingsList,
   settingsGet,
@@ -450,96 +446,6 @@ test.group('resolveEffectiveOrganizationsPolicy', () => {
     assert.isFalse(result.allowSelfCreate)
     assert.equal(result.invitationTtlHours, 168)
     assert.isTrue(result.roles.includes('owner'))
-  })
-})
-
-// ---------------------------------------------------------------------------
-// checkLegacyPolicyConfig doctor check
-// ---------------------------------------------------------------------------
-
-test.group('checkLegacyPolicyConfig', () => {
-  function makeInput(cfg: Record<string, any>): DoctorInput {
-    return {
-      authkitConfig: cfg,
-      sessionConfig: null,
-      peers: { session: true, shield: true, ally: false, limiter: true },
-    }
-  }
-
-  test('no legacy fields — returns empty array', ({ assert }) => {
-    const findings = checkLegacyPolicyConfig(makeInput({
-      issuer: 'http://localhost/oidc',
-      lockout: { store: 'redis' }, // only store, which is infra
-    }))
-    assert.deepEqual(findings, [])
-  })
-
-  test('lockout policy fields — reports each field', ({ assert }) => {
-    const findings = checkLegacyPolicyConfig(makeInput({
-      lockout: { enabled: true, maxAttempts: 5, windowSec: 900, baseLockoutSec: 60, maxLockoutSec: 3600 },
-    }))
-    assert.isTrue(findings.length >= 5)
-    assert.isTrue(findings.every(f => f.level === 'warn'))
-    assert.isTrue(findings.some(f => f.message.includes('lockout.enabled')))
-    assert.isTrue(findings.some(f => f.message.includes('lockout.maxAttempts')))
-  })
-
-  test('rateLimit bucket fields — reports with limitation note', ({ assert }) => {
-    const findings = checkLegacyPolicyConfig(makeInput({
-      rateLimit: { login: { points: 10, duration: '1 min' }, introspection: { points: 60, duration: '1 min' } },
-    }))
-    assert.isTrue(findings.some(f => f.message.includes('rateLimit.login')))
-    assert.isTrue(findings.some(f => f.message.includes('rateLimit.introspection')))
-  })
-
-  test('notifications fields', ({ assert }) => {
-    const findings = checkLegacyPolicyConfig(makeInput({
-      notifications: { newLoginEmail: true, newDeviceEmail: false },
-    }))
-    assert.isTrue(findings.some(f => f.message.includes('notifications.newLoginEmail')))
-    assert.isTrue(findings.some(f => f.message.includes('notifications.newDeviceEmail')))
-  })
-
-  test('trustedDevices fields', ({ assert }) => {
-    const findings = checkLegacyPolicyConfig(makeInput({
-      trustedDevices: { enabled: true, days: 30 },
-    }))
-    assert.isTrue(findings.some(f => f.message.includes('trustedDevices.enabled')))
-    assert.isTrue(findings.some(f => f.message.includes('trustedDevices.days')))
-  })
-
-  test('admin.impersonation field', ({ assert }) => {
-    const findings = checkLegacyPolicyConfig(makeInput({
-      admin: { enabled: true, roles: ['ADMIN'], impersonation: true },
-    }))
-    assert.isTrue(findings.some(f => f.message.includes('admin.impersonation')))
-  })
-
-  test('organizations policy fields', ({ assert }) => {
-    const findings = checkLegacyPolicyConfig(makeInput({
-      organizations: { enabled: true, allowSelfCreate: false, invitationTtlHours: 168, roles: ['owner', 'admin', 'member'] },
-    }))
-    assert.isTrue(findings.some(f => f.message.includes('organizations.allowSelfCreate')))
-    assert.isTrue(findings.some(f => f.message.includes('organizations.invitationTtlHours')))
-    assert.isTrue(findings.some(f => f.message.includes('organizations.roles')))
-  })
-
-  test('password policy fields via __passwordConfig', ({ assert }) => {
-    const store = {
-      __passwordConfig: {
-        policy: { minLength: 8, requireUppercase: true },
-        checkPwned: true,
-      },
-    }
-    const findings = checkLegacyPolicyConfig(makeInput({ accountStore: store }))
-    assert.isTrue(findings.some(f => f.message.includes('password.policy.minLength')))
-    assert.isTrue(findings.some(f => f.message.includes('password.policy.requireUppercase')))
-    assert.isTrue(findings.some(f => f.message.includes('password.checkPwned')))
-  })
-
-  test('null config — returns empty array without throwing', ({ assert }) => {
-    const findings = checkLegacyPolicyConfig({ authkitConfig: null, sessionConfig: null, peers: { session: true, shield: true, ally: false, limiter: false } })
-    assert.deepEqual(findings, [])
   })
 })
 

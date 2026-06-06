@@ -141,23 +141,13 @@ export interface RateLimitBucket {
  * Backed pelo `@adonisjs/limiter` (o host precisa tê-lo configurado: config/limiter.ts).
  * Ligado por default; se o limiter não estiver configurado, o throttle vira no-op
  * (fail-safe, sem quebra). Passe `enabled: false` para montar as rotas SEM throttle.
+ *
+ * Política (buckets login/introspection) é gerenciada em runtime via setting `rate_limit`
+ * no admin console ou Admin API — sem necessidade de redeploy.
  */
 export interface RateLimitConfigInput {
   /** Liga o rate-limit. Default: true. Infra — permanece no config estático. */
   enabled?: boolean
-  /**
-   * Bucket das rotas de login/signup/forgot/reset (keyed por IP). Default: 10 req / 1 min.
-   * @deprecated Gerencie via runtime setting `rate_limit` no admin console ou Admin API.
-   * LIMITAÇÃO: o middleware de throttle de rota usa os valores do config de boot; esta
-   * setting só afeta o lockout-side (AccountLockout) em runtime.
-   */
-  login?: RateLimitBucket
-  /**
-   * Bucket da rota de introspecção de PAT (keyed por IP ou bearer). Default: 60 req / 1 min.
-   * @deprecated Gerencie via runtime setting `rate_limit` no admin console ou Admin API.
-   * LIMITAÇÃO: o middleware de throttle de rota usa os valores do config de boot.
-   */
-  introspection?: RateLimitBucket
   /** Nome do store configurado em config/limiter.ts a usar. Infra — permanece no config estático. */
   store?: string
 }
@@ -178,8 +168,8 @@ export function resolveRateLimit(input?: RateLimitConfigInput): ResolvedRateLimi
   const enabled = input?.enabled ?? true
   return {
     enabled,
-    login: input?.login ?? RATE_LIMIT_DEFAULTS.login,
-    introspection: input?.introspection ?? RATE_LIMIT_DEFAULTS.introspection,
+    login: RATE_LIMIT_DEFAULTS.login,
+    introspection: RATE_LIMIT_DEFAULTS.introspection,
     store: input?.store,
   }
 }
@@ -188,38 +178,11 @@ export function resolveRateLimit(input?: RateLimitConfigInput): ResolvedRateLimi
  * Bloqueio progressivo de conta (anti-brute-force keyed por EMAIL, complementar ao
  * rate-limit por IP). Backed pelo mesmo `@adonisjs/limiter` do host (peer/opt-in) —
  * SEM migração nem DB. Ligado por default; vira no-op se o limiter não existir.
+ *
+ * Política (enabled/maxAttempts/windowSec/etc.) é gerenciada em runtime via setting
+ * `lockout` no admin console ou Admin API — sem necessidade de redeploy.
  */
 export interface LockoutConfigInput {
-  /**
-   * Liga o lockout. Default: true (no-op se o limiter não estiver configurado).
-   * @deprecated Gerencie via runtime setting `lockout` no admin console ou Admin API.
-   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
-   */
-  enabled?: boolean
-  /**
-   * Falhas dentro da janela antes de bloquear. Default: 5.
-   * @deprecated Gerencie via runtime setting `lockout` no admin console ou Admin API.
-   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
-   */
-  maxAttempts?: number
-  /**
-   * Janela deslizante (segundos) para contar falhas. Default: 900 (15 min).
-   * @deprecated Gerencie via runtime setting `lockout` no admin console ou Admin API.
-   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
-   */
-  windowSec?: number
-  /**
-   * Duração do 1º bloqueio (segundos). Default: 60.
-   * @deprecated Gerencie via runtime setting `lockout` no admin console ou Admin API.
-   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
-   */
-  baseLockoutSec?: number
-  /**
-   * Teto do backoff progressivo (segundos). Default: 3600 (1 h).
-   * @deprecated Gerencie via runtime setting `lockout` no admin console ou Admin API.
-   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
-   */
-  maxLockoutSec?: number
   /** Store do `config/limiter.ts` a usar. Infra — permanece no config estático. */
   store?: string
 }
@@ -235,40 +198,13 @@ export interface ResolvedLockoutConfig {
 
 export function resolveLockout(input?: LockoutConfigInput): ResolvedLockoutConfig {
   return {
-    enabled: input?.enabled ?? true,
-    maxAttempts: input?.maxAttempts ?? 5,
-    windowSec: input?.windowSec ?? 900,
-    baseLockoutSec: input?.baseLockoutSec ?? 60,
-    maxLockoutSec: input?.maxLockoutSec ?? 3600,
+    enabled: true,
+    maxAttempts: 5,
+    windowSec: 900,
+    baseLockoutSec: 60,
+    maxLockoutSec: 3600,
     store: input?.store,
   }
-}
-
-/**
- * Notificações de segurança por e-mail (best-effort, fire-and-forget). Cobre o
- * alerta de NOVO ACESSO (login de um IP nunca visto antes) e o alerta de NOVO
- * DISPOSITIVO (login sem cookie de dispositivo confiável válido para a conta).
- */
-export interface NotificationsConfigInput {
-  /**
-   * Envia um e-mail "novo acesso à sua conta" quando um login bem-sucedido vem de
-   * um IP sem `login.success` anterior para a conta. Default: true. A checagem do
-   * histórico usa o `audit.list` (degrada para no-op se o sink não consulta).
-   * @deprecated Gerencie via runtime setting `notifications` no admin console ou Admin API.
-   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
-   */
-  newLoginEmail?: boolean
-  /**
-   * Envia um e-mail "novo login num dispositivo" quando um login bem-sucedido
-   * acontece SEM um cookie de dispositivo confiável válido para a conta (o sinal
-   * de "dispositivo novo", como o GitHub faz). Default: true. Independente do
-   * mecanismo de trusted devices estar habilitado — o sinal é a ausência do
-   * cookie de confiança. O e-mail é enviado pelo `mail.onNewDeviceLogin` (override)
-   * ou pelo mailer default do host.
-   * @deprecated Gerencie via runtime setting `notifications` no admin console ou Admin API.
-   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
-   */
-  newDeviceEmail?: boolean
 }
 
 export interface ResolvedNotificationsConfig {
@@ -276,12 +212,10 @@ export interface ResolvedNotificationsConfig {
   newDeviceEmail: boolean
 }
 
-export function resolveNotifications(
-  input?: NotificationsConfigInput
-): ResolvedNotificationsConfig {
+export function resolveNotifications(): ResolvedNotificationsConfig {
   return {
-    newLoginEmail: input?.newLoginEmail ?? true,
-    newDeviceEmail: input?.newDeviceEmail ?? true,
+    newLoginEmail: true,
+    newDeviceEmail: true,
   }
 }
 
@@ -609,17 +543,6 @@ export interface AdminConfigInput {
   enabled: boolean
   /** Roles globais que dão acesso ao /admin. Default: ['ADMIN']. */
   roles?: string[]
-  /**
-   * Liga o PAINEL DE IMPERSONATION na página do usuário do console (RFC 8693 Token
-   * Exchange). Default: false — superfície sensível, opt-in. Quando ligado, o admin
-   * vê um painel com os parâmetros do token-exchange prontos (+ curl) para assumir a
-   * identidade do alvo. NÃO faz bypass de auth: o exchange real exige um access token
-   * do admin como `subject_token` e um client com o grant token-exchange. Acessar o
-   * painel audita `impersonation.started`.
-   * @deprecated Gerencie via runtime setting `admin_impersonation` no admin console ou Admin API.
-   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
-   */
-  impersonation?: boolean
 }
 
 export interface ResolvedAdminConfig {
@@ -632,7 +555,7 @@ export function resolveAdmin(input?: AdminConfigInput): ResolvedAdminConfig {
   return {
     enabled: input?.enabled ?? false,
     roles: input?.roles && input.roles.length > 0 ? input.roles : ['ADMIN'],
-    impersonation: input?.impersonation ?? false,
+    impersonation: false,
   }
 }
 
@@ -676,24 +599,6 @@ export interface OrganizationsConfigInput {
   /** Liga explicitamente. Default: auto (liga quando as tabelas existem). */
   enabled?: boolean
   /**
-   * Roles permitidas. A role 'owner' é sempre incluída. Default: ['owner','admin','member'].
-   * @deprecated Gerencie via runtime setting `organizations_policy` no admin console ou Admin API.
-   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
-   */
-  roles?: string[]
-  /**
-   * Usuários autenticados podem criar sua própria org. Default: false.
-   * @deprecated Gerencie via runtime setting `organizations_policy` no admin console ou Admin API.
-   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
-   */
-  allowSelfCreate?: boolean
-  /**
-   * TTL dos convites em horas. Default: 168 (7 dias).
-   * @deprecated Gerencie via runtime setting `organizations_policy` no admin console ou Admin API.
-   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
-   */
-  invitationTtlHours?: number
-  /**
    * Estratégia de emissão de claims. Só 'active' é suportado:
    * emite org_id/org_slug/org_role da org ativa da sessão via cookie assinado.
    * Default: 'active'.
@@ -711,14 +616,11 @@ export interface ResolvedOrganizationsConfig {
 }
 
 export function resolveOrganizations(input?: OrganizationsConfigInput): ResolvedOrganizationsConfig {
-  const roles = input?.roles && input.roles.length > 0 ? input.roles : ['owner', 'admin', 'member']
-  // Garante que 'owner' sempre está na lista (invariante de governance).
-  const rolesWithOwner = roles.includes('owner') ? roles : ['owner', ...roles]
   return {
     enabled: input?.enabled,
-    roles: rolesWithOwner,
-    allowSelfCreate: input?.allowSelfCreate ?? false,
-    invitationTtlHours: input?.invitationTtlHours ?? 168,
+    roles: ['owner', 'admin', 'member'],
+    allowSelfCreate: false,
+    invitationTtlHours: 168,
     claimStrategy: input?.claimStrategy ?? 'active',
   }
 }
@@ -772,15 +674,10 @@ export interface AuthServerConfigInput {
   issuer: string
   adapter: AdapterFactory
   /**
-   * Lista estática de clients OIDC.
-   *
-   * @deprecated Gerencie clients pelo console admin (`/admin/clients`) ou Admin API
-   * (`/api/authkit/v1/clients`) em runtime — sem necessidade de redeploy.
-   * Migre os clients existentes com `node ace authkit:clients:import` e remova este
-   * campo do config após confirmar que estão no adapter/DB.
-   *
-   * Quando omitido (ou `[]`), o servidor sobe normalmente e clients são gerenciados
-   * exclusivamente via console/API.
+   * Clientes OIDC pré-carregados no provider ao subir. Útil para testes e
+   * migrações pontuais. Para uso em produção, gerencie clients via console admin
+   * ou Admin API (`node ace authkit:clients:create`).
+   * @internal
    */
   clients?: ClientConfig[]
   jwks: JwksConfig
@@ -809,8 +706,6 @@ export interface AuthServerConfigInput {
   rateLimit?: RateLimitConfigInput
   /** Bloqueio progressivo de conta por email em falhas repetidas. Default: ligado (no-op sem limiter). */
   lockout?: LockoutConfigInput
-  /** Notificações de segurança por e-mail (alerta de novo acesso). Default: ligado. */
-  notifications?: NotificationsConfigInput
   /** Hooks de e-mail (reset de senha / verificação). Opcional — fallback de log em dev. */
   mail?: MailHooks
   /** Sink de auditoria (best-effort). Opcional — quando ausente, auditoria é no-op. */
@@ -1043,7 +938,7 @@ export function defineConfig(config: AuthServerConfigInput) {
       patIntrospectionSecret: config.patIntrospectionSecret,
       rateLimit: resolveRateLimit(config.rateLimit),
       lockout: resolveLockout(config.lockout),
-      notifications: resolveNotifications(config.notifications),
+      notifications: resolveNotifications(),
       mail: config.mail,
       audit: (() => {
         const events = resolveEvents(config.events)

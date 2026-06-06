@@ -107,10 +107,10 @@ test.group('PasswordManager.assertAcceptable', () => {
     assert.isTrue(true)
   })
 
-  test('lança PasswordPolicyError com a chave + params da regra', async ({ assert }) => {
-    const pm = new PasswordManager({ policy: { minLength: 12 } })
+  test('lança PasswordPolicyError com a chave + params da regra (via policyOverride)', async ({ assert }) => {
+    const pm = new PasswordManager()
     try {
-      await pm.assertAcceptable('short')
+      await pm.assertAcceptable('short', { minLength: 12 })
       assert.fail('deveria ter lançado')
     } catch (error) {
       assert.instanceOf(error, PasswordPolicyError)
@@ -119,16 +119,16 @@ test.group('PasswordManager.assertAcceptable', () => {
     }
   })
 
-  test('checkPwned ligado + senha vazada → lança password.pwned', async ({ assert }) => {
+  test('checkPwned ligado via policyOverride + senha vazada → lança password.pwned', async ({ assert }) => {
     const suffix = suffixOf('password123')
     const fetchImpl: FetchLike = async () => ({
       ok: true,
       status: 200,
       text: async () => `${suffix}:99\n`,
     })
-    const pm = new PasswordManager({ checkPwned: true }, { fetchImpl })
+    const pm = new PasswordManager({}, { fetchImpl })
     try {
-      await pm.assertAcceptable('password123')
+      await pm.assertAcceptable('password123', { checkPwned: true })
       assert.fail('deveria ter lançado')
     } catch (error) {
       assert.instanceOf(error, PasswordPolicyError)
@@ -136,10 +136,10 @@ test.group('PasswordManager.assertAcceptable', () => {
     }
   })
 
-  test('checkPwned ligado + senha NÃO vazada → passa', async ({ assert }) => {
+  test('checkPwned via policyOverride + senha NÃO vazada → passa', async ({ assert }) => {
     const fetchImpl: FetchLike = async () => ({ ok: true, status: 200, text: async () => '' })
-    const pm = new PasswordManager({ checkPwned: true }, { fetchImpl })
-    await pm.assertAcceptable('uniqueLongPass1')
+    const pm = new PasswordManager({}, { fetchImpl })
+    await pm.assertAcceptable('uniqueLongPass1', { checkPwned: true })
     assert.isTrue(true)
   })
 
@@ -149,21 +149,21 @@ test.group('PasswordManager.assertAcceptable', () => {
     }
     const warns: unknown[] = []
     const pm = new PasswordManager(
-      { checkPwned: true },
+      {},
       { fetchImpl, logger: { warn: (o) => warns.push(o) } }
     )
-    await pm.assertAcceptable('uniqueLongPass1')
+    await pm.assertAcceptable('uniqueLongPass1', { checkPwned: true })
     assert.lengthOf(warns, 1)
   })
 
-  test('política avaliada ANTES do pwned (não chama a rede se já viola)', async ({ assert }) => {
+  test('política avaliada ANTES do pwned via policyOverride (não chama a rede se já viola)', async ({ assert }) => {
     let fetched = false
     const fetchImpl: FetchLike = async () => {
       fetched = true
       return { ok: true, status: 200, text: async () => '' }
     }
-    const pm = new PasswordManager({ checkPwned: true, policy: { minLength: 20 } }, { fetchImpl })
-    await assert.rejects(() => pm.assertAcceptable('short'))
+    const pm = new PasswordManager({}, { fetchImpl })
+    await assert.rejects(() => pm.assertAcceptable('short', { minLength: 20, checkPwned: true }))
     assert.isFalse(fetched)
   })
 })

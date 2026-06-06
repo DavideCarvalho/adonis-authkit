@@ -29,16 +29,6 @@ export interface OidcAdapter {
   destroy(id: string): Promise<void>
   revokeByGrantId(grantId: string): Promise<void>
   /**
-   * Enumera os artefatos do model deste adapter — usado SÓ para o model `Client`
-   * pelo console admin, para listar clients persistidos (registro dinâmico/CRUD).
-   * Capacidade OPCIONAL (estilo `AuditSink.list`): adapters que não conseguem
-   * enumerar de forma barata omitem o método e a UI degrada graciosamente.
-   *
-   * @deprecated Use {@link list} (genérico). Mantido por compat: quando presente,
-   * delega para `list()` (o adapter é sempre instanciado com `model = 'Client'`).
-   */
-  listClients?(): Promise<EnumeratedClient[]>
-  /**
    * Enumeração GENÉRICA dos artefatos do model deste adapter (id + payload). Usada
    * pelo console admin para listar `Client` (CRUD) e `Session`/`Grant`/tokens
    * (sessões ativas + revogação). Capacidade OPCIONAL (estilo `AuditSink.list`):

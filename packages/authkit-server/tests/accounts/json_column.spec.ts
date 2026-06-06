@@ -27,22 +27,21 @@ test.group('jsonColumn', () => {
     assert.deepEqual(col.consume(null), [])
   })
 
-  test('recoveryCodes: null quando vazio, passthrough de array já parseado', ({ assert }) => {
-    const col = jsonColumn<string[] | null>({ fallback: null, passthroughParsed: true })
+  test('recoveryCodes: null quando vazio, consume aceita array já desserializado', ({ assert }) => {
+    const col = jsonColumn<string[] | null>({ fallback: null })
     assert.equal(col.prepare(['h1', 'h2']), '["h1","h2"]')
     assert.equal(col.prepare([]), '[]') // [] truthy → serializa
     assert.isNull(col.prepare(null))
     assert.deepEqual(col.consume('["h1"]'), ['h1'])
-    assert.deepEqual(col.consume(['h1']), ['h1']) // passthrough sem reparsear
+    assert.deepEqual(col.consume(['h1']), ['h1']) // consume lida com valores pré-desserializados
     assert.isNull(col.consume(null))
     assert.isNull(col.consume(undefined))
   })
 
-  test('transports: array vazio também grava null; passthrough na leitura', ({ assert }) => {
+  test('transports: array vazio também grava null; consume lida com array já desserializado', ({ assert }) => {
     const col = jsonColumn<string[] | null>({
       fallback: null,
       treatEmptyArrayAsEmpty: true,
-      passthroughParsed: true,
     })
     assert.equal(col.prepare(['internal']), '["internal"]')
     assert.isNull(col.prepare([])) // array vazio → null

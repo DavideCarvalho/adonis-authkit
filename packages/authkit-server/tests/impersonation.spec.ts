@@ -122,17 +122,11 @@ test.group('buildImpersonationPanel (RFC 8693 token exchange)', () => {
   })
 })
 
-test.group('impersonation gate (config default OFF)', () => {
-  test('resolveAdmin default → impersonation false', async ({ assert }) => {
+test.group('impersonation gate (sempre OFF no config — política via runtime setting)', () => {
+  test('resolveAdmin → impersonation sempre false (gerido via admin_impersonation setting)', async ({ assert }) => {
     const { resolveAdmin } = await import('../src/define_config.js')
     const resolved = resolveAdmin({ enabled: true })
     assert.isFalse(resolved.impersonation)
-  })
-
-  test('resolveAdmin com impersonation:true → impersonation true', async ({ assert }) => {
-    const { resolveAdmin } = await import('../src/define_config.js')
-    const resolved = resolveAdmin({ enabled: true, impersonation: true })
-    assert.isTrue(resolved.impersonation)
   })
 
   test('resolveAdmin sem config → impersonation false (default conservador)', async ({ assert }) => {

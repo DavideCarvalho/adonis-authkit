@@ -60,11 +60,12 @@ test.group('doctor checks', () => {
     assert.equal(findings[0].level, 'error')
   })
 
-  test('client sem redirectUris vira erro', ({ assert }) => {
+  test('checkClients: sempre ok (clients são 100% runtime)', ({ assert }) => {
     const f = checkClients(baseInput({
-      authkitConfig: { clients: [{ client_id: 'a' }] },
+      authkitConfig: { clients: [] },
     }))
-    assert.equal(f.level, 'error')
+    assert.equal(f.level, 'ok')
+    assert.include(f.message, 'runtime')
   })
 
   test('accountStore detecta capacidades opt-in', ({ assert }) => {
@@ -274,34 +275,20 @@ test.group('doctor checks', () => {
     assert.include(f!.message, 'orphan')
   })
 
-  // --- clients estáticos: deprecação ---
+  // --- clients: sempre runtime ---
 
-  test('checkClients: zero clients no config → ok (novo modo recomendado)', ({ assert }) => {
+  test('checkClients: ok (clients são 100% runtime)', ({ assert }) => {
     const f = checkClients(baseInput({ authkitConfig: { clients: [] } }))
     assert.equal(f.level, 'ok')
     assert.include(f.message, 'runtime')
   })
 
-  test('checkClients: clients omitidos → ok (equivale a array vazio)', ({ assert }) => {
+  test('checkClients: config ausente → ok informativo', ({ assert }) => {
     const f = checkClients(baseInput({ authkitConfig: {} }))
     assert.equal(f.level, 'ok')
   })
 
-  test('checkClients: clients estáticos presentes → warn de deprecação', ({ assert }) => {
-    const f = checkClients(baseInput({
-      authkitConfig: { clients: [{ redirectUris: ['https://app/cb'] }] },
-    }))
-    assert.equal(f.level, 'warn')
-    assert.include(f.message, 'deprecated')
-    assert.include(f.message, 'authkit:clients:import')
-  })
-
-  test('checkClients: clients presentes mas sem redirectUris → erro (invariante intacto)', ({ assert }) => {
-    const f = checkClients(baseInput({ authkitConfig: { clients: [{ client_id: 'a' }] } }))
-    assert.equal(f.level, 'error')
-  })
-
-  test('config com zero clients estáticos não produz erros no runAllChecks', ({ assert }) => {
+  test('config sem clients não produz erros no runAllChecks', ({ assert }) => {
     const findings = runAllChecks(baseInput({ authkitConfig: { ...baseInput().authkitConfig, clients: [] } }))
     assert.isFalse(hasErrors(findings))
   })
@@ -332,15 +319,17 @@ test.group('doctor checks', () => {
     assert.include(f!.message, 'volatile')
   })
 
-  test('checkAdapterVolatility: com clients estáticos → null (não relevante)', ({ assert }) => {
+  test('checkAdapterVolatility: adapter desconhecido, clientes runtime → warn', ({ assert }) => {
     class CustomAdapter {}
     const f = checkAdapterVolatility(baseInput({
       authkitConfig: {
-        clients: [{ redirectUris: ['https://app/cb'] }],
+        clients: [],
         AdapterClass: CustomAdapter,
       },
     }))
-    assert.isNull(f)
+    // Adapter desconhecido sempre produz warn (clients são runtime)
+    assert.equal(f!.level, 'warn')
+    assert.include(f!.message, 'volatile')
   })
 
   test('checkAdapterVolatility: sem AdapterClass → null (silencioso)', ({ assert }) => {

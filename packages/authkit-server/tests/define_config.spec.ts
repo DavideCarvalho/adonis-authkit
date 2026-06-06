@@ -14,7 +14,6 @@ test.group('defineConfig (server)', () => {
       issuer: 'https://auth.test',
       adapter: adapters.redis({ connection: 'main' }),
       jwks: { source: 'managed', algorithm: 'RS256' },
-      clients: [{ clientId: 'app1', redirectUris: ['https://app1/cb'] }],
       ttl: { accessToken: '15m', refreshToken: '30d' },
       accountStore: fakeAccountStore(),
     })
@@ -39,7 +38,6 @@ test.group('defineConfig (server)', () => {
       issuer: 'https://auth.test',
       adapter: adapters.redis({ connection: 'main' }),
       jwks: { source: 'managed' },
-      clients: [{ clientId: 'app1', redirectUris: ['https://app1/cb'] }],
       accountStore: fakeAccountStore({ verifyCredentials: async (email) => (email === 'a@b.com' ? { id: 'u1', email, globalRoles: [] } : null) }),
     })
     const resolved = await configProvider.resolve(fakeApp, provider)
@@ -68,7 +66,6 @@ test.group('defineConfig (server)', () => {
       issuer: 'https://auth.test',
       adapter: adapters.redis({ connection: 'main' }),
       jwks: { source: 'managed' },
-      clients: [{ clientId: 'app1', redirectUris: ['https://app1/cb'] }],
       accountStore: fakeAccountStore(),
       mountPath: '/oidc',
       render: inertiaRenderer({ prefix: 'authkit' }),
@@ -93,7 +90,6 @@ test.group('defineConfig (server)', () => {
       issuer: 'https://auth.test',
       adapter: adapters.redis({ connection: 'main' }),
       jwks: { source: 'managed' },
-      clients: [{ clientId: 'app1', redirectUris: ['https://app1/cb'] }],
       accountStore: fakeAccountStore(),
     })
     const resolved = await configProvider.resolve(fakeApp, provider)
@@ -112,7 +108,6 @@ test.group('defineConfig (server)', () => {
       issuer: 'https://auth.test',
       adapter: adapters.redis({ connection: 'main' }),
       jwks: { source: 'managed' },
-      clients: [{ clientId: 'app1', redirectUris: ['https://app1/cb'] }],
       accountStore: fakeAccountStore(),
       rateLimit: { enabled: true },
     })
@@ -122,7 +117,7 @@ test.group('defineConfig (server)', () => {
     assert.deepEqual(resolved.rateLimit.introspection, { points: 60, duration: '1 min' })
   })
 
-  test('rateLimit respeita buckets e store customizados', async ({ assert }) => {
+  test('rateLimit respeita enabled e store customizados (buckets via settings)', async ({ assert }) => {
     const RedisMock = (await import('ioredis-mock')).default
     const { configProvider } = await import('@adonisjs/core')
     const { fakeAccountStore } = await import('./bootstrap.js')
@@ -131,19 +126,17 @@ test.group('defineConfig (server)', () => {
       issuer: 'https://auth.test',
       adapter: adapters.redis({ connection: 'main' }),
       jwks: { source: 'managed' },
-      clients: [{ clientId: 'app1', redirectUris: ['https://app1/cb'] }],
       accountStore: fakeAccountStore(),
       rateLimit: {
         enabled: true,
-        login: { points: 5, duration: '30 secs' },
-        introspection: { points: 120, duration: '5 mins' },
         store: 'redis',
       },
     })
     const resolved = await configProvider.resolve(fakeApp, provider)
     assert.isTrue(resolved.rateLimit.enabled)
-    assert.deepEqual(resolved.rateLimit.login, { points: 5, duration: '30 secs' })
-    assert.deepEqual(resolved.rateLimit.introspection, { points: 120, duration: '5 mins' })
+    // Buckets são sempre lib defaults — política via runtime setting.
+    assert.deepEqual(resolved.rateLimit.login, { points: 10, duration: '1 min' })
+    assert.deepEqual(resolved.rateLimit.introspection, { points: 60, duration: '1 min' })
     assert.equal(resolved.rateLimit.store, 'redis')
   })
 
@@ -159,10 +152,13 @@ test.group('defineConfig (server)', () => {
     assert.isFalse(off.enabled)
     assert.deepEqual(off.login, { points: 10, duration: '1 min' })
 
-    const on = resolveRateLimit({ enabled: true, login: { points: 3, duration: '1 min' } })
-    assert.isTrue(on.enabled)
-    assert.deepEqual(on.login, { points: 3, duration: '1 min' })
-    assert.deepEqual(on.introspection, { points: 60, duration: '1 min' })
+    // store customizado
+    const onWithStore = resolveRateLimit({ enabled: true, store: 'redis' })
+    assert.isTrue(onWithStore.enabled)
+    assert.equal(onWithStore.store, 'redis')
+    // Buckets sempre lib defaults
+    assert.deepEqual(onWithStore.login, { points: 10, duration: '1 min' })
+    assert.deepEqual(onWithStore.introspection, { points: 60, duration: '1 min' })
   })
 
   test('mail é passthrough (hooks opcionais materializados quando fornecidos)', async ({ assert }) => {
@@ -175,7 +171,6 @@ test.group('defineConfig (server)', () => {
       issuer: 'https://auth.test',
       adapter: adapters.redis({ connection: 'main' }),
       jwks: { source: 'managed' },
-      clients: [{ clientId: 'app1', redirectUris: ['https://app1/cb'] }],
       accountStore: fakeAccountStore(),
       mail: {
         onPasswordReset: async () => { calls.push('reset') },
@@ -199,7 +194,6 @@ test.group('defineConfig (server)', () => {
       issuer: 'https://auth.test',
       adapter: adapters.redis({ connection: 'main' }),
       jwks: { source: 'managed' },
-      clients: [{ clientId: 'app1', redirectUris: ['https://app1/cb'] }],
       accountStore: fakeAccountStore(),
     })
     const resolved = await configProvider.resolve(fakeApp, provider)
@@ -216,7 +210,6 @@ test.group('defineConfig (server)', () => {
       issuer: 'https://auth.test',
       adapter: adapters.redis({ connection: 'main' }),
       jwks: { source: 'managed' },
-      clients: [{ clientId: 'app1', redirectUris: ['https://app1/cb'] }],
       accountStore: fakeAccountStore(),
       audit: { record: async (e) => { events.push(e.type) } },
     })
@@ -235,7 +228,6 @@ test.group('defineConfig (server)', () => {
       issuer: 'https://auth.test',
       adapter: adapters.redis({ connection: 'main' }),
       jwks: { source: 'managed' },
-      clients: [{ clientId: 'app1', redirectUris: ['https://app1/cb'] }],
       accountStore: fakeAccountStore(),
     })
     const resolved = await configProvider.resolve(fakeApp, provider)
@@ -251,7 +243,6 @@ test.group('defineConfig (server)', () => {
       issuer: 'https://auth.test',
       adapter: adapters.redis({ connection: 'main' }),
       jwks: { source: 'managed' },
-      clients: [{ clientId: 'app1', redirectUris: ['https://app1/cb'] }],
       accountStore: fakeAccountStore(),
     })
     const resolved = await configProvider.resolve(fakeApp, provider)
@@ -293,7 +284,6 @@ test.group('defineConfig (server)', () => {
       issuer: 'https://auth.test',
       adapter: adapters.redis({ connection: 'main' }),
       jwks: { source: 'managed' },
-      clients: [{ clientId: 'app1', redirectUris: ['https://app1/cb'] }],
       accountStore: fakeAccountStore(),
       dynamicRegistration: { enabled: false, management: true },
     })
@@ -309,7 +299,6 @@ test.group('defineConfig (server)', () => {
       issuer: 'https://auth.test',
       adapter: adapters.redis({ connection: 'main' }),
       jwks: { source: 'managed' },
-      clients: [{ clientId: 'app1', redirectUris: ['https://app1/cb'] }],
       accountStore: fakeAccountStore(),
     })
     const resolved = await configProvider.resolve(fakeApp, provider)
@@ -327,7 +316,6 @@ test.group('defineConfig (server)', () => {
       issuer: 'https://auth.test',
       adapter: adapters.redis({ connection: 'main' }),
       jwks: { source: 'managed' },
-      clients: [{ clientId: 'app1', redirectUris: ['https://app1/cb'] }],
       accountStore: fakeAccountStore(),
       accessTokens: { format: 'jwt', resources: { 'https://api.test': { format: 'jwt' } } },
     })

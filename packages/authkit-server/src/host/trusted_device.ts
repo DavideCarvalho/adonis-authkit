@@ -36,19 +36,12 @@ export interface TrustedDevicePayload {
   exp: number
 }
 
+/**
+ * Infra de trusted devices. Política (enabled, days) é gerenciada em runtime
+ * via setting `trusted_devices` no admin console ou Admin API.
+ */
 export interface TrustedDevicesConfigInput {
-  /**
-   * Liga o mecanismo de trusted devices. Default: true.
-   * @deprecated Gerencie via runtime setting `trusted_devices` no admin console ou Admin API.
-   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
-   */
-  enabled?: boolean
-  /**
-   * Validade da confiança em dias. Default: 30.
-   * @deprecated Gerencie via runtime setting `trusted_devices` no admin console ou Admin API.
-   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
-   */
-  days?: number
+  // Infra/crypto — reservado para futuros parâmetros de cookie (ex.: nome, algoritmo).
 }
 
 export interface ResolvedTrustedDevicesConfig {
@@ -57,11 +50,11 @@ export interface ResolvedTrustedDevicesConfig {
 }
 
 export function resolveTrustedDevices(
-  input?: TrustedDevicesConfigInput
+  _input?: TrustedDevicesConfigInput
 ): ResolvedTrustedDevicesConfig {
   return {
-    enabled: input?.enabled ?? true,
-    days: input?.days && input.days > 0 ? input.days : 30,
+    enabled: true,
+    days: 30,
   }
 }
 

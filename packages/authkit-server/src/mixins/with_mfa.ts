@@ -43,10 +43,10 @@ export function withMfa() {
       @column.dateTime()
       declare mfaEnabledAt: DateTime | null
 
-      // null quando vazio; aceita valor já desserializado (passthrough) na leitura.
+      // null quando vazio; consume já lida com valores pré-desserializados (Postgres json/jsonb).
       @column({
         serializeAs: null,
-        ...jsonColumn<string[] | null>({ fallback: null, passthroughParsed: true }),
+        ...jsonColumn<string[] | null>({ fallback: null }),
       })
       declare recoveryCodes: string[] | null
 

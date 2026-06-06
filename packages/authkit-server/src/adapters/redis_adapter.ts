@@ -1,7 +1,6 @@
 import type { Redis } from 'ioredis'
 import type {
   EnumeratedArtifact,
-  EnumeratedClient,
   OidcAdapter,
   OidcPayload,
 } from './adapter_contract.js'
@@ -125,12 +124,4 @@ export class RedisAdapter implements OidcAdapter {
     return result
   }
 
-  /**
-   * Compat: enumera os clients persistidos. Delega para {@link list} (o adapter é
-   * instanciado com `name = 'Client'`), reprojetando `id` → `clientId`.
-   */
-  async listClients(): Promise<EnumeratedClient[]> {
-    const rows = await this.list()
-    return rows.map((r) => ({ clientId: r.id, payload: r.payload }))
-  }
 }

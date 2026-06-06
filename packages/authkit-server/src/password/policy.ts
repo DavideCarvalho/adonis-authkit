@@ -1,41 +1,23 @@
 /**
- * Política de senha configurável (server-side) + checagem contra vazamentos
- * (HaveIBeenPwned, k-anonymity). Tudo aqui é PURO e testável em isolamento:
- * recebe a config resolvida e a senha em claro, devolve o veredito. A aplicação
- * (signup/reset/troca de senha) e a tradução das mensagens ficam a cargo dos
- * controllers/stores.
+ * Política de senha (shapes + checagens puras). Testável em isolamento.
+ * A política ativa é gerenciada via runtime setting `password_policy` em
+ * `auth_settings` (admin console / Admin API). Os defaults da lib ficam aqui.
  */
 
 /**
- * Regras de complexidade exigidas de uma senha nova.
- * @deprecated Gerencie via runtime setting `password_policy` no admin console ou Admin API.
- * Estes campos continuam funcionando como fallback enquanto a setting não estiver presente.
+ * Regras de complexidade de senha (shape interno — alinhado com o shape
+ * da runtime setting `password_policy` em `auth_settings`).
  */
 export interface PasswordPolicyInput {
-  /**
-   * Comprimento mínimo. Default: 8.
-   * @deprecated Gerencie via runtime setting `password_policy`.
-   */
+  /** Comprimento mínimo. Default: 8. */
   minLength?: number
-  /**
-   * Exige ao menos uma letra maiúscula. Default: false.
-   * @deprecated Gerencie via runtime setting `password_policy`.
-   */
+  /** Exige ao menos uma letra maiúscula. Default: false. */
   requireUppercase?: boolean
-  /**
-   * Exige ao menos uma letra minúscula. Default: false.
-   * @deprecated Gerencie via runtime setting `password_policy`.
-   */
+  /** Exige ao menos uma letra minúscula. Default: false. */
   requireLowercase?: boolean
-  /**
-   * Exige ao menos um dígito. Default: false.
-   * @deprecated Gerencie via runtime setting `password_policy`.
-   */
+  /** Exige ao menos um dígito. Default: false. */
   requireNumbers?: boolean
-  /**
-   * Exige ao menos um símbolo (não alfanumérico). Default: false.
-   * @deprecated Gerencie via runtime setting `password_policy`.
-   */
+  /** Exige ao menos um símbolo (não alfanumérico). Default: false. */
   requireSymbols?: boolean
 }
 

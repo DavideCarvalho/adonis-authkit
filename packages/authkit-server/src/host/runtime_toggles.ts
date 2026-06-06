@@ -33,6 +33,14 @@ export const SETTING_KEYS = {
   PASSWORD_HISTORY: 'password_history',
   PASSWORD_EXPIRATION: 'password_expiration',
   SESSION_POLICY: 'session_policy',
+  LOCKOUT: 'lockout',
+  RATE_LIMIT: 'rate_limit',
+  PASSWORD_POLICY: 'password_policy',
+  NOTIFICATIONS: 'notifications',
+  TRUSTED_DEVICES: 'trusted_devices',
+  TOKEN_TTL: 'token_ttl',
+  ADMIN_IMPERSONATION: 'admin_impersonation',
+  ORGANIZATIONS_POLICY: 'organizations_policy',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]
@@ -673,6 +681,565 @@ export async function resolveEffectivePasswordExpiration(
     return {
       enabled: typeof s.enabled === 'boolean' ? s.enabled : defaults.enabled,
       maxAgeDays: typeof s.maxAgeDays === 'number' && s.maxAgeDays >= 1 ? Math.floor(s.maxAgeDays) : defaults.maxAgeDays,
+    }
+  } catch {
+    return defaults
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 10. lockout setting
+// ---------------------------------------------------------------------------
+
+/**
+ * Shape da setting `lockout` em `auth_settings`.
+ *
+ * Controla a política de bloqueio progressivo de conta em runtime. Os campos de
+ * política (enabled, maxAttempts, windowSec, baseLockoutSec, maxLockoutSec) são
+ * gerenciados aqui; o campo `store` do config estático é infra e NÃO é movido.
+ *
+ * FALLBACK: campos ausentes caem nos valores do `config.lockout` (via
+ * `configDefault`) ou nos defaults da lib.
+ */
+export interface LockoutSetting {
+  enabled?: boolean
+  maxAttempts?: number
+  windowSec?: number
+  baseLockoutSec?: number
+  maxLockoutSec?: number
+}
+
+/** Resultado resolvido de `lockout` (política apenas; store vem do config estático). */
+export interface ResolvedLockoutSetting {
+  enabled: boolean
+  maxAttempts: number
+  windowSec: number
+  baseLockoutSec: number
+  maxLockoutSec: number
+}
+
+/** Config default de lockout (valores que chegam do config estático). */
+export interface LockoutConfigDefaults {
+  enabled?: boolean
+  maxAttempts?: number
+  windowSec?: number
+  baseLockoutSec?: number
+  maxLockoutSec?: number
+}
+
+const LOCKOUT_LIB_DEFAULTS: ResolvedLockoutSetting = {
+  enabled: true,
+  maxAttempts: 5,
+  windowSec: 900,
+  baseLockoutSec: 60,
+  maxLockoutSec: 3600,
+}
+
+/**
+ * Resolve as configurações efetivas de lockout.
+ *
+ * Precedência: setting BD → configDefault → lib default.
+ * FAIL-SAFE: qualquer erro → configDefault (ou lib defaults).
+ */
+export async function resolveEffectiveLockout(
+  settings: SettingsCapability,
+  configDefault: LockoutConfigDefaults = {}
+): Promise<ResolvedLockoutSetting> {
+  const defaults: ResolvedLockoutSetting = {
+    enabled: configDefault.enabled ?? LOCKOUT_LIB_DEFAULTS.enabled,
+    maxAttempts: configDefault.maxAttempts ?? LOCKOUT_LIB_DEFAULTS.maxAttempts,
+    windowSec: configDefault.windowSec ?? LOCKOUT_LIB_DEFAULTS.windowSec,
+    baseLockoutSec: configDefault.baseLockoutSec ?? LOCKOUT_LIB_DEFAULTS.baseLockoutSec,
+    maxLockoutSec: configDefault.maxLockoutSec ?? LOCKOUT_LIB_DEFAULTS.maxLockoutSec,
+  }
+  try {
+    const raw = await settings.getSetting(SETTING_KEYS.LOCKOUT)
+    if (raw === null || raw === undefined) return defaults
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
+    const s = raw as LockoutSetting
+    return {
+      enabled: typeof s.enabled === 'boolean' ? s.enabled : defaults.enabled,
+      maxAttempts: typeof s.maxAttempts === 'number' && s.maxAttempts >= 1 ? Math.floor(s.maxAttempts) : defaults.maxAttempts,
+      windowSec: typeof s.windowSec === 'number' && s.windowSec >= 1 ? Math.floor(s.windowSec) : defaults.windowSec,
+      baseLockoutSec: typeof s.baseLockoutSec === 'number' && s.baseLockoutSec >= 1 ? Math.floor(s.baseLockoutSec) : defaults.baseLockoutSec,
+      maxLockoutSec: typeof s.maxLockoutSec === 'number' && s.maxLockoutSec >= 1 ? Math.floor(s.maxLockoutSec) : defaults.maxLockoutSec,
+    }
+  } catch {
+    return defaults
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 11. rate_limit setting
+// ---------------------------------------------------------------------------
+
+/**
+ * Shape do bucket de rate-limit.
+ */
+export interface RateLimitBucketSetting {
+  points?: number
+  duration?: string
+}
+
+/**
+ * Shape da setting `rate_limit` em `auth_settings`.
+ *
+ * LIMITAÇÃO CONHECIDA: O throttle do `@adonisjs/limiter` é construído NO
+ * REGISTRO DA ROTA (boot-time) com os valores da config estática. O oidc-provider
+ * e o Adonis não permitem alterar middlewares de rota em runtime. Por isso, os
+ * valores de `rate_limit` da setting SÃO LIDOS pelo AccountLockout e pelo
+ * middleware de throttle via função utilitária que é chamada por request, mas
+ * APENAS no caminho do lockout/bloqueio — o middleware de throttle por IP (que
+ * usa `@adonisjs/limiter` diretamente) CONTINUA usando a config estática.
+ * Para throttle dinâmico verdadeiro, reconfigure e reinicie o servidor.
+ *
+ * Em termos práticos: `login.points`/`duration` e `introspection.points`/`duration`
+ * AFETAM o comportamento do lockout (AccountLockout, que usa o limiter diretamente),
+ * MAS o middleware de throttle de rota fica com a config de boot.
+ *
+ * @see resolveEffectiveRateLimit
+ */
+export interface RateLimitSetting {
+  login?: RateLimitBucketSetting
+  introspection?: RateLimitBucketSetting
+}
+
+/** Resultado resolvido do rate_limit (somente os buckets de política). */
+export interface ResolvedRateLimitSetting {
+  login: { points: number; duration: string }
+  introspection: { points: number; duration: string }
+}
+
+export interface RateLimitConfigDefaults {
+  login?: { points?: number; duration?: string }
+  introspection?: { points?: number; duration?: string }
+}
+
+const RATE_LIMIT_LIB_DEFAULTS: ResolvedRateLimitSetting = {
+  login: { points: 10, duration: '1 min' },
+  introspection: { points: 60, duration: '1 min' },
+}
+
+/**
+ * Resolve as configurações efetivas dos buckets de rate-limit.
+ *
+ * Precedência: setting BD → configDefault → lib default.
+ * FAIL-SAFE: qualquer erro → configDefault.
+ *
+ * NOTA: o middleware de throttle de rota (Adonis) usa os valores do config de
+ * boot e NÃO é afetado por esta setting em runtime. Veja JSDoc de RateLimitSetting.
+ */
+export async function resolveEffectiveRateLimit(
+  settings: SettingsCapability,
+  configDefault: RateLimitConfigDefaults = {}
+): Promise<ResolvedRateLimitSetting> {
+  const defaults: ResolvedRateLimitSetting = {
+    login: {
+      points: configDefault.login?.points ?? RATE_LIMIT_LIB_DEFAULTS.login.points,
+      duration: configDefault.login?.duration ?? RATE_LIMIT_LIB_DEFAULTS.login.duration,
+    },
+    introspection: {
+      points: configDefault.introspection?.points ?? RATE_LIMIT_LIB_DEFAULTS.introspection.points,
+      duration: configDefault.introspection?.duration ?? RATE_LIMIT_LIB_DEFAULTS.introspection.duration,
+    },
+  }
+  try {
+    const raw = await settings.getSetting(SETTING_KEYS.RATE_LIMIT)
+    if (raw === null || raw === undefined) return defaults
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
+    const s = raw as RateLimitSetting
+    return {
+      login: {
+        points: typeof s.login?.points === 'number' && s.login.points >= 1 ? Math.floor(s.login.points) : defaults.login.points,
+        duration: typeof s.login?.duration === 'string' && s.login.duration.trim() ? s.login.duration.trim() : defaults.login.duration,
+      },
+      introspection: {
+        points: typeof s.introspection?.points === 'number' && s.introspection.points >= 1 ? Math.floor(s.introspection.points) : defaults.introspection.points,
+        duration: typeof s.introspection?.duration === 'string' && s.introspection.duration.trim() ? s.introspection.duration.trim() : defaults.introspection.duration,
+      },
+    }
+  } catch {
+    return defaults
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 12. password_policy setting
+// ---------------------------------------------------------------------------
+
+/**
+ * Shape da setting `password_policy` em `auth_settings`.
+ *
+ * Controla as regras de complexidade de senha e checagem de vazamento.
+ * Os campos `legacyVerifier`, `pepper` e `timeoutMs` do config estático são
+ * infra/código e NÃO são movidos para a setting.
+ *
+ * FALLBACK: campos ausentes caem nos valores do `config.accountStore` password
+ * config (via `configDefault`) ou nos defaults da lib.
+ */
+export interface PasswordPolicySetting {
+  minLength?: number
+  requireUppercase?: boolean
+  requireLowercase?: boolean
+  requireNumbers?: boolean
+  requireSymbols?: boolean
+  /** Verifica se a senha aparece em vazamentos (HaveIBeenPwned, k-anonymity). */
+  checkPwned?: boolean
+}
+
+/** Resultado resolvido da password_policy. */
+export interface ResolvedPasswordPolicySetting {
+  minLength: number
+  requireUppercase: boolean
+  requireLowercase: boolean
+  requireNumbers: boolean
+  requireSymbols: boolean
+  checkPwned: boolean
+}
+
+export interface PasswordPolicyConfigDefaults {
+  minLength?: number
+  requireUppercase?: boolean
+  requireLowercase?: boolean
+  requireNumbers?: boolean
+  requireSymbols?: boolean
+  checkPwned?: boolean
+}
+
+const PASSWORD_POLICY_LIB_DEFAULTS: ResolvedPasswordPolicySetting = {
+  minLength: 8,
+  requireUppercase: false,
+  requireLowercase: false,
+  requireNumbers: false,
+  requireSymbols: false,
+  checkPwned: false,
+}
+
+/**
+ * Resolve as configurações efetivas de política de senha.
+ *
+ * Precedência: setting BD → configDefault → lib default.
+ * FAIL-SAFE: qualquer erro → configDefault.
+ */
+export async function resolveEffectivePasswordPolicy(
+  settings: SettingsCapability,
+  configDefault: PasswordPolicyConfigDefaults = {}
+): Promise<ResolvedPasswordPolicySetting> {
+  const defaults: ResolvedPasswordPolicySetting = {
+    minLength: configDefault.minLength ?? PASSWORD_POLICY_LIB_DEFAULTS.minLength,
+    requireUppercase: configDefault.requireUppercase ?? PASSWORD_POLICY_LIB_DEFAULTS.requireUppercase,
+    requireLowercase: configDefault.requireLowercase ?? PASSWORD_POLICY_LIB_DEFAULTS.requireLowercase,
+    requireNumbers: configDefault.requireNumbers ?? PASSWORD_POLICY_LIB_DEFAULTS.requireNumbers,
+    requireSymbols: configDefault.requireSymbols ?? PASSWORD_POLICY_LIB_DEFAULTS.requireSymbols,
+    checkPwned: configDefault.checkPwned ?? PASSWORD_POLICY_LIB_DEFAULTS.checkPwned,
+  }
+  try {
+    const raw = await settings.getSetting(SETTING_KEYS.PASSWORD_POLICY)
+    if (raw === null || raw === undefined) return defaults
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
+    const s = raw as PasswordPolicySetting
+    return {
+      minLength: typeof s.minLength === 'number' && s.minLength >= 1 ? Math.floor(s.minLength) : defaults.minLength,
+      requireUppercase: typeof s.requireUppercase === 'boolean' ? s.requireUppercase : defaults.requireUppercase,
+      requireLowercase: typeof s.requireLowercase === 'boolean' ? s.requireLowercase : defaults.requireLowercase,
+      requireNumbers: typeof s.requireNumbers === 'boolean' ? s.requireNumbers : defaults.requireNumbers,
+      requireSymbols: typeof s.requireSymbols === 'boolean' ? s.requireSymbols : defaults.requireSymbols,
+      checkPwned: typeof s.checkPwned === 'boolean' ? s.checkPwned : defaults.checkPwned,
+    }
+  } catch {
+    return defaults
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 13. notifications setting
+// ---------------------------------------------------------------------------
+
+/**
+ * Shape da setting `notifications` em `auth_settings`.
+ *
+ * Controla se e-mails de alerta de novo acesso e novo dispositivo são enviados.
+ * FALLBACK: campos ausentes caem nos valores do `config.notifications`.
+ */
+export interface NotificationsSetting {
+  newLoginEmail?: boolean
+  newDeviceEmail?: boolean
+}
+
+/** Resultado resolvido de `notifications`. */
+export interface ResolvedNotificationsSetting {
+  newLoginEmail: boolean
+  newDeviceEmail: boolean
+}
+
+export interface NotificationsConfigDefaults {
+  newLoginEmail?: boolean
+  newDeviceEmail?: boolean
+}
+
+/**
+ * Resolve as configurações efetivas de notificações de acesso/dispositivo.
+ *
+ * Precedência: setting BD → configDefault → lib default (true/true).
+ * FAIL-SAFE: qualquer erro → configDefault.
+ */
+export async function resolveEffectiveNotifications(
+  settings: SettingsCapability,
+  configDefault: NotificationsConfigDefaults = {}
+): Promise<ResolvedNotificationsSetting> {
+  const defaults: ResolvedNotificationsSetting = {
+    newLoginEmail: configDefault.newLoginEmail ?? true,
+    newDeviceEmail: configDefault.newDeviceEmail ?? true,
+  }
+  try {
+    const raw = await settings.getSetting(SETTING_KEYS.NOTIFICATIONS)
+    if (raw === null || raw === undefined) return defaults
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
+    const s = raw as NotificationsSetting
+    return {
+      newLoginEmail: typeof s.newLoginEmail === 'boolean' ? s.newLoginEmail : defaults.newLoginEmail,
+      newDeviceEmail: typeof s.newDeviceEmail === 'boolean' ? s.newDeviceEmail : defaults.newDeviceEmail,
+    }
+  } catch {
+    return defaults
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 14. trusted_devices setting
+// ---------------------------------------------------------------------------
+
+/**
+ * Shape da setting `trusted_devices` em `auth_settings`.
+ *
+ * Controla a POLÍTICA de dispositivos confiáveis (enabled, days). Os campos de
+ * infra (cookie name, segredos) continuam no config estático.
+ *
+ * FALLBACK: campos ausentes caem nos valores do `config.trustedDevices`.
+ */
+export interface TrustedDevicesSetting {
+  enabled?: boolean
+  days?: number
+}
+
+/** Resultado resolvido de `trusted_devices` (política). */
+export interface ResolvedTrustedDevicesSetting {
+  enabled: boolean
+  days: number
+}
+
+export interface TrustedDevicesConfigDefaults {
+  enabled?: boolean
+  days?: number
+}
+
+/**
+ * Resolve as configurações efetivas de trusted devices.
+ *
+ * Precedência: setting BD → configDefault → lib default (enabled=true, days=30).
+ * FAIL-SAFE: qualquer erro → configDefault.
+ */
+export async function resolveEffectiveTrustedDevices(
+  settings: SettingsCapability,
+  configDefault: TrustedDevicesConfigDefaults = {}
+): Promise<ResolvedTrustedDevicesSetting> {
+  const defaults: ResolvedTrustedDevicesSetting = {
+    enabled: configDefault.enabled ?? true,
+    days: configDefault.days ?? 30,
+  }
+  try {
+    const raw = await settings.getSetting(SETTING_KEYS.TRUSTED_DEVICES)
+    if (raw === null || raw === undefined) return defaults
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
+    const s = raw as TrustedDevicesSetting
+    return {
+      enabled: typeof s.enabled === 'boolean' ? s.enabled : defaults.enabled,
+      days: typeof s.days === 'number' && s.days >= 1 ? Math.floor(s.days) : defaults.days,
+    }
+  } catch {
+    return defaults
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 15. token_ttl setting
+// ---------------------------------------------------------------------------
+
+/**
+ * Shape da setting `token_ttl` em `auth_settings`.
+ *
+ * Controla os TTLs dos tokens OIDC em runtime via holders mutáveis (mesmo padrão
+ * do session_policy / sessionTtlHolder). Os holders são atualizados de forma
+ * SÍNCRONA após um write/reset da setting — o oidc-provider lê os TTL functions
+ * de forma síncrona, portanto os valores ficam disponíveis sem redeploy.
+ *
+ * Valores em SEGUNDOS. Campos ausentes caem nos valores do `config.ttl`.
+ *
+ * NOTA: session TTL JÁ é dinâmico via session_policy — NÃO duplique aqui.
+ */
+export interface TokenTtlSetting {
+  accessTokenSec?: number
+  idTokenSec?: number
+  refreshTokenSec?: number
+}
+
+/** Resultado resolvido de `token_ttl`. */
+export interface ResolvedTokenTtlSetting {
+  accessTokenSec: number
+  idTokenSec: number
+  refreshTokenSec: number
+}
+
+export interface TokenTtlConfigDefaults {
+  accessTokenSec?: number
+  idTokenSec?: number
+  refreshTokenSec?: number
+}
+
+/**
+ * Resolve as configurações efetivas de TTL de tokens.
+ *
+ * Precedência: setting BD → configDefault → lib default (900s/900s/2592000s).
+ * FAIL-SAFE: qualquer erro → configDefault.
+ */
+export async function resolveEffectiveTokenTtl(
+  settings: SettingsCapability,
+  configDefault: TokenTtlConfigDefaults = {}
+): Promise<ResolvedTokenTtlSetting> {
+  const defaults: ResolvedTokenTtlSetting = {
+    accessTokenSec: configDefault.accessTokenSec ?? 900,
+    idTokenSec: configDefault.idTokenSec ?? 900,
+    refreshTokenSec: configDefault.refreshTokenSec ?? 2592000,
+  }
+  try {
+    const raw = await settings.getSetting(SETTING_KEYS.TOKEN_TTL)
+    if (raw === null || raw === undefined) return defaults
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
+    const s = raw as TokenTtlSetting
+    return {
+      accessTokenSec: typeof s.accessTokenSec === 'number' && s.accessTokenSec >= 1 ? Math.floor(s.accessTokenSec) : defaults.accessTokenSec,
+      idTokenSec: typeof s.idTokenSec === 'number' && s.idTokenSec >= 1 ? Math.floor(s.idTokenSec) : defaults.idTokenSec,
+      refreshTokenSec: typeof s.refreshTokenSec === 'number' && s.refreshTokenSec >= 1 ? Math.floor(s.refreshTokenSec) : defaults.refreshTokenSec,
+    }
+  } catch {
+    return defaults
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 16. admin_impersonation setting
+// ---------------------------------------------------------------------------
+
+/**
+ * Shape da setting `admin_impersonation` em `auth_settings`.
+ *
+ * Controla se o painel de impersonation (RFC 8693 token exchange) é exibido no
+ * console admin. FALLBACK: campo ausente cai em `config.admin.impersonation`.
+ */
+export interface AdminImpersonationSetting {
+  enabled?: boolean
+}
+
+/** Resultado resolvido de `admin_impersonation`. */
+export interface ResolvedAdminImpersonationSetting {
+  enabled: boolean
+}
+
+/**
+ * Resolve as configurações efetivas de impersonation.
+ *
+ * Precedência: setting BD → configDefault → lib default (false).
+ * FAIL-SAFE: qualquer erro → configDefault.
+ */
+export async function resolveEffectiveAdminImpersonation(
+  settings: SettingsCapability,
+  configDefault: boolean = false
+): Promise<ResolvedAdminImpersonationSetting> {
+  const defaults: ResolvedAdminImpersonationSetting = { enabled: configDefault }
+  try {
+    const raw = await settings.getSetting(SETTING_KEYS.ADMIN_IMPERSONATION)
+    if (raw === null || raw === undefined) return defaults
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
+    const s = raw as AdminImpersonationSetting
+    return {
+      enabled: typeof s.enabled === 'boolean' ? s.enabled : defaults.enabled,
+    }
+  } catch {
+    return defaults
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 17. organizations_policy setting
+// ---------------------------------------------------------------------------
+
+/**
+ * Shape da setting `organizations_policy` em `auth_settings`.
+ *
+ * Controla as POLÍTICAS de organizações em runtime (allowSelfCreate,
+ * invitationTtlHours, roles). O campo `enabled` da capability e a derivação de
+ * tabelas ficam no config estático / capability-probing. FALLBACK: campos
+ * ausentes caem nos valores do `config.organizations`.
+ */
+export interface OrganizationsPolicySetting {
+  allowSelfCreate?: boolean
+  invitationTtlHours?: number
+  roles?: string[]
+}
+
+/** Resultado resolvido de `organizations_policy`. */
+export interface ResolvedOrganizationsPolicySetting {
+  allowSelfCreate: boolean
+  invitationTtlHours: number
+  roles: string[]
+}
+
+export interface OrganizationsPolicyConfigDefaults {
+  allowSelfCreate?: boolean
+  invitationTtlHours?: number
+  roles?: string[]
+}
+
+const ORGS_POLICY_LIB_DEFAULTS: ResolvedOrganizationsPolicySetting = {
+  allowSelfCreate: false,
+  invitationTtlHours: 168,
+  roles: ['owner', 'admin', 'member'],
+}
+
+/**
+ * Resolve as configurações efetivas de política de organizações.
+ *
+ * Precedência: setting BD → configDefault → lib default.
+ * FAIL-SAFE: qualquer erro → configDefault.
+ *
+ * Invariante mantida: 'owner' é sempre incluído na lista de roles (governance).
+ */
+export async function resolveEffectiveOrganizationsPolicy(
+  settings: SettingsCapability,
+  configDefault: OrganizationsPolicyConfigDefaults = {}
+): Promise<ResolvedOrganizationsPolicySetting> {
+  const defaultRoles = configDefault.roles ?? ORGS_POLICY_LIB_DEFAULTS.roles
+  const rolesWithOwner = defaultRoles.includes('owner') ? defaultRoles : ['owner', ...defaultRoles]
+  const defaults: ResolvedOrganizationsPolicySetting = {
+    allowSelfCreate: configDefault.allowSelfCreate ?? ORGS_POLICY_LIB_DEFAULTS.allowSelfCreate,
+    invitationTtlHours: configDefault.invitationTtlHours ?? ORGS_POLICY_LIB_DEFAULTS.invitationTtlHours,
+    roles: rolesWithOwner,
+  }
+  try {
+    const raw = await settings.getSetting(SETTING_KEYS.ORGANIZATIONS_POLICY)
+    if (raw === null || raw === undefined) return defaults
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
+    const s = raw as OrganizationsPolicySetting
+    // Roles: usa o valor da setting apenas se for um array não-vazio; sempre
+    // garante que 'owner' está presente (invariante de governance).
+    let roles = defaults.roles
+    if (Array.isArray(s.roles) && s.roles.length > 0) {
+      roles = s.roles.includes('owner') ? s.roles : ['owner', ...s.roles]
+    }
+    return {
+      allowSelfCreate: typeof s.allowSelfCreate === 'boolean' ? s.allowSelfCreate : defaults.allowSelfCreate,
+      invitationTtlHours: typeof s.invitationTtlHours === 'number' && s.invitationTtlHours >= 1 ? Math.floor(s.invitationTtlHours) : defaults.invitationTtlHours,
+      roles,
     }
   } catch {
     return defaults

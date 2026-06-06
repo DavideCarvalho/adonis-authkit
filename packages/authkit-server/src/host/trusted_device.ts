@@ -37,9 +37,17 @@ export interface TrustedDevicePayload {
 }
 
 export interface TrustedDevicesConfigInput {
-  /** Liga o mecanismo de trusted devices. Default: true. */
+  /**
+   * Liga o mecanismo de trusted devices. Default: true.
+   * @deprecated Gerencie via runtime setting `trusted_devices` no admin console ou Admin API.
+   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
+   */
   enabled?: boolean
-  /** Validade da confiança em dias. Default: 30. */
+  /**
+   * Validade da confiança em dias. Default: 30.
+   * @deprecated Gerencie via runtime setting `trusted_devices` no admin console ou Admin API.
+   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
+   */
   days?: number
 }
 

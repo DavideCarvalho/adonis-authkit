@@ -143,13 +143,22 @@ export interface RateLimitBucket {
  * (fail-safe, sem quebra). Passe `enabled: false` para montar as rotas SEM throttle.
  */
 export interface RateLimitConfigInput {
-  /** Liga o rate-limit. Default: true. */
+  /** Liga o rate-limit. Default: true. Infra — permanece no config estático. */
   enabled?: boolean
-  /** Bucket das rotas de login/signup/forgot/reset (keyed por IP). Default: 10 req / 1 min. */
+  /**
+   * Bucket das rotas de login/signup/forgot/reset (keyed por IP). Default: 10 req / 1 min.
+   * @deprecated Gerencie via runtime setting `rate_limit` no admin console ou Admin API.
+   * LIMITAÇÃO: o middleware de throttle de rota usa os valores do config de boot; esta
+   * setting só afeta o lockout-side (AccountLockout) em runtime.
+   */
   login?: RateLimitBucket
-  /** Bucket da rota de introspecção de PAT (keyed por IP ou bearer). Default: 60 req / 1 min. */
+  /**
+   * Bucket da rota de introspecção de PAT (keyed por IP ou bearer). Default: 60 req / 1 min.
+   * @deprecated Gerencie via runtime setting `rate_limit` no admin console ou Admin API.
+   * LIMITAÇÃO: o middleware de throttle de rota usa os valores do config de boot.
+   */
   introspection?: RateLimitBucket
-  /** Nome do store configurado em config/limiter.ts a usar. Default: store padrão do host. */
+  /** Nome do store configurado em config/limiter.ts a usar. Infra — permanece no config estático. */
   store?: string
 }
 
@@ -181,17 +190,37 @@ export function resolveRateLimit(input?: RateLimitConfigInput): ResolvedRateLimi
  * SEM migração nem DB. Ligado por default; vira no-op se o limiter não existir.
  */
 export interface LockoutConfigInput {
-  /** Liga o lockout. Default: true (no-op se o limiter não estiver configurado). */
+  /**
+   * Liga o lockout. Default: true (no-op se o limiter não estiver configurado).
+   * @deprecated Gerencie via runtime setting `lockout` no admin console ou Admin API.
+   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
+   */
   enabled?: boolean
-  /** Falhas dentro da janela antes de bloquear. Default: 5. */
+  /**
+   * Falhas dentro da janela antes de bloquear. Default: 5.
+   * @deprecated Gerencie via runtime setting `lockout` no admin console ou Admin API.
+   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
+   */
   maxAttempts?: number
-  /** Janela deslizante (segundos) para contar falhas. Default: 900 (15 min). */
+  /**
+   * Janela deslizante (segundos) para contar falhas. Default: 900 (15 min).
+   * @deprecated Gerencie via runtime setting `lockout` no admin console ou Admin API.
+   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
+   */
   windowSec?: number
-  /** Duração do 1º bloqueio (segundos). Default: 60. */
+  /**
+   * Duração do 1º bloqueio (segundos). Default: 60.
+   * @deprecated Gerencie via runtime setting `lockout` no admin console ou Admin API.
+   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
+   */
   baseLockoutSec?: number
-  /** Teto do backoff progressivo (segundos). Default: 3600 (1 h). */
+  /**
+   * Teto do backoff progressivo (segundos). Default: 3600 (1 h).
+   * @deprecated Gerencie via runtime setting `lockout` no admin console ou Admin API.
+   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
+   */
   maxLockoutSec?: number
-  /** Store do `config/limiter.ts` a usar. Default: store padrão do host. */
+  /** Store do `config/limiter.ts` a usar. Infra — permanece no config estático. */
   store?: string
 }
 
@@ -225,6 +254,8 @@ export interface NotificationsConfigInput {
    * Envia um e-mail "novo acesso à sua conta" quando um login bem-sucedido vem de
    * um IP sem `login.success` anterior para a conta. Default: true. A checagem do
    * histórico usa o `audit.list` (degrada para no-op se o sink não consulta).
+   * @deprecated Gerencie via runtime setting `notifications` no admin console ou Admin API.
+   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
    */
   newLoginEmail?: boolean
   /**
@@ -234,6 +265,8 @@ export interface NotificationsConfigInput {
    * mecanismo de trusted devices estar habilitado — o sinal é a ausência do
    * cookie de confiança. O e-mail é enviado pelo `mail.onNewDeviceLogin` (override)
    * ou pelo mailer default do host.
+   * @deprecated Gerencie via runtime setting `notifications` no admin console ou Admin API.
+   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
    */
   newDeviceEmail?: boolean
 }
@@ -583,6 +616,8 @@ export interface AdminConfigInput {
    * identidade do alvo. NÃO faz bypass de auth: o exchange real exige um access token
    * do admin como `subject_token` e um client com o grant token-exchange. Acessar o
    * painel audita `impersonation.started`.
+   * @deprecated Gerencie via runtime setting `admin_impersonation` no admin console ou Admin API.
+   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
    */
   impersonation?: boolean
 }
@@ -640,11 +675,23 @@ export function resolveAdminApi(input?: AdminApiConfigInput): ResolvedAdminApiCo
 export interface OrganizationsConfigInput {
   /** Liga explicitamente. Default: auto (liga quando as tabelas existem). */
   enabled?: boolean
-  /** Roles permitidas. A role 'owner' é sempre incluída. Default: ['owner','admin','member']. */
+  /**
+   * Roles permitidas. A role 'owner' é sempre incluída. Default: ['owner','admin','member'].
+   * @deprecated Gerencie via runtime setting `organizations_policy` no admin console ou Admin API.
+   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
+   */
   roles?: string[]
-  /** Usuários autenticados podem criar sua própria org. Default: false. */
+  /**
+   * Usuários autenticados podem criar sua própria org. Default: false.
+   * @deprecated Gerencie via runtime setting `organizations_policy` no admin console ou Admin API.
+   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
+   */
   allowSelfCreate?: boolean
-  /** TTL dos convites em horas. Default: 168 (7 dias). */
+  /**
+   * TTL dos convites em horas. Default: 168 (7 dias).
+   * @deprecated Gerencie via runtime setting `organizations_policy` no admin console ou Admin API.
+   * Este campo continua funcionando como fallback enquanto a setting não estiver presente.
+   */
   invitationTtlHours?: number
   /**
    * Estratégia de emissão de claims. Só 'active' é suportado:

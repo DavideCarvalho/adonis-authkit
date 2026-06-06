@@ -128,6 +128,109 @@
       "args": [],
       "options": { "startApp": true },
       "filePath": "import_users.js"
+    },
+    {
+      "commandName": "authkit:settings:list",
+      "description": "Lista todas as runtime settings presentes em `auth_settings`.",
+      "namespace": "authkit",
+      "aliases": [],
+      "flags": [
+        {
+          "name": "json",
+          "flagName": "json",
+          "required": false,
+          "type": "boolean",
+          "description": "Output em JSON machine-readable."
+        }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "settings_list.js"
+    },
+    {
+      "commandName": "authkit:settings:get",
+      "description": "Obtém uma runtime setting por key de `auth_settings`.",
+      "namespace": "authkit",
+      "aliases": [],
+      "flags": [
+        {
+          "name": "json",
+          "flagName": "json",
+          "required": false,
+          "type": "boolean",
+          "description": "Output em JSON machine-readable."
+        }
+      ],
+      "args": [
+        {
+          "name": "key",
+          "argumentName": "key",
+          "required": true,
+          "type": "string",
+          "description": "Nome da setting (ex.: lockout, session_policy)."
+        }
+      ],
+      "options": { "startApp": true },
+      "filePath": "settings_get.js"
+    },
+    {
+      "commandName": "authkit:settings:set",
+      "description": "Grava (upsert) uma runtime setting em `auth_settings`. Valida shape para keys conhecidas.",
+      "namespace": "authkit",
+      "aliases": [],
+      "flags": [
+        {
+          "name": "json",
+          "flagName": "json",
+          "required": false,
+          "type": "boolean",
+          "description": "Output em JSON machine-readable."
+        }
+      ],
+      "args": [
+        {
+          "name": "key",
+          "argumentName": "key",
+          "required": true,
+          "type": "string",
+          "description": "Nome da setting (ex.: lockout, session_policy, token_ttl)."
+        },
+        {
+          "name": "value",
+          "argumentName": "value",
+          "required": true,
+          "type": "string",
+          "description": "Valor JSON da setting (deve ser um objeto JSON válido)."
+        }
+      ],
+      "options": { "startApp": true },
+      "filePath": "settings_set.js"
+    },
+    {
+      "commandName": "authkit:settings:unset",
+      "description": "Remove uma runtime setting de `auth_settings` (reset ao config/default).",
+      "namespace": "authkit",
+      "aliases": [],
+      "flags": [
+        {
+          "name": "json",
+          "flagName": "json",
+          "required": false,
+          "type": "boolean",
+          "description": "Output em JSON machine-readable."
+        }
+      ],
+      "args": [
+        {
+          "name": "key",
+          "argumentName": "key",
+          "required": true,
+          "type": "string",
+          "description": "Nome da setting a remover (ex.: lockout, session_policy)."
+        }
+      ],
+      "options": { "startApp": true },
+      "filePath": "settings_unset.js"
     }
   ]
 }

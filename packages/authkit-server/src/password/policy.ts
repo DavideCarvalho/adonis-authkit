@@ -6,17 +6,36 @@
  * controllers/stores.
  */
 
-/** Regras de complexidade exigidas de uma senha nova. */
+/**
+ * Regras de complexidade exigidas de uma senha nova.
+ * @deprecated Gerencie via runtime setting `password_policy` no admin console ou Admin API.
+ * Estes campos continuam funcionando como fallback enquanto a setting não estiver presente.
+ */
 export interface PasswordPolicyInput {
-  /** Comprimento mínimo. Default: 8. */
+  /**
+   * Comprimento mínimo. Default: 8.
+   * @deprecated Gerencie via runtime setting `password_policy`.
+   */
   minLength?: number
-  /** Exige ao menos uma letra maiúscula. Default: false. */
+  /**
+   * Exige ao menos uma letra maiúscula. Default: false.
+   * @deprecated Gerencie via runtime setting `password_policy`.
+   */
   requireUppercase?: boolean
-  /** Exige ao menos uma letra minúscula. Default: false. */
+  /**
+   * Exige ao menos uma letra minúscula. Default: false.
+   * @deprecated Gerencie via runtime setting `password_policy`.
+   */
   requireLowercase?: boolean
-  /** Exige ao menos um dígito. Default: false. */
+  /**
+   * Exige ao menos um dígito. Default: false.
+   * @deprecated Gerencie via runtime setting `password_policy`.
+   */
   requireNumbers?: boolean
-  /** Exige ao menos um símbolo (não alfanumérico). Default: false. */
+  /**
+   * Exige ao menos um símbolo (não alfanumérico). Default: false.
+   * @deprecated Gerencie via runtime setting `password_policy`.
+   */
   requireSymbols?: boolean
 }
 

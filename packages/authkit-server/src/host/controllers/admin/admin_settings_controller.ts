@@ -12,6 +12,14 @@ import {
   resolveEffectivePasswordHistory,
   resolveEffectivePasswordExpiration,
   resolveEffectiveSessionPolicy,
+  resolveEffectiveLockout,
+  resolveEffectiveRateLimit,
+  resolveEffectivePasswordPolicy,
+  resolveEffectiveNotifications,
+  resolveEffectiveTrustedDevices,
+  resolveEffectiveTokenTtl,
+  resolveEffectiveAdminImpersonation,
+  resolveEffectiveOrganizationsPolicy,
   ALL_SECURITY_NOTIFICATION_KINDS,
   type AuthMethodsSetting,
   type EmailChangeSetting,
@@ -19,6 +27,14 @@ import {
   type PasswordHistorySetting,
   type PasswordExpirationSetting,
   type SessionPolicySetting,
+  type LockoutSetting,
+  type RateLimitSetting,
+  type PasswordPolicySetting,
+  type NotificationsSetting,
+  type TrustedDevicesSetting,
+  type TokenTtlSetting,
+  type AdminImpersonationSetting,
+  type OrganizationsPolicySetting,
 } from '../../runtime_toggles.js'
 import { getAdminPrefix } from '../../admin_prefix.js'
 import {
@@ -26,7 +42,7 @@ import {
   supportsPasswordHistory,
   supportsPasswordExpiration,
 } from '../../../accounts/account_store.js'
-import { updateSessionTtlHolder } from '../../../provider/build_provider.js'
+import { updateSessionTtlHolder, updateTokenTtlHolder } from '../../../provider/build_provider.js'
 
 /** Best-effort: returns RuntimeSettings from container DB, or null if unavailable. */
 async function getRuntimeSettings(ctx: HttpContext): Promise<RuntimeSettings | null> {
@@ -197,6 +213,142 @@ export default class AdminSettingsController {
       ? await resolveEffectiveSessionPolicy(runtimeSettings, configSessionHours)
       : { rememberEnabled: true, rememberDays: 30, defaultSessionHours: configSessionHours ?? 168, singleSession: false, idleTimeoutMinutes: 0 }
 
+    // ---- lockout ----
+    let currentLockoutSetting: LockoutSetting | null = null
+    if (runtimeSettings && hasTable) {
+      const raw = await runtimeSettings.getSetting('lockout')
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        currentLockoutSetting = raw as LockoutSetting
+      }
+    }
+    const lockoutConfigDefaults = {
+      enabled: cfg.lockout?.enabled,
+      maxAttempts: cfg.lockout?.maxAttempts,
+      windowSec: cfg.lockout?.windowSec,
+      baseLockoutSec: cfg.lockout?.baseLockoutSec,
+      maxLockoutSec: cfg.lockout?.maxLockoutSec,
+    }
+    const lockoutEffective = runtimeSettings
+      ? await resolveEffectiveLockout(runtimeSettings, lockoutConfigDefaults)
+      : { enabled: lockoutConfigDefaults.enabled ?? true, maxAttempts: lockoutConfigDefaults.maxAttempts ?? 5, windowSec: lockoutConfigDefaults.windowSec ?? 900, baseLockoutSec: lockoutConfigDefaults.baseLockoutSec ?? 60, maxLockoutSec: lockoutConfigDefaults.maxLockoutSec ?? 3600 }
+
+    // ---- rate_limit ----
+    let currentRateLimitSetting: RateLimitSetting | null = null
+    if (runtimeSettings && hasTable) {
+      const raw = await runtimeSettings.getSetting('rate_limit')
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        currentRateLimitSetting = raw as RateLimitSetting
+      }
+    }
+    const rateLimitConfigDefaults = {
+      login: cfg.rateLimit?.login,
+      introspection: cfg.rateLimit?.introspection,
+    }
+    const rateLimitEffective = runtimeSettings
+      ? await resolveEffectiveRateLimit(runtimeSettings, rateLimitConfigDefaults)
+      : { login: { points: rateLimitConfigDefaults.login?.points ?? 10, duration: rateLimitConfigDefaults.login?.duration ?? '1 min' }, introspection: { points: rateLimitConfigDefaults.introspection?.points ?? 60, duration: rateLimitConfigDefaults.introspection?.duration ?? '1 min' } }
+
+    // ---- password_policy ----
+    let currentPasswordPolicySetting: PasswordPolicySetting | null = null
+    if (runtimeSettings && hasTable) {
+      const raw = await runtimeSettings.getSetting('password_policy')
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        currentPasswordPolicySetting = raw as PasswordPolicySetting
+      }
+    }
+    const store = cfg.accountStore
+    const pwConfig = store?.__passwordConfig as { policy?: Record<string, any>; checkPwned?: any } | undefined
+    const passwordPolicyConfigDefaults = {
+      minLength: pwConfig?.policy?.minLength,
+      requireUppercase: pwConfig?.policy?.requireUppercase,
+      requireLowercase: pwConfig?.policy?.requireLowercase,
+      requireNumbers: pwConfig?.policy?.requireNumbers,
+      requireSymbols: pwConfig?.policy?.requireSymbols,
+      checkPwned: pwConfig?.checkPwned ? true : false,
+    }
+    const passwordPolicyEffective = runtimeSettings
+      ? await resolveEffectivePasswordPolicy(runtimeSettings, passwordPolicyConfigDefaults)
+      : { minLength: passwordPolicyConfigDefaults.minLength ?? 8, requireUppercase: passwordPolicyConfigDefaults.requireUppercase ?? false, requireLowercase: passwordPolicyConfigDefaults.requireLowercase ?? false, requireNumbers: passwordPolicyConfigDefaults.requireNumbers ?? false, requireSymbols: passwordPolicyConfigDefaults.requireSymbols ?? false, checkPwned: passwordPolicyConfigDefaults.checkPwned ?? false }
+
+    // ---- notifications ----
+    let currentNotificationsSetting: NotificationsSetting | null = null
+    if (runtimeSettings && hasTable) {
+      const raw = await runtimeSettings.getSetting('notifications')
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        currentNotificationsSetting = raw as NotificationsSetting
+      }
+    }
+    const notificationsConfigDefaults = {
+      newLoginEmail: cfg.notifications?.newLoginEmail,
+      newDeviceEmail: cfg.notifications?.newDeviceEmail,
+    }
+    const notificationsEffective = runtimeSettings
+      ? await resolveEffectiveNotifications(runtimeSettings, notificationsConfigDefaults)
+      : { newLoginEmail: notificationsConfigDefaults.newLoginEmail ?? true, newDeviceEmail: notificationsConfigDefaults.newDeviceEmail ?? true }
+
+    // ---- trusted_devices ----
+    let currentTrustedDevicesSetting: TrustedDevicesSetting | null = null
+    if (runtimeSettings && hasTable) {
+      const raw = await runtimeSettings.getSetting('trusted_devices')
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        currentTrustedDevicesSetting = raw as TrustedDevicesSetting
+      }
+    }
+    const trustedDevicesConfigDefaults = {
+      enabled: cfg.trustedDevices?.enabled,
+      days: cfg.trustedDevices?.days,
+    }
+    const trustedDevicesEffective = runtimeSettings
+      ? await resolveEffectiveTrustedDevices(runtimeSettings, trustedDevicesConfigDefaults)
+      : { enabled: trustedDevicesConfigDefaults.enabled ?? true, days: trustedDevicesConfigDefaults.days ?? 30 }
+
+    // ---- token_ttl ----
+    let currentTokenTtlSetting: TokenTtlSetting | null = null
+    if (runtimeSettings && hasTable) {
+      const raw = await runtimeSettings.getSetting('token_ttl')
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        currentTokenTtlSetting = raw as TokenTtlSetting
+      }
+    }
+    const tokenTtlConfigDefaults = {
+      accessTokenSec: cfg.ttl?.accessToken,
+      idTokenSec: cfg.ttl?.idToken,
+      refreshTokenSec: cfg.ttl?.refreshToken,
+    }
+    const tokenTtlEffective = runtimeSettings
+      ? await resolveEffectiveTokenTtl(runtimeSettings, tokenTtlConfigDefaults)
+      : { accessTokenSec: tokenTtlConfigDefaults.accessTokenSec ?? 900, idTokenSec: tokenTtlConfigDefaults.idTokenSec ?? 900, refreshTokenSec: tokenTtlConfigDefaults.refreshTokenSec ?? 2592000 }
+
+    // ---- admin_impersonation ----
+    let currentAdminImpersonationSetting: AdminImpersonationSetting | null = null
+    if (runtimeSettings && hasTable) {
+      const raw = await runtimeSettings.getSetting('admin_impersonation')
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        currentAdminImpersonationSetting = raw as AdminImpersonationSetting
+      }
+    }
+    const adminImpersonationConfigDefault = cfg.admin?.impersonation ?? false
+    const adminImpersonationEffective = runtimeSettings
+      ? await resolveEffectiveAdminImpersonation(runtimeSettings, adminImpersonationConfigDefault)
+      : { enabled: adminImpersonationConfigDefault }
+
+    // ---- organizations_policy ----
+    let currentOrganizationsPolicySetting: OrganizationsPolicySetting | null = null
+    if (runtimeSettings && hasTable) {
+      const raw = await runtimeSettings.getSetting('organizations_policy')
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        currentOrganizationsPolicySetting = raw as OrganizationsPolicySetting
+      }
+    }
+    const orgsPolicyConfigDefaults = {
+      allowSelfCreate: cfg.organizations?.allowSelfCreate,
+      invitationTtlHours: cfg.organizations?.invitationTtlHours,
+      roles: cfg.organizations?.roles,
+    }
+    const organizationsPolicyEffective = runtimeSettings
+      ? await resolveEffectiveOrganizationsPolicy(runtimeSettings, orgsPolicyConfigDefaults)
+      : { allowSelfCreate: orgsPolicyConfigDefaults.allowSelfCreate ?? false, invitationTtlHours: orgsPolicyConfigDefaults.invitationTtlHours ?? 168, roles: orgsPolicyConfigDefaults.roles ?? ['owner', 'admin', 'member'] }
+
     return render(ctx, 'admin/settings', {
       csrfToken: ctx.request.csrfToken,
       adminBase: getAdminPrefix(),
@@ -244,6 +396,30 @@ export default class AdminSettingsController {
       currentSessionPolicySetting,
       sessionPolicyEffective,
       configSessionHours,
+      // lockout
+      currentLockoutSetting,
+      lockoutEffective,
+      // rate_limit
+      currentRateLimitSetting,
+      rateLimitEffective,
+      // password_policy
+      currentPasswordPolicySetting,
+      passwordPolicyEffective,
+      // notifications
+      currentNotificationsSetting,
+      notificationsEffective,
+      // trusted_devices
+      currentTrustedDevicesSetting,
+      trustedDevicesEffective,
+      // token_ttl
+      currentTokenTtlSetting,
+      tokenTtlEffective,
+      // admin_impersonation
+      currentAdminImpersonationSetting,
+      adminImpersonationEffective,
+      // organizations_policy
+      currentOrganizationsPolicySetting,
+      organizationsPolicyEffective,
     })
   }
 
@@ -851,6 +1027,371 @@ export default class AdminSettingsController {
       })
     }
 
+    ctx.session?.flash('flash', t('admin.settings.reset_done'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  // -------------------------------------------------------------------------
+  // Lockout
+  // -------------------------------------------------------------------------
+
+  async updateLockout(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (!runtimeSettings || !(await runtimeSettings.isTablePresent())) {
+      ctx.session?.flash('flash', t('admin.settings.no_settings_table'))
+      return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+    }
+
+    const enabled = ctx.request.input('enabled') === '1' || ctx.request.input('enabled') === 'true'
+    const rawMaxAttempts = ctx.request.input('max_attempts')
+    const maxAttempts = typeof rawMaxAttempts === 'string' && rawMaxAttempts.trim() !== '' ? Math.max(1, parseInt(rawMaxAttempts, 10) || 5) : 5
+    const rawWindowSec = ctx.request.input('window_sec')
+    const windowSec = typeof rawWindowSec === 'string' && rawWindowSec.trim() !== '' ? Math.max(1, parseInt(rawWindowSec, 10) || 900) : 900
+    const rawBaseLockout = ctx.request.input('base_lockout_sec')
+    const baseLockoutSec = typeof rawBaseLockout === 'string' && rawBaseLockout.trim() !== '' ? Math.max(1, parseInt(rawBaseLockout, 10) || 60) : 60
+    const rawMaxLockout = ctx.request.input('max_lockout_sec')
+    const maxLockoutSec = typeof rawMaxLockout === 'string' && rawMaxLockout.trim() !== '' ? Math.max(1, parseInt(rawMaxLockout, 10) || 3600) : 3600
+
+    const setting = { enabled, maxAttempts, windowSec, baseLockoutSec, maxLockoutSec }
+    await runtimeSettings.setSetting('lockout', setting, accountId)
+    await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'lockout', value: setting } })
+
+    ctx.session?.flash('flash', t('admin.settings.saved'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  async resetLockout(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (runtimeSettings) {
+      await runtimeSettings.deleteSetting('lockout')
+      await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'lockout', action: 'reset_to_config' } })
+    }
+    ctx.session?.flash('flash', t('admin.settings.reset_done'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  // -------------------------------------------------------------------------
+  // Rate limit
+  // -------------------------------------------------------------------------
+
+  async updateRateLimit(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (!runtimeSettings || !(await runtimeSettings.isTablePresent())) {
+      ctx.session?.flash('flash', t('admin.settings.no_settings_table'))
+      return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+    }
+
+    const rawLoginPoints = ctx.request.input('login_points')
+    const loginPoints = typeof rawLoginPoints === 'string' && rawLoginPoints.trim() !== '' ? Math.max(1, parseInt(rawLoginPoints, 10) || 10) : 10
+    const loginDuration = ctx.request.input('login_duration') || '1 min'
+    const rawIntrPoints = ctx.request.input('introspection_points')
+    const introspectionPoints = typeof rawIntrPoints === 'string' && rawIntrPoints.trim() !== '' ? Math.max(1, parseInt(rawIntrPoints, 10) || 60) : 60
+    const introspectionDuration = ctx.request.input('introspection_duration') || '1 min'
+
+    const setting = { login: { points: loginPoints, duration: loginDuration }, introspection: { points: introspectionPoints, duration: introspectionDuration } }
+    await runtimeSettings.setSetting('rate_limit', setting, accountId)
+    await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'rate_limit', value: setting } })
+
+    ctx.session?.flash('flash', t('admin.settings.saved'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  async resetRateLimit(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (runtimeSettings) {
+      await runtimeSettings.deleteSetting('rate_limit')
+      await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'rate_limit', action: 'reset_to_config' } })
+    }
+    ctx.session?.flash('flash', t('admin.settings.reset_done'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  // -------------------------------------------------------------------------
+  // Password policy
+  // -------------------------------------------------------------------------
+
+  async updatePasswordPolicy(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (!runtimeSettings || !(await runtimeSettings.isTablePresent())) {
+      ctx.session?.flash('flash', t('admin.settings.no_settings_table'))
+      return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+    }
+
+    const rawMinLength = ctx.request.input('min_length')
+    const minLength = typeof rawMinLength === 'string' && rawMinLength.trim() !== '' ? Math.max(1, parseInt(rawMinLength, 10) || 8) : 8
+    const requireUppercase = ctx.request.input('require_uppercase') === '1' || ctx.request.input('require_uppercase') === 'true'
+    const requireLowercase = ctx.request.input('require_lowercase') === '1' || ctx.request.input('require_lowercase') === 'true'
+    const requireNumbers = ctx.request.input('require_numbers') === '1' || ctx.request.input('require_numbers') === 'true'
+    const requireSymbols = ctx.request.input('require_symbols') === '1' || ctx.request.input('require_symbols') === 'true'
+    const checkPwned = ctx.request.input('check_pwned') === '1' || ctx.request.input('check_pwned') === 'true'
+
+    const setting: PasswordPolicySetting = { minLength, requireUppercase, requireLowercase, requireNumbers, requireSymbols, checkPwned }
+    await runtimeSettings.setSetting('password_policy', setting, accountId)
+    await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'password_policy', value: setting } })
+
+    ctx.session?.flash('flash', t('admin.settings.saved'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  async resetPasswordPolicy(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (runtimeSettings) {
+      await runtimeSettings.deleteSetting('password_policy')
+      await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'password_policy', action: 'reset_to_config' } })
+    }
+    ctx.session?.flash('flash', t('admin.settings.reset_done'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  // -------------------------------------------------------------------------
+  // Notifications (new login / new device emails)
+  // -------------------------------------------------------------------------
+
+  async updateNotifications(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (!runtimeSettings || !(await runtimeSettings.isTablePresent())) {
+      ctx.session?.flash('flash', t('admin.settings.no_settings_table'))
+      return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+    }
+
+    const newLoginEmail = ctx.request.input('new_login_email') === '1' || ctx.request.input('new_login_email') === 'true'
+    const newDeviceEmail = ctx.request.input('new_device_email') === '1' || ctx.request.input('new_device_email') === 'true'
+
+    const setting: NotificationsSetting = { newLoginEmail, newDeviceEmail }
+    await runtimeSettings.setSetting('notifications', setting, accountId)
+    await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'notifications', value: setting } })
+
+    ctx.session?.flash('flash', t('admin.settings.saved'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  async resetNotifications(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (runtimeSettings) {
+      await runtimeSettings.deleteSetting('notifications')
+      await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'notifications', action: 'reset_to_config' } })
+    }
+    ctx.session?.flash('flash', t('admin.settings.reset_done'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  // -------------------------------------------------------------------------
+  // Trusted devices
+  // -------------------------------------------------------------------------
+
+  async updateTrustedDevices(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (!runtimeSettings || !(await runtimeSettings.isTablePresent())) {
+      ctx.session?.flash('flash', t('admin.settings.no_settings_table'))
+      return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+    }
+
+    const enabled = ctx.request.input('enabled') === '1' || ctx.request.input('enabled') === 'true'
+    const rawDays = ctx.request.input('days')
+    const days = typeof rawDays === 'string' && rawDays.trim() !== '' ? Math.max(1, parseInt(rawDays, 10) || 30) : 30
+
+    const setting: TrustedDevicesSetting = { enabled, days }
+    await runtimeSettings.setSetting('trusted_devices', setting, accountId)
+    await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'trusted_devices', value: setting } })
+
+    ctx.session?.flash('flash', t('admin.settings.saved'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  async resetTrustedDevices(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (runtimeSettings) {
+      await runtimeSettings.deleteSetting('trusted_devices')
+      await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'trusted_devices', action: 'reset_to_config' } })
+    }
+    ctx.session?.flash('flash', t('admin.settings.reset_done'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  // -------------------------------------------------------------------------
+  // Token TTL
+  // -------------------------------------------------------------------------
+
+  async updateTokenTtl(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (!runtimeSettings || !(await runtimeSettings.isTablePresent())) {
+      ctx.session?.flash('flash', t('admin.settings.no_settings_table'))
+      return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+    }
+
+    const rawAccessToken = ctx.request.input('access_token_sec')
+    const accessTokenSec = typeof rawAccessToken === 'string' && rawAccessToken.trim() !== '' ? Math.max(1, parseInt(rawAccessToken, 10) || 900) : 900
+    const rawIdToken = ctx.request.input('id_token_sec')
+    const idTokenSec = typeof rawIdToken === 'string' && rawIdToken.trim() !== '' ? Math.max(1, parseInt(rawIdToken, 10) || 900) : 900
+    const rawRefreshToken = ctx.request.input('refresh_token_sec')
+    const refreshTokenSec = typeof rawRefreshToken === 'string' && rawRefreshToken.trim() !== '' ? Math.max(1, parseInt(rawRefreshToken, 10) || 2592000) : 2592000
+
+    const setting: TokenTtlSetting = { accessTokenSec, idTokenSec, refreshTokenSec }
+    await runtimeSettings.setSetting('token_ttl', setting, accountId)
+
+    // Atualiza o holder de TTL dos tokens em runtime (sem redeploy).
+    updateTokenTtlHolder(service.tokenTtlHolder, { accessTokenSec, idTokenSec, refreshTokenSec })
+
+    await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'token_ttl', value: setting } })
+
+    ctx.session?.flash('flash', t('admin.settings.saved'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  async resetTokenTtl(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (runtimeSettings) {
+      await runtimeSettings.deleteSetting('token_ttl')
+
+      // Reseta o holder para os valores do config estático.
+      updateTokenTtlHolder(service.tokenTtlHolder, {
+        accessTokenSec: cfg.ttl?.accessToken ?? 900,
+        idTokenSec: cfg.ttl?.idToken ?? 900,
+        refreshTokenSec: cfg.ttl?.refreshToken ?? 2592000,
+      })
+
+      await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'token_ttl', action: 'reset_to_config' } })
+    }
+    ctx.session?.flash('flash', t('admin.settings.reset_done'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  // -------------------------------------------------------------------------
+  // Admin impersonation
+  // -------------------------------------------------------------------------
+
+  async updateAdminImpersonation(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (!runtimeSettings || !(await runtimeSettings.isTablePresent())) {
+      ctx.session?.flash('flash', t('admin.settings.no_settings_table'))
+      return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+    }
+
+    const enabled = ctx.request.input('enabled') === '1' || ctx.request.input('enabled') === 'true'
+    const setting: AdminImpersonationSetting = { enabled }
+    await runtimeSettings.setSetting('admin_impersonation', setting, accountId)
+    await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'admin_impersonation', value: setting } })
+
+    ctx.session?.flash('flash', t('admin.settings.saved'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  async resetAdminImpersonation(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (runtimeSettings) {
+      await runtimeSettings.deleteSetting('admin_impersonation')
+      await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'admin_impersonation', action: 'reset_to_config' } })
+    }
+    ctx.session?.flash('flash', t('admin.settings.reset_done'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  // -------------------------------------------------------------------------
+  // Organizations policy
+  // -------------------------------------------------------------------------
+
+  async updateOrganizationsPolicy(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (!runtimeSettings || !(await runtimeSettings.isTablePresent())) {
+      ctx.session?.flash('flash', t('admin.settings.no_settings_table'))
+      return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+    }
+
+    const allowSelfCreate = ctx.request.input('allow_self_create') === '1' || ctx.request.input('allow_self_create') === 'true'
+    const rawTtl = ctx.request.input('invitation_ttl_hours')
+    const invitationTtlHours = typeof rawTtl === 'string' && rawTtl.trim() !== '' ? Math.max(1, parseInt(rawTtl, 10) || 168) : 168
+    const rawRoles = ctx.request.input('roles')
+    const roles: string[] = typeof rawRoles === 'string' && rawRoles.trim()
+      ? rawRoles.split(',').map((r) => r.trim()).filter(Boolean)
+      : ['owner', 'admin', 'member']
+
+    const setting: OrganizationsPolicySetting = { allowSelfCreate, invitationTtlHours, roles }
+    await runtimeSettings.setSetting('organizations_policy', setting, accountId)
+    await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'organizations_policy', value: setting } })
+
+    ctx.session?.flash('flash', t('admin.settings.saved'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  async resetOrganizationsPolicy(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (runtimeSettings) {
+      await runtimeSettings.deleteSetting('organizations_policy')
+      await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'organizations_policy', action: 'reset_to_config' } })
+    }
     ctx.session?.flash('flash', t('admin.settings.reset_done'))
     return ctx.response.redirect(`${getAdminPrefix()}/settings`)
   }

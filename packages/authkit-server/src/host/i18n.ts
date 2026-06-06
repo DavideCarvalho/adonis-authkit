@@ -738,6 +738,85 @@ export const DEFAULT_MESSAGES = {
   'admin.settings.session_policy_idle_timeout_hint': 'Ends the account-console session after this many minutes of inactivity. Does not affect OIDC sessions or tokens.',
   'admin.settings.session_policy_idle_warn': 'Idle timeout warning: idleTimeoutMinutes exceeds defaultSessionHours. The idle timeout will never trigger.',
   'admin.settings.session_policy_remember_days_warn': 'Remember-me days exceeds 365. This is unusually long.',
+
+  // Admin settings — section headers.
+  'admin.settings.section_authentication': 'Authentication',
+  'admin.settings.section_security': 'Security',
+  'admin.settings.section_sessions': 'Sessions',
+  'admin.settings.section_communications': 'Communications',
+  'admin.settings.section_advanced': 'Advanced',
+
+  // Admin settings — lockout card.
+  'admin.settings.lockout_section': 'Account lockout',
+  'admin.settings.lockout_intro': 'Progressive account lockout (anti-brute-force keyed per email). Requires @adonisjs/limiter. Policy fields are now managed here; the `store` remains in the static config.',
+  'admin.settings.lockout_from_config': 'Source: static config / defaults',
+  'admin.settings.lockout_from_setting': 'Source: runtime setting',
+  'admin.settings.lockout_max_attempts_label': 'Max attempts before lockout',
+  'admin.settings.lockout_window_sec_label': 'Sliding window (seconds)',
+  'admin.settings.lockout_base_lockout_sec_label': 'Base lockout duration (seconds)',
+  'admin.settings.lockout_max_lockout_sec_label': 'Max lockout duration (seconds)',
+
+  // Admin settings — rate_limit card.
+  'admin.settings.rate_limit_section': 'Rate limit',
+  'admin.settings.rate_limit_intro': 'Rate-limit buckets for login/signup/forgot/reset (per IP) and PAT introspection. NOTE: the route throttle middleware uses boot-time values; this setting only affects lockout-side logic at runtime. Reconfigure and restart for full effect on the route middleware.',
+  'admin.settings.rate_limit_from_config': 'Source: static config / defaults',
+  'admin.settings.rate_limit_from_setting': 'Source: runtime setting',
+  'admin.settings.rate_limit_login_points_label': 'Login bucket: requests allowed',
+  'admin.settings.rate_limit_login_duration_label': 'Login bucket: window duration (e.g. "1 min")',
+  'admin.settings.rate_limit_introspection_points_label': 'Introspection bucket: requests allowed',
+  'admin.settings.rate_limit_introspection_duration_label': 'Introspection bucket: window duration',
+  'admin.settings.rate_limit_limitation_note': 'LIMITATION: route-level throttle middleware uses boot-time config. This setting affects lockout logic only at runtime.',
+
+  // Admin settings — password_policy card.
+  'admin.settings.password_policy_section': 'Password policy',
+  'admin.settings.password_policy_intro': 'Complexity requirements for new passwords. checkPwned checks passwords against HaveIBeenPwned (k-anonymity, fail-safe). Fields were previously in the store config; managing them here avoids redeploy.',
+  'admin.settings.password_policy_from_config': 'Source: static config / defaults',
+  'admin.settings.password_policy_from_setting': 'Source: runtime setting',
+  'admin.settings.password_policy_min_length_label': 'Minimum length',
+  'admin.settings.password_policy_require_uppercase_label': 'Require uppercase letter',
+  'admin.settings.password_policy_require_lowercase_label': 'Require lowercase letter',
+  'admin.settings.password_policy_require_numbers_label': 'Require number',
+  'admin.settings.password_policy_require_symbols_label': 'Require symbol',
+  'admin.settings.password_policy_check_pwned_label': 'Check against HaveIBeenPwned (k-anonymity, fail-safe)',
+
+  // Admin settings — notifications card.
+  'admin.settings.notifications_section': 'Login notifications',
+  'admin.settings.notifications_intro': 'Email alerts for new logins (new IP) and new device logins (no trusted-device cookie). Best-effort, fire-and-forget.',
+  'admin.settings.notifications_from_config': 'Source: static config / defaults',
+  'admin.settings.notifications_from_setting': 'Source: runtime setting',
+  'admin.settings.notifications_new_login_label': 'Send new login alert (new IP)',
+  'admin.settings.notifications_new_device_label': 'Send new device login alert',
+
+  // Admin settings — trusted_devices card.
+  'admin.settings.trusted_devices_section': 'Trusted devices (skip MFA)',
+  'admin.settings.trusted_devices_intro': 'When enabled, an encrypted cookie marks a device as trusted for N days after MFA verification. Step-up (acr_values) always bypasses this. Cookie name and secrets remain in the static config.',
+  'admin.settings.trusted_devices_from_config': 'Source: static config / defaults',
+  'admin.settings.trusted_devices_from_setting': 'Source: runtime setting',
+  'admin.settings.trusted_devices_days_label': 'Trust duration (days)',
+
+  // Admin settings — token_ttl card.
+  'admin.settings.token_ttl_section': 'Token TTL',
+  'admin.settings.token_ttl_intro': 'Lifetime of OIDC tokens. Changes take effect immediately via a mutable holder (no redeploy needed). Session TTL is managed via Session policy. Seconds.',
+  'admin.settings.token_ttl_from_config': 'Source: static config / defaults',
+  'admin.settings.token_ttl_from_setting': 'Source: runtime setting',
+  'admin.settings.token_ttl_access_token_label': 'Access token TTL (seconds)',
+  'admin.settings.token_ttl_id_token_label': 'ID token TTL (seconds)',
+  'admin.settings.token_ttl_refresh_token_label': 'Refresh token TTL (seconds)',
+
+  // Admin settings — admin_impersonation card.
+  'admin.settings.admin_impersonation_section': 'Admin impersonation',
+  'admin.settings.admin_impersonation_intro': 'Shows the impersonation panel (RFC 8693 token exchange) on the user page in the admin console. NOT a bypass of auth — the exchange requires an admin access token. Toggle without redeploy.',
+  'admin.settings.admin_impersonation_from_config': 'Source: static config / defaults',
+  'admin.settings.admin_impersonation_from_setting': 'Source: runtime setting',
+
+  // Admin settings — organizations_policy card.
+  'admin.settings.organizations_policy_section': 'Organizations policy',
+  'admin.settings.organizations_policy_intro': 'Runtime policy for multi-tenancy organizations. The `owner` role is always present (governance invariant). Whether organizations are enabled is determined by capability-probing (table presence) and the static config.',
+  'admin.settings.organizations_policy_from_config': 'Source: static config / defaults',
+  'admin.settings.organizations_policy_from_setting': 'Source: runtime setting',
+  'admin.settings.organizations_policy_allow_self_create_label': 'Allow users to self-create organizations',
+  'admin.settings.organizations_policy_invitation_ttl_label': 'Invitation TTL (hours)',
+  'admin.settings.organizations_policy_roles_label': 'Available roles (comma-separated, owner always included)',
 } satisfies AuthMessages
 
 /**
@@ -1446,6 +1525,85 @@ export const PT_BR_MESSAGES = {
   'admin.settings.session_policy_idle_timeout_hint': 'Encerra a sessão do console de conta após este número de minutos de inatividade. Não afeta sessões OIDC ou tokens.',
   'admin.settings.session_policy_idle_warn': 'Aviso de timeout de inatividade: idleTimeoutMinutes excede defaultSessionHours. O timeout de inatividade nunca irá disparar.',
   'admin.settings.session_policy_remember_days_warn': 'Os dias de "manter conectado" excedem 365. Isso é incomumente longo.',
+
+  // Admin settings — seções.
+  'admin.settings.section_authentication': 'Autenticação',
+  'admin.settings.section_security': 'Segurança',
+  'admin.settings.section_sessions': 'Sessões',
+  'admin.settings.section_communications': 'Comunicações',
+  'admin.settings.section_advanced': 'Avançado',
+
+  // Admin settings — lockout.
+  'admin.settings.lockout_section': 'Bloqueio de conta',
+  'admin.settings.lockout_intro': 'Bloqueio progressivo de conta por e-mail (anti-força-bruta). Requer @adonisjs/limiter. Campos de política gerenciados aqui; `store` permanece no config estático.',
+  'admin.settings.lockout_from_config': 'Fonte: config estático / defaults',
+  'admin.settings.lockout_from_setting': 'Fonte: runtime setting',
+  'admin.settings.lockout_max_attempts_label': 'Tentativas antes do bloqueio',
+  'admin.settings.lockout_window_sec_label': 'Janela deslizante (segundos)',
+  'admin.settings.lockout_base_lockout_sec_label': 'Duração do primeiro bloqueio (segundos)',
+  'admin.settings.lockout_max_lockout_sec_label': 'Duração máxima do bloqueio (segundos)',
+
+  // Admin settings — rate_limit.
+  'admin.settings.rate_limit_section': 'Rate limit',
+  'admin.settings.rate_limit_intro': 'Buckets de rate-limit para login/signup/forgot/reset (por IP) e introspecção de PAT. NOTA: o middleware de throttle de rota usa os valores do boot; esta setting afeta apenas o lockout-side em runtime.',
+  'admin.settings.rate_limit_from_config': 'Fonte: config estático / defaults',
+  'admin.settings.rate_limit_from_setting': 'Fonte: runtime setting',
+  'admin.settings.rate_limit_login_points_label': 'Bucket de login: requests permitidos',
+  'admin.settings.rate_limit_login_duration_label': 'Bucket de login: duração da janela (ex.: "1 min")',
+  'admin.settings.rate_limit_introspection_points_label': 'Bucket de introspecção: requests permitidos',
+  'admin.settings.rate_limit_introspection_duration_label': 'Bucket de introspecção: duração da janela',
+  'admin.settings.rate_limit_limitation_note': 'LIMITAÇÃO: o middleware de throttle de rota usa o config do boot. Esta setting afeta apenas o lockout-side em runtime.',
+
+  // Admin settings — password_policy.
+  'admin.settings.password_policy_section': 'Política de senha',
+  'admin.settings.password_policy_intro': 'Requisitos de complexidade para senhas novas. checkPwned verifica contra HaveIBeenPwned (k-anonymity, fail-safe). Campos antes no config do store; gerenciar aqui evita redeploy.',
+  'admin.settings.password_policy_from_config': 'Fonte: config estático / defaults',
+  'admin.settings.password_policy_from_setting': 'Fonte: runtime setting',
+  'admin.settings.password_policy_min_length_label': 'Comprimento mínimo',
+  'admin.settings.password_policy_require_uppercase_label': 'Exigir letra maiúscula',
+  'admin.settings.password_policy_require_lowercase_label': 'Exigir letra minúscula',
+  'admin.settings.password_policy_require_numbers_label': 'Exigir número',
+  'admin.settings.password_policy_require_symbols_label': 'Exigir símbolo',
+  'admin.settings.password_policy_check_pwned_label': 'Verificar contra HaveIBeenPwned (k-anonymity, fail-safe)',
+
+  // Admin settings — notifications.
+  'admin.settings.notifications_section': 'Notificações de login',
+  'admin.settings.notifications_intro': 'Alertas de e-mail para novos logins (novo IP) e logins de novo dispositivo. Best-effort, fire-and-forget.',
+  'admin.settings.notifications_from_config': 'Fonte: config estático / defaults',
+  'admin.settings.notifications_from_setting': 'Fonte: runtime setting',
+  'admin.settings.notifications_new_login_label': 'Enviar alerta de novo login (novo IP)',
+  'admin.settings.notifications_new_device_label': 'Enviar alerta de login de novo dispositivo',
+
+  // Admin settings — trusted_devices.
+  'admin.settings.trusted_devices_section': 'Dispositivos confiáveis (pular MFA)',
+  'admin.settings.trusted_devices_intro': 'Quando habilitado, um cookie encriptado marca o dispositivo como confiável por N dias após verificação MFA. Step-up (acr_values) sempre ignora. Nome do cookie e segredos permanecem no config estático.',
+  'admin.settings.trusted_devices_from_config': 'Fonte: config estático / defaults',
+  'admin.settings.trusted_devices_from_setting': 'Fonte: runtime setting',
+  'admin.settings.trusted_devices_days_label': 'Duração da confiança (dias)',
+
+  // Admin settings — token_ttl.
+  'admin.settings.token_ttl_section': 'TTL de tokens',
+  'admin.settings.token_ttl_intro': 'Tempo de vida dos tokens OIDC. Mudanças entram em vigor imediatamente via holder mutável (sem redeploy). O TTL de sessão é gerenciado em Política de sessão. Em segundos.',
+  'admin.settings.token_ttl_from_config': 'Fonte: config estático / defaults',
+  'admin.settings.token_ttl_from_setting': 'Fonte: runtime setting',
+  'admin.settings.token_ttl_access_token_label': 'TTL do access token (segundos)',
+  'admin.settings.token_ttl_id_token_label': 'TTL do ID token (segundos)',
+  'admin.settings.token_ttl_refresh_token_label': 'TTL do refresh token (segundos)',
+
+  // Admin settings — admin_impersonation.
+  'admin.settings.admin_impersonation_section': 'Impersonation admin',
+  'admin.settings.admin_impersonation_intro': 'Exibe o painel de impersonation (RFC 8693 token exchange) na página do usuário no console admin. NÃO é bypass de auth — o exchange exige um access token admin. Altere sem redeploy.',
+  'admin.settings.admin_impersonation_from_config': 'Fonte: config estático / defaults',
+  'admin.settings.admin_impersonation_from_setting': 'Fonte: runtime setting',
+
+  // Admin settings — organizations_policy.
+  'admin.settings.organizations_policy_section': 'Política de organizações',
+  'admin.settings.organizations_policy_intro': 'Política de runtime para organizações (multi-tenancy). A role `owner` é sempre incluída (invariante de governança). Habilitação é determinada por capability-probing e config estático.',
+  'admin.settings.organizations_policy_from_config': 'Fonte: config estático / defaults',
+  'admin.settings.organizations_policy_from_setting': 'Fonte: runtime setting',
+  'admin.settings.organizations_policy_allow_self_create_label': 'Permitir que usuários criem suas próprias organizações',
+  'admin.settings.organizations_policy_invitation_ttl_label': 'TTL dos convites (horas)',
+  'admin.settings.organizations_policy_roles_label': 'Roles disponíveis (separadas por vírgula; owner sempre incluída)',
 } satisfies AuthMessages
 
 /**

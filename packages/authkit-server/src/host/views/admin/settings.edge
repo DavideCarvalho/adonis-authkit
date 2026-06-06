@@ -22,6 +22,21 @@
       <a href="{{ adminBase }}/settings" class="text-gray-900 underline">{{ t('admin.nav.settings') }}</a>
     </nav>
 
+    {{-- Section anchor nav --}}
+    @if(hasTable)
+      <nav class="mb-6 flex flex-wrap gap-3 text-xs font-medium text-gray-500">
+        <a href="#section-authentication" class="hover:underline">{{ t('admin.settings.section_authentication') }}</a>
+        <span>·</span>
+        <a href="#section-security" class="hover:underline">{{ t('admin.settings.section_security') }}</a>
+        <span>·</span>
+        <a href="#section-sessions" class="hover:underline">{{ t('admin.settings.section_sessions') }}</a>
+        <span>·</span>
+        <a href="#section-communications" class="hover:underline">{{ t('admin.settings.section_communications') }}</a>
+        <span>·</span>
+        <a href="#section-advanced" class="hover:underline">{{ t('admin.settings.section_advanced') }}</a>
+      </nav>
+    @end
+
     @if(flash)
       <div class="mb-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-emerald-200">{{ flash }}</div>
     @end
@@ -32,6 +47,13 @@
       </div>
     @else
 
+      {{-- ================================================================== --}}
+      {{-- SECTION: Authentication --}}
+      {{-- ================================================================== --}}
+      <div id="section-authentication" class="mb-2 mt-8">
+        <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-400">{{ t('admin.settings.section_authentication') }}</h2>
+        <hr class="mt-1 border-gray-200">
+      </div>
       <div class="space-y-6">
 
         {{-- Bot protection card --}}
@@ -121,102 +143,6 @@
               </button>
               @if(currentRegistrationSetting !== null)
                 <form method="POST" action="{{ adminBase }}/settings/registration/reset" class="inline">
-                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
-                  <button type="submit" class="text-sm text-gray-500 hover:underline">
-                    {{ t('admin.settings.reset_to_config') }}
-                  </button>
-                </form>
-              @end
-            </div>
-          </form>
-        </div>
-
-        {{-- Require verified email card --}}
-        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
-          <div class="mb-1 flex items-center gap-2">
-            <h2 class="text-sm font-semibold text-gray-900">{{ t('admin.settings.require_verified_email_section') }}</h2>
-            @if(currentRequireVerifiedSetting !== null)
-              <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
-                {{ t('admin.settings.require_verified_email_from_setting') }}
-              </span>
-            @else
-              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-                {{ t('admin.settings.require_verified_email_from_config') }}
-              </span>
-            @end
-          </div>
-          <p class="mb-1 text-xs text-gray-500">{{ t('admin.settings.require_verified_email_intro') }}</p>
-          <p class="mb-4 text-xs text-amber-600">{{ t('admin.settings.require_verified_email_config_note') }}</p>
-
-          <form method="POST" action="{{ adminBase }}/settings/require-verified-email">
-            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
-            <label class="flex items-center gap-2 mb-4">
-              <input type="checkbox" name="enabled" value="1" {{ requireVerifiedEffective ? 'checked' : '' }}
-                class="h-4 w-4 rounded border-gray-300">
-              <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.enabled_label') }}</span>
-            </label>
-            <div class="flex items-center gap-3">
-              <button type="submit"
-                class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
-                {{ t('admin.settings.save') }}
-              </button>
-              @if(currentRequireVerifiedSetting !== null)
-                <form method="POST" action="{{ adminBase }}/settings/require-verified-email/reset" class="inline">
-                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
-                  <button type="submit" class="text-sm text-gray-500 hover:underline">
-                    {{ t('admin.settings.reset_to_config') }}
-                  </button>
-                </form>
-              @end
-            </div>
-          </form>
-        </div>
-
-        {{-- Maintenance mode card --}}
-        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
-          <div class="mb-1 flex items-center gap-2">
-            <h2 class="text-sm font-semibold text-gray-900">{{ t('admin.settings.maintenance_section') }}</h2>
-            @if(currentMaintenanceSetting !== null)
-              <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
-                {{ t('admin.settings.maintenance_from_setting') }}
-              </span>
-            @end
-            @if(maintenanceEffective && maintenanceEffective.enabled)
-              <span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">ON</span>
-            @end
-          </div>
-          <p class="mb-3 text-xs text-gray-500">{{ t('admin.settings.maintenance_intro') }}</p>
-
-          {{-- Lockout warning — always visible for this card. --}}
-          <div class="mb-4 rounded-lg bg-red-50 px-4 py-3 text-xs text-red-800 ring-1 ring-red-200">
-            {{ t('admin.settings.maintenance_warning') }}
-          </div>
-
-          <form method="POST" action="{{ adminBase }}/settings/maintenance">
-            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
-            <label class="flex items-center gap-2 mb-4">
-              <input type="checkbox" name="enabled" value="1"
-                {{ maintenanceEffective && maintenanceEffective.enabled ? 'checked' : '' }}
-                class="h-4 w-4 rounded border-gray-300">
-              <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.enabled_label') }}</span>
-            </label>
-
-            <div class="mb-4">
-              <label class="mb-1 block text-xs font-medium text-gray-500">
-                {{ t('admin.settings.maintenance_message_label') }}
-              </label>
-              <textarea name="message" rows="2"
-                placeholder="{{ t('admin.settings.maintenance_message_placeholder') }}"
-                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900">{{ currentMaintenanceSetting && currentMaintenanceSetting.message ? currentMaintenanceSetting.message : '' }}</textarea>
-            </div>
-
-            <div class="flex items-center gap-3">
-              <button type="submit"
-                class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
-                {{ t('admin.settings.save') }}
-              </button>
-              @if(currentMaintenanceSetting !== null)
-                <form method="POST" action="{{ adminBase }}/settings/maintenance/reset" class="inline">
                   <input type="hidden" name="_csrf" value="{{ csrfToken }}">
                   <button type="submit" class="text-sm text-gray-500 hover:underline">
                     {{ t('admin.settings.reset_to_config') }}
@@ -334,49 +260,37 @@
           </form>
         </div>
 
-        {{-- Email change card --}}
+        {{-- Require verified email card --}}
         <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
-          <h2 class="mb-1 text-sm font-semibold text-gray-900">{{ t('admin.settings.email_change_section') }}</h2>
-          <p class="mb-1 text-xs text-gray-400">
-            @if(currentEmailChangeSetting !== null)
-              {{ t('admin.settings.email_change_from_setting') }}
+          <div class="mb-1 flex items-center gap-2">
+            <h2 class="text-sm font-semibold text-gray-900">{{ t('admin.settings.require_verified_email_section') }}</h2>
+            @if(currentRequireVerifiedSetting !== null)
+              <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                {{ t('admin.settings.require_verified_email_from_setting') }}
+              </span>
             @else
-              {{ t('admin.settings.email_change_from_config') }}
+              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                {{ t('admin.settings.require_verified_email_from_config') }}
+              </span>
             @end
-          </p>
-          <p class="mb-4 text-xs text-gray-500">{{ t('admin.settings.email_change_intro') }}</p>
+          </div>
+          <p class="mb-1 text-xs text-gray-500">{{ t('admin.settings.require_verified_email_intro') }}</p>
+          <p class="mb-4 text-xs text-amber-600">{{ t('admin.settings.require_verified_email_config_note') }}</p>
 
-          <form method="POST" action="{{ adminBase }}/settings/email-change">
+          <form method="POST" action="{{ adminBase }}/settings/require-verified-email">
             <input type="hidden" name="_csrf" value="{{ csrfToken }}">
-
-            <label class="flex items-center gap-2 mb-3">
-              <input type="checkbox" name="enabled" value="1"
-                {{ emailChangeEffective && emailChangeEffective.enabled !== false ? 'checked' : '' }}
+            <label class="flex items-center gap-2 mb-4">
+              <input type="checkbox" name="enabled" value="1" {{ requireVerifiedEffective ? 'checked' : '' }}
                 class="h-4 w-4 rounded border-gray-300">
               <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.enabled_label') }}</span>
             </label>
-
-            <div class="mb-3">
-              <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.email_change_ttl_label') }}</label>
-              <input type="number" name="ttl_hours" min="1" max="168"
-                value="{{ emailChangeEffective ? emailChangeEffective.ttlHours : 24 }}"
-                class="w-24 rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
-            </div>
-
-            <label class="flex items-center gap-2 mb-4">
-              <input type="checkbox" name="require_password" value="1"
-                {{ emailChangeEffective && emailChangeEffective.requirePassword !== false ? 'checked' : '' }}
-                class="h-4 w-4 rounded border-gray-300">
-              <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.email_change_require_password_label') }}</span>
-            </label>
-
             <div class="flex items-center gap-3">
               <button type="submit"
                 class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
                 {{ t('admin.settings.save') }}
               </button>
-              @if(currentEmailChangeSetting !== null)
-                <form method="POST" action="{{ adminBase }}/settings/email-change/reset" class="inline">
+              @if(currentRequireVerifiedSetting !== null)
+                <form method="POST" action="{{ adminBase }}/settings/require-verified-email/reset" class="inline">
                   <input type="hidden" name="_csrf" value="{{ csrfToken }}">
                   <button type="submit" class="text-sm text-gray-500 hover:underline">
                     {{ t('admin.settings.reset_to_config') }}
@@ -387,51 +301,151 @@
           </form>
         </div>
 
-        {{-- Security notifications card --}}
+      </div>{{-- /section authentication --}}
+
+      {{-- ================================================================== --}}
+      {{-- SECTION: Security --}}
+      {{-- ================================================================== --}}
+      <div id="section-security" class="mb-2 mt-8">
+        <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-400">{{ t('admin.settings.section_security') }}</h2>
+        <hr class="mt-1 border-gray-200">
+      </div>
+      <div class="space-y-6">
+
+        {{-- Lockout card --}}
         <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
-          <h2 class="mb-1 text-sm font-semibold text-gray-900">{{ t('admin.settings.security_notifications_section') }}</h2>
-          <p class="mb-1 text-xs text-gray-400">
-            @if(currentSecurityNotificationsSetting !== null)
-              {{ t('admin.settings.security_notifications_from_setting') }}
+          <div class="mb-1 flex items-center gap-2">
+            <h2 class="text-sm font-semibold text-gray-900">{{ t('admin.settings.lockout_section') }}</h2>
+            @if(currentLockoutSetting !== null)
+              <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">{{ t('admin.settings.lockout_from_setting') }}</span>
             @else
-              {{ t('admin.settings.security_notifications_from_config') }}
+              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{{ t('admin.settings.lockout_from_config') }}</span>
             @end
-          </p>
-          <p class="mb-4 text-xs text-gray-500">{{ t('admin.settings.security_notifications_intro') }}</p>
-
-          <form method="POST" action="{{ adminBase }}/settings/security-notifications">
+          </div>
+          <p class="mb-4 text-xs text-gray-500">{{ t('admin.settings.lockout_intro') }}</p>
+          <form method="POST" action="{{ adminBase }}/settings/lockout">
             <input type="hidden" name="_csrf" value="{{ csrfToken }}">
-
-            <label class="flex items-center gap-2 mb-4">
-              <input type="checkbox" name="enabled" value="1"
-                {{ securityNotificationsEffective && securityNotificationsEffective.enabled !== false ? 'checked' : '' }}
-                class="h-4 w-4 rounded border-gray-300">
+            <label class="flex items-center gap-2 mb-3">
+              <input type="checkbox" name="enabled" value="1" {{ lockoutEffective && lockoutEffective.enabled ? 'checked' : '' }} class="h-4 w-4 rounded border-gray-300">
               <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.enabled_label') }}</span>
             </label>
-
-            <fieldset class="mb-4">
-              <legend class="mb-2 text-xs font-medium text-gray-500 uppercase tracking-wide">{{ t('admin.settings.security_notifications_kinds_label') }}</legend>
-              @each(kind in allSecurityNotificationKinds)
-                <label class="flex items-center gap-2 mb-2">
-                  <input type="checkbox" name="kinds" value="{{ kind }}"
-                    {{ securityNotificationsEffective && securityNotificationsEffective.kinds && securityNotificationsEffective.kinds.includes(kind) ? 'checked' : '' }}
-                    class="h-4 w-4 rounded border-gray-300">
-                  <span class="text-sm text-gray-700">{{ t('admin.settings.security_notifications_kind_' + kind) }}</span>
-                </label>
-              @end
-            </fieldset>
-
+            <div class="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.lockout_max_attempts_label') }}</label>
+                <input type="number" name="max_attempts" min="1" max="100" value="{{ lockoutEffective ? lockoutEffective.maxAttempts : 5 }}" class="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.lockout_window_sec_label') }}</label>
+                <input type="number" name="window_sec" min="1" value="{{ lockoutEffective ? lockoutEffective.windowSec : 900 }}" class="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.lockout_base_lockout_sec_label') }}</label>
+                <input type="number" name="base_lockout_sec" min="1" value="{{ lockoutEffective ? lockoutEffective.baseLockoutSec : 60 }}" class="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.lockout_max_lockout_sec_label') }}</label>
+                <input type="number" name="max_lockout_sec" min="1" value="{{ lockoutEffective ? lockoutEffective.maxLockoutSec : 3600 }}" class="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+              </div>
+            </div>
             <div class="flex items-center gap-3">
-              <button type="submit"
-                class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
-                {{ t('admin.settings.save') }}
-              </button>
-              @if(currentSecurityNotificationsSetting !== null)
-                <form method="POST" action="{{ adminBase }}/settings/security-notifications/reset" class="inline">
+              <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">{{ t('admin.settings.save') }}</button>
+              @if(currentLockoutSetting !== null)
+                <form method="POST" action="{{ adminBase }}/settings/lockout/reset" class="inline">
                   <input type="hidden" name="_csrf" value="{{ csrfToken }}">
-                  <button type="submit" class="text-sm text-gray-500 hover:underline">
-                    {{ t('admin.settings.reset_to_config') }}
-                  </button>
+                  <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('admin.settings.reset_to_config') }}</button>
+                </form>
+              @end
+            </div>
+          </form>
+        </div>
+
+        {{-- Rate limit card --}}
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+          <div class="mb-1 flex items-center gap-2">
+            <h2 class="text-sm font-semibold text-gray-900">{{ t('admin.settings.rate_limit_section') }}</h2>
+            @if(currentRateLimitSetting !== null)
+              <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">{{ t('admin.settings.rate_limit_from_setting') }}</span>
+            @else
+              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{{ t('admin.settings.rate_limit_from_config') }}</span>
+            @end
+          </div>
+          <p class="mb-2 text-xs text-gray-500">{{ t('admin.settings.rate_limit_intro') }}</p>
+          <p class="mb-4 text-xs text-amber-600">{{ t('admin.settings.rate_limit_limitation_note') }}</p>
+          <form method="POST" action="{{ adminBase }}/settings/rate-limit">
+            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+            <div class="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.rate_limit_login_points_label') }}</label>
+                <input type="number" name="login_points" min="1" value="{{ rateLimitEffective ? rateLimitEffective.login.points : 10 }}" class="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.rate_limit_login_duration_label') }}</label>
+                <input type="text" name="login_duration" value="{{ rateLimitEffective ? rateLimitEffective.login.duration : '1 min' }}" class="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.rate_limit_introspection_points_label') }}</label>
+                <input type="number" name="introspection_points" min="1" value="{{ rateLimitEffective ? rateLimitEffective.introspection.points : 60 }}" class="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.rate_limit_introspection_duration_label') }}</label>
+                <input type="text" name="introspection_duration" value="{{ rateLimitEffective ? rateLimitEffective.introspection.duration : '1 min' }}" class="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">{{ t('admin.settings.save') }}</button>
+              @if(currentRateLimitSetting !== null)
+                <form method="POST" action="{{ adminBase }}/settings/rate-limit/reset" class="inline">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('admin.settings.reset_to_config') }}</button>
+                </form>
+              @end
+            </div>
+          </form>
+        </div>
+
+        {{-- Password policy card --}}
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+          <div class="mb-1 flex items-center gap-2">
+            <h2 class="text-sm font-semibold text-gray-900">{{ t('admin.settings.password_policy_section') }}</h2>
+            @if(currentPasswordPolicySetting !== null)
+              <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">{{ t('admin.settings.password_policy_from_setting') }}</span>
+            @else
+              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{{ t('admin.settings.password_policy_from_config') }}</span>
+            @end
+          </div>
+          <p class="mb-4 text-xs text-gray-500">{{ t('admin.settings.password_policy_intro') }}</p>
+          <form method="POST" action="{{ adminBase }}/settings/password-policy">
+            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+            <div class="mb-3">
+              <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.password_policy_min_length_label') }}</label>
+              <input type="number" name="min_length" min="1" max="128" value="{{ passwordPolicyEffective ? passwordPolicyEffective.minLength : 8 }}" class="w-24 rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+            </div>
+            <label class="flex items-center gap-2 mb-2">
+              <input type="checkbox" name="require_uppercase" value="1" {{ passwordPolicyEffective && passwordPolicyEffective.requireUppercase ? 'checked' : '' }} class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm text-gray-700">{{ t('admin.settings.password_policy_require_uppercase_label') }}</span>
+            </label>
+            <label class="flex items-center gap-2 mb-2">
+              <input type="checkbox" name="require_lowercase" value="1" {{ passwordPolicyEffective && passwordPolicyEffective.requireLowercase ? 'checked' : '' }} class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm text-gray-700">{{ t('admin.settings.password_policy_require_lowercase_label') }}</span>
+            </label>
+            <label class="flex items-center gap-2 mb-2">
+              <input type="checkbox" name="require_numbers" value="1" {{ passwordPolicyEffective && passwordPolicyEffective.requireNumbers ? 'checked' : '' }} class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm text-gray-700">{{ t('admin.settings.password_policy_require_numbers_label') }}</span>
+            </label>
+            <label class="flex items-center gap-2 mb-2">
+              <input type="checkbox" name="require_symbols" value="1" {{ passwordPolicyEffective && passwordPolicyEffective.requireSymbols ? 'checked' : '' }} class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm text-gray-700">{{ t('admin.settings.password_policy_require_symbols_label') }}</span>
+            </label>
+            <label class="flex items-center gap-2 mb-4">
+              <input type="checkbox" name="check_pwned" value="1" {{ passwordPolicyEffective && passwordPolicyEffective.checkPwned ? 'checked' : '' }} class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm text-gray-700">{{ t('admin.settings.password_policy_check_pwned_label') }}</span>
+            </label>
+            <div class="flex items-center gap-3">
+              <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">{{ t('admin.settings.save') }}</button>
+              @if(currentPasswordPolicySetting !== null)
+                <form method="POST" action="{{ adminBase }}/settings/password-policy/reset" class="inline">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('admin.settings.reset_to_config') }}</button>
                 </form>
               @end
             </div>
@@ -544,7 +558,420 @@
           </form>
         </div>
 
+        {{-- Trusted devices card --}}
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+          <div class="mb-1 flex items-center gap-2">
+            <h2 class="text-sm font-semibold text-gray-900">{{ t('admin.settings.trusted_devices_section') }}</h2>
+            @if(currentTrustedDevicesSetting !== null)
+              <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">{{ t('admin.settings.trusted_devices_from_setting') }}</span>
+            @else
+              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{{ t('admin.settings.trusted_devices_from_config') }}</span>
+            @end
+          </div>
+          <p class="mb-4 text-xs text-gray-500">{{ t('admin.settings.trusted_devices_intro') }}</p>
+          <form method="POST" action="{{ adminBase }}/settings/trusted-devices">
+            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+            <label class="flex items-center gap-2 mb-3">
+              <input type="checkbox" name="enabled" value="1" {{ trustedDevicesEffective && trustedDevicesEffective.enabled ? 'checked' : '' }} class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.enabled_label') }}</span>
+            </label>
+            <div class="mb-4">
+              <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.trusted_devices_days_label') }}</label>
+              <input type="number" name="days" min="1" max="365" value="{{ trustedDevicesEffective ? trustedDevicesEffective.days : 30 }}" class="w-24 rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+            </div>
+            <div class="flex items-center gap-3">
+              <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">{{ t('admin.settings.save') }}</button>
+              @if(currentTrustedDevicesSetting !== null)
+                <form method="POST" action="{{ adminBase }}/settings/trusted-devices/reset" class="inline">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('admin.settings.reset_to_config') }}</button>
+                </form>
+              @end
+            </div>
+          </form>
+        </div>
+
+      </div>{{-- /section security --}}
+
+      {{-- ================================================================== --}}
+      {{-- SECTION: Sessions --}}
+      {{-- ================================================================== --}}
+      <div id="section-sessions" class="mb-2 mt-8">
+        <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-400">{{ t('admin.settings.section_sessions') }}</h2>
+        <hr class="mt-1 border-gray-200">
       </div>
+      <div class="space-y-6">
+
+        {{-- Session policy card (existing) --}}
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+          <div class="mb-1 flex items-center gap-2">
+            <h2 class="text-sm font-semibold text-gray-900">{{ t('admin.settings.session_policy_section') }}</h2>
+            @if(currentSessionPolicySetting !== null)
+              <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">{{ t('admin.settings.session_policy_from_setting') }}</span>
+            @else
+              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{{ t('admin.settings.session_policy_from_config') }}</span>
+            @end
+          </div>
+          <p class="mb-4 text-xs text-gray-500">{{ t('admin.settings.session_policy_intro') }}</p>
+          <form method="POST" action="{{ adminBase }}/settings/session-policy">
+            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+            <label class="flex items-center gap-2 mb-3">
+              <input type="checkbox" name="remember_enabled" value="1" {{ sessionPolicyEffective && sessionPolicyEffective.rememberEnabled !== false ? 'checked' : '' }} class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.session_policy_remember_enabled_label') }}</span>
+            </label>
+            <div class="mb-3">
+              <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.session_policy_remember_days_label') }}</label>
+              <p class="text-xs text-gray-400 mb-1">{{ t('admin.settings.session_policy_remember_days_hint') }}</p>
+              <input type="number" name="remember_days" min="1" max="3650" value="{{ sessionPolicyEffective ? sessionPolicyEffective.rememberDays : 30 }}" class="w-24 rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+            </div>
+            <div class="mb-3">
+              <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.session_policy_default_hours_label') }}</label>
+              <p class="text-xs text-gray-400 mb-1">{{ t('admin.settings.session_policy_default_hours_hint') }}</p>
+              <input type="number" name="default_session_hours" min="1" max="8760" value="{{ sessionPolicyEffective ? sessionPolicyEffective.defaultSessionHours : (configSessionHours || 168) }}" class="w-24 rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+            </div>
+            <label class="flex items-center gap-2 mb-1">
+              <input type="checkbox" name="single_session" value="1" {{ sessionPolicyEffective && sessionPolicyEffective.singleSession ? 'checked' : '' }} class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.session_policy_single_session_label') }}</span>
+            </label>
+            <p class="text-xs text-gray-400 mb-3">{{ t('admin.settings.session_policy_single_session_hint') }}</p>
+            <div class="mb-4">
+              <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.session_policy_idle_timeout_label') }}</label>
+              <p class="text-xs text-gray-400 mb-1">{{ t('admin.settings.session_policy_idle_timeout_hint') }}</p>
+              <input type="number" name="idle_timeout_minutes" min="0" max="10080" value="{{ sessionPolicyEffective ? sessionPolicyEffective.idleTimeoutMinutes : 0 }}" class="w-24 rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+            </div>
+            <div class="flex items-center gap-3">
+              <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">{{ t('admin.settings.save') }}</button>
+              @if(currentSessionPolicySetting !== null)
+                <form method="POST" action="{{ adminBase }}/settings/session-policy/reset" class="inline">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('admin.settings.reset_to_config') }}</button>
+                </form>
+              @end
+            </div>
+          </form>
+        </div>
+
+        {{-- Token TTL card --}}
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+          <div class="mb-1 flex items-center gap-2">
+            <h2 class="text-sm font-semibold text-gray-900">{{ t('admin.settings.token_ttl_section') }}</h2>
+            @if(currentTokenTtlSetting !== null)
+              <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">{{ t('admin.settings.token_ttl_from_setting') }}</span>
+            @else
+              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{{ t('admin.settings.token_ttl_from_config') }}</span>
+            @end
+          </div>
+          <p class="mb-4 text-xs text-gray-500">{{ t('admin.settings.token_ttl_intro') }}</p>
+          <form method="POST" action="{{ adminBase }}/settings/token-ttl">
+            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+            <div class="grid grid-cols-3 gap-4 mb-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.token_ttl_access_token_label') }}</label>
+                <input type="number" name="access_token_sec" min="1" value="{{ tokenTtlEffective ? tokenTtlEffective.accessTokenSec : 900 }}" class="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.token_ttl_id_token_label') }}</label>
+                <input type="number" name="id_token_sec" min="1" value="{{ tokenTtlEffective ? tokenTtlEffective.idTokenSec : 900 }}" class="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.token_ttl_refresh_token_label') }}</label>
+                <input type="number" name="refresh_token_sec" min="1" value="{{ tokenTtlEffective ? tokenTtlEffective.refreshTokenSec : 2592000 }}" class="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">{{ t('admin.settings.save') }}</button>
+              @if(currentTokenTtlSetting !== null)
+                <form method="POST" action="{{ adminBase }}/settings/token-ttl/reset" class="inline">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('admin.settings.reset_to_config') }}</button>
+                </form>
+              @end
+            </div>
+          </form>
+        </div>
+
+      </div>{{-- /section sessions --}}
+
+      {{-- ================================================================== --}}
+      {{-- SECTION: Communications --}}
+      {{-- ================================================================== --}}
+      <div id="section-communications" class="mb-2 mt-8">
+        <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-400">{{ t('admin.settings.section_communications') }}</h2>
+        <hr class="mt-1 border-gray-200">
+      </div>
+      <div class="space-y-6">
+
+        {{-- Email change card --}}
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+          <h2 class="mb-1 text-sm font-semibold text-gray-900">{{ t('admin.settings.email_change_section') }}</h2>
+          <p class="mb-1 text-xs text-gray-400">
+            @if(currentEmailChangeSetting !== null)
+              {{ t('admin.settings.email_change_from_setting') }}
+            @else
+              {{ t('admin.settings.email_change_from_config') }}
+            @end
+          </p>
+          <p class="mb-4 text-xs text-gray-500">{{ t('admin.settings.email_change_intro') }}</p>
+
+          <form method="POST" action="{{ adminBase }}/settings/email-change">
+            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+
+            <label class="flex items-center gap-2 mb-3">
+              <input type="checkbox" name="enabled" value="1"
+                {{ emailChangeEffective && emailChangeEffective.enabled !== false ? 'checked' : '' }}
+                class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.enabled_label') }}</span>
+            </label>
+
+            <div class="mb-3">
+              <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.email_change_ttl_label') }}</label>
+              <input type="number" name="ttl_hours" min="1" max="168"
+                value="{{ emailChangeEffective ? emailChangeEffective.ttlHours : 24 }}"
+                class="w-24 rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+            </div>
+
+            <label class="flex items-center gap-2 mb-4">
+              <input type="checkbox" name="require_password" value="1"
+                {{ emailChangeEffective && emailChangeEffective.requirePassword !== false ? 'checked' : '' }}
+                class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.email_change_require_password_label') }}</span>
+            </label>
+
+            <div class="flex items-center gap-3">
+              <button type="submit"
+                class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
+                {{ t('admin.settings.save') }}
+              </button>
+              @if(currentEmailChangeSetting !== null)
+                <form method="POST" action="{{ adminBase }}/settings/email-change/reset" class="inline">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <button type="submit" class="text-sm text-gray-500 hover:underline">
+                    {{ t('admin.settings.reset_to_config') }}
+                  </button>
+                </form>
+              @end
+            </div>
+          </form>
+        </div>
+
+        {{-- Security notifications card --}}
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+          <h2 class="mb-1 text-sm font-semibold text-gray-900">{{ t('admin.settings.security_notifications_section') }}</h2>
+          <p class="mb-1 text-xs text-gray-400">
+            @if(currentSecurityNotificationsSetting !== null)
+              {{ t('admin.settings.security_notifications_from_setting') }}
+            @else
+              {{ t('admin.settings.security_notifications_from_config') }}
+            @end
+          </p>
+          <p class="mb-4 text-xs text-gray-500">{{ t('admin.settings.security_notifications_intro') }}</p>
+
+          <form method="POST" action="{{ adminBase }}/settings/security-notifications">
+            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+
+            <label class="flex items-center gap-2 mb-4">
+              <input type="checkbox" name="enabled" value="1"
+                {{ securityNotificationsEffective && securityNotificationsEffective.enabled !== false ? 'checked' : '' }}
+                class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.enabled_label') }}</span>
+            </label>
+
+            <fieldset class="mb-4">
+              <legend class="mb-2 text-xs font-medium text-gray-500 uppercase tracking-wide">{{ t('admin.settings.security_notifications_kinds_label') }}</legend>
+              @each(kind in allSecurityNotificationKinds)
+                <label class="flex items-center gap-2 mb-2">
+                  <input type="checkbox" name="kinds" value="{{ kind }}"
+                    {{ securityNotificationsEffective && securityNotificationsEffective.kinds && securityNotificationsEffective.kinds.includes(kind) ? 'checked' : '' }}
+                    class="h-4 w-4 rounded border-gray-300">
+                  <span class="text-sm text-gray-700">{{ t('admin.settings.security_notifications_kind_' + kind) }}</span>
+                </label>
+              @end
+            </fieldset>
+
+            <div class="flex items-center gap-3">
+              <button type="submit"
+                class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
+                {{ t('admin.settings.save') }}
+              </button>
+              @if(currentSecurityNotificationsSetting !== null)
+                <form method="POST" action="{{ adminBase }}/settings/security-notifications/reset" class="inline">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <button type="submit" class="text-sm text-gray-500 hover:underline">
+                    {{ t('admin.settings.reset_to_config') }}
+                  </button>
+                </form>
+              @end
+            </div>
+          </form>
+        </div>
+
+        {{-- Login notifications card --}}
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+          <div class="mb-1 flex items-center gap-2">
+            <h2 class="text-sm font-semibold text-gray-900">{{ t('admin.settings.notifications_section') }}</h2>
+            @if(currentNotificationsSetting !== null)
+              <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">{{ t('admin.settings.notifications_from_setting') }}</span>
+            @else
+              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{{ t('admin.settings.notifications_from_config') }}</span>
+            @end
+          </div>
+          <p class="mb-4 text-xs text-gray-500">{{ t('admin.settings.notifications_intro') }}</p>
+          <form method="POST" action="{{ adminBase }}/settings/notifications">
+            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+            <label class="flex items-center gap-2 mb-3">
+              <input type="checkbox" name="new_login_email" value="1" {{ notificationsEffective && notificationsEffective.newLoginEmail ? 'checked' : '' }} class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm text-gray-700">{{ t('admin.settings.notifications_new_login_label') }}</span>
+            </label>
+            <label class="flex items-center gap-2 mb-4">
+              <input type="checkbox" name="new_device_email" value="1" {{ notificationsEffective && notificationsEffective.newDeviceEmail ? 'checked' : '' }} class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm text-gray-700">{{ t('admin.settings.notifications_new_device_label') }}</span>
+            </label>
+            <div class="flex items-center gap-3">
+              <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">{{ t('admin.settings.save') }}</button>
+              @if(currentNotificationsSetting !== null)
+                <form method="POST" action="{{ adminBase }}/settings/notifications/reset" class="inline">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('admin.settings.reset_to_config') }}</button>
+                </form>
+              @end
+            </div>
+          </form>
+        </div>
+
+      </div>{{-- /section communications --}}
+
+      {{-- ================================================================== --}}
+      {{-- SECTION: Advanced --}}
+      {{-- ================================================================== --}}
+      <div id="section-advanced" class="mb-2 mt-8">
+        <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-400">{{ t('admin.settings.section_advanced') }}</h2>
+        <hr class="mt-1 border-gray-200">
+      </div>
+      <div class="space-y-6">
+
+        {{-- Maintenance mode card --}}
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+          <div class="mb-1 flex items-center gap-2">
+            <h2 class="text-sm font-semibold text-gray-900">{{ t('admin.settings.maintenance_section') }}</h2>
+            @if(currentMaintenanceSetting !== null)
+              <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                {{ t('admin.settings.maintenance_from_setting') }}
+              </span>
+            @end
+            @if(maintenanceEffective && maintenanceEffective.enabled)
+              <span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">ON</span>
+            @end
+          </div>
+          <p class="mb-3 text-xs text-gray-500">{{ t('admin.settings.maintenance_intro') }}</p>
+
+          {{-- Lockout warning — always visible for this card. --}}
+          <div class="mb-4 rounded-lg bg-red-50 px-4 py-3 text-xs text-red-800 ring-1 ring-red-200">
+            {{ t('admin.settings.maintenance_warning') }}
+          </div>
+
+          <form method="POST" action="{{ adminBase }}/settings/maintenance">
+            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+            <label class="flex items-center gap-2 mb-4">
+              <input type="checkbox" name="enabled" value="1"
+                {{ maintenanceEffective && maintenanceEffective.enabled ? 'checked' : '' }}
+                class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.enabled_label') }}</span>
+            </label>
+
+            <div class="mb-4">
+              <label class="mb-1 block text-xs font-medium text-gray-500">
+                {{ t('admin.settings.maintenance_message_label') }}
+              </label>
+              <textarea name="message" rows="2"
+                placeholder="{{ t('admin.settings.maintenance_message_placeholder') }}"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900">{{ currentMaintenanceSetting && currentMaintenanceSetting.message ? currentMaintenanceSetting.message : '' }}</textarea>
+            </div>
+
+            <div class="flex items-center gap-3">
+              <button type="submit"
+                class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
+                {{ t('admin.settings.save') }}
+              </button>
+              @if(currentMaintenanceSetting !== null)
+                <form method="POST" action="{{ adminBase }}/settings/maintenance/reset" class="inline">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <button type="submit" class="text-sm text-gray-500 hover:underline">
+                    {{ t('admin.settings.reset_to_config') }}
+                  </button>
+                </form>
+              @end
+            </div>
+          </form>
+        </div>
+
+        {{-- Admin impersonation card --}}
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+          <div class="mb-1 flex items-center gap-2">
+            <h2 class="text-sm font-semibold text-gray-900">{{ t('admin.settings.admin_impersonation_section') }}</h2>
+            @if(currentAdminImpersonationSetting !== null)
+              <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">{{ t('admin.settings.admin_impersonation_from_setting') }}</span>
+            @else
+              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{{ t('admin.settings.admin_impersonation_from_config') }}</span>
+            @end
+          </div>
+          <p class="mb-4 text-xs text-gray-500">{{ t('admin.settings.admin_impersonation_intro') }}</p>
+          <form method="POST" action="{{ adminBase }}/settings/admin-impersonation">
+            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+            <label class="flex items-center gap-2 mb-4">
+              <input type="checkbox" name="enabled" value="1" {{ adminImpersonationEffective && adminImpersonationEffective.enabled ? 'checked' : '' }} class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.enabled_label') }}</span>
+            </label>
+            <div class="flex items-center gap-3">
+              <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">{{ t('admin.settings.save') }}</button>
+              @if(currentAdminImpersonationSetting !== null)
+                <form method="POST" action="{{ adminBase }}/settings/admin-impersonation/reset" class="inline">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('admin.settings.reset_to_config') }}</button>
+                </form>
+              @end
+            </div>
+          </form>
+        </div>
+
+        {{-- Organizations policy card --}}
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+          <div class="mb-1 flex items-center gap-2">
+            <h2 class="text-sm font-semibold text-gray-900">{{ t('admin.settings.organizations_policy_section') }}</h2>
+            @if(currentOrganizationsPolicySetting !== null)
+              <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">{{ t('admin.settings.organizations_policy_from_setting') }}</span>
+            @else
+              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{{ t('admin.settings.organizations_policy_from_config') }}</span>
+            @end
+          </div>
+          <p class="mb-4 text-xs text-gray-500">{{ t('admin.settings.organizations_policy_intro') }}</p>
+          <form method="POST" action="{{ adminBase }}/settings/organizations-policy">
+            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+            <label class="flex items-center gap-2 mb-3">
+              <input type="checkbox" name="allow_self_create" value="1" {{ organizationsPolicyEffective && organizationsPolicyEffective.allowSelfCreate ? 'checked' : '' }} class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm text-gray-700">{{ t('admin.settings.organizations_policy_allow_self_create_label') }}</span>
+            </label>
+            <div class="mb-3">
+              <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.organizations_policy_invitation_ttl_label') }}</label>
+              <input type="number" name="invitation_ttl_hours" min="1" value="{{ organizationsPolicyEffective ? organizationsPolicyEffective.invitationTtlHours : 168 }}" class="w-24 rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+            </div>
+            <div class="mb-4">
+              <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.organizations_policy_roles_label') }}</label>
+              <input type="text" name="roles" value="{{ organizationsPolicyEffective && organizationsPolicyEffective.roles ? organizationsPolicyEffective.roles.join(',') : 'owner,admin,member' }}" class="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+            </div>
+            <div class="flex items-center gap-3">
+              <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">{{ t('admin.settings.save') }}</button>
+              @if(currentOrganizationsPolicySetting !== null)
+                <form method="POST" action="{{ adminBase }}/settings/organizations-policy/reset" class="inline">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('admin.settings.reset_to_config') }}</button>
+                </form>
+              @end
+            </div>
+          </form>
+        </div>
+
+      </div>{{-- /section advanced --}}
+
     @end
   </div>
 </body></html>

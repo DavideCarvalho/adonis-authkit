@@ -32,10 +32,34 @@ export function updateSessionTtlHolder(
   holder.transientSec = Math.max(1, Math.floor(policy.defaultSessionHours * 3600))
 }
 
+/**
+ * Holder mutável dos TTLs de access/id/refresh tokens OIDC. Lido de forma
+ * SÍNCRONA pelo TTL function do oidc-provider. Atualizado assincronamente após
+ * write/reset da setting `token_ttl` via `updateTokenTtlHolder`.
+ *
+ * Valores em SEGUNDOS.
+ */
+export interface TokenTtlHolder {
+  accessTokenSec: number
+  idTokenSec: number
+  refreshTokenSec: number
+}
+
+/** Atualiza o holder mutável de TTL de tokens com os valores da setting. */
+export function updateTokenTtlHolder(
+  holder: TokenTtlHolder,
+  ttl: { accessTokenSec: number; idTokenSec: number; refreshTokenSec: number }
+): void {
+  holder.accessTokenSec = Math.max(1, ttl.accessTokenSec)
+  holder.idTokenSec = Math.max(1, ttl.idTokenSec)
+  holder.refreshTokenSec = Math.max(1, ttl.refreshTokenSec)
+}
+
 export function buildProvider(
   config: ResolvedServerConfig,
   options: BuildProviderOptions,
-  sessionTtlHolder?: SessionTtlHolder
+  sessionTtlHolder?: SessionTtlHolder,
+  tokenTtlHolder?: TokenTtlHolder
 ) {
   const cookieKeys = config.cookieKeys.length ? config.cookieKeys : [options.appKey]
 
@@ -192,9 +216,19 @@ export function buildProvider(
     // solicitá-los. A exigência efetiva do 2º fator acontece na interaction de login.
     acrValues: config.stepUp.acrValues,
     ttl: {
-      AccessToken: config.ttl.accessToken,
-      RefreshToken: config.ttl.refreshToken,
-      IdToken: config.ttl.idToken,
+      // AccessToken TTL: quando um TokenTtlHolder é fornecido, lê o valor atual do holder
+      // (atualizado em runtime via setting `token_ttl`). Sem holder: fallback ao config.
+      AccessToken: tokenTtlHolder
+        ? () => (tokenTtlHolder as TokenTtlHolder).accessTokenSec
+        : config.ttl.accessToken,
+      // RefreshToken TTL: idem ao AccessToken.
+      RefreshToken: tokenTtlHolder
+        ? () => (tokenTtlHolder as TokenTtlHolder).refreshTokenSec
+        : config.ttl.refreshToken,
+      // IdToken TTL: idem ao AccessToken.
+      IdToken: tokenTtlHolder
+        ? () => (tokenTtlHolder as TokenTtlHolder).idTokenSec
+        : config.ttl.idToken,
       // Session TTL: quando um SessionTtlHolder é fornecido, usa uma função que diferencia
       // sessões persistentes (remember-me ON → rememberSec) das transientes (remember-me
       // OFF → transientSec). A função é SÍNCRONA (restrição do oidc-provider). O holder é
@@ -209,7 +243,9 @@ export function buildProvider(
               : (sessionTtlHolder as SessionTtlHolder).rememberSec
         : config.ttl.session,
       Interaction: 3600,
-      Grant: config.ttl.refreshToken,
+      Grant: tokenTtlHolder
+        ? () => (tokenTtlHolder as TokenTtlHolder).refreshTokenSec
+        : config.ttl.refreshToken,
     },
     interactions: {
       // Telas de interaction são servidas pelo CONSUMIDOR na RAIZ (fora do koa-mount do

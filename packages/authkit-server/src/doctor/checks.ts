@@ -762,6 +762,147 @@ export function checkSessionPolicy(input: DoctorInput): Finding | null {
   }
 }
 
+/**
+ * Verifica campos de POLÍTICA presentes no config estático que foram deprecados
+ * em favor de runtime settings. Lista CADA campo legado encontrado como um warn
+ * individual, recomendando migrar para a setting correspondente.
+ *
+ * NÃO é breaking: os campos continuam funcionando como fallback. Esta verificação
+ * é informativa e aparece uma única vez no relatório do doctor.
+ */
+export function checkLegacyPolicyConfig(input: DoctorInput): Finding[] {
+  const cfg = input.authkitConfig
+  if (!cfg) return []
+
+  const findings: Finding[] = []
+
+  // lockout policy fields
+  const lockout = cfg.lockout
+  if (lockout) {
+    const legacyLockoutFields: string[] = []
+    if (lockout.enabled !== undefined) legacyLockoutFields.push('lockout.enabled')
+    if (lockout.maxAttempts !== undefined) legacyLockoutFields.push('lockout.maxAttempts')
+    if (lockout.windowSec !== undefined) legacyLockoutFields.push('lockout.windowSec')
+    if (lockout.baseLockoutSec !== undefined) legacyLockoutFields.push('lockout.baseLockoutSec')
+    if (lockout.maxLockoutSec !== undefined) legacyLockoutFields.push('lockout.maxLockoutSec')
+    for (const field of legacyLockoutFields) {
+      findings.push({
+        level: 'warn',
+        message: `config.${field} is deprecated — manage lockout policy via runtime setting \`lockout\` in the admin console or Admin API (Auth API). The field still works as fallback.`,
+      })
+    }
+  }
+
+  // rateLimit bucket fields
+  const rateLimit = cfg.rateLimit
+  if (rateLimit) {
+    if (rateLimit.login) {
+      findings.push({
+        level: 'warn',
+        message: `config.rateLimit.login bucket is deprecated — manage rate-limit policy via runtime setting \`rate_limit\`. NOTE: the route throttle middleware uses boot-time values; runtime setting only affects lockout-side. The field still works as fallback.`,
+      })
+    }
+    if (rateLimit.introspection) {
+      findings.push({
+        level: 'warn',
+        message: `config.rateLimit.introspection bucket is deprecated — manage rate-limit policy via runtime setting \`rate_limit\`. NOTE: see rate_limit setting limitations. The field still works as fallback.`,
+      })
+    }
+  }
+
+  // notifications fields
+  const notifications = cfg.notifications
+  if (notifications) {
+    if (notifications.newLoginEmail !== undefined) {
+      findings.push({
+        level: 'warn',
+        message: `config.notifications.newLoginEmail is deprecated — manage via runtime setting \`notifications\`. The field still works as fallback.`,
+      })
+    }
+    if (notifications.newDeviceEmail !== undefined) {
+      findings.push({
+        level: 'warn',
+        message: `config.notifications.newDeviceEmail is deprecated — manage via runtime setting \`notifications\`. The field still works as fallback.`,
+      })
+    }
+  }
+
+  // trustedDevices policy fields
+  const trustedDevices = cfg.trustedDevices
+  if (trustedDevices) {
+    if (trustedDevices.enabled !== undefined) {
+      findings.push({
+        level: 'warn',
+        message: `config.trustedDevices.enabled is deprecated — manage via runtime setting \`trusted_devices\`. The field still works as fallback.`,
+      })
+    }
+    if (trustedDevices.days !== undefined) {
+      findings.push({
+        level: 'warn',
+        message: `config.trustedDevices.days is deprecated — manage via runtime setting \`trusted_devices\`. The field still works as fallback.`,
+      })
+    }
+  }
+
+  // admin.impersonation
+  const admin = cfg.admin
+  if (admin?.impersonation !== undefined) {
+    findings.push({
+      level: 'warn',
+      message: `config.admin.impersonation is deprecated — manage via runtime setting \`admin_impersonation\`. The field still works as fallback.`,
+    })
+  }
+
+  // organizations policy fields
+  const orgs = cfg.organizations
+  if (orgs) {
+    if (orgs.allowSelfCreate !== undefined) {
+      findings.push({
+        level: 'warn',
+        message: `config.organizations.allowSelfCreate is deprecated — manage via runtime setting \`organizations_policy\`. The field still works as fallback.`,
+      })
+    }
+    if (orgs.invitationTtlHours !== undefined) {
+      findings.push({
+        level: 'warn',
+        message: `config.organizations.invitationTtlHours is deprecated — manage via runtime setting \`organizations_policy\`. The field still works as fallback.`,
+      })
+    }
+    if (orgs.roles !== undefined) {
+      findings.push({
+        level: 'warn',
+        message: `config.organizations.roles is deprecated — manage via runtime setting \`organizations_policy\`. The field still works as fallback.`,
+      })
+    }
+  }
+
+  // password policy fields (from accountStore.__passwordConfig)
+  const store = cfg.accountStore
+  const pwConfig = store?.__passwordConfig as { policy?: Record<string, unknown>; checkPwned?: unknown } | undefined
+  if (pwConfig) {
+    const policy = pwConfig.policy
+    if (policy) {
+      const pwFields = ['minLength', 'requireUppercase', 'requireLowercase', 'requireNumbers', 'requireSymbols']
+      for (const field of pwFields) {
+        if (policy[field] !== undefined) {
+          findings.push({
+            level: 'warn',
+            message: `password.policy.${field} is deprecated — manage via runtime setting \`password_policy\`. The field still works as fallback.`,
+          })
+        }
+      }
+    }
+    if (pwConfig.checkPwned !== undefined) {
+      findings.push({
+        level: 'warn',
+        message: `password.checkPwned is deprecated — manage the checkPwned flag via runtime setting \`password_policy\`. The field still works as fallback.`,
+      })
+    }
+  }
+
+  return findings
+}
+
 /** Roda todos os checks e devolve a lista plana de findings. */
 export function runAllChecks(input: DoctorInput): Finding[] {
   const findings: Finding[] = []
@@ -807,6 +948,8 @@ export function runAllChecks(input: DoctorInput): Finding[] {
   if (passwordExpiration) findings.push(passwordExpiration)
   const sessionPolicy = checkSessionPolicy(input)
   if (sessionPolicy) findings.push(sessionPolicy)
+  // Legacy policy config deprecation warnings (aggregated).
+  findings.push(...checkLegacyPolicyConfig(input))
   return findings
 }
 

@@ -4,7 +4,7 @@ import Koa from 'koa'
 import mount from 'koa-mount'
 import type { ResolvedServerConfig } from '../define_config.js'
 import { wireProviderEvents } from '../observability/wire_provider_events.js'
-import { buildProvider, type SessionTtlHolder } from './build_provider.js'
+import { buildProvider, type SessionTtlHolder, type TokenTtlHolder } from './build_provider.js'
 import { createInteractionActions, type InteractionActions } from './interaction_actions.js'
 import { registerTokenExchange } from './token_exchange.js'
 import { readActiveOrgFromKoaCtx } from '../host/active_org_cookie.js'
@@ -18,6 +18,8 @@ export class OidcService {
   readonly interactions: InteractionActions
   /** Holder mutável dos TTLs de sessão OIDC (lido sincronamente pelo oidc-provider). */
   readonly sessionTtlHolder: SessionTtlHolder
+  /** Holder mutável dos TTLs de access/id/refresh tokens (lido sincronamente pelo oidc-provider). */
+  readonly tokenTtlHolder: TokenTtlHolder
   #clients: ClientConfig[]
   #config: ResolvedServerConfig
 
@@ -35,6 +37,13 @@ export class OidcService {
     this.sessionTtlHolder = {
       rememberSec: Math.max(1, configSessionSec),
       transientSec: Math.max(1, configSessionSec),
+    }
+    // Inicializa o holder de TTL de tokens com os valores do config estático.
+    // Será atualizado em runtime quando a setting `token_ttl` for salva/apagada.
+    this.tokenTtlHolder = {
+      accessTokenSec: Math.max(1, config.ttl.accessToken),
+      idTokenSec: Math.max(1, config.ttl.idToken),
+      refreshTokenSec: Math.max(1, config.ttl.refreshToken),
     }
     this.provider = buildProvider(config, {
       appKey,
@@ -66,7 +75,7 @@ export class OidcService {
           },
         }
       },
-    }, this.sessionTtlHolder)
+    }, this.sessionTtlHolder, this.tokenTtlHolder)
     wireProviderEvents(this.provider, recorder)
 
     registerTokenExchange(this.provider, {

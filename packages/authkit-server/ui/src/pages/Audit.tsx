@@ -1,23 +1,9 @@
-import React, { useState, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import {
-  useAuditQueryOptions,
-  type AuditEventEntry,
-} from '@dudousxd/adonis-authkit-react'
-import { Pagination } from '../components/Pagination'
-import { useToast } from '../lib/toast'
-
-function eventBadgeClass(type: string) {
-  if (type.includes('login') || type.includes('signin') || type.includes('success')) return 'badge-green'
-  if (type.includes('fail') || type.includes('error') || type.includes('locked') || type.includes('block')) return 'badge-red'
-  if (type.includes('register') || type.includes('signup') || type.includes('created')) return 'badge-accent'
-  if (type.includes('settings') || type.includes('admin') || type.includes('updated')) return 'badge-amber'
-  if (type.includes('logout') || type.includes('revoke') || type.includes('deleted')) return 'badge-muted'
-  return 'badge-muted'
-}
+import React, { useState } from 'react'
+import { AuditTableContainer, AuditEventDetailContainer } from '../containers/audit.containers'
+import type { AuditEventEntry } from '@dudousxd/adonis-authkit-react'
 
 const EVENT_TYPES = [
-  '', // all
+  '',
   'login.success',
   'login.failed',
   'login.mfa_required',
@@ -31,31 +17,13 @@ const EVENT_TYPES = [
   'account.enabled',
 ]
 
-const PER_PAGE = 30
-
 export function Audit() {
-  const toast = useToast()
-
   const [page, setPage] = useState(1)
   const [typeFilter, setTypeFilter] = useState('')
   const [selected, setSelected] = useState<AuditEventEntry | null>(null)
   const [unavailable, setUnavailable] = useState(false)
 
-  const { data, isLoading, error } = useQuery({
-    ...useAuditQueryOptions({ type: typeFilter || undefined, page, limit: PER_PAGE }),
-    retry: (failureCount, err: unknown) => {
-      if (err && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 404) {
-        setUnavailable(true)
-        return false
-      }
-      return failureCount < 1
-    },
-  })
-
-  const events = data?.data ?? []
-  const total = data?.total ?? 0
-
-  if (unavailable || (error && typeof error === 'object' && 'status' in error && (error as { status: number }).status === 404)) {
+  if (unavailable) {
     return (
       <div>
         <div className="page-title" style={{ marginBottom: 8 }}>Audit Log</div>
@@ -69,11 +37,11 @@ export function Audit() {
       <div className="page-header-row">
         <div>
           <div className="page-title">Audit Log</div>
-          <div className="page-sub">{total.toLocaleString()} events</div>
         </div>
       </div>
 
-      <div className="panel">
+      {/* Filter bar */}
+      <div className="panel" style={{ marginBottom: 0 }}>
         <div className="panel-head">
           <select
             className="input"
@@ -86,69 +54,20 @@ export function Audit() {
             ))}
           </select>
         </div>
-
-        {isLoading ? (
-          <div className="loading-row"><div className="spinner" /></div>
-        ) : events.length === 0 ? (
-          <div className="empty-state">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" strokeLinecap="round" />
-            </svg>
-            <h4>No events found</h4>
-            <p>{typeFilter ? 'No events match this filter' : 'No audit events recorded yet'}</p>
-          </div>
-        ) : (
-          <div className="tbl-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Type</th>
-                  <th>Account</th>
-                  <th>IP</th>
-                  <th>When</th>
-                </tr>
-              </thead>
-              <tbody>
-                {events.map((ev) => (
-                  <tr key={ev.id} onClick={() => setSelected(selected?.id === ev.id ? null : ev)}>
-                    <td>
-                      <span className={`badge ${eventBadgeClass(ev.type)}`}>{ev.type}</span>
-                    </td>
-                    <td>
-                      <span style={{ fontFamily: 'var(--mono)', fontSize: 11.5 }}>
-                        {ev.email ?? ev.accountId ?? <span style={{ color: 'var(--faint)' }}>—</span>}
-                      </span>
-                    </td>
-                    <td><span className="code">{ev.ip ?? '—'}</span></td>
-                    <td>
-                      <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--faint)' }}>
-                        {ev.createdAt ? new Date(ev.createdAt).toLocaleString() : '—'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div style={{ padding: '0 16px 12px' }}>
-              <Pagination page={page} total={total} perPage={PER_PAGE} onPage={setPage} />
-            </div>
-          </div>
-        )}
       </div>
 
+      <AuditTableContainer
+        typeFilter={typeFilter}
+        page={page}
+        onPage={setPage}
+        selected={selected}
+        onSelect={setSelected}
+        onUnavailable={() => setUnavailable(true)}
+      />
+
       {selected && (
-        <div className="panel" style={{ padding: '14px 16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div style={{ fontWeight: 600, fontSize: 13 }}>Event Detail</div>
-            <button className="btn btn-ghost btn-sm" onClick={() => setSelected(null)}>
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 3l10 10M13 3L3 13" strokeLinecap="round" />
-              </svg>
-            </button>
-          </div>
-          <pre style={{ fontFamily: 'var(--mono)', fontSize: 11.5, color: 'var(--muted)', overflow: 'auto', lineHeight: 1.6 }}>
-            {JSON.stringify(selected, null, 2)}
-          </pre>
+        <div style={{ marginTop: 12 }}>
+          <AuditEventDetailContainer event={selected} onClose={() => setSelected(null)} />
         </div>
       )}
     </div>

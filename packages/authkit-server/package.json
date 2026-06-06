@@ -119,6 +119,7 @@
     "react-dom": "catalog:frontend",
     "vite": "catalog:",
     "@dudousxd/adonis-authkit-react": "workspace:*",
-    "@tanstack/react-query": "catalog:frontend"
+    "@tanstack/react-query": "catalog:frontend",
+    "react-error-boundary": "catalog:frontend"
   }
 }

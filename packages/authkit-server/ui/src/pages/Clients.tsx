@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  useClientsQueryOptions,
   useCreateClientMutationOptions,
   useUpdateClientMutationOptions,
   useAuthkitClient,
@@ -11,6 +10,7 @@ import {
 } from '@dudousxd/adonis-authkit-react'
 import { Modal } from '../components/Modal'
 import { useToast } from '../lib/toast'
+import { ClientsListContainer, useClientsCount } from '../containers/clients.containers'
 
 const GRANT_TYPES = ['authorization_code', 'refresh_token', 'client_credentials', 'implicit']
 const AUTH_METHODS = ['client_secret_basic', 'client_secret_post', 'none']
@@ -41,6 +41,7 @@ export function Clients() {
   const toast = useToast()
   const queryClient = useQueryClient()
   const authkitClient = useAuthkitClient()
+  const clientsCount = useClientsCount()
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editClient, setEditClient] = useState<AdminClient | null>(null)
@@ -48,14 +49,6 @@ export function Clients() {
   const [formData, setFormData] = useState<FormState>(defaultForm())
   const [redirectInput, setRedirectInput] = useState('')
   const [logoutInput, setLogoutInput] = useState('')
-
-  // ── Queries ──────────────────────────────────────────────────────────────────
-
-  const { data, isLoading } = useQuery(useClientsQueryOptions())
-  const clients = data?.data ?? []
-  const canList = data?.canList ?? true
-
-  // ── Mutations ─────────────────────────────────────────────────────────────────
 
   const createMutation = useMutation(useCreateClientMutationOptions())
   const updateMutation = useMutation(useUpdateClientMutationOptions(editClient?.clientId ?? ''))
@@ -156,7 +149,6 @@ export function Clients() {
     }
   }
 
-  // Delete and regenerate call the client directly since they need the clientId at call time
   async function handleDelete(c: AdminClient) {
     if (!confirm(`Delete client ${c.clientId}?`)) return
     try {
@@ -293,7 +285,7 @@ export function Clients() {
       <div className="page-header-row">
         <div>
           <div className="page-title">OAuth Clients</div>
-          <div className="page-sub">{clients.length} dynamic clients</div>
+          <div className="page-sub">{clientsCount} dynamic clients</div>
         </div>
         <div className="page-actions">
           <button className="btn btn-primary" onClick={openCreate}>
@@ -305,60 +297,12 @@ export function Clients() {
         </div>
       </div>
 
-      {!canList ? (
-        <div className="error-box">Client store does not support listing (no dynamic registration adapter configured).</div>
-      ) : isLoading ? (
-        <div className="loading-row"><div className="spinner" /></div>
-      ) : clients.length === 0 ? (
-        <div className="empty-state">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M18 13l4-3.5L18 6" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M22 9.5H9M6 5H4a1 1 0 00-1 1v12a1 1 0 001 1h2" strokeLinecap="round" />
-          </svg>
-          <h4>No clients yet</h4>
-          <p>Create an OAuth 2.0 / OIDC client to get started</p>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {clients.map((c) => (
-            <div key={c.clientId} className="panel" style={{ padding: '14px 16px' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <span style={{ fontFamily: 'var(--mono)', fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>{c.clientId}</span>
-                    <span className={`badge ${c.confidential ? 'badge-accent' : 'badge-muted'}`}>
-                      {c.confidential ? 'confidential' : 'public'}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-                    {c.grants.map((g) => <span key={g} className="badge badge-muted">{g}</span>)}
-                  </div>
-                  {c.redirectUris.length > 0 && (
-                    <div style={{ fontSize: 11, color: 'var(--faint)', display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                      {c.redirectUris.map((u) => <span key={u} className="code">{u}</span>)}
-                    </div>
-                  )}
-                </div>
-                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                  <button className="btn btn-sm" onClick={() => openEdit(c)}>Edit</button>
-                  <button className="btn btn-sm" onClick={() => handleRegenerate(c)} title="Regenerate secret">
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
-                      <path d="M2 8a6 6 0 016-6 6 6 0 014.24 1.76L14 5" strokeLinecap="round" />
-                      <path d="M14 2v3h-3M14 8a6 6 0 01-6 6 6 6 0 01-4.24-1.76L2 11" strokeLinecap="round" />
-                      <path d="M2 14v-3h3" strokeLinecap="round" />
-                    </svg>
-                  </button>
-                  <button className="btn btn-sm btn-danger" onClick={() => handleDelete(c)}>
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
-                      <path d="M2 4.5h12M5.5 4.5V3h5v1.5M10.5 4.5v8a1 1 0 01-1 1h-3a1 1 0 01-1-1v-8" strokeLinecap="round" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Clients list container */}
+      <ClientsListContainer
+        onEdit={openEdit}
+        onDelete={handleDelete}
+        onRegenerate={handleRegenerate}
+      />
 
       {/* Create modal */}
       <Modal

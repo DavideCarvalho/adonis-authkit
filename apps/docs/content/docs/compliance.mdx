@@ -348,6 +348,117 @@ const result = await authkit.users.delete('acc-42')
 // result.auditAnonymized — how many audit rows were pseudonymized
 ```
 
+## Account expiration
+
+Automatically block accounts that have been inactive for a configurable number of days,
+with an optional warning email before the deadline. This is a GDPR/LGPD hygiene measure —
+stale accounts are locked, not deleted.
+
+**"Last activity"** is defined as the timestamp of the most recent `login.success` event in
+the audit log for that account. No new column is needed — the feature reads the existing
+audit trail.
+
+**Capability requirement:** the audit sink must implement `list` (the `lucidAuditSink` does).
+When the sink is write-only, the feature is unavailable and `authkit:doctor` explains why.
+
+### Configuration
+
+**Setting key:** `account_expiration`
+
+```json
+{
+  "enabled": false,
+  "inactiveDays": 365,
+  "warnDays": 14
+}
+```
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `enabled` | `boolean` | `false` | `true` activates expiration checks on login and the expire-scan command. |
+| `inactiveDays` | `number` | `365` | Days without a `login.success` before the account is considered expired. Minimum: 1. |
+| `warnDays` | `number` | `14` | Days before expiration to send the warning email. `0` = no warning. |
+
+```bash
+# Enable with 1-year expiration and 2-week warning
+node ace authkit:settings:set account_expiration \
+  '{"enabled":true,"inactiveDays":365,"warnDays":14}'
+```
+
+### Login behaviour
+
+When a user with an expired account attempts to log in, the login is **blocked** with a
+clear i18n message. A link to the password-reset flow is shown — completing a reset
+registers implicit activity and unblocks the account. The event `account.expired_login_blocked`
+is emitted.
+
+Fail-safe: any error during the expiration check (audit lookup failure, DB outage) results
+in the login being **allowed** — availability is preferred over enforcement.
+
+### expire-scan command
+
+Run this command periodically (e.g. via cron) to scan for and warn expiring accounts:
+
+```bash
+# Warn accounts expiring within warnDays (sends onAccountExpirationWarning email)
+node ace authkit:accounts:expire-scan --warn
+
+# Dry run — print a summary without sending emails or writing audit events
+node ace authkit:accounts:expire-scan --warn --dry-run
+
+# Machine-readable JSON output (for log aggregation / alerting)
+node ace authkit:accounts:expire-scan --warn --json
+```
+
+| Flag | Notes |
+| --- | --- |
+| `--warn` | Send the expiration warning email to accounts approaching expiration. Deduplicates: accounts that already have an `account.expiration_warned` event within the last `warnDays` days are skipped. |
+| `--dry-run` | Print the counts without sending emails or writing audit events. |
+| `--json` | Output a JSON object `{ expired, warned, skipped }` to stdout. |
+
+**Example cron** (runs nightly at 02:00):
+
+```
+0 2 * * * node ace authkit:accounts:expire-scan --warn --json >> /var/log/authkit-expire.log
+```
+
+**Deduplication:** the command checks the audit log for existing `account.expiration_warned`
+events within the last `warnDays` days per account. An account is warned at most once per
+warning window, even if the cron runs multiple times.
+
+### Mail hook
+
+```ts title="config/authkit_server.ts"
+import mail from '@adonisjs/mail/services/main'
+
+defineConfig({
+  // …
+  mail: {
+    onAccountExpirationWarning: async ({ account, expiresAt, daysLeft }) => {
+      await mail.send((m) =>
+        m.from(env.get('EMAIL_FROM')).to(account.email!)
+          .subject('Your account will expire soon')
+          .html(`
+            <p>Your account at Acme will be locked in <strong>${daysLeft} day(s)</strong>
+            due to inactivity (last login: ${expiresAt.toLocaleDateString()}).</p>
+            <p>Log in to keep your account active.</p>
+          `)
+      )
+    },
+  },
+})
+```
+
+When `onAccountExpirationWarning` is absent, AuthKit logs to the console (development) and
+skips the email send.
+
+### Audit events
+
+| Event | When |
+| --- | --- |
+| `account.expired_login_blocked` | A login was blocked because the account has exceeded `inactiveDays`. |
+| `account.expiration_warned` | An expiration warning email was sent (dedup anchor for the expire-scan command). |
+
 ## Audit events
 
 | Event | When |
@@ -359,3 +470,5 @@ const result = await authkit.users.delete('acc-42')
 | `account.deleted` | A user deletes their own account (self-service). |
 | `account.exported` | A user downloads their data export. |
 | `user.deleted` | An admin deletes a user via the console or API. |
+| `account.expired_login_blocked` | Login blocked — account exceeded inactivity threshold. |
+| `account.expiration_warned` | Expiration warning email sent (expire-scan dedup anchor). |

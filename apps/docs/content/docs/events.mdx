@@ -154,3 +154,9 @@ Every `AuditEvent` carries `accountId`, `email`, `clientId`, `actorId` (imperson
 | `organization.invitation_sent` | An org invitation was sent by email. |
 | `organization.invitation_accepted` | An org invitation was accepted. |
 | `organization.invitation_revoked` | An org invitation was revoked. |
+| `sudo.confirmed` | A user confirmed their identity via sudo mode (`/account/confirm`). `metadata` contains the method (`password` or `passkey`). |
+| `otp.locked` | The TOTP/recovery factor was locked after `maxAttempts` consecutive failures. `metadata.maxAttempts` contains the threshold. |
+| `otp.unlocked` | The TOTP/recovery factor was unlocked via the email link. |
+| `otp.unlock_failed` | An OTP unlock was attempted with an invalid or expired token. |
+| `account.expired_login_blocked` | A login attempt was blocked because the account has exceeded `account_expiration.inactiveDays`. |
+| `account.expiration_warned` | An expiration warning email was dispatched by the `expire-scan` command (used as a dedup anchor). |

@@ -8,6 +8,11 @@ Settings are persisted as JSON rows in the `auth_settings` table and take effect
 request (with a 15-second in-process cache). When the table is absent every setting falls
 back to the static config — zero breaking change.
 
+<Callout type="info">
+  There are now **21 known setting keys** (up from 18). The three new keys are
+  `sudo_mode`, `otp_lockout`, and `account_expiration`.
+</Callout>
+
 ## Philosophy
 
 | Layer | Source of truth | When to use |
@@ -40,7 +45,7 @@ Once the table is present, AuthKit detects it on first access (the result is mem
 
 ## Complete setting catalog
 
-18 known keys, each with its JSON shape and library default:
+21 known keys, each with its JSON shape and library default:
 
 | Key | Shape | Lib default | Notes |
 | --- | --- | --- | --- |
@@ -48,7 +53,7 @@ Once the table is present, AuthKit detects it on first access (the result is mem
 | `registration` | `{ enabled: boolean }` | `{ enabled: true }` | Close/open public sign-up. Admin-create and org invites bypass this guard. |
 | `require_verified_email` | `{ enabled: boolean; graceDays?: number }` | `{ enabled: false, graceDays: 0 }` | Block unverified accounts. `graceDays`: days after signup account may still login. Capability-probed (`isEmailVerified`). |
 | `maintenance_mode` | `{ enabled: boolean; message?: string }` | `{ enabled: false }` | Block login/signup for non-admins. Admin API escape hatch bypasses. |
-| `auth_methods` | `{ password?: boolean; magicLink?: boolean; passkey?: boolean; social?: string[]; forgotPassword?: boolean }` | config/capability defaults | Filter login methods. Fail-safe all-off reverts to defaults. |
+| `auth_methods` | `{ password?: boolean; magicLink?: boolean; passkey?: boolean; passkeyAutofill?: boolean; social?: string[]; forgotPassword?: boolean }` | config/capability defaults | Filter login methods. `passkeyAutofill` enables WebAuthn conditional mediation (default: `true` when passkey on). Fail-safe all-off reverts to defaults. |
 | `email_change` | `{ enabled?: boolean; ttlHours?: number; requirePassword?: boolean }` | `{ enabled: true, ttlHours: 24, requirePassword: true }` | Verified email-change flow. |
 | `security_notifications` | `{ enabled?: boolean; kinds?: string[] }` | `{ enabled: true, kinds: [all 6] }` | Security-event emails. `kinds` filters which events trigger. |
 | `password_history` | `{ enabled?: boolean; count?: number }` | `{ enabled: false, count: 5 }` | Reuse prevention. Requires `auth_password_history` table. |
@@ -56,12 +61,15 @@ Once the table is present, AuthKit detects it on first access (the result is mem
 | `session_policy` | `{ rememberEnabled?: boolean; rememberDays?: number; defaultSessionHours?: number; singleSession?: boolean; idleTimeoutMinutes?: number }` | `{ rememberEnabled: true, rememberDays: 30, defaultSessionHours: 168, singleSession: false, idleTimeoutMinutes: 0 }` | Session duration, remember-me, single session, idle timeout. |
 | `lockout` | `{ enabled?: boolean; maxAttempts?: number; windowSec?: number; baseLockoutSec?: number; maxLockoutSec?: number }` | `{ enabled: true, maxAttempts: 5, windowSec: 900, baseLockoutSec: 60, maxLockoutSec: 3600 }` | Per-email lockout policy. `store` stays in config (infra). |
 | `rate_limit` | `{ login?: { points, duration }; introspection?: { points, duration } }` | `login: { points: 10, duration: '1 min' }; introspection: { points: 60, duration: '1 min' }` | Rate-limit buckets. See [known limitation](#rate_limit-limitation). |
-| `password_policy` | `{ minLength?: number; requireUppercase?: boolean; requireLowercase?: boolean; requireNumbers?: boolean; requireSymbols?: boolean; checkPwned?: boolean }` | `{ minLength: 8, all false }` | Password complexity and HIBP check. |
+| `password_policy` | `{ minLength?: number; requireUppercase?: boolean; requireLowercase?: boolean; requireNumbers?: boolean; requireSymbols?: boolean; checkPwned?: boolean; blockCommon?: boolean }` | `{ minLength: 8, checkPwned: false, blockCommon: true, rest false }` | Password complexity, HIBP check, and offline common-password block. |
 | `notifications` | `{ newLoginEmail?: boolean; newDeviceEmail?: boolean }` | `{ newLoginEmail: true, newDeviceEmail: true }` | New-IP and new-device email alerts. |
 | `trusted_devices` | `{ enabled?: boolean; days?: number }` | `{ enabled: true, days: 30 }` | MFA skip via encrypted cookie. `secrets` stays in config (infra). |
 | `token_ttl` | `{ accessTokenSec?: number; idTokenSec?: number; refreshTokenSec?: number }` | `{ accessTokenSec: 900, idTokenSec: 900, refreshTokenSec: 2592000 }` | Token lifetimes (seconds). Takes effect immediately via holder. Session TTL is in `session_policy`. |
 | `admin_impersonation` | `{ enabled?: boolean }` | `{ enabled: false }` | Show impersonation panel in admin console. |
 | `organizations_policy` | `{ allowSelfCreate?: boolean; invitationTtlHours?: number; roles?: string[] }` | `{ allowSelfCreate: false, invitationTtlHours: 168, roles: ['owner','admin','member'] }` | Org policies. `owner` is always preserved in `roles`. |
+| `sudo_mode` | `{ enabled?: boolean; graceMinutes?: number }` | `{ enabled: true, graceMinutes: 15 }` | Re-authentication gate for sensitive account actions. Emits `sudo.confirmed`. |
+| `otp_lockout` | `{ enabled?: boolean; maxAttempts?: number; unlockTtlHours?: number }` | `{ enabled: true, maxAttempts: 5, unlockTtlHours: 24 }` | Lock TOTP/recovery factor after N failures. Unlock via email link (`GET /auth/otp-unlock/:token`). Requires `@adonisjs/limiter`. |
+| `account_expiration` | `{ enabled?: boolean; inactiveDays?: number; warnDays?: number }` | `{ enabled: false, inactiveDays: 365, warnDays: 14 }` | Block inactive accounts at login. Last activity = last `login.success` in audit. Warn via `mail.onAccountExpirationWarning`. Run `authkit:accounts:expire-scan`. Requires queryable audit sink. |
 
 ### `rate_limit` limitation
 
@@ -72,7 +80,7 @@ change the config and restart the server. `authkit:doctor` includes a warning ab
 
 ## Admin Console
 
-The settings page (`GET {prefix}/settings`) groups the 18 keys into sections:
+The settings page groups the 21 keys into sections:
 
 | Section | Setting keys |
 | --- | --- |
@@ -80,8 +88,9 @@ The settings page (`GET {prefix}/settings`) groups the 18 keys into sections:
 | Email Change | `email_change` |
 | Security Notifications | `security_notifications` |
 | Passwords | `password_history`, `password_expiration`, `password_policy` |
-| Sessions | `session_policy`, `trusted_devices`, `notifications`, `token_ttl` |
+| Sessions & Tokens | `session_policy`, `trusted_devices`, `notifications`, `token_ttl` |
 | Admin & Orgs | `admin_impersonation`, `organizations_policy`, `lockout`, `rate_limit` |
+| Account Security | `sudo_mode`, `otp_lockout`, `account_expiration` |
 
 Each card shows a badge indicating whether the effective value comes from the runtime
 setting (`from setting`) or falls back to the lib default (`from default`). When the
@@ -93,7 +102,7 @@ the lib default and also emits `settings.updated`.
 
 ## Admin REST API
 
-All 18 keys are managed via the same CRUD endpoints:
+All 21 keys are managed via the same CRUD endpoints:
 
 ```bash
 # Read all settings

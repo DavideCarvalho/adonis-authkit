@@ -88,3 +88,31 @@ to the TOTP code:
 
 Registering and removing a passkey emit the `passkey.registered` / `passkey.removed`
 [audit events](/docs/security).
+
+## Passkey autofill (conditional mediation)
+
+When `auth_methods.passkeyAutofill` is `true` (the default when passkeys are configured),
+the built-in login screen activates **WebAuthn conditional mediation**: the browser shows
+passkey suggestions directly inside the email/username input field. The user never has to
+click a separate "Sign in with passkey" button.
+
+The input must have `autocomplete="username webauthn"`. The server endpoint receives an
+`optionsMode=discoverable` flag and returns options with an empty `allowCredentials` list
+so any enrolled passkey can respond.
+
+**Runtime toggle:**
+
+```bash
+# Disable passkey autofill (passkey button still works)
+node ace authkit:settings:set auth_methods '{"passkeyAutofill":false}'
+```
+
+**Custom login screens (React hosts):** use `usePasskeyAutofill` from
+`@dudousxd/adonis-authkit-react` to replicate the same behaviour on a fully custom login
+page. See [React — usePasskeyAutofill](/docs/react#8-usepasskeyautofill).
+
+**Browser support:** Chrome 108+, Safari 16+, Edge 108+. Browsers without support silently
+skip the ceremony — the standard login form is always the fallback.
+
+**Fail-safe:** the ceremony is started with an `AbortController`. Any error, abort, or lack
+of support is swallowed; the standard login continues unaffected.

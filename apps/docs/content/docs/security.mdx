@@ -464,6 +464,132 @@ registration itself to be `enabled` — turning on management while registration
 **resolve-time error** (the config refuses to construct), so you can't accidentally expose
 client management without the registration flow that backs it.
 
+## Sudo mode
+
+**Sudo mode** gates sensitive self-service actions behind a re-authentication step. After a
+user confirms their identity (password or passkey), the IdP records a timestamp in the
+session (`authkit_sudo_at`). While within the grace window any protected action succeeds
+without another prompt; after the window the user is redirected to `/account/confirm?return_to=<path>`.
+
+Actions gated by `requireSudo` in the bundled account console:
+
+- Changing password or email address
+- Deleting the account
+- Enrolling or removing MFA / passkeys
+- Creating, viewing, or revoking Personal Access Tokens
+
+**Setting key:** `sudo_mode`
+
+```json
+{
+  "enabled": true,
+  "graceMinutes": 15
+}
+```
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `enabled` | `boolean` | `true` | `false` disables the gate entirely — no confirmation required. |
+| `graceMinutes` | `number` | `15` | Minutes after a successful confirmation before re-prompting. Minimum: 0 (prompt every time). |
+
+**Fail-safe:** if the settings table is absent or the lookup fails, `requireSudo` defaults
+to the lib default (`enabled: true, graceMinutes: 15`). Any error during the guard resolves
+to `true` (allow), so a DB hiccup never blocks the user.
+
+**Audit:** every confirmation emits a `sudo.confirmed` event. The session key
+`authkit_sudo_at` contains the Unix timestamp (ms) of the last confirmation.
+
+```bash
+# Shorten the grace window
+node ace authkit:settings:set sudo_mode '{"enabled":true,"graceMinutes":5}'
+
+# Disable sudo mode entirely
+node ace authkit:settings:set sudo_mode '{"enabled":false}'
+```
+
+## OTP lockout
+
+**OTP lockout** prevents brute-forcing the second-factor step by locking TOTP and recovery
+code verification after repeated failures — independently of the password-level
+[account lockout](/docs/account-lockout).
+
+Unlike account lockout (per-email, keyed by the limiter), OTP lockout is keyed by
+**`accountId`** and locks the _factor_ rather than the full account. The user can still
+reach the password step; they cannot complete the TOTP/recovery step until they unlock
+their factor.
+
+Both TOTP codes and recovery codes count toward the limit.
+
+**Setting key:** `otp_lockout`
+
+```json
+{
+  "enabled": true,
+  "maxAttempts": 5,
+  "unlockTtlHours": 24
+}
+```
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `enabled` | `boolean` | `true` | `false` disables OTP lockout. No-op if `@adonisjs/limiter` is not installed. |
+| `maxAttempts` | `number` | `5` | Consecutive failures before the factor is locked. Minimum: 1. |
+| `unlockTtlHours` | `number` | `24` | How long the lock lasts (hours). The unlock-by-email token uses the same TTL. |
+
+**Infrastructure:** backed by the same `@adonisjs/limiter` peer as account lockout — no
+extra migration, no extra table. No-op when the limiter isn't installed.
+
+**Fail-safe:** any limiter error is swallowed — a limiter outage never blocks the login.
+
+### OTP unlock flow
+
+When the factor is locked, the login challenge step shows an error and sends an
+**unlock email** via `mail.onOtpUnlock`. The user clicks a single-use link:
+
+```
+GET /auth/otp-unlock/:token
+```
+
+The token is a raw 32-byte hex string; its SHA-256 hash (prefixed `ou:`) is stored in the
+existing `passwordResetToken` column — no new column or migration needed. On a valid click
+the limiter counters are cleared, the column is nulled, and a `otp.unlocked` audit event is
+emitted.
+
+**Mail hook:**
+
+```ts title="config/authkit_server.ts"
+import mail from '@adonisjs/mail/services/main'
+
+defineConfig({
+  // …
+  mail: {
+    onOtpUnlock: async ({ email, unlockUrl, token }) => {
+      await mail.send((m) =>
+        m.from(env.get('EMAIL_FROM')).to(email)
+          .subject('Unlock your two-factor authentication')
+          .text(`Click the link to unlock your 2FA: ${unlockUrl}`)
+      )
+    },
+  },
+})
+```
+
+When `onOtpUnlock` is absent, AuthKit logs the unlock URL to the console (development mode)
+and never sends an email.
+
+**Audit events:**
+
+| Event | When |
+| --- | --- |
+| `otp.locked` | Factor locked after `maxAttempts` consecutive failures. `metadata.maxAttempts` contains the threshold. |
+| `otp.unlocked` | Factor unlocked via the email link. |
+| `otp.unlock_failed` | Unlock attempted with an invalid or expired token. |
+
+```bash
+# Change the lockout threshold
+node ace authkit:settings:set otp_lockout '{"enabled":true,"maxAttempts":3,"unlockTtlHours":12}'
+```
+
 ## Admin console hardening
 
 The `/admin/*` console is off by default. When `admin.enabled` is `false`, the
@@ -484,22 +610,49 @@ mail: {
   onPasswordReset: async ({ email, resetUrl }) => {
     await mail.send((m) =>
       m.from(env.get('EMAIL_FROM')).to(email)
-        .subject('Redefinição de senha')
-        .text(`Para redefinir sua senha, acesse: ${resetUrl}`)
+        .subject('Reset your password')
+        .text(`Reset your password: ${resetUrl}`)
     )
   },
   onEmailVerification: async ({ email, verifyUrl }) => {
     await mail.send((m) =>
       m.from(env.get('EMAIL_FROM')).to(email)
-        .subject('Verifique seu e-mail')
-        .text(`Para confirmar seu e-mail, acesse: ${verifyUrl}`)
+        .subject('Verify your email')
+        .text(`Confirm your email: ${verifyUrl}`)
+    )
+  },
+  /** OTP lockout — unlock the second factor via email. See Security — OTP lockout. */
+  onOtpUnlock: async ({ email, unlockUrl, token }) => {
+    await mail.send((m) =>
+      m.from(env.get('EMAIL_FROM')).to(email)
+        .subject('Unlock your two-factor authentication')
+        .text(`Click to unlock 2FA: ${unlockUrl}`)
+    )
+  },
+  /** Account expiration warning — sent N days before the account expires. See Compliance — Account expiration. */
+  onAccountExpirationWarning: async ({ account, expiresAt, daysLeft }) => {
+    await mail.send((m) =>
+      m.from(env.get('EMAIL_FROM')).to(account.email!)
+        .subject('Your account will expire soon')
+        .text(`Your account will be locked in ${daysLeft} day(s) due to inactivity.`)
     )
   },
 }
 ```
 
 Each hook receives the destination `email`, the fully-built URL (`resetUrl` / `verifyUrl`),
-and the raw `token`.
+and the raw `token` where applicable.
+
+| Hook | Payload | When sent |
+| --- | --- | --- |
+| `onPasswordReset` | `{ email, resetUrl, token }` | Password-reset token issued. |
+| `onEmailVerification` | `{ email, verifyUrl, token }` | Email verification token issued. |
+| `onEmailChangeConfirm` | `{ email, confirmUrl, token, oldEmail }` | Email-change confirmation to new address. |
+| `onEmailChangeNotice` | `{ email, newEmail }` | Security notice to current address on email-change request. |
+| `onSecurityNotice` | `{ account, kind, ip, userAgent, timestamp, metadata }` | One of the six security-notification event kinds. |
+| `onNewDeviceLogin` | `{ account, ip, userAgent, timestamp }` | Login from a device without a trusted-device cookie. |
+| `onOtpUnlock` | `{ email, unlockUrl, token }` | OTP factor locked — unlock link sent. |
+| `onAccountExpirationWarning` | `{ account, expiresAt, daysLeft }` | Account approaching expiration (sent `warnDays` before). |
 
 ## JWT access tokens (RFC 9068)
 

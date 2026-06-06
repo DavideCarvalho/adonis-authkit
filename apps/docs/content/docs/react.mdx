@@ -157,6 +157,7 @@ import {
   useSwitchOrganization,
   useOrgInvitations,
   usePasswordStrength,
+  usePasskeyAutofill,
 } from '@dudousxd/adonis-authkit-react'
 
 // OIDC is redirect-based — these navigate the browser.
@@ -209,6 +210,77 @@ The kit also ships small, accessible, themeable components built on the hooks ab
 `PasswordStrengthMeter`, `OrganizationSwitcher`, and `OrganizationProfile` — with
 `--authkit-*` CSS-variable theming. They have their own page:
 **[React Components](/docs/components)**.
+
+## 8. usePasskeyAutofill
+
+`usePasskeyAutofill` enables **WebAuthn conditional mediation** (passkey autofill) on a
+custom login screen. When mounted, it starts a discoverable-credential ceremony in the
+background. The browser shows passkey suggestions directly inside an `<input>` element with
+`autocomplete="username webauthn"`. As soon as the user selects a passkey, `onSuccess` is
+called with the serialised assertion.
+
+```tsx
+import { usePasskeyAutofill } from '@dudousxd/adonis-authkit-react'
+
+function LoginForm({ uid, csrfToken }: { uid: string; csrfToken: string }) {
+  usePasskeyAutofill({
+    optionsUrl: `/auth/interaction/${uid}/passkey/options`,
+    verifyUrl:  `/auth/interaction/${uid}/passkey/verify`,
+    csrfToken,
+    onSuccess: (assertion) => {
+      // Submit the assertion to the verify endpoint and let the server redirect
+      const form = document.createElement('form')
+      form.method = 'POST'
+      form.action = `/auth/interaction/${uid}/passkey/verify`
+      const input = document.createElement('input')
+      input.type = 'hidden'
+      input.name = 'assertion'
+      input.value = assertion
+      form.appendChild(input)
+      document.body.appendChild(form)
+      form.submit()
+    },
+  })
+
+  return (
+    <form method="POST" action={`/auth/interaction/${uid}/login`}>
+      {/* autocomplete="username webauthn" is the key for conditional mediation */}
+      <input
+        type="email"
+        name="email"
+        autoComplete="username webauthn"
+        placeholder="Email"
+      />
+      <input type="password" name="password" placeholder="Password" />
+      <button type="submit">Sign in</button>
+    </form>
+  )
+}
+```
+
+### Options
+
+| Option | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `optionsUrl` | `string` | — | `POST` endpoint that returns discoverable assertion options (server must support `allowCredentials: []`). |
+| `verifyUrl` | `string` | — | `POST` endpoint that verifies the assertion. |
+| `onSuccess` | `(assertion: string) => void` | — | Called with `JSON.stringify(assertion)` after the user selects a passkey. |
+| `csrfToken` | `string?` | — | Sent as `X-CSRF-TOKEN` header on the options fetch. |
+| `enabled` | `boolean` | `true` | Set to `false` to disable the hook (e.g. when `auth_methods.passkeyAutofill` is off). |
+
+### Fail-safes
+
+- **SSR-safe** — does not run outside a browser environment.
+- **No WebAuthn support** — exits silently; the standard login form is unaffected.
+- **No conditional mediation support** — `PublicKeyCredential.isConditionalMediationAvailable()` is checked before starting; exits silently on older browsers.
+- **Unmount** — the in-flight ceremony is aborted via `AbortController` automatically.
+- **Any error** — swallowed; the standard password form is always available.
+- **`@simplewebauthn/browser` absent** — the hook tries `@simplewebauthn/browser` first, then
+  falls back to the jsDelivr CDN bundle. If neither resolves, autofill is silently skipped.
+
+The server-side counterpart is the `passkeyAutofill` field in the `auth_methods` runtime
+setting (default `true` when passkeys are configured). See
+[Settings](/docs/settings#complete-setting-catalog) for details.
 
 ## Pure helpers
 

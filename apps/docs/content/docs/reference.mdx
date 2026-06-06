@@ -26,14 +26,14 @@ description: The full defineConfig option tables for server and client.
 | `patIntrospectionSecret` | `string` | — | Shared secret authenticating PAT introspection. |
 | `rateLimit` | `RateLimitConfigInput` | disabled | Opt-in anti-brute-force throttles. `enabled` and `store` are infra — set here. Bucket values (`login`, `introspection`) are managed via the `rate_limit` runtime setting. |
 | `lockout` | `LockoutConfigInput` | enabled | Progressive per-email lockout. `store` is infra — set here. Policy (`enabled`, `maxAttempts`, etc.) is managed via the `lockout` runtime setting. See [Account Lockout](/docs/account-lockout). |
-| `mail` | `MailHooks` | — | `onPasswordReset` / `onEmailVerification` / `onEmailChangeConfirm` / `onEmailChangeNotice` / `onSecurityNotice` hooks. |
+| `mail` | `MailHooks` | — | `onPasswordReset` / `onEmailVerification` / `onEmailChangeConfirm` / `onEmailChangeNotice` / `onSecurityNotice` / `onOtpUnlock` / `onAccountExpirationWarning` hooks. See [Security — Mail hooks](/docs/security#mail-hooks). |
 | `audit` | `AuditSink` | no-op | Best-effort audit sink. |
 | `events` | `EventsConfigInput` | — | `{ onEvent?, webhook? }` — observe every audit event in-process or via an HMAC-signed webhook. See [Events & Webhooks](/docs/events). |
 | `mfaIssuer` | `string` | `'AuthKit'` | TOTP issuer label shown in authenticator apps. |
 | `webauthn` | `WebauthnConfigInput` | derived from `issuer` | Passkey RP params. See [WebAuthn](/docs/webauthn). |
 | `i18n` | `I18nConfig` | English (`en`); pt-BR built in | Host-kit screen translations. See [Internationalization](/docs/i18n). |
 | `dynamicRegistration` | `DynamicRegistrationConfigInput` | disabled | RFC 7591/7592. See [Dynamic Registration](/docs/dynamic-registration). |
-| `admin` | `AdminConfigInput` | disabled | The `/admin` console. See [Admin Console](/docs/admin-console). |
+| `admin` | `AdminConfigInput` | disabled | The `/admin` console. `AdminConfigInput = { enabled: boolean; roles?: string[]; ui?: 'react' \| 'edge' }`. `ui: 'react'` (default) serves the Vite-built React SPA; `ui: 'edge'` uses classic Edge server-rendered views. See [Admin Console](/docs/admin-console). |
 | `adminApi` | `true \| { prefix?: string }` | disabled | The Admin REST API (API-key auth). `true` mounts at the default `/api/authkit/v1`; pass `{ prefix: '/custom/path' }` to override. Prefix is normalised (leading `/`, no trailing slash). Must match `apiPrefix` in the SDK's remote driver. See [Admin REST API](/docs/admin-api). |
 | `deviceFlow` | `{ enabled: boolean }` | disabled | Device Authorization Grant (RFC 8628). See [Device Flow](/docs/device-flow). |
 | `dpop` | `{ enabled: boolean }` | disabled | DPoP sender-constrained tokens (RFC 9449). See [Security](/docs/security#dpop). |
@@ -179,7 +179,7 @@ if (supportsSettings(store)) {
 
 ### Known setting keys
 
-18 known keys. All are capability-probed — if the `auth_settings` table is absent every
+21 known keys. All are capability-probed — if the `auth_settings` table is absent every
 key falls back to the lib default (fail-safe). See [Runtime Settings](/docs/settings)
 for the canonical guide, precedence rules, CLI, and migration from static config.
 
@@ -189,7 +189,7 @@ for the canonical guide, precedence rules, CLI, and migration from static config
 | `registration` | `{ enabled: boolean }` | `{ enabled: true }` | Open or close public sign-up. Overrides the static `registration.enabled` in `defineConfig`. See [Security — Registration toggle](/docs/security#registration-toggle). |
 | `require_verified_email` | `{ enabled: boolean; graceDays?: number }` | `{ enabled: false, graceDays: 0 }` | Block unverified accounts. `graceDays` allows newly-registered accounts to log in for N days without verifying. Capability-probed (`isEmailVerified`). See [Compliance — Verified email gate](/docs/compliance#verified-email-grace). |
 | `maintenance_mode` | `{ enabled: boolean; message?: string }` | `{ enabled: false }` | Block login/sign-up/forgot for non-admins. Admin API escape hatch. See [Security — Maintenance mode](/docs/security#maintenance-mode). |
-| `auth_methods` | `{ password?: boolean; magicLink?: boolean; passkey?: boolean; social?: string[]; forgotPassword?: boolean }` | config/capability defaults | Filter login methods at runtime. All fields optional. `forgotPassword` auto-off when `password` off. `social` intersected with static providers. Fail-safe all-off reverts to defaults. See [Security — Authentication methods](/docs/security#authentication-methods). |
+| `auth_methods` | `{ password?: boolean; magicLink?: boolean; passkey?: boolean; passkeyAutofill?: boolean; social?: string[]; forgotPassword?: boolean }` | config/capability defaults | Filter login methods at runtime. `passkeyAutofill`: WebAuthn conditional mediation (default `true` when passkey on). `forgotPassword` auto-off when `password` off. `social` intersected with static providers. Fail-safe all-off reverts to defaults. See [Security — Authentication methods](/docs/security#authentication-methods). |
 | `email_change` | `{ enabled?: boolean; ttlHours?: number; requirePassword?: boolean }` | `{ enabled: true, ttlHours: 24, requirePassword: true }` | Verified email-change flow. See [Compliance — Email change](/docs/compliance#email-change). |
 | `security_notifications` | `{ enabled?: boolean; kinds?: string[] }` | `{ enabled: true, kinds: [all 6] }` | Security-event emails. `kinds`: `password_changed`, `mfa_enabled`, `mfa_disabled`, `passkey_added`, `passkey_removed`, `email_changed`. See [Compliance — Security notifications](/docs/compliance#security-notifications). |
 | `password_history` | `{ enabled?: boolean; count?: number }` | `{ enabled: false, count: 5 }` | Reuse prevention. Requires `auth_password_history` table. See [Passwords — History](/docs/passwords-and-migration#history). |
@@ -197,12 +197,15 @@ for the canonical guide, precedence rules, CLI, and migration from static config
 | `session_policy` | `{ rememberEnabled?: boolean; rememberDays?: number; defaultSessionHours?: number; singleSession?: boolean; idleTimeoutMinutes?: number }` | `{ rememberEnabled: true, rememberDays: 30, defaultSessionHours: 168, singleSession: false, idleTimeoutMinutes: 0 }` | Session duration and behaviour. Idle timeout applies to account console only (not OIDC tokens). |
 | `lockout` | `{ enabled?: boolean; maxAttempts?: number; windowSec?: number; baseLockoutSec?: number; maxLockoutSec?: number }` | `{ enabled: true, maxAttempts: 5, windowSec: 900, baseLockoutSec: 60, maxLockoutSec: 3600 }` | Per-email lockout policy. `store` stays in config (infra). |
 | `rate_limit` | `{ login?: { points, duration }; introspection?: { points, duration } }` | `login: { points: 10, duration: '1 min' }; introspection: { points: 60, duration: '1 min' }` | Rate-limit bucket policy. **Limitation:** route throttle middleware uses boot-time values; only lockout-side is dynamic. |
-| `password_policy` | `{ minLength?: number; requireUppercase?: boolean; requireLowercase?: boolean; requireNumbers?: boolean; requireSymbols?: boolean; checkPwned?: boolean }` | `{ minLength: 8, all false }` | Password complexity and HIBP check. See [Passwords](/docs/passwords-and-migration). |
+| `password_policy` | `{ minLength?: number; requireUppercase?: boolean; requireLowercase?: boolean; requireNumbers?: boolean; requireSymbols?: boolean; checkPwned?: boolean; blockCommon?: boolean }` | `{ minLength: 8, checkPwned: false, blockCommon: true, rest false }` | Password complexity, HIBP check, and offline common-password block (~10k list). See [Passwords](/docs/passwords-and-migration). |
 | `notifications` | `{ newLoginEmail?: boolean; newDeviceEmail?: boolean }` | `{ newLoginEmail: true, newDeviceEmail: true }` | New-IP and new-device email alerts. |
 | `trusted_devices` | `{ enabled?: boolean; days?: number }` | `{ enabled: true, days: 30 }` | MFA skip via encrypted cookie. `secrets` stays in config (infra). |
 | `token_ttl` | `{ accessTokenSec?: number; idTokenSec?: number; refreshTokenSec?: number }` | `{ accessTokenSec: 900, idTokenSec: 900, refreshTokenSec: 2592000 }` | Token lifetimes (seconds). Takes effect immediately via holder. Session TTL is in `session_policy`. |
 | `admin_impersonation` | `{ enabled?: boolean }` | `{ enabled: false }` | Show impersonation panel in admin console. |
 | `organizations_policy` | `{ allowSelfCreate?: boolean; invitationTtlHours?: number; roles?: string[] }` | `{ allowSelfCreate: false, invitationTtlHours: 168, roles: ['owner','admin','member'] }` | Org policies. `owner` is always preserved. |
+| `sudo_mode` | `{ enabled?: boolean; graceMinutes?: number }` | `{ enabled: true, graceMinutes: 15 }` | Re-authentication gate for sensitive account actions. `graceMinutes: 0` prompts on every action. Session key: `authkit_sudo_at`. See [Security — Sudo mode](/docs/security#sudo-mode). |
+| `otp_lockout` | `{ enabled?: boolean; maxAttempts?: number; unlockTtlHours?: number }` | `{ enabled: true, maxAttempts: 5, unlockTtlHours: 24 }` | Lock TOTP/recovery after N failures; unlock via `GET /auth/otp-unlock/:token`. Token prefix `ou:` in `passwordResetToken` column. Requires `@adonisjs/limiter`. See [Security — OTP lockout](/docs/security#otp-lockout). |
+| `account_expiration` | `{ enabled?: boolean; inactiveDays?: number; warnDays?: number }` | `{ enabled: false, inactiveDays: 365, warnDays: 14 }` | Block inactive accounts. Last activity = last `login.success` in audit. Warn via `onAccountExpirationWarning`. Scan via `authkit:accounts:expire-scan`. Requires queryable audit sink. See [Compliance — Account expiration](/docs/compliance#account-expiration). |
 
 ## Ace commands
 
@@ -219,6 +222,7 @@ Commands provided by `@dudousxd/adonis-authkit-server`:
 | `node ace authkit:settings:get <key> [--json]` | Get a specific setting by key. Prints `null` if the key is not set (lib default applies). |
 | `node ace authkit:settings:set <key> <json> [--json]` | Upsert a setting. Validates shape for known keys. Audits `settings.updated` with `updatedBy: 'cli'`. |
 | `node ace authkit:settings:unset <key> [--json]` | Delete a setting (reset to lib default). Audits `settings.updated`. |
+| `node ace authkit:accounts:expire-scan [--warn] [--dry-run] [--json]` | Scan for expired/expiring accounts. `--warn` sends `mail.onAccountExpirationWarning` (deduped via audit). `--dry-run` prints counts without writing. `--json` outputs `{ expired, warned, skipped }`. See [Compliance — Account expiration](/docs/compliance#account-expiration). |
 
 ### `authkit:doctor` — `checkSettings`
 

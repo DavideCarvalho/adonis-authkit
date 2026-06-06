@@ -553,12 +553,27 @@ export interface AdminConfigInput {
   enabled: boolean
   /** Roles globais que dão acesso ao /admin. Default: ['ADMIN']. */
   roles?: string[]
+  /**
+   * Modo de UI do console admin.
+   *
+   * - `'react'` (default) — serve o shell React single-page (SPA self-contained,
+   *   estilo adonis-telescope). As páginas `GET` do console retornam o HTML shell
+   *   com `window.__AUTHKIT__` injetado; os endpoints JSON sob `{prefix}/api/*`
+   *   são registrados e guardados pelo adminGuard.
+   * - `'edge'` — comportamento legado: as páginas são server-rendered via Edge
+   *   views (mantém 100% de compatibilidade com instalações existentes).
+   *
+   * Quando omitido, assume `'react'`.
+   */
+  ui?: 'react' | 'edge'
 }
 
 export interface ResolvedAdminConfig {
   enabled: boolean
   roles: string[]
   impersonation: boolean
+  /** Modo de UI do console admin. Default: `'react'`. */
+  ui: 'react' | 'edge'
 }
 
 export function resolveAdmin(input?: AdminConfigInput): ResolvedAdminConfig {
@@ -566,6 +581,7 @@ export function resolveAdmin(input?: AdminConfigInput): ResolvedAdminConfig {
     enabled: input?.enabled ?? false,
     roles: input?.roles && input.roles.length > 0 ? input.roles : ['ADMIN'],
     impersonation: false,
+    ui: input?.ui ?? 'react',
   }
 }
 

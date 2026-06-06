@@ -5,6 +5,7 @@ import {
   normalizeAdminPrefix,
   getAdminApiPrefix,
   normalizeAdminApiPrefix,
+  setAdminUiMode,
 } from '../../src/host/admin_prefix.js'
 
 function fakeRouter() {
@@ -118,29 +119,57 @@ test.group('registerAuthHost', () => {
     assert.isFalse(router.routes.some((r: any) => r.pattern === '/admin/users'))
   })
 
-  test('monta o grupo /admin quando admin: true (back-compat)', ({ assert }) => {
+  test('monta o grupo /admin quando admin: true (React SPA — novo default)', ({ assert }) => {
     const router = fakeRouter()
     registerAuthHost(router, { mountPath: '/oidc', admin: true })
+    // admin:true usa ui:'react' — monta shell + JSON API.
     assert.isTrue(router.routes.some((r: any) => r.pattern === '/admin'))
-    assert.isTrue(router.routes.some((r: any) => r.pattern === '/admin/users'))
-    assert.isTrue(router.routes.some((r: any) => r.pattern === '/admin/users/:id/roles'))
-    assert.isTrue(router.routes.some((r: any) => r.pattern === '/admin/clients'))
-    assert.isTrue(router.routes.some((r: any) => r.pattern === '/admin/audit'))
+    // Shell catch-all.
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/admin/*' && r.method === 'GET'))
+    // JSON API overview.
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/admin/api/overview'))
+    // JSON API users.
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/admin/api/users'))
+    // JSON API clients.
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/admin/api/clients'))
+    // JSON API audit.
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/admin/api/audit'))
+    // NÃO monta rotas Edge antigas.
+    assert.isFalse(router.routes.some((r: any) => r.pattern === '/admin/users' && r.method === 'GET'))
     // O grupo recebeu middleware (adminGuard).
     assert.isTrue(router.groupMiddlewareApplied)
     // O singleton de processo reflete o prefixo default.
     assert.equal(getAdminPrefix(), '/admin')
   })
 
+  test('monta rotas Edge quando admin: { ui: edge }', ({ assert }) => {
+    const router = fakeRouter()
+    registerAuthHost(router, { mountPath: '/oidc', admin: { ui: 'edge' } })
+    // Modo Edge: monta as rotas clássicas.
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/admin'))
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/admin/users'))
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/admin/users/:id/roles'))
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/admin/clients'))
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/admin/audit'))
+    // NÃO monta rotas React.
+    assert.isFalse(router.routes.some((r: any) => r.pattern === '/admin/*' && r.method === 'GET'))
+    assert.isFalse(router.routes.some((r: any) => r.pattern === '/admin/api/overview'))
+    assert.isTrue(router.groupMiddlewareApplied)
+    assert.equal(getAdminPrefix(), '/admin')
+    // Restaura modo react para não afetar outros testes.
+    setAdminUiMode('react')
+  })
+
   test('monta o grupo sob prefixo custom quando admin: { prefix }', ({ assert }) => {
     const router = fakeRouter()
     registerAuthHost(router, { mountPath: '/oidc', admin: { prefix: '/auth/admin' } })
-    // Rotas devem existir sob o prefixo custom.
+    // Rotas React devem existir sob o prefixo custom.
     assert.isTrue(router.routes.some((r: any) => r.pattern === '/auth/admin'))
-    assert.isTrue(router.routes.some((r: any) => r.pattern === '/auth/admin/users'))
-    assert.isTrue(router.routes.some((r: any) => r.pattern === '/auth/admin/users/:id/roles'))
-    assert.isTrue(router.routes.some((r: any) => r.pattern === '/auth/admin/clients'))
-    assert.isTrue(router.routes.some((r: any) => r.pattern === '/auth/admin/audit'))
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/auth/admin/*'))
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/auth/admin/api/overview'))
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/auth/admin/api/users'))
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/auth/admin/api/clients'))
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/auth/admin/api/audit'))
     // As rotas do prefixo DEFAULT /admin NÃO devem existir.
     assert.isFalse(router.routes.some((r: any) => r.pattern === '/admin'))
     assert.isFalse(router.routes.some((r: any) => r.pattern === '/admin/users'))
@@ -150,11 +179,11 @@ test.group('registerAuthHost', () => {
     assert.isTrue(router.groupMiddlewareApplied)
   })
 
-  test('admin: {} sem prefix usa o default /admin', ({ assert }) => {
+  test('admin: {} sem prefix usa o default /admin (React mode)', ({ assert }) => {
     const router = fakeRouter()
     registerAuthHost(router, { mountPath: '/oidc', admin: {} })
     assert.isTrue(router.routes.some((r: any) => r.pattern === '/admin'))
-    assert.isTrue(router.routes.some((r: any) => r.pattern === '/admin/users'))
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/admin/api/users'))
     assert.equal(getAdminPrefix(), '/admin')
   })
 
@@ -295,9 +324,10 @@ test.group('registerAuthHost — Admin REST API prefix', () => {
       admin: { prefix: '/auth/admin' },
       adminApi: { prefix: '/authkit/api' },
     })
-    // Console sob prefixo custom.
+    // Console sob prefixo custom (modo React: rota shell + JSON API).
     assert.isTrue(router.routes.some((r: any) => r.pattern === '/auth/admin'))
-    assert.isTrue(router.routes.some((r: any) => r.pattern === '/auth/admin/users'))
+    // Em modo React, as rotas de dados ficam sob /api/: /auth/admin/api/users.
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/auth/admin/api/users'))
     assert.isFalse(router.routes.some((r: any) => r.pattern === '/admin'))
     // API grupo sob prefixo custom.
     assert.isTrue(router.routes.some((r: any) => r.pattern === '/users' && r.method === 'GET'))

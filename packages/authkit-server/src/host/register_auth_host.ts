@@ -9,6 +9,7 @@ import {
   normalizeAdminPrefix,
   setAdminApiPrefix,
   normalizeAdminApiPrefix,
+  setAdminUiMode,
 } from './admin_prefix.js'
 import { RuntimeSettings } from './runtime_settings.js'
 import { resolveEffectiveSessionPolicy } from './runtime_toggles.js'
@@ -164,23 +165,29 @@ export interface AuthHostOptions {
   /**
    * Console admin opt-in (B6).
    *
-   * - `true` → comportamento padrão: monta as rotas sob o prefixo `/admin` (back-compat total).
-   * - `{ prefix?: string }` → monta sob o prefixo fornecido, e.g. `{ prefix: '/auth/admin' }`.
+   * - `true` → comportamento padrão: monta as rotas sob o prefixo `/admin` (back-compat total);
+   *   modo UI `'react'` (SPA self-contained).
+   * - `{ prefix?: string; ui?: 'react' | 'edge' }` → prefixo customizado e/ou modo de UI.
    *   O prefixo é normalizado: começa com `/`, sem trailing slash.
    *   Quando `prefix` é omitido ou vazio, usa o default `/admin`.
+   *   Quando `ui` é omitido, usa `'react'` (SPA self-contained); `'edge'` restaura o
+   *   comportamento legado de server-rendering com Edge views.
    *
    * Necessário aqui (e não só no config) porque a decisão de montar as rotas é
    * tomada em tempo de registro, antes do config (lazy) resolver.
-   * Espelhe o `admin.enabled` de config/authkit.ts.
+   * Espelhe o `admin.enabled` e `admin.ui` de config/authkit.ts.
    *
    * @example
-   * // Prefixo padrão (back-compat)
+   * // Prefixo padrão + SPA React (back-compat com ui react)
    * registerAuthHost(router, { mountPath: '/oidc', admin: true })
    *
    * // Prefixo customizado — console em /auth/admin
    * registerAuthHost(router, { mountPath: '/oidc', admin: { prefix: '/auth/admin' } })
+   *
+   * // Modo legado Edge views
+   * registerAuthHost(router, { mountPath: '/oidc', admin: { ui: 'edge' } })
    */
-  admin?: boolean | { prefix?: string }
+  admin?: boolean | { prefix?: string; ui?: 'react' | 'edge' }
   /**
    * Admin REST API opt-in (R6).
    *
@@ -224,6 +231,17 @@ const C = {
   adminAudit: () => import('./controllers/admin/admin_audit_controller.js'),
   adminOrgs: () => import('./controllers/admin/admin_orgs_controller.js'),
   adminSettings: () => import('./controllers/admin/admin_settings_controller.js'),
+  // Console React JSON API (session-authed, under {prefix}/api/*).
+  consoleShell: () => import('./admin_console/admin_shell_controller.js'),
+  consoleOverview: () => import('./admin_console/console_overview_controller.js'),
+  consoleUsers: () => import('./admin_console/console_users_controller.js'),
+  consoleSessions: () => import('./admin_console/console_sessions_controller.js'),
+  consoleClients: () => import('./admin_console/console_clients_controller.js'),
+  consoleRoles: () => import('./admin_console/console_roles_controller.js'),
+  consoleOrgs: () => import('./admin_console/console_orgs_controller.js'),
+  consoleAudit: () => import('./admin_console/console_audit_controller.js'),
+  consoleSettings: () => import('./admin_console/console_settings_controller.js'),
+  consoleImpersonation: () => import('./admin_console/console_impersonation_controller.js'),
   apiUsers: () => import('./admin_api/api_users_controller.js'),
   apiClients: () => import('./admin_api/api_clients_controller.js'),
   apiMisc: () => import('./admin_api/api_misc_controller.js'),
@@ -372,86 +390,142 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
     // Persiste no singleton de processo para que controllers e views usem o mesmo prefixo.
     setAdminPrefix(ap)
 
+    // Resolve o modo de UI: `true` → 'react'; objeto → usa ui fornecido (default 'react').
+    const uiMode: 'react' | 'edge' =
+      typeof opts.admin === 'object' && opts.admin.ui === 'edge' ? 'edge' : 'react'
+    setAdminUiMode(uiMode)
+
     router
       .group(() => {
-        router.get(ap, [C.adminDashboard, 'index'])
-        router.get(`${ap}/users`, [C.adminUsers, 'index'])
-        router.post(`${ap}/users`, [C.adminUsers, 'store'])
-        router.post(`${ap}/users/:id/roles`, [C.adminUsers, 'updateRoles'])
-        router.post(`${ap}/users/:id/reset-password`, [C.adminUsers, 'resetPassword'])
-        router.post(`${ap}/users/:id/disable`, [C.adminUsers, 'disable'])
-        router.post(`${ap}/users/:id/enable`, [C.adminUsers, 'enable'])
-        router.post(`${ap}/users/:id/delete`, [C.adminUsers, 'destroy'])
-        // Catálogo de roles.
-        router.get(`${ap}/roles`, [C.adminRoles, 'index'])
-        router.post(`${ap}/roles`, [C.adminRoles, 'store'])
-        router.post(`${ap}/roles/:name/edit`, [C.adminRoles, 'update'])
-        router.post(`${ap}/roles/:name/delete`, [C.adminRoles, 'destroy'])
-        // Sessões/grants ativos da conta + revogação em massa.
-        router.get(`${ap}/users/:id/sessions`, [C.adminSessions, 'index'])
-        router.post(`${ap}/users/:id/revoke-sessions`, [C.adminSessions, 'revoke'])
-        router.get(`${ap}/clients`, [C.adminClients, 'index'])
-        // CRUD de clients OIDC (adapter-backed). `/new` ANTES de `:id` p/ não casar
-        // "new" como id; todas as escritas são POST (com _csrf na view).
-        router.get(`${ap}/clients/new`, [C.adminClients, 'create'])
-        router.post(`${ap}/clients`, [C.adminClients, 'store'])
-        router.get(`${ap}/clients/:id/edit`, [C.adminClients, 'edit'])
-        router.post(`${ap}/clients/:id/edit`, [C.adminClients, 'update'])
-        router.post(`${ap}/clients/:id/regenerate-secret`, [C.adminClients, 'regenerateSecret'])
-        router.post(`${ap}/clients/:id/delete`, [C.adminClients, 'destroy'])
-        router.get(`${ap}/audit`, [C.adminAudit, 'index'])
-        // Organizations (opt-in — capability-gated inside the controller).
-        router.get(`${ap}/orgs`, [C.adminOrgs, 'index'])
-        router.post(`${ap}/orgs`, [C.adminOrgs, 'store'])
-        router.get(`${ap}/orgs/:id`, [C.adminOrgs, 'show'])
-        router.post(`${ap}/orgs/:id/delete`, [C.adminOrgs, 'destroy'])
-        router.post(`${ap}/orgs/:id/members`, [C.adminOrgs, 'addMember'])
-        router.post(`${ap}/orgs/:id/members/:accountId/remove`, [C.adminOrgs, 'removeMember'])
-        router.post(`${ap}/orgs/:id/invitations/:invId/revoke`, [C.adminOrgs, 'revokeInvitation'])
-        // Runtime settings.
-        router.get(`${ap}/settings`, [C.adminSettings, 'index'])
-        router.post(`${ap}/settings/bot-protection`, [C.adminSettings, 'updateBotProtection'])
-        router.post(`${ap}/settings/bot-protection/reset`, [C.adminSettings, 'resetBotProtection'])
-        router.post(`${ap}/settings/registration`, [C.adminSettings, 'updateRegistration'])
-        router.post(`${ap}/settings/registration/reset`, [C.adminSettings, 'resetRegistration'])
-        router.post(`${ap}/settings/require-verified-email`, [C.adminSettings, 'updateRequireVerifiedEmail'])
-        router.post(`${ap}/settings/require-verified-email/reset`, [C.adminSettings, 'resetRequireVerifiedEmail'])
-        router.post(`${ap}/settings/maintenance`, [C.adminSettings, 'updateMaintenance'])
-        router.post(`${ap}/settings/maintenance/reset`, [C.adminSettings, 'resetMaintenance'])
-        router.post(`${ap}/settings/auth-methods`, [C.adminSettings, 'updateAuthMethods'])
-        router.post(`${ap}/settings/auth-methods/reset`, [C.adminSettings, 'resetAuthMethods'])
-        router.post(`${ap}/settings/email-change`, [C.adminSettings, 'updateEmailChange'])
-        router.post(`${ap}/settings/email-change/reset`, [C.adminSettings, 'resetEmailChange'])
-        router.post(`${ap}/settings/security-notifications`, [C.adminSettings, 'updateSecurityNotifications'])
-        router.post(`${ap}/settings/security-notifications/reset`, [C.adminSettings, 'resetSecurityNotifications'])
-        router.post(`${ap}/settings/password-history`, [C.adminSettings, 'updatePasswordHistory'])
-        router.post(`${ap}/settings/password-history/reset`, [C.adminSettings, 'resetPasswordHistory'])
-        router.post(`${ap}/settings/password-expiration`, [C.adminSettings, 'updatePasswordExpiration'])
-        router.post(`${ap}/settings/password-expiration/reset`, [C.adminSettings, 'resetPasswordExpiration'])
-        router.post(`${ap}/settings/session-policy`, [C.adminSettings, 'updateSessionPolicy'])
-        router.post(`${ap}/settings/session-policy/reset`, [C.adminSettings, 'resetSessionPolicy'])
-        router.post(`${ap}/settings/lockout`, [C.adminSettings, 'updateLockout'])
-        router.post(`${ap}/settings/lockout/reset`, [C.adminSettings, 'resetLockout'])
-        router.post(`${ap}/settings/rate-limit`, [C.adminSettings, 'updateRateLimit'])
-        router.post(`${ap}/settings/rate-limit/reset`, [C.adminSettings, 'resetRateLimit'])
-        router.post(`${ap}/settings/password-policy`, [C.adminSettings, 'updatePasswordPolicy'])
-        router.post(`${ap}/settings/password-policy/reset`, [C.adminSettings, 'resetPasswordPolicy'])
-        router.post(`${ap}/settings/notifications`, [C.adminSettings, 'updateNotifications'])
-        router.post(`${ap}/settings/notifications/reset`, [C.adminSettings, 'resetNotifications'])
-        router.post(`${ap}/settings/trusted-devices`, [C.adminSettings, 'updateTrustedDevices'])
-        router.post(`${ap}/settings/trusted-devices/reset`, [C.adminSettings, 'resetTrustedDevices'])
-        router.post(`${ap}/settings/token-ttl`, [C.adminSettings, 'updateTokenTtl'])
-        router.post(`${ap}/settings/token-ttl/reset`, [C.adminSettings, 'resetTokenTtl'])
-        router.post(`${ap}/settings/admin-impersonation`, [C.adminSettings, 'updateAdminImpersonation'])
-        router.post(`${ap}/settings/admin-impersonation/reset`, [C.adminSettings, 'resetAdminImpersonation'])
-        router.post(`${ap}/settings/organizations-policy`, [C.adminSettings, 'updateOrganizationsPolicy'])
-        router.post(`${ap}/settings/organizations-policy/reset`, [C.adminSettings, 'resetOrganizationsPolicy'])
-        router.post(`${ap}/settings/otp-lockout`, [C.adminSettings, 'updateOtpLockout'])
-        router.post(`${ap}/settings/otp-lockout/reset`, [C.adminSettings, 'resetOtpLockout'])
-        router.post(`${ap}/settings/sudo-mode`, [C.adminSettings, 'updateSudoMode'])
-        router.post(`${ap}/settings/sudo-mode/reset`, [C.adminSettings, 'resetSudoMode'])
-        router.post(`${ap}/settings/account-expiration`, [C.adminSettings, 'updateAccountExpiration'])
-        router.post(`${ap}/settings/account-expiration/reset`, [C.adminSettings, 'resetAccountExpiration'])
+        // ─── Modo React (SPA self-contained) ──────────────────────────────────
+        // Quando ui='react': todas as rotas GET do console servem o shell HTML.
+        // Os endpoints JSON sob {prefix}/api/* são a fonte de dados da SPA.
+        // Quando ui='edge': as rotas Edge clássicas são registradas (compatibilidade total).
+
+        if (uiMode === 'react') {
+          // Shell HTML — serve para TODAS as rotas de página do console React.
+          // O roteamento client-side (hash ou history) é tratado pela SPA.
+          router.get(ap, [C.consoleShell, 'serve'])
+          router.get(`${ap}/*`, [C.consoleShell, 'serve'])
+
+          // ─── JSON API do console (session-authed via adminGuard upstream) ─────
+          // GET {ap}/api/overview
+          router.get(`${ap}/api/overview`, [C.consoleOverview, 'handle'])
+          // Usuários.
+          router.get(`${ap}/api/users`, [C.consoleUsers, 'index'])
+          router.get(`${ap}/api/users/:id`, [C.consoleUsers, 'show'])
+          router.post(`${ap}/api/users`, [C.consoleUsers, 'store'])
+          router.patch(`${ap}/api/users/:id/roles`, [C.consoleUsers, 'updateRoles'])
+          router.post(`${ap}/api/users/:id/disable`, [C.consoleUsers, 'disable'])
+          router.post(`${ap}/api/users/:id/enable`, [C.consoleUsers, 'enable'])
+          router.post(`${ap}/api/users/:id/reset-password`, [C.consoleUsers, 'resetPassword'])
+          router.delete(`${ap}/api/users/:id`, [C.consoleUsers, 'destroy'])
+          // Sessões.
+          router.get(`${ap}/api/sessions`, [C.consoleSessions, 'index'])
+          router.post(`${ap}/api/sessions/revoke-all`, [C.consoleSessions, 'revokeAll'])
+          // Clients OIDC.
+          router.get(`${ap}/api/clients`, [C.consoleClients, 'index'])
+          router.post(`${ap}/api/clients`, [C.consoleClients, 'store'])
+          router.patch(`${ap}/api/clients/:id`, [C.consoleClients, 'update'])
+          router.delete(`${ap}/api/clients/:id`, [C.consoleClients, 'destroy'])
+          router.post(`${ap}/api/clients/:id/regenerate-secret`, [C.consoleClients, 'regenerateSecret'])
+          // Roles.
+          router.get(`${ap}/api/roles`, [C.consoleRoles, 'index'])
+          router.post(`${ap}/api/roles`, [C.consoleRoles, 'store'])
+          router.patch(`${ap}/api/roles/:name`, [C.consoleRoles, 'update'])
+          router.delete(`${ap}/api/roles/:name`, [C.consoleRoles, 'destroy'])
+          // Organizações (capability-gated: 404 quando store não suporta).
+          router.get(`${ap}/api/orgs`, [C.consoleOrgs, 'index'])
+          router.get(`${ap}/api/orgs/:id`, [C.consoleOrgs, 'show'])
+          // Auditoria (capability-gated: 404 quando sink não suporta consulta).
+          router.get(`${ap}/api/audit`, [C.consoleAudit, 'index'])
+          // Settings.
+          router.get(`${ap}/api/settings`, [C.consoleSettings, 'index'])
+          router.put(`${ap}/api/settings/:key`, [C.consoleSettings, 'upsert'])
+          router.delete(`${ap}/api/settings/:key`, [C.consoleSettings, 'destroy'])
+          // Impersonation (capability-gated: 404 quando desabilitado ou sem client).
+          router.get(`${ap}/api/impersonation/:userId`, [C.consoleImpersonation, 'handle'])
+        } else {
+          // ─── Modo Edge (server-rendered — back-compat total) ──────────────────
+          router.get(ap, [C.adminDashboard, 'index'])
+          router.get(`${ap}/users`, [C.adminUsers, 'index'])
+          router.post(`${ap}/users`, [C.adminUsers, 'store'])
+          router.post(`${ap}/users/:id/roles`, [C.adminUsers, 'updateRoles'])
+          router.post(`${ap}/users/:id/reset-password`, [C.adminUsers, 'resetPassword'])
+          router.post(`${ap}/users/:id/disable`, [C.adminUsers, 'disable'])
+          router.post(`${ap}/users/:id/enable`, [C.adminUsers, 'enable'])
+          router.post(`${ap}/users/:id/delete`, [C.adminUsers, 'destroy'])
+          // Catálogo de roles.
+          router.get(`${ap}/roles`, [C.adminRoles, 'index'])
+          router.post(`${ap}/roles`, [C.adminRoles, 'store'])
+          router.post(`${ap}/roles/:name/edit`, [C.adminRoles, 'update'])
+          router.post(`${ap}/roles/:name/delete`, [C.adminRoles, 'destroy'])
+          // Sessões/grants ativos da conta + revogação em massa.
+          router.get(`${ap}/users/:id/sessions`, [C.adminSessions, 'index'])
+          router.post(`${ap}/users/:id/revoke-sessions`, [C.adminSessions, 'revoke'])
+          router.get(`${ap}/clients`, [C.adminClients, 'index'])
+          // CRUD de clients OIDC (adapter-backed). `/new` ANTES de `:id` p/ não casar
+          // "new" como id; todas as escritas são POST (com _csrf na view).
+          router.get(`${ap}/clients/new`, [C.adminClients, 'create'])
+          router.post(`${ap}/clients`, [C.adminClients, 'store'])
+          router.get(`${ap}/clients/:id/edit`, [C.adminClients, 'edit'])
+          router.post(`${ap}/clients/:id/edit`, [C.adminClients, 'update'])
+          router.post(`${ap}/clients/:id/regenerate-secret`, [C.adminClients, 'regenerateSecret'])
+          router.post(`${ap}/clients/:id/delete`, [C.adminClients, 'destroy'])
+          router.get(`${ap}/audit`, [C.adminAudit, 'index'])
+          // Organizations (opt-in — capability-gated inside the controller).
+          router.get(`${ap}/orgs`, [C.adminOrgs, 'index'])
+          router.post(`${ap}/orgs`, [C.adminOrgs, 'store'])
+          router.get(`${ap}/orgs/:id`, [C.adminOrgs, 'show'])
+          router.post(`${ap}/orgs/:id/delete`, [C.adminOrgs, 'destroy'])
+          router.post(`${ap}/orgs/:id/members`, [C.adminOrgs, 'addMember'])
+          router.post(`${ap}/orgs/:id/members/:accountId/remove`, [C.adminOrgs, 'removeMember'])
+          router.post(`${ap}/orgs/:id/invitations/:invId/revoke`, [C.adminOrgs, 'revokeInvitation'])
+          // Runtime settings.
+          router.get(`${ap}/settings`, [C.adminSettings, 'index'])
+          router.post(`${ap}/settings/bot-protection`, [C.adminSettings, 'updateBotProtection'])
+          router.post(`${ap}/settings/bot-protection/reset`, [C.adminSettings, 'resetBotProtection'])
+          router.post(`${ap}/settings/registration`, [C.adminSettings, 'updateRegistration'])
+          router.post(`${ap}/settings/registration/reset`, [C.adminSettings, 'resetRegistration'])
+          router.post(`${ap}/settings/require-verified-email`, [C.adminSettings, 'updateRequireVerifiedEmail'])
+          router.post(`${ap}/settings/require-verified-email/reset`, [C.adminSettings, 'resetRequireVerifiedEmail'])
+          router.post(`${ap}/settings/maintenance`, [C.adminSettings, 'updateMaintenance'])
+          router.post(`${ap}/settings/maintenance/reset`, [C.adminSettings, 'resetMaintenance'])
+          router.post(`${ap}/settings/auth-methods`, [C.adminSettings, 'updateAuthMethods'])
+          router.post(`${ap}/settings/auth-methods/reset`, [C.adminSettings, 'resetAuthMethods'])
+          router.post(`${ap}/settings/email-change`, [C.adminSettings, 'updateEmailChange'])
+          router.post(`${ap}/settings/email-change/reset`, [C.adminSettings, 'resetEmailChange'])
+          router.post(`${ap}/settings/security-notifications`, [C.adminSettings, 'updateSecurityNotifications'])
+          router.post(`${ap}/settings/security-notifications/reset`, [C.adminSettings, 'resetSecurityNotifications'])
+          router.post(`${ap}/settings/password-history`, [C.adminSettings, 'updatePasswordHistory'])
+          router.post(`${ap}/settings/password-history/reset`, [C.adminSettings, 'resetPasswordHistory'])
+          router.post(`${ap}/settings/password-expiration`, [C.adminSettings, 'updatePasswordExpiration'])
+          router.post(`${ap}/settings/password-expiration/reset`, [C.adminSettings, 'resetPasswordExpiration'])
+          router.post(`${ap}/settings/session-policy`, [C.adminSettings, 'updateSessionPolicy'])
+          router.post(`${ap}/settings/session-policy/reset`, [C.adminSettings, 'resetSessionPolicy'])
+          router.post(`${ap}/settings/lockout`, [C.adminSettings, 'updateLockout'])
+          router.post(`${ap}/settings/lockout/reset`, [C.adminSettings, 'resetLockout'])
+          router.post(`${ap}/settings/rate-limit`, [C.adminSettings, 'updateRateLimit'])
+          router.post(`${ap}/settings/rate-limit/reset`, [C.adminSettings, 'resetRateLimit'])
+          router.post(`${ap}/settings/password-policy`, [C.adminSettings, 'updatePasswordPolicy'])
+          router.post(`${ap}/settings/password-policy/reset`, [C.adminSettings, 'resetPasswordPolicy'])
+          router.post(`${ap}/settings/notifications`, [C.adminSettings, 'updateNotifications'])
+          router.post(`${ap}/settings/notifications/reset`, [C.adminSettings, 'resetNotifications'])
+          router.post(`${ap}/settings/trusted-devices`, [C.adminSettings, 'updateTrustedDevices'])
+          router.post(`${ap}/settings/trusted-devices/reset`, [C.adminSettings, 'resetTrustedDevices'])
+          router.post(`${ap}/settings/token-ttl`, [C.adminSettings, 'updateTokenTtl'])
+          router.post(`${ap}/settings/token-ttl/reset`, [C.adminSettings, 'resetTokenTtl'])
+          router.post(`${ap}/settings/admin-impersonation`, [C.adminSettings, 'updateAdminImpersonation'])
+          router.post(`${ap}/settings/admin-impersonation/reset`, [C.adminSettings, 'resetAdminImpersonation'])
+          router.post(`${ap}/settings/organizations-policy`, [C.adminSettings, 'updateOrganizationsPolicy'])
+          router.post(`${ap}/settings/organizations-policy/reset`, [C.adminSettings, 'resetOrganizationsPolicy'])
+          router.post(`${ap}/settings/otp-lockout`, [C.adminSettings, 'updateOtpLockout'])
+          router.post(`${ap}/settings/otp-lockout/reset`, [C.adminSettings, 'resetOtpLockout'])
+          router.post(`${ap}/settings/sudo-mode`, [C.adminSettings, 'updateSudoMode'])
+          router.post(`${ap}/settings/sudo-mode/reset`, [C.adminSettings, 'resetSudoMode'])
+          router.post(`${ap}/settings/account-expiration`, [C.adminSettings, 'updateAccountExpiration'])
+          router.post(`${ap}/settings/account-expiration/reset`, [C.adminSettings, 'resetAccountExpiration'])
+        }
       })
       .use([adminGuard])
   }

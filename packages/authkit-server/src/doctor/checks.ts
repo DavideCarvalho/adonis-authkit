@@ -259,7 +259,7 @@ export function checkRateLimit(input: DoctorInput): Finding {
   return { level: 'ok', message: 'rate-limiting on and @adonisjs/limiter available.' }
 }
 
-/** admin.enabled mas sem roles → warn. */
+/** admin.enabled mas sem roles → warn. Reporta o modo de UI ativo. */
 export function checkAdmin(input: DoctorInput): Finding | null {
   const admin = input.authkitConfig?.admin
   if (!admin || admin.enabled !== true) return null
@@ -270,7 +270,13 @@ export function checkAdmin(input: DoctorInput): Finding | null {
       message: 'admin console on, but no `admin.roles` — nobody will have access (the default ["ADMIN"] was not resolved here).',
     }
   }
-  return { level: 'ok', message: `admin console on for roles: ${roles.join(', ')}.` }
+  const uiMode = (admin as any).ui ?? 'react'
+  return {
+    level: 'ok',
+    message: `admin console on for roles: ${roles.join(', ')}. UI mode: ${uiMode} (${
+      uiMode === 'react' ? 'SPA self-contained — JSON API under {prefix}/api/*' : 'Edge server-rendered views'
+    }).`,
+  }
 }
 
 /** requireVerifiedEmail ligado mas o store não sabe checar verificação → warn. */

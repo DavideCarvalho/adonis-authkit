@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AuthKit Admin</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,sans-serif;background:#09090b;color:#fafafa;min-height:100vh;display:flex;align-items:center;justify-content:center}
+    #app{width:100%}
+    .loading{display:flex;flex-direction:column;align-items:center;gap:12px;color:#a1a1aa;font-size:14px}
+    .spinner{width:32px;height:32px;border:2px solid #27272a;border-top-color:#6366f1;border-radius:50%;animation:spin .7s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+  <!--
+    AuthKit Admin Console — React SPA shell.
+    Mission B will replace this placeholder with the full bundled React SPA.
+    The server injects window.__AUTHKIT__ before this comment (see admin_shell_controller.ts).
+  -->
+  <div id="app">
+    <div class="loading">
+      <div class="spinner"></div>
+      <span>Loading AuthKit Admin…</span>
+    </div>
+  </div>
+</body>
+</html>

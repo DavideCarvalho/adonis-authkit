@@ -247,6 +247,8 @@ const C = {
   apiMisc: () => import('./admin_api/api_misc_controller.js'),
   apiOrgs: () => import('./admin_api/api_orgs_controller.js'),
   apiSettings: () => import('./admin_api/api_settings_controller.js'),
+  // Account self-service JSON API (session-authed, under /account/api/*).
+  accountApi: () => import('./account_api/account_api_controller.js'),
 }
 
 /**
@@ -378,6 +380,37 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
       router.get('/account/orgs/json', [C.accountOrgs, 'listJson'])
       router.get('/account/orgs/invitations/json', [C.accountOrgs, 'listInvitationsJson'])
       router.get('/account/orgs/:id/json', [C.accountOrgs, 'showJson'])
+
+      // ─── Account self-service JSON API (authkit-react TanStack hooks) ─────
+      // ⚠️ ORDER MATTERS: fixed-segment routes before parameterised ones.
+      // Registered INSIDE the accountGuard group → same session-auth protection.
+      // Mutating routes use CSRF (shield middleware on the host app).
+      router.get('/account/api/me', [C.accountApi, 'me'])
+      router.get('/account/api/security', [C.accountApi, 'securityOverview'])
+      router.patch('/account/api/profile', [C.accountApi, 'updateProfile'])
+      router.post('/account/api/password', [C.accountApi, 'changePassword'])
+      // Email-change: cancel BEFORE the generic post to avoid pattern collision.
+      router.post('/account/api/email-change/cancel', [C.accountApi, 'cancelEmailChange'])
+      router.post('/account/api/email-change', [C.accountApi, 'requestEmailChange'])
+      // Sessions: fixed routes BEFORE :id.
+      router.get('/account/api/sessions', [C.accountApi, 'listSessions'])
+      router.post('/account/api/sessions/revoke-others', [C.accountApi, 'revokeOtherSessions'])
+      router.delete('/account/api/sessions/:id', [C.accountApi, 'revokeSession'])
+      // Apps (grants).
+      router.get('/account/api/apps', [C.accountApi, 'listApps'])
+      router.delete('/account/api/apps/:clientId', [C.accountApi, 'revokeApp'])
+      // MFA + passkeys.
+      router.get('/account/api/mfa', [C.accountApi, 'mfaStatus'])
+      router.get('/account/api/passkeys', [C.accountApi, 'listPasskeys'])
+      router.delete('/account/api/passkeys/:id', [C.accountApi, 'removePasskey'])
+      // PATs.
+      router.get('/account/api/tokens', [C.accountApi, 'listTokens'])
+      router.post('/account/api/tokens', [C.accountApi, 'createToken'])
+      router.delete('/account/api/tokens/:id', [C.accountApi, 'revokeToken'])
+      // Orgs: invitations BEFORE :id (fixed segment before parameterised).
+      router.get('/account/api/orgs', [C.accountApi, 'listOrgs'])
+      router.get('/account/api/orgs/invitations', [C.accountApi, 'listOrgInvitations'])
+      router.get('/account/api/orgs/:id', [C.accountApi, 'showOrg'])
     })
     .use([accountGuard])
 

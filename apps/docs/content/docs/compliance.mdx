@@ -1,11 +1,13 @@
 ---
 title: Compliance (LGPD / GDPR)
-description: Account deletion with cascade, data export, and email verification gate.
+description: Account deletion with cascade, data export, verified-email gate, verified email-change flow, and security notifications.
 ---
 
-AuthKit ships a lightweight but complete compliance surface covering the three most common
+AuthKit ships a lightweight but complete compliance surface covering the most common
 GDPR/LGPD obligations: **data portability** (export), **right to erasure** (account
-deletion), and access control via **verified-email gate**.
+deletion), access control via **verified-email gate**, a **verified email-change flow**
+(no silent address hijacking), and **security notifications** (automatic alerts when
+sensitive account events occur).
 
 ## Email verification gate
 
@@ -28,6 +30,241 @@ defineConfig({
   `email_verified_at` column. Without the capability the feature degrades to a no-op and
   `authkit:doctor` emits a warning.
 </Callout>
+
+### Grace period
+
+To ease onboarding, the `require_verified_email` runtime setting accepts an optional
+`graceDays` field. Accounts created within the last `graceDays` days are allowed to log in
+even without a verified email; after the grace window the normal gate applies.
+
+```json title="require_verified_email setting"
+{
+  "enabled": true,
+  "graceDays": 3
+}
+```
+
+`graceDays: 0` (the default) means no grace — the gate is enforced from the first login.
+See [Runtime Settings](/docs/settings#complete-setting-catalog) for the full shape.
+
+## Verified email-change flow
+
+When a user changes their email address, AuthKit runs a **verified double-confirmation
+flow** — the new address must be confirmed before the change takes effect, and the current
+address receives a security notice.
+
+### Flow overview
+
+1. **User initiates** — submits a new email address on `/account/security`. When
+   `requirePassword: true` (default), the current password is also required.
+2. **Confirmation email** — a `ec:` prefixed token is issued and a confirmation link is
+   sent to the **new** address. The token reuses the existing email-verification column
+   (no extra column needed).
+3. **Notice email** — a security alert is sent to the **current** address so the account
+   owner is aware of the pending change.
+4. **Cancellation** — the user (or anyone with access to the current address) can cancel
+   the pending change via a link in the notice email, or from `/account/security`.
+5. **Confirmation** — the user clicks the link in the email sent to the new address
+   (`GET /account/email/confirm?token=ec:…`). The change is applied atomically.
+6. **Post-change notice** — a security notification (`email_changed` kind) is sent to the
+   **old** address confirming the change completed.
+
+### Configuration
+
+The flow is controlled by the `email_change` runtime setting (no static-config equivalent):
+
+```json title="email_change setting"
+{
+  "enabled": true,
+  "ttlHours": 24,
+  "requirePassword": true
+}
+```
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `enabled` | `boolean?` | `true` | `false` disables the email-change form entirely. |
+| `ttlHours` | `number?` | `24` | How long the confirmation token is valid. |
+| `requirePassword` | `boolean?` | `true` | Require the current password to initiate a change. Password-less accounts (e.g. social-only) are never asked. |
+
+Manage via the Admin Console (`{prefix}/settings`) or the Admin REST API:
+
+```bash
+# Shorten the TTL and require no password (passwordless accounts)
+curl -X PUT https://auth.acme.com/api/authkit/v1/settings/email_change \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "value": { "ttlHours": 4, "requirePassword": false } }'
+
+# Disable the flow
+curl -X PUT https://auth.acme.com/api/authkit/v1/settings/email_change \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "value": { "enabled": false } }'
+```
+
+### Mail hooks
+
+Override the default email templates by adding hooks to `mail` in `defineConfig`:
+
+```ts title="config/authkit_server.ts"
+import mail from '@adonisjs/mail/services/main'
+
+defineConfig({
+  // …
+  mail: {
+    /**
+     * Confirmation link sent to the NEW address.
+     * data.oldEmail is available for context in the template.
+     */
+    onEmailChangeConfirm: async ({ email, confirmUrl, token, oldEmail }) => {
+      await mail.send((m) =>
+        m.from(env.get('EMAIL_FROM')).to(email)
+          .subject('Confirm your new email address')
+          .text(`Please confirm: ${confirmUrl}`)
+      )
+    },
+
+    /**
+     * Security notice sent to the CURRENT address when a change is requested.
+     * Also sent (via onSecurityNotice) after the change is confirmed.
+     */
+    onEmailChangeNotice: async ({ email, newEmail }) => {
+      await mail.send((m) =>
+        m.from(env.get('EMAIL_FROM')).to(email)
+          .subject('Email address change requested')
+          .text(`Someone requested to change the address to ${newEmail}.`)
+      )
+    },
+  },
+})
+```
+
+If `onEmailChangeConfirm` is absent, AuthKit falls back to `onEmailVerification` (if set),
+and then to the built-in development-mode logger. Configure at least one mail transport for
+production use.
+
+### Account-store capabilities
+
+The `lucidAccountStore` implements the email-change capability when:
+
+- The user model has the standard `email` column (always present).
+- The model has a verification-token column (`emailVerificationToken` /
+  `email_verification_token`) — the same column reused with an `ec:` prefix.
+
+No additional columns or migrations are required beyond what email verification already uses.
+
+### Audit events
+
+| Event | When |
+| --- | --- |
+| `email_change.requested` | User submits a new email address (token issued). |
+| `email_change.cancelled` | Pending change is cancelled (by the user or via the notice link). |
+| `email_change.confirmed` | New address confirmed; change applied. |
+
+## Security notifications
+
+AuthKit sends automatic security-alert emails when sensitive events occur on an account.
+These are **separate** from the new-device and new-IP alerts (which are in the
+`notifications` setting) — they fire after intentional account changes.
+
+### Covered events
+
+| Kind | Trigger |
+| --- | --- |
+| `password_changed` | User changed their own password. |
+| `mfa_enabled` | TOTP was enrolled. |
+| `mfa_disabled` | TOTP was disabled. |
+| `passkey_added` | A WebAuthn passkey was registered. |
+| `passkey_removed` | A WebAuthn passkey was removed. |
+| `email_changed` | An email address change was confirmed. |
+
+<Callout type="info">
+  **New-device login** (`login.new_device`) is handled separately — it has its own flow and
+  the `notifications.newDeviceEmail` setting. Similarly, lazy **rehash** (`password.rehashed`)
+  is transparent to the user and does not trigger a notification.
+</Callout>
+
+### Configuration
+
+The `security_notifications` runtime setting controls the feature:
+
+```json title="security_notifications setting"
+{
+  "enabled": true,
+  "kinds": [
+    "password_changed",
+    "mfa_enabled",
+    "mfa_disabled",
+    "passkey_added",
+    "passkey_removed",
+    "email_changed"
+  ]
+}
+```
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `enabled` | `boolean?` | `true` | `false` disables all security notifications. |
+| `kinds` | `string[]?` | all 6 kinds | Subset of kinds to notify. Invalid kinds are silently dropped. Empty array resets to all. |
+
+Manage via the Admin Console or Admin REST API:
+
+```bash
+# Notify only on password changes and passkey events
+curl -X PUT https://auth.acme.com/api/authkit/v1/settings/security_notifications \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "value": { "kinds": ["password_changed", "passkey_added", "passkey_removed"] } }'
+
+# Disable all security notifications
+curl -X PUT https://auth.acme.com/api/authkit/v1/settings/security_notifications \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "value": { "enabled": false } }'
+```
+
+### Mail hook
+
+Provide a single `onSecurityNotice` hook that receives the event `kind` and renders the
+appropriate template. When absent, AuthKit sends a built-in default email:
+
+```ts title="config/authkit_server.ts"
+import mail from '@adonisjs/mail/services/main'
+
+defineConfig({
+  // …
+  mail: {
+    onSecurityNotice: async ({ account, kind, ip, userAgent, timestamp, metadata }) => {
+      const subject: Record<string, string> = {
+        password_changed: 'Your password was changed',
+        mfa_enabled: 'Two-factor authentication enabled',
+        mfa_disabled: 'Two-factor authentication disabled',
+        passkey_added: 'A passkey was added to your account',
+        passkey_removed: 'A passkey was removed from your account',
+        email_changed: 'Your email address was changed',
+      }
+      await mail.send((m) =>
+        m.from(env.get('EMAIL_FROM')).to(account.email)
+          .subject(subject[kind] ?? 'Security notification')
+          .text(
+            `This action occurred on your account at ${timestamp}` +
+            (ip ? ` from ${ip}` : '')
+          )
+      )
+    },
+  },
+})
+```
+
+The hook is **best-effort and fire-and-forget**: a failure never blocks the action that
+triggered it.
+
+### Audit events
+
+| Event | When |
+| --- | --- |
+| `security_notice.sent` | A security notification email was dispatched. `metadata.kind` contains the event kind. |
 
 ## Data export
 
@@ -115,6 +352,10 @@ const result = await authkit.users.delete('acc-42')
 
 | Event | When |
 | --- | --- |
+| `email_change.requested` | User requested an email address change. |
+| `email_change.cancelled` | Pending email change was cancelled. |
+| `email_change.confirmed` | Email address change confirmed (new address activated). |
+| `security_notice.sent` | A security notification email was dispatched. |
 | `account.deleted` | A user deletes their own account (self-service). |
 | `account.exported` | A user downloads their data export. |
 | `user.deleted` | An admin deletes a user via the console or API. |

@@ -122,8 +122,12 @@ Every `AuditEvent` carries `accountId`, `email`, `clientId`, `actorId` (imperson
 | `passkey.removed` | A WebAuthn passkey was removed. |
 | `email_verification.issued` | An email verification token was sent. |
 | `email_verification.consumed` | An email address was verified. |
-| `email.change_requested` | A user requested an email address change. |
-| `email.changed` | An email address change was confirmed. |
+| `email_change.requested` | A user requested an email address change (confirmation link sent to new address). |
+| `email_change.cancelled` | A pending email address change was cancelled. |
+| `email_change.confirmed` | An email address change was confirmed (new address is now active). |
+| `security_notice.sent` | A security notification email was dispatched. `metadata.kind` contains the event kind (`password_changed`, `mfa_enabled`, etc.). |
+| `session.single_enforced` | Other sessions were revoked after a login when `session_policy.singleSession` is `true`. `metadata.revokedSessions` contains the count. |
+| `password.expired_change_forced` | Login was interrupted to force a password change because `password_expiration` is enabled and the password exceeded `maxAgeDays`. |
 | `client.created` | An OIDC client was created. |
 | `client.updated` | An OIDC client was updated. |
 | `client.deleted` | An OIDC client was deleted. |

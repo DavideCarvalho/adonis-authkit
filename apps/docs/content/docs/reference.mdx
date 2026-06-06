@@ -24,9 +24,9 @@ description: The full defineConfig option tables for server and client.
 | `branding` | `BrandingConfig` | — | Per-client theming + first-party list. |
 | `social` | `AuthSocialConfig` | — | `{ providers: string[] }`; opt-in social login. |
 | `patIntrospectionSecret` | `string` | — | Shared secret authenticating PAT introspection. |
-| `rateLimit` | `RateLimitConfigInput` | disabled | Opt-in anti-brute-force throttles. |
-| `lockout` | `LockoutConfigInput` | enabled | Progressive per-email lockout. See [Account Lockout](/docs/account-lockout). |
-| `mail` | `MailHooks` | — | `onPasswordReset` / `onEmailVerification` hooks. |
+| `rateLimit` | `RateLimitConfigInput` | disabled | Opt-in anti-brute-force throttles. Bucket values (`login`, `introspection`) **@deprecated** — manage via `rate_limit` runtime setting. `enabled` and `store` stay in config. |
+| `lockout` | `LockoutConfigInput` | enabled | Progressive per-email lockout. Policy fields **@deprecated** — manage via `lockout` runtime setting. `store` stays in config. See [Account Lockout](/docs/account-lockout). |
+| `mail` | `MailHooks` | — | `onPasswordReset` / `onEmailVerification` / `onEmailChangeConfirm` / `onEmailChangeNotice` / `onSecurityNotice` hooks. |
 | `audit` | `AuditSink` | no-op | Best-effort audit sink. |
 | `events` | `EventsConfigInput` | — | `{ onEvent?, webhook? }` — observe every audit event in-process or via an HMAC-signed webhook. See [Events & Webhooks](/docs/events). |
 | `mfaIssuer` | `string` | `'AuthKit'` | TOTP issuer label shown in authenticator apps. |
@@ -39,14 +39,14 @@ description: The full defineConfig option tables for server and client.
 | `dpop` | `{ enabled: boolean }` | disabled | DPoP sender-constrained tokens (RFC 9449). See [Security](/docs/security#dpop). |
 | `par` | `{ enabled: boolean; requirePushedAuthorizationRequests?: boolean }` | disabled | Pushed Authorization Requests (RFC 9126). See [Security](/docs/security#par). |
 | `stepUp` | `{ acrValues?: string[]; mfaAcr?: string }` | `mfaAcr: 'urn:authkit:mfa'` | Step-up auth via `acr_values`. See [Security](/docs/security#step-up-authentication). |
-| `trustedDevices` | `{ enabled?: boolean; days?: number }` | enabled, 30 days | Skip MFA on a trusted device via an encrypted cookie. See [MFA](/docs/mfa#trusted-devices). |
+| `trustedDevices` | `{ enabled?: boolean; days?: number }` | enabled, 30 days | Skip MFA on a trusted device via an encrypted cookie. `enabled` and `days` **@deprecated** — manage via `trusted_devices` runtime setting. Cookie secrets stay in config. See [MFA](/docs/mfa#trusted-devices). |
 | `uploads` | `{ avatars?: { disk?: string; directory?: string; maxSizeMb?: number } }` | app's default drive disk, `authkit/avatars`, 5MB | Avatar upload via the app's `@adonisjs/drive`; degrades to URL input when drive is absent. See [Host Kit](/docs/host-kit#avatar-uploads). |
 | `passwordless` | `{ magicLink?: boolean; passkeyFirst?: boolean }` | both disabled | Magic-link email login and/or passkey-first login. See [Passwordless](/docs/passwordless). |
 | `login` | `{ requireVerifiedEmail?: boolean }` | `false` | Block logins for unverified emails. Capability-probed. Overridable at runtime via the `require_verified_email` setting. See [Compliance](/docs/compliance) and [Security — Require verified email toggle](/docs/security#require-verified-email-toggle). |
 | `registration` | `{ enabled?: boolean }` | `{ enabled: true }` | Allow public sign-up. `enabled: false` closes registration statically. Overridable at runtime via the `registration` setting. See [Security — Registration toggle](/docs/security#registration-toggle). |
 | `accessTokens` | `AccessTokensConfig` | `{ format: 'opaque' }` | JWT access tokens (RFC 9068) and per-resource config. See [Security](/docs/security#jwt-access-tokens-rfc-9068). |
 | `botProtection` | `BotProtectionConfigInput` | disabled | Pluggable CAPTCHA/challenge for login, signup, reset. Runtime-toggleable via `auth_settings`. See [Security](/docs/security#bot-protection). |
-| `notifications` | `{ newLoginEmail?: boolean; newDeviceEmail?: boolean }` | both `true` | Security email notifications. See [Security](/docs/security#new-device-login-notification). |
+| `notifications` | `{ newLoginEmail?: boolean; newDeviceEmail?: boolean }` | both `true` | Security email notifications. **@deprecated** — manage via `notifications` runtime setting. See [Security](/docs/security#new-device-login-notification) and [Runtime Settings — Migration](/docs/settings#migration). |
 | `resolveGeo` | `(ip: string) => Promise<string \| null>` | — | Pluggable IP → location lookup for session context. See [Admin Console](/docs/admin-console#session-context). |
 | `organizations` | `OrganizationsConfigInput` | auto | Multi-tenancy. See [Organizations](/docs/organizations). |
 
@@ -179,13 +179,30 @@ if (supportsSettings(store)) {
 
 ### Known setting keys
 
-| Key | Shape | Notes |
-| --- | --- | --- |
-| `bot_protection` | `{ enabled: boolean; on?: ('login' \| 'signup' \| 'reset')[] }` | Runtime toggle for bot protection. See [Security — Runtime toggle](/docs/security#runtime-toggle). |
-| `registration` | `{ enabled: boolean }` | Open or close public sign-up at runtime. Fallback: `config.registration.enabled` (default `true`). See [Security — Registration toggle](/docs/security#registration-toggle). |
-| `require_verified_email` | `{ enabled: boolean }` | Override `login.requireVerifiedEmail` for all login flows at runtime. Capability-probed. See [Security — Require verified email toggle](/docs/security#require-verified-email-toggle). |
-| `maintenance_mode` | `{ enabled: boolean; message?: string }` | Block login/sign-up/forgot for non-admin users. Admin accounts and the Admin API bypass the gate. See [Security — Maintenance mode](/docs/security#maintenance-mode). |
-| `auth_methods` | `{ password?: boolean; magicLink?: boolean; passkey?: boolean; social?: string[]; forgotPassword?: boolean }` | Filter which login methods the sign-in screen shows at runtime. All fields optional; absent fields use config-derived defaults. `forgotPassword` is auto-forced off when `password` is off. `social` is intersected with the static config providers. Fail-safe: all-off reverts to defaults. See [Security — Authentication methods](/docs/security#authentication-methods). |
+18 known keys. All are capability-probed — if the `auth_settings` table is absent every
+key falls back to the config/default (fail-safe). See [Runtime Settings](/docs/settings)
+for the canonical guide, precedence rules, CLI, and migration from static config.
+
+| Key | Shape | Lib default | Notes |
+| --- | --- | --- | --- |
+| `bot_protection` | `{ enabled: boolean; on?: ('login'\|'signup'\|'reset')[] }` | `{ enabled: false }` | Runtime CAPTCHA toggle. See [Security — Runtime toggle](/docs/security#runtime-toggle). |
+| `registration` | `{ enabled: boolean }` | `{ enabled: true }` | Open or close public sign-up. Fallback: `config.registration.enabled`. See [Security — Registration toggle](/docs/security#registration-toggle). |
+| `require_verified_email` | `{ enabled: boolean; graceDays?: number }` | `{ enabled: false, graceDays: 0 }` | Block unverified accounts. `graceDays` allows newly-registered accounts to log in for N days without verifying. Capability-probed (`isEmailVerified`). See [Compliance — Verified email gate](/docs/compliance#verified-email-grace). |
+| `maintenance_mode` | `{ enabled: boolean; message?: string }` | `{ enabled: false }` | Block login/sign-up/forgot for non-admins. Admin API escape hatch. See [Security — Maintenance mode](/docs/security#maintenance-mode). |
+| `auth_methods` | `{ password?: boolean; magicLink?: boolean; passkey?: boolean; social?: string[]; forgotPassword?: boolean }` | config/capability defaults | Filter login methods at runtime. All fields optional. `forgotPassword` auto-off when `password` off. `social` intersected with static providers. Fail-safe all-off reverts to defaults. See [Security — Authentication methods](/docs/security#authentication-methods). |
+| `email_change` | `{ enabled?: boolean; ttlHours?: number; requirePassword?: boolean }` | `{ enabled: true, ttlHours: 24, requirePassword: true }` | Verified email-change flow. See [Compliance — Email change](/docs/compliance#email-change). |
+| `security_notifications` | `{ enabled?: boolean; kinds?: string[] }` | `{ enabled: true, kinds: [all 6] }` | Security-event emails. `kinds`: `password_changed`, `mfa_enabled`, `mfa_disabled`, `passkey_added`, `passkey_removed`, `email_changed`. See [Compliance — Security notifications](/docs/compliance#security-notifications). |
+| `password_history` | `{ enabled?: boolean; count?: number }` | `{ enabled: false, count: 5 }` | Reuse prevention. Requires `auth_password_history` table. See [Passwords — History](/docs/passwords-and-migration#history). |
+| `password_expiration` | `{ enabled?: boolean; maxAgeDays?: number }` | `{ enabled: false, maxAgeDays: 90 }` | Force password rotation. Requires `password_changed_at` column. See [Passwords — Expiration](/docs/passwords-and-migration#expiration). |
+| `session_policy` | `{ rememberEnabled?: boolean; rememberDays?: number; defaultSessionHours?: number; singleSession?: boolean; idleTimeoutMinutes?: number }` | `{ rememberEnabled: true, rememberDays: 30, defaultSessionHours: 168, singleSession: false, idleTimeoutMinutes: 0 }` | Session duration and behaviour. Idle timeout applies to account console only (not OIDC tokens). |
+| `lockout` | `{ enabled?: boolean; maxAttempts?: number; windowSec?: number; baseLockoutSec?: number; maxLockoutSec?: number }` | `{ enabled: true, maxAttempts: 5, windowSec: 900, baseLockoutSec: 60, maxLockoutSec: 3600 }` | Per-email lockout policy. `store` stays in config. Fallback: `config.lockout.*`. |
+| `rate_limit` | `{ login?: { points, duration }; introspection?: { points, duration } }` | `login: { points: 10, duration: '1 min' }; introspection: { points: 60, duration: '1 min' }` | Rate-limit bucket policy. **Limitation:** route throttle middleware uses boot-time values; only lockout-side is dynamic. Fallback: `config.rateLimit.*`. |
+| `password_policy` | `{ minLength?: number; requireUppercase?: boolean; requireLowercase?: boolean; requireNumbers?: boolean; requireSymbols?: boolean; checkPwned?: boolean }` | `{ minLength: 8, all false }` | Password complexity and HIBP check. Fallback: `lucidAccountStore` password config. See [Passwords](/docs/passwords-and-migration). |
+| `notifications` | `{ newLoginEmail?: boolean; newDeviceEmail?: boolean }` | `{ newLoginEmail: true, newDeviceEmail: true }` | New-IP and new-device email alerts. Fallback: `config.notifications.*`. |
+| `trusted_devices` | `{ enabled?: boolean; days?: number }` | `{ enabled: true, days: 30 }` | MFA skip via encrypted cookie. `secrets` stays in config. Fallback: `config.trustedDevices.*`. |
+| `token_ttl` | `{ accessTokenSec?: number; idTokenSec?: number; refreshTokenSec?: number }` | `{ accessTokenSec: 900, idTokenSec: 900, refreshTokenSec: 2592000 }` | Token lifetimes (seconds). Takes effect immediately via holder. Session TTL is in `session_policy`. |
+| `admin_impersonation` | `{ enabled?: boolean }` | `{ enabled: false }` | Show impersonation panel in admin console. Fallback: `config.admin.impersonation`. |
+| `organizations_policy` | `{ allowSelfCreate?: boolean; invitationTtlHours?: number; roles?: string[] }` | `{ allowSelfCreate: false, invitationTtlHours: 168, roles: ['owner','admin','member'] }` | Org policies. `owner` is always preserved. Fallback: `config.organizations.*`. |
 
 ## Ace commands
 
@@ -193,11 +210,15 @@ Commands provided by `@dudousxd/adonis-authkit-server`:
 
 | Command | Notes |
 | --- | --- |
-| `node ace authkit:doctor` | Validate the config and peer dependencies; emits findings with `ok`/`warn`/`error` levels. Includes a `checkSettings` probe (see below). Warns when static `clients` are present in config (deprecated). |
+| `node ace authkit:doctor` | Validate the config and peer dependencies; emits findings with `ok`/`warn`/`error` levels. Includes `checkSettings` (bot_protection orphan, require_verified_email capability) and `checkLegacyPolicyConfig` (deprecated config fields). Warns when static `clients` are present in config (deprecated). |
 | `node ace authkit:eject` | Copy the bundled host-kit controllers/pages into your project for customization. |
 | `node ace authkit:users:import --file <path> [--dry-run]` | Bulk-import users from a JSON array or NDJSON file, preserving hashes as-is for lazy rehash on login. |
 | `node ace authkit:keys:rotate [--keep=N] [--retire] [--dry-run]` | Rotate signing keys in a managed keystore file; keeps a grace-period window of N previous keys (default 2). |
 | `node ace authkit:clients:import [--dry-run]` | Copy the static `clients` from `config/authkit.ts` into the adapter/DB. Idempotent — existing clients (matched by `client_id`) are skipped. The original `client_secret` is preserved for confidential clients. After confirming the import, remove the `clients` block from config. See [below](#authkitclientsimport). |
+| `node ace authkit:settings:list [--json]` | List all runtime settings currently persisted in the `auth_settings` table. |
+| `node ace authkit:settings:get <key> [--json]` | Get a specific setting by key. Prints `null` if the key is not set (config/default applies). |
+| `node ace authkit:settings:set <key> <json> [--json]` | Upsert a setting. Validates shape for known keys. Audits `settings.updated` with `updatedBy: 'cli'`. |
+| `node ace authkit:settings:unset <key> [--json]` | Delete a setting (reset to config/default). Audits `settings.updated`. |
 
 ### `authkit:doctor` — `checkSettings`
 

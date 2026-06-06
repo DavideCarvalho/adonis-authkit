@@ -277,8 +277,22 @@ the full route table and behaviour.
 
 ## Settings page
 
-`GET {prefix}/settings` shows a **Runtime Settings** panel with five cards: bot protection,
-registration, require verified email, maintenance mode, and authentication methods.
+`GET {prefix}/settings` shows a **Runtime Settings** panel with multiple sections covering
+all 18 known setting keys. The page is the primary interface for operational configuration
+that does not require a redeploy. See [Runtime Settings](/docs/settings) for the full
+setting catalog, precedence rules, and migration guide.
+
+Every card shows a **badge** indicating whether the effective value comes from the runtime
+setting (`from setting`) or falls back to the static config (`from config`). When the
+`auth_settings` table is absent, a notice appears with the `CREATE TABLE` snippet and submit
+buttons are disabled.
+
+Every save emits a `settings.updated` audit event.
+
+### Section: Security & Access
+
+Contains cards for `bot_protection`, `registration`, `require_verified_email`,
+`maintenance_mode`, and `auth_methods`.
 
 | Route | Action |
 | --- | --- |
@@ -294,12 +308,7 @@ registration, require verified email, maintenance mode, and authentication metho
 | `POST {prefix}/settings/auth-methods` | Save (upsert) the `auth_methods` setting. |
 | `POST {prefix}/settings/auth-methods/reset` | Delete the setting — reverts to config-derived defaults. |
 
-All five cards share the same state model: each shows a **badge** indicating whether the
-effective value comes from the runtime setting (`from setting`) or falls back to the static
-config (`from config`). When the `auth_settings` table is absent, a notice appears on every
-card with the `CREATE TABLE` snippet and the submit buttons are disabled.
-
-### Bot-protection card
+#### Bot-protection card
 
 The card shows the current effective state and lets an admin:
 
@@ -320,12 +329,10 @@ The card shows the current effective state and lets an admin:
   TTL of the in-process cache). A **Reset to config** button deletes the row and returns
   control to the static config.
 
-Every write emits a `settings.updated` audit event with `metadata.key = "bot_protection"`.
-
 See [Security — Runtime toggle](/docs/security#runtime-toggle) for the full precedence
 rules and setting shape.
 
-### Registration card
+#### Registration card
 
 Controls whether public sign-up is open. The static fallback is `config.registration.enabled`
 (default `true`). Disabling closes the sign-up page and rejects new registrations; org
@@ -335,16 +342,18 @@ removes the runtime setting and returns to the static default.
 See [Security — Registration toggle](/docs/security#registration-toggle) for the full
 behaviour and escape hatch.
 
-### Require verified email card
+#### Require verified email card
 
-Overrides `config.login.requireVerifiedEmail` at runtime for all three login flows. When
-the `accountStore` lacks the `isEmailVerified` capability the card shows a notice that the
-guard is a no-op. A **Reset to config** button removes the runtime override.
+Overrides `config.login.requireVerifiedEmail` at runtime for all three login flows. Includes
+an optional **grace period** field (`graceDays`) that allows newly-registered accounts to
+log in for a configurable number of days without a verified email. When the `accountStore`
+lacks the `isEmailVerified` capability the card shows a notice that the guard is a no-op.
 
-See [Security — Require verified email toggle](/docs/security#require-verified-email-toggle)
-for the full precedence rules.
+See [Compliance — Email verification gate](/docs/compliance#verified-email-grace) for the
+grace-period behaviour and [Security — Require verified email toggle](/docs/security#require-verified-email-toggle)
+for the precedence rules.
 
-### Maintenance mode card
+#### Maintenance mode card
 
 Activates a maintenance screen that blocks login / sign-up / forgot-password for
 non-admin users. An optional custom message is shown on the maintenance page; leave it
@@ -364,7 +373,7 @@ curl -X PUT https://idp.acme.com/api/authkit/v1/settings/maintenance_mode \
 
 See [Security — Maintenance mode](/docs/security#maintenance-mode) for the full behaviour.
 
-### Authentication methods card
+#### Authentication methods card
 
 Controls which login methods the sign-in screen offers at runtime — without a redeploy.
 
@@ -381,9 +390,114 @@ The card lists checkboxes for each method with contextual dependency hints:
   providers present in the static config are listed; the setting cannot activate a provider
   the code does not have wired up.
 
-Submitting saves the `auth_methods` runtime setting. A **Reset to config** button deletes
-the row and returns to the config-derived defaults. Every write emits a `settings.updated`
-audit event with `metadata.key = "auth_methods"`.
+A **Reset to config** button deletes the row and returns to the config-derived defaults.
 
 See [Security — Authentication methods](/docs/security#authentication-methods) for the full
 shape, precedence rules, and fail-safe behaviour.
+
+### Section: Email Change
+
+Card for the `email_change` setting. Controls whether users can change their email address
+and the parameters of the verified double-confirmation flow.
+
+| Route | Action |
+| --- | --- |
+| `POST {prefix}/settings/email-change` | Save (upsert) the `email_change` setting. |
+| `POST {prefix}/settings/email-change/reset` | Delete the setting — reverts to defaults. |
+
+See [Compliance — Verified email-change flow](/docs/compliance#email-change) for the full
+flow, mail hooks, and capability requirements.
+
+### Section: Security Notifications
+
+Card for the `security_notifications` setting. Controls automatic security-alert emails
+triggered by sensitive account events.
+
+| Route | Action |
+| --- | --- |
+| `POST {prefix}/settings/security-notifications` | Save (upsert) the `security_notifications` setting. |
+| `POST {prefix}/settings/security-notifications/reset` | Delete the setting — reverts to defaults (all enabled). |
+
+The card shows checkboxes for each of the six notification kinds (`password_changed`,
+`mfa_enabled`, `mfa_disabled`, `passkey_added`, `passkey_removed`, `email_changed`). All
+are enabled by default.
+
+See [Compliance — Security notifications](/docs/compliance#security-notifications) for
+the full kind list, mail hook, and audit details.
+
+### Section: Passwords
+
+Cards for `password_history`, `password_expiration`, and `password_policy`.
+
+| Route | Action |
+| --- | --- |
+| `POST {prefix}/settings/password-history` | Save (upsert) the `password_history` setting. |
+| `POST {prefix}/settings/password-history/reset` | Delete — disables history enforcement. |
+| `POST {prefix}/settings/password-expiration` | Save (upsert) the `password_expiration` setting. |
+| `POST {prefix}/settings/password-expiration/reset` | Delete — disables expiration enforcement. |
+| `POST {prefix}/settings/password-policy` | Save (upsert) the `password_policy` setting. |
+| `POST {prefix}/settings/password-policy/reset` | Delete — reverts to config/lib defaults. |
+
+The password-history card shows a notice when the `auth_password_history` table is absent
+(capability not detected). The password-expiration card shows a notice when the
+`password_changed_at` column is absent.
+
+See [Passwords & Migration](/docs/passwords-and-migration) for the full capability setup,
+migration SQL, and behaviour details.
+
+### Section: Sessions & Tokens
+
+Cards for `session_policy`, `trusted_devices`, `notifications`, and `token_ttl`.
+
+| Route | Action |
+| --- | --- |
+| `POST {prefix}/settings/session-policy` | Save (upsert) the `session_policy` setting. |
+| `POST {prefix}/settings/session-policy/reset` | Delete — reverts to defaults. |
+| `POST {prefix}/settings/trusted-devices` | Save (upsert) the `trusted_devices` setting. |
+| `POST {prefix}/settings/trusted-devices/reset` | Delete — reverts to config/defaults. |
+| `POST {prefix}/settings/notifications` | Save (upsert) the `notifications` setting. |
+| `POST {prefix}/settings/notifications/reset` | Delete — reverts to defaults. |
+| `POST {prefix}/settings/token-ttl` | Save (upsert) the `token_ttl` setting. |
+| `POST {prefix}/settings/token-ttl/reset` | Delete — reverts to config/defaults. |
+
+**Session policy card** shows fields for:
+- **Remember me** — enable/disable the "keep me signed in" checkbox and its duration.
+- **Default session hours** — session duration when remember-me is unchecked (or disabled).
+- **Single session** — when enabled, logging in revokes all other active sessions for the
+  account. Emits `session.single_enforced` audit events.
+- **Idle timeout** — inactivity timeout for the account console (minutes). 0 = disabled.
+  See the [known limitation](#idle-timeout-limitation) below.
+
+<Callout type="info">
+  **Idle timeout limitation:** the idle timeout is tracked via the Adonis session on the
+  account console routes. It does **not** affect the OIDC side — refresh tokens have
+  their own lifetime controlled by `token_ttl.refreshTokenSec`. This limitation is
+  intentional and documented: the oidc-provider session cannot be interrupted per-request
+  without a full logout.
+</Callout>
+
+**Token TTL card** shows numeric inputs for `accessTokenSec`, `idTokenSec`, and
+`refreshTokenSec`. Changes take effect immediately via mutable holders (the oidc-provider
+TTL functions read the holder synchronously). Session TTL is in the Session Policy card.
+
+### Section: Admin & Organizations
+
+Cards for `admin_impersonation`, `organizations_policy`, `lockout`, and `rate_limit`.
+
+| Route | Action |
+| --- | --- |
+| `POST {prefix}/settings/admin-impersonation` | Save (upsert) the `admin_impersonation` setting. |
+| `POST {prefix}/settings/admin-impersonation/reset` | Delete — reverts to config/defaults. |
+| `POST {prefix}/settings/organizations-policy` | Save (upsert) the `organizations_policy` setting. |
+| `POST {prefix}/settings/organizations-policy/reset` | Delete — reverts to config/defaults. |
+| `POST {prefix}/settings/lockout` | Save (upsert) the `lockout` setting. |
+| `POST {prefix}/settings/lockout/reset` | Delete — reverts to config/defaults. |
+| `POST {prefix}/settings/rate-limit` | Save (upsert) the `rate_limit` setting. |
+| `POST {prefix}/settings/rate-limit/reset` | Delete — reverts to config/defaults. |
+
+The **rate_limit card** shows a notice about the known limitation: the route throttle
+middleware uses boot-time values; only the lockout-side (AccountLockout) is affected by
+the runtime setting.
+
+The **organizations policy card** always includes `owner` in the roles list — the `owner`
+role is an invariant and cannot be removed even if the setting omits it.

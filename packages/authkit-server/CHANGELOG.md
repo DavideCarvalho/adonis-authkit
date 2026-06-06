@@ -1,5 +1,13 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.14.0
+
+### Minor Changes
+
+- Render seam hardening for SSR hosts:
+  - **Admin console always renders the built-in edge views** — the management area is library chrome, never routed through the host's custom renderer (custom-rendered hosts were 500ing on `/admin` because no `admin/*` pages exist on the host).
+  - **`inertiaRenderer({ prefix, views?: string[] })`**: with the new `views` allowlist only listed screens go through Inertia; everything else silently falls back to the built-in edge views instead of crashing SSR with "Cannot read properties of undefined (reading 'default')" when the host page doesn't exist. Omitting `views` keeps the previous behavior. The react configure stub now scaffolds the allowlist.
+
 ## 0.13.1
 
 ### Patch Changes

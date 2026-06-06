@@ -1,5 +1,11 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.13.0
+
+### Minor Changes
+
+- Configurable Admin REST API prefix: `registerAuthHost(router, { adminApi: { prefix: '/authkit/api' } })` mounts the API under a custom prefix (default `/api/authkit/v1` unchanged; `adminApi: true` keeps working). The SDK remote driver gains a matching `apiPrefix` option in `createAuthkit`.
+
 ## 0.12.0
 
 ### Minor Changes

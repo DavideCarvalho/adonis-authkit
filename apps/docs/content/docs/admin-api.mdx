@@ -43,6 +43,61 @@ registerAuthHost(router, {
 | `enabled` | `boolean` | `false` | Mounts the `/api/authkit/v1/*` group behind the API-key guard. |
 | `apiKeys` | `string[]` | `[]` | Accepted keys for `Authorization: Bearer <key>`. With none set, every request is `401`. |
 
+### Configurable API prefix
+
+By default the Admin REST API is mounted under `/api/authkit/v1`. You can move it to any
+path by passing `{ prefix: '...' }` instead of `true` in `registerAuthHost`:
+
+```ts title="start/routes.ts"
+// Default — API under /api/authkit/v1 (backward-compatible)
+registerAuthHost(router, {
+  mountPath: '/oidc',
+  adminApi: true,
+})
+
+// Custom prefix — API under /authkit/api
+registerAuthHost(router, {
+  mountPath: '/oidc',
+  adminApi: { prefix: '/authkit/api' },
+})
+```
+
+The prefix is normalised automatically: it always starts with `/` and never has a trailing
+slash. All API routes follow the effective prefix.
+
+<Callout type="warn">
+  When you change the prefix you **must** pass the same value as `apiPrefix` to the SDK's
+  remote driver — otherwise every SDK call will 404. See the
+  [SDK guide](/docs/sdk#remote) for details.
+</Callout>
+
+**Acme example** — Acme moves the API to `/authkit/api` to avoid collisions with their own
+`/api` namespace:
+
+```ts title="start/routes.ts"
+registerAuthHost(router, {
+  mountPath: '/oidc',
+  admin: { prefix: '/auth/admin' },
+  adminApi: { prefix: '/authkit/api' },
+})
+```
+
+```ts title="services/authkit.ts"
+import { createAuthkit } from '@dudousxd/adonis-authkit-sdk'
+
+const authkit = await createAuthkit({
+  mode: 'remote',
+  baseUrl: 'https://auth.acme.com',
+  apiKey: process.env.AUTHKIT_ADMIN_API_KEY!,
+  apiPrefix: '/authkit/api', // must match adminApi.prefix above
+})
+```
+
+<Callout type="info">
+  When `prefix` is omitted inside the object form (`adminApi: {}`), the default
+  `/api/authkit/v1` is used — identical to `adminApi: true`.
+</Callout>
+
 ## Authentication
 
 Every request must send a bearer token:

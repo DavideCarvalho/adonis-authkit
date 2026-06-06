@@ -41,9 +41,17 @@ const authkit = await createAuthkit({
   mode: 'remote',
   baseUrl: 'https://idp.example.com', // host root; /api/authkit/v1 is appended
   apiKey: process.env.AUTHKIT_ADMIN_API_KEY!,
-  // fetchImpl: customFetch, // optional — defaults to global fetch
+  // apiPrefix: '/authkit/api',  // optional — must match adminApi.prefix on the server (default '/api/authkit/v1')
+  // fetchImpl: customFetch,     // optional — defaults to global fetch
 })
 ```
+
+| Option | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `baseUrl` | `string` | — | Host root of the IdP (e.g. `https://auth.acme.com`). |
+| `apiKey` | `string` | — | Bearer API key; must match one of the `adminApi.apiKeys` on the server. |
+| `apiPrefix` | `string` | `'/api/authkit/v1'` | Prefix appended to `baseUrl` for every request. Change this when the server's `registerAuthHost` uses a custom `adminApi: { prefix }`. |
+| `fetchImpl` | `typeof fetch` | global `fetch` | Override the fetch implementation (useful in edge runtimes or tests). |
 
 ### Embedded
 

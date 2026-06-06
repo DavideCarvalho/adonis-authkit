@@ -34,7 +34,7 @@ description: The full defineConfig option tables for server and client.
 | `i18n` | `I18nConfig` | English (`en`); pt-BR built in | Host-kit screen translations. See [Internationalization](/docs/i18n). |
 | `dynamicRegistration` | `DynamicRegistrationConfigInput` | disabled | RFC 7591/7592. See [Dynamic Registration](/docs/dynamic-registration). |
 | `admin` | `AdminConfigInput` | disabled | The `/admin` console. See [Admin Console](/docs/admin-console). |
-| `adminApi` | `AdminApiConfigInput` | disabled | The `/api/authkit/v1` REST API (API-key auth). See [Admin REST API](/docs/admin-api). |
+| `adminApi` | `true \| { prefix?: string }` | disabled | The Admin REST API (API-key auth). `true` mounts at the default `/api/authkit/v1`; pass `{ prefix: '/custom/path' }` to override. Prefix is normalised (leading `/`, no trailing slash). Must match `apiPrefix` in the SDK's remote driver. See [Admin REST API](/docs/admin-api). |
 | `deviceFlow` | `{ enabled: boolean }` | disabled | Device Authorization Grant (RFC 8628). See [Device Flow](/docs/device-flow). |
 | `dpop` | `{ enabled: boolean }` | disabled | DPoP sender-constrained tokens (RFC 9449). See [Security](/docs/security#dpop). |
 | `par` | `{ enabled: boolean; requirePushedAuthorizationRequests?: boolean }` | disabled | Pushed Authorization Requests (RFC 9126). See [Security](/docs/security#par). |
@@ -123,7 +123,7 @@ description: The full defineConfig option tables for server and client.
 
 | Export | Purpose |
 | --- | --- |
-| `createAuthkit({ mode: 'remote', baseUrl, apiKey, fetchImpl? })` | HTTP driver over the [Admin REST API](/docs/admin-api). |
+| `createAuthkit({ mode: 'remote', baseUrl, apiKey, apiPrefix?, fetchImpl? })` | HTTP driver over the [Admin REST API](/docs/admin-api). `apiPrefix` defaults to `'/api/authkit/v1'`; override when the server uses a custom `adminApi.prefix`. |
 | `createAuthkit({ mode: 'embedded', app })` | In-process driver resolving server services from the AdonisJS container. |
 | `AuthkitApiError` | Error thrown by the remote driver (`status`, `code`, `message`). |
 

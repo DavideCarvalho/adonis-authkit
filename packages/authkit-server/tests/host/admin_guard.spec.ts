@@ -4,18 +4,24 @@ import { adminGuard } from '../../src/host/register_auth_host.js'
 /**
  * Fake ctx mínimo para exercitar o adminGuard. `sessionUserId` controla a sessão;
  * `account` é o que o accountStore.findById resolve; `adminRoles` são as roles
- * permitidas pelo config. Captura o redirect e se o `next()` foi chamado.
+ * permitidas pelo config; `requestUrl` simula o caminho atual (para return_to).
+ * Captura o redirect e se o `next()` foi chamado.
  */
 function fakeCtx(opts: {
   sessionUserId?: string
   account?: { id: string; email: string; globalRoles?: string[] } | null
   adminRoles?: string[]
   adminEnabled?: boolean
+  requestUrl?: string
 }) {
   const redirects: string[] = []
   let notFoundCalled = false
   const ctx = {
     session: { get: (_k: string) => opts.sessionUserId },
+    request: {
+      url: () => opts.requestUrl ?? '',
+      parsedUrl: { search: '' },
+    },
     response: {
       redirect: (to: string) => redirects.push(to),
       notFound: () => {
@@ -45,6 +51,14 @@ test.group('adminGuard', () => {
     })
     assert.isFalse(nextCalled)
     assert.deepEqual(redirects, ['/account/login'])
+  })
+
+  test('sem sessão com URL atual → inclui return_to no redirect', async ({ assert }) => {
+    const { ctx, redirects } = fakeCtx({ requestUrl: '/admin/users' })
+    await adminGuard(ctx, async () => {})
+    assert.lengthOf(redirects, 1)
+    assert.include(redirects[0], '/account/login')
+    assert.include(redirects[0], 'return_to=%2Fadmin%2Fusers')
   })
 
   test('sessão com role admin → chama next()', async ({ assert }) => {

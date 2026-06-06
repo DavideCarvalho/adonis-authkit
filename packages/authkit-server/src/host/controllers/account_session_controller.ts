@@ -5,6 +5,25 @@ import { translate } from '../i18n.js'
 import { attemptPasswordLogin } from '../login_attempt.js'
 import { notifyLoginSuccess } from '../login_notify.js'
 
+/**
+ * Valida um valor de `return_to` recebido da query-string ou de um campo hidden.
+ *
+ * Regras de segurança (anti open-redirect):
+ *   - Deve ser uma string não-vazia.
+ *   - Deve começar com `/`.
+ *   - NÃO pode começar com `//` (esquema-relativo, ex.: `//evil.com`).
+ *   - NÃO pode conter `://` (URL absoluta com esquema, ex.: `https://evil.com`).
+ *
+ * Retorna o valor validado ou `null` quando inválido/ausente.
+ */
+export function validateReturnTo(value: unknown): string | null {
+  if (typeof value !== 'string' || !value) return null
+  if (!value.startsWith('/')) return null
+  if (value.startsWith('//')) return null
+  if (value.includes('://')) return null
+  return value
+}
+
 export default class AccountSessionController {
   async show(ctx: HttpContext) {
     const service = await ctx.containerResolver.make('authkit.server')
@@ -14,7 +33,12 @@ export default class AccountSessionController {
     if (ctx.session.get(ACCOUNT_SESSION_KEY)) {
       return ctx.response.redirect('/account/tokens')
     }
-    return render(ctx, 'account/login', { csrfToken: ctx.request.csrfToken })
+
+    // Lê e valida o return_to da query-string — descarta valores inválidos (open-redirect).
+    const rawReturnTo = (ctx.request as any).qs?.()?.return_to ?? ctx.request.input?.('return_to')
+    const returnTo = validateReturnTo(rawReturnTo)
+
+    return render(ctx, 'account/login', { csrfToken: ctx.request.csrfToken, returnTo })
   }
 
   async login(ctx: HttpContext) {
@@ -25,11 +49,16 @@ export default class AccountSessionController {
     const { email, password } = ctx.request.only(['email', 'password'])
     const ip = ctx.request.ip?.() ?? null
 
+    // Lê e valida o return_to do corpo do formulário (hidden input) — nunca confiar sem revalidar.
+    const rawReturnTo = ctx.request.input?.('return_to')
+    const returnTo = validateReturnTo(rawReturnTo)
+
     // Verificação + lockout + auditoria de falha centralizados (sem clientId no console).
     const result = await attemptPasswordLogin(cfg, { email, password, ip })
     if (!result.ok) {
       return render(ctx, 'account/login', {
         csrfToken: ctx.request.csrfToken,
+        returnTo,
         error: result.locked
           ? translate(cfg.messages, 'errors.account_locked', {
               seconds: result.retryAfterSec ?? 0,
@@ -43,7 +72,8 @@ export default class AccountSessionController {
     const acc = result.account
     ctx.session.put(ACCOUNT_SESSION_KEY, acc.id)
     await notifyLoginSuccess(ctx, cfg, { accountId: acc.id, email, ip })
-    return ctx.response.redirect('/account/tokens')
+    // Redireciona pro destino original (validado), ou cai no default /account/tokens.
+    return ctx.response.redirect(returnTo ?? '/account/tokens')
   }
 
   async logout(ctx: HttpContext) {

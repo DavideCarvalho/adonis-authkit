@@ -55,6 +55,26 @@ async function checkAndRefreshIdle(ctx: any): Promise<boolean> {
 }
 
 /**
+ * Constrói a URL de redirect para o login da conta, preservando o destino
+ * original como `return_to` (URL-encoded). A URL de destino é o path + query
+ * string da requisição atual (nunca o host — proteção contra open-redirect).
+ *
+ * @internal
+ */
+function buildLoginRedirect(ctx: any, extra?: string): string {
+  const url = ctx.request?.url?.() ?? ''
+  const qs = ctx.request?.parsedUrl?.search ?? ''
+  const dest = qs ? `${url}${qs}` : url
+  // Só inclui return_to quando há um caminho real (não vazio, não é o próprio login).
+  if (dest && dest !== '/' && !dest.startsWith('/account/login')) {
+    const encoded = encodeURIComponent(dest)
+    const base = extra ? `/account/login?${extra}&return_to=${encoded}` : `/account/login?return_to=${encoded}`
+    return base
+  }
+  return extra ? `/account/login?${extra}` : '/account/login'
+}
+
+/**
  * Guard inline do console de conta. Usamos uma closure (forma confiável do
  * `.use()` do AdonisJS) em vez de `() => import(middleware)` — a forma lazy de
  * classe NÃO era aplicada em runtime num grupo, deixando /account/tokens e
@@ -62,12 +82,12 @@ async function checkAndRefreshIdle(ctx: any): Promise<boolean> {
  */
 const accountGuard = async (ctx: any, next: () => Promise<void>) => {
   if (!ctx.session?.get(ACCOUNT_SESSION_KEY)) {
-    return ctx.response.redirect('/account/login')
+    return ctx.response.redirect(buildLoginRedirect(ctx))
   }
   // Idle timeout: encerra e redireciona com query param de motivo.
   const idleExpired = await checkAndRefreshIdle(ctx)
   if (idleExpired) {
-    return ctx.response.redirect('/account/login?reason=idle')
+    return ctx.response.redirect(buildLoginRedirect(ctx, 'reason=idle'))
   }
   return next()
 }
@@ -93,12 +113,12 @@ export const adminGuard = async (ctx: any, next: () => Promise<void>) => {
   const accountId = ctx.session?.get(ACCOUNT_SESSION_KEY) as string | undefined
   if (!accountId) {
     // `/account/login` é sempre o login da conta — NÃO muda com o prefixo admin.
-    return ctx.response.redirect('/account/login')
+    return ctx.response.redirect(buildLoginRedirect(ctx))
   }
   // Idle timeout: também protege o console admin.
   const idleExpired = await checkAndRefreshIdle(ctx)
   if (idleExpired) {
-    return ctx.response.redirect('/account/login?reason=idle')
+    return ctx.response.redirect(buildLoginRedirect(ctx, 'reason=idle'))
   }
   const allowed = cfg.admin.roles as string[]
   const account = await cfg.accountStore.findById(accountId)

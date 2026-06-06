@@ -74,6 +74,17 @@ export interface InertiaRendererOptions {
  *
  * Quando `views` é fornecido (allowlist), apenas as views listadas vão ao Inertia;
  * qualquer outra view recai no Edge renderer built-in sem erro.
+ *
+ * ---
+ *
+ * ### Props da tela `account/login`
+ *
+ * | Prop        | Tipo                | Descrição |
+ * |-------------|---------------------|-----------|
+ * | `csrfToken` | `string`            | Token CSRF para o campo `_csrf` do formulário. |
+ * | `returnTo`  | `string \| null`    | Caminho interno de destino pós-login (já validado pelo servidor — só caminhos internos). Quando presente, o formulário deve incluir `<input type="hidden" name="return_to" value={returnTo} />`. O servidor revalida o valor no POST; hosts com tela custom precisam propagar esse hidden input. |
+ * | `error`     | `string \| undefined` | Mensagem de erro de autenticação localizada (credenciais inválidas, conta bloqueada, etc.). |
+ * | `messages`  | `AuthMessages`      | Catálogo de mensagens i18n. |
  */
 export function inertiaRenderer(opts: InertiaRendererOptions) {
   const allowed = opts.views ? new Set(opts.views) : null

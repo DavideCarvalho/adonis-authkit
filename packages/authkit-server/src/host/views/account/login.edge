@@ -5,6 +5,9 @@
   <form method="POST" action="/account/login"
     class="w-full max-w-sm rounded-2xl bg-white p-8 shadow-xl ring-1 ring-black/5">
     <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+    @if(returnTo)
+      <input type="hidden" name="return_to" value="{{ returnTo }}">
+    @end
     <div class="text-xs font-semibold uppercase tracking-widest text-gray-400">{{ t('common.brand_eyebrow') }}</div>
     <h1 class="mt-2 text-xl font-semibold text-gray-900">{{ t('account.login.title') }}</h1>
     <p class="mt-1 text-sm text-gray-500">{{ t('account.login.intro') }}</p>

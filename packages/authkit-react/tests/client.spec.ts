@@ -204,15 +204,26 @@ test.group('AuthkitClient — error parsing', () => {
 })
 
 test.group('AuthkitClient — SSR guard', () => {
-  test('lança erro descritivo quando não há window e baseUrl não é informado', ({ assert }) => {
-    // Simula ambiente SSR: window não existe
+  test('construtor NÃO lança em SSR sem baseUrl (montagem do tree é safe)', ({ assert }) => {
+    // Regressão: o construtor lançava em SSR e derrubava o render das telas
+    // self-service (que só usam account.*). Agora é lazy.
     const originalWindow = (globalThis as any).window
     delete (globalThis as any).window
     try {
-      assert.throws(
-        () => createAuthkitClient(),
-        /SSR context detected/
-      )
+      assert.doesNotThrow(() => createAuthkitClient({ accountBaseUrl: '/account/api' }))
+    } finally {
+      if (originalWindow !== undefined) {
+        ;(globalThis as any).window = originalWindow
+      }
+    }
+  })
+
+  test('lança ao chamar admin.* sem baseUrl resolvido', async ({ assert }) => {
+    const originalWindow = (globalThis as any).window
+    delete (globalThis as any).window
+    try {
+      const client = createAuthkitClient({ accountBaseUrl: '/account/api' })
+      await assert.rejects(() => client.admin.overview(), /admin base URL ausente/)
     } finally {
       if (originalWindow !== undefined) {
         ;(globalThis as any).window = originalWindow

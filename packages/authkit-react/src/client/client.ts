@@ -164,7 +164,7 @@ function toQueryString(params: Record<string, unknown>): string {
 // ---------------------------------------------------------------------------
 
 class AuthkitClient {
-  private readonly _baseUrl: string
+  private readonly _baseUrl: string | undefined
   private readonly _accountBaseUrl: string
   private readonly _csrfToken: string | undefined
   private readonly _fetch: typeof fetch
@@ -172,13 +172,12 @@ class AuthkitClient {
   constructor(opts: AuthkitClientOptions = {}) {
     const win = resolveWindow()
 
-    if (!opts.baseUrl && !win) {
-      throw new Error(
-        '[AuthkitClient] SSR context detected: provide `baseUrl` explicitly via createAuthkitClient({ baseUrl }).'
-      )
-    }
-
-    this._baseUrl = opts.baseUrl ?? win!.endpoints.api
+    // SSR-safe: o construtor NUNCA lança nem toca em window de forma fatal — o
+    // tree React é montado durante o SSR sem disparar requests. A base admin é
+    // resolvida preguiçosamente em `adminBase()`; se faltar (SSR sem baseUrl), só
+    // lança quando uma chamada admin.* realmente acontece (client-side). Telas que
+    // só usam account.* funcionam com `accountBaseUrl` (default '/account/api').
+    this._baseUrl = opts.baseUrl ?? win?.endpoints.api
     this._accountBaseUrl = opts.accountBaseUrl ?? '/account/api'
     this._csrfToken = opts.csrfToken ?? win?.csrfToken
     // `globalThis.fetch` PRECISA ser chamado com `this === Window`. Guardá-lo como
@@ -257,6 +256,13 @@ class AuthkitClient {
   }
 
   private b(path: string) {
+    if (!this._baseUrl) {
+      throw new Error(
+        '[AuthkitClient] admin base URL ausente: passe `baseUrl` em createAuthkitClient({ baseUrl }) ' +
+          'ou use o client onde window.__AUTHKIT__ está injetado (console admin). ' +
+          'Telas que só usam client.account.* não precisam de baseUrl.'
+      )
+    }
     return `${this._baseUrl}${path}`
   }
 

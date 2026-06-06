@@ -1,5 +1,11 @@
 # @dudousxd/adonis-authkit-react
 
+## 0.5.2
+
+### Patch Changes
+
+- Fix SSR crash (500) when host React account screens use the client: the constructor threw an SSR error eagerly, breaking server-render of any page that only uses `client.account.*`. Construction is now side-effect-free; the admin base is resolved lazily and only throws if an `admin.*` call is actually made without a base. Account-only screens work with just `accountBaseUrl`.
+
 ## 0.5.1
 
 ### Patch Changes

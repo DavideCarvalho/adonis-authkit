@@ -14,6 +14,7 @@ function makeSettingsDb(initialRows: Record<string, any> = {}) {
   const db = {
     _store: store,
     withNoTable() { _hasTable = false; return db },
+    from(name: string) { return this.table(name) },
     table(name: string) {
       if (name !== 'auth_settings') throw new Error(`unexpected table: ${name}`)
       // Probe: select().limit() — se _hasTable for false, lança para simular tabela ausente.

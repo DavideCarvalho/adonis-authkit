@@ -1,5 +1,11 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.15.2
+
+### Patch Changes
+
+- Fix RuntimeSettings against a real Lucid database: queries used `db.table()` (Lucid's INSERT query builder) for SELECT/DELETE, so the table probe always failed and every runtime setting reported "table absent" on real hosts. Reads/deletes now use `db.from()`; verified end-to-end against Postgres on a named connection.
+
 ## 0.15.1
 
 ### Patch Changes

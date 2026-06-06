@@ -36,6 +36,7 @@ function fakeDb(rows: Record<string, any> = {}) {
     Object.entries(rows).map(([k, v]) => [k, { value: JSON.stringify(v) }])
   )
   return {
+    from(name: string) { return this.table(name) },
     table(_name: string) {
       const allRows = () => [...store.entries()].map(([key, v]) => ({ key, value: v.value }))
       return {
@@ -67,6 +68,7 @@ function fakeDb(rows: Record<string, any> = {}) {
 function noTableDb() {
   return {
     // table() throws → probe catches → tablePresent = false.
+    from() { return this.table() },
     table() { throw new Error('no table') },
   }
 }
@@ -74,6 +76,7 @@ function noTableDb() {
 function throwingDb() {
   return {
     // table() throws → probe catches → fail-safe.
+    from() { return this.table() },
     table() { throw new Error('db down') },
   }
 }
@@ -90,6 +93,7 @@ function makeSettingsDb(initialRows: Record<string, any> = {}) {
   const db = {
     _store: store,
     withNoTable() { _hasTable = false; return db },
+    from(name: string) { return this.table(name) },
     table(name: string) {
       if (name !== 'auth_settings') throw new Error(`unexpected table: ${name}`)
       // Probe: se _hasTable for false, lança para simular tabela ausente.

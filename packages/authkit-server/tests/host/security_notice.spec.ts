@@ -210,6 +210,7 @@ test.group('dispatchSecurityNotice', (group) => {
    */
   function fakeDbWithSettings(settingsByKey: Record<string, unknown>) {
     const db: any = {
+      from(name: string) { return this.table(name) },
       table(_name: string) {
         let _filterKey: string | undefined
         let _filterValue: string | undefined

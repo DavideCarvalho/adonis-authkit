@@ -28,6 +28,7 @@ function fakeDb(rows: Record<string, any> = {}) {
     Object.entries(rows).map(([k, v]) => [k, { value: JSON.stringify(v) }])
   )
   return {
+    from(name: string) { return this.table(name) },
     table(_name: string) {
       return {
         // Probe: select().limit() → resolves (table present).

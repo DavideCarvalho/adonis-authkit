@@ -255,6 +255,7 @@ test.group('attemptPasswordLogin', (group) => {
 
     // DB with runtime setting enabled = true.
     const db = {
+      from(...args: any[]) { return (this as any).table(...args) },
       table(_: string) {
         return {
           // Probe: select().limit() → resolves (table present).
@@ -300,6 +301,7 @@ test.group('attemptPasswordLogin', (group) => {
     } as unknown as ResolvedServerConfig
 
     const db = {
+      from(...args: any[]) { return (this as any).table(...args) },
       table(_: string) {
         return {
           // Probe: select().limit() → resolves (table present).

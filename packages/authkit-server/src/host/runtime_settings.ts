@@ -124,7 +124,7 @@ export class RuntimeSettings implements SettingsCapability {
   private async hasTable(): Promise<boolean> {
     if (this.tablePresent !== null) return this.tablePresent
     try {
-      await this.conn().table('auth_settings').select('key').limit(1)
+      await this.conn().from('auth_settings').select('key').limit(1)
       this.tablePresent = true
       return true
     } catch {
@@ -144,7 +144,7 @@ export class RuntimeSettings implements SettingsCapability {
     }
 
     try {
-      const row = await this.conn().table('auth_settings').where('key', key).first()
+      const row = await this.conn().from('auth_settings').where('key', key).first()
       const value = row ? this._parse(row.value) : null
       this._cache(key, value)
       return value
@@ -160,7 +160,7 @@ export class RuntimeSettings implements SettingsCapability {
     const json = JSON.stringify(value)
     try {
       // Delete first then insert = upsert (compatível com sqlite + pg sem UPSERT syntax).
-      await this.conn().table('auth_settings').where('key', key).delete()
+      await this.conn().from('auth_settings').where('key', key).delete()
       await this.conn().table('auth_settings').insert({ key, value: json, updated_at: new Date(), updated_by: updatedBy })
     } catch {
       // Fail-safe: não lança.
@@ -171,7 +171,7 @@ export class RuntimeSettings implements SettingsCapability {
   async deleteSetting(key: string): Promise<void> {
     if (!(await this.hasTable())) return
     try {
-      await this.conn().table('auth_settings').where('key', key).delete()
+      await this.conn().from('auth_settings').where('key', key).delete()
     } catch {
       // Fail-safe.
     }
@@ -181,7 +181,7 @@ export class RuntimeSettings implements SettingsCapability {
   async listSettings(): Promise<SettingRow[]> {
     if (!(await this.hasTable())) return []
     try {
-      const rows = await this.conn().table('auth_settings').select('*')
+      const rows = await this.conn().from('auth_settings').select('*')
       return rows.map((r: any): SettingRow => ({
         key: r.key,
         value: this._parse(r.value),

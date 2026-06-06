@@ -29,6 +29,7 @@ function fakeDbWithSettings(rows: Record<string, any> = {}) {
     Object.entries(rows).map(([k, v]) => [k, { value: JSON.stringify(v) }])
   )
   return {
+    from(name: string) { return this.table(name) },
     table(_name: string) {
       return {
         // Probe: select().limit() → resolves (table present).
@@ -51,6 +52,7 @@ function fakeDbWithSettings(rows: Record<string, any> = {}) {
 function noTableDb() {
   return {
     // table() throws → probe catches → tablePresent = false.
+    from() { return this.table() },
     table() { throw new Error('no table') },
   }
 }

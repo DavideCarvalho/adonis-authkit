@@ -44,6 +44,7 @@ function fakeDb(rows: Record<string, unknown> = {}) {
   )
   return {
     _hasTable: true,
+    from(name: string) { return this.table(name) },
     table(_name: string) {
       const allRows = () => [...store.entries()].map(([key, v]) => ({ key, value: v.value, updated_at: v.updated_at, updated_by: v.updated_by }))
       return {
@@ -76,6 +77,7 @@ function fakeDb(rows: Record<string, unknown> = {}) {
 function noTableDb() {
   return {
     // table() throws → probe catches → tablePresent = false.
+    from() { return this.table() },
     table() { throw new Error('table does not exist') },
   }
 }
@@ -137,6 +139,7 @@ test.group('resolveEffectiveLockout', () => {
   test('DB error (fail-safe) — returns config defaults', async ({ assert }) => {
     const svc = new RuntimeSettings({
       async connection() { throw new Error('db down') },
+      from() { return this.table() },
       table() { throw new Error('db down') },
     } as any)
     const result = await resolveEffectiveLockout(svc, { enabled: false, maxAttempts: 3 })
@@ -259,6 +262,7 @@ test.group('resolveEffectiveNotifications', () => {
   test('DB error — returns config defaults', async ({ assert }) => {
     const svc = new RuntimeSettings({
       async connection() { throw new Error('db down') },
+      from() { return this.table() },
       table() { throw new Error('db down') },
     } as any)
     const result = await resolveEffectiveNotifications(svc, { newLoginEmail: false })

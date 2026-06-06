@@ -10,6 +10,7 @@ function fakeDb(rows: Record<string, string> = {}) {
   )
   return {
     _hasTable: true,
+    from(name: string) { return this.table(name) },
     table(_name: string) {
       const allRows = () => [...store.entries()].map(([key, v]) => ({ key, value: v.value, updated_at: v.updatedAt, updated_by: v.updatedBy }))
       return {
@@ -42,6 +43,7 @@ function fakeDb(rows: Record<string, string> = {}) {
 function noTableDb() {
   return {
     // table() throws → probe catches it → tablePresent = false (searchPath-aware probe).
+    from() { return this.table() },
     table() { throw new Error('table does not exist') },
   }
 }
@@ -49,6 +51,7 @@ function noTableDb() {
 function throwingDb() {
   return {
     // table() throws → probe catches → fail-safe (tablePresent = false).
+    from() { return this.table() },
     table() { throw new Error('db is down') },
   }
 }
@@ -95,6 +98,7 @@ test.group('RuntimeSettings', () => {
   test('cache: second call within TTL does not re-query DB', async ({ assert }) => {
     let queryCalls = 0
     const db = {
+      from(name: string) { return this.table(name) },
       table(_name: string) {
         return {
           // Probe: select().limit() → resolves (table present)
@@ -121,6 +125,7 @@ test.group('RuntimeSettings', () => {
   test('cache: invalidate() clears cache, next call re-queries', async ({ assert }) => {
     let queryCalls = 0
     const db = {
+      from(name: string) { return this.table(name) },
       table(_name: string) {
         return {
           // Probe: select().limit() → resolves (table present)
@@ -180,6 +185,7 @@ test.group('RuntimeSettings — searchPath-aware probe', () => {
   test('probe result is cached — table() called only once across multiple operations', async ({ assert }) => {
     let tableCallCount = 0
     const db = {
+      from(name: string) { return this.table(name) },
       table(_name: string) {
         tableCallCount++
         return {
@@ -207,6 +213,7 @@ test.group('RuntimeSettings — searchPath-aware probe', () => {
   test('probe result NOT invalidated by invalidate() — tablePresent cache is separate', async ({ assert }) => {
     let tableCallCount = 0
     const db = {
+      from(name: string) { return this.table(name) },
       table(_name: string) {
         tableCallCount++
         return {
@@ -236,6 +243,7 @@ test.group('RuntimeSettings — named connection option', () => {
       connection(name: string) {
         namedConns.push(name)
         return {
+          from(...args: any[]) { return (this as any).table(...args) },
           table(_tableName: string) {
             return {
               select(_cols?: string) {
@@ -258,6 +266,7 @@ test.group('RuntimeSettings — named connection option', () => {
   test('connection option absent: uses db directly (back-compat)', async ({ assert }) => {
     let directTableCalled = false
     const db = {
+      from(name: string) { return this.table(name) },
       table(_name: string) {
         directTableCalled = true
         return {
@@ -283,6 +292,7 @@ test.group('RuntimeSettings — named connection option', () => {
     const db = {
       connection(_name: string) {
         return {
+          from(...args: any[]) { return (this as any).table(...args) },
           table(_tableName: string) {
             return {
               select(_cols?: string) {
@@ -312,6 +322,7 @@ test.group('RuntimeSettings — named connection option', () => {
     const db = {
       connection(_name: string) {
         return {
+          from(...args: any[]) { return (this as any).table(...args) },
           table(_tableName: string) { throw new Error('relation does not exist') },
         }
       },

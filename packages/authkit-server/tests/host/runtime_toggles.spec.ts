@@ -27,6 +27,7 @@ function fakeDb(rows: Record<string, any> = {}) {
     Object.entries(rows).map(([k, v]) => [k, { value: JSON.stringify(v) }])
   )
   return {
+    from(name: string) { return this.table(name) },
     table(_name: string) {
       return {
         // Probe: select().limit() → resolves (table present).
@@ -49,6 +50,7 @@ function fakeDb(rows: Record<string, any> = {}) {
 function noTableDb() {
   return {
     // table() throws → probe catches → tablePresent = false.
+    from() { return this.table() },
     table() { throw new Error('no table') },
   }
 }
@@ -56,6 +58,7 @@ function noTableDb() {
 function throwingDb() {
   return {
     // table() throws → probe catches → fail-safe (tablePresent = false).
+    from() { return this.table() },
     table() { throw new Error('db down') },
   }
 }

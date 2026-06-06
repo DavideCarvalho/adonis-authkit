@@ -1,5 +1,17 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.17.0
+
+### Minor Changes
+
+- Console UX:
+  - **`return_to` on console login**: the account/admin guards now redirect to `/account/login?return_to=<original path>` and the login POST sends you back where you were heading (server-side validated, open-redirect proof). Custom login pages receive a `returnTo` prop and should propagate it as a hidden input.
+  - **Roles catalog**: new `/admin/roles` page manages the global-role catalog (runtime setting `roles_catalog`; ADMIN is protected). The users page assigns roles via checkboxes from the catalog instead of free text; roles a user holds that left the catalog show an "out of catalog" badge and can only be removed. Doctor warns when `admin.roles` references a role missing from the catalog.
+
+### Patch Changes
+
+- 55eb9d7: Elimina o FOUC (flash de página sem estilo) em todas as telas server-rendered do host (login, account, console admin): o Tailwind Play CDN (gerava CSS em runtime no browser) foi substituído por CSS estático gerado no build e embutido inline via partial Edge.
+
 ## 0.16.0
 
 ### Minor Changes

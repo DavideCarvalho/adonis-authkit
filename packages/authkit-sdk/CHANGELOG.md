@@ -1,5 +1,11 @@
 # @dudousxd/adonis-authkit-sdk
 
+## 0.4.1
+
+### Patch Changes
+
+- RuntimeSettings now probes the `auth_settings` table with a real `SELECT` (search_path-aware) instead of `schema.hasTable`, and follows the account store's named connection (`lucidAccountStore` exposes `connectionName` from the model). Hosts storing auth on a named connection (e.g. `connection: 'auth'`) no longer see every runtime setting as "table absent".
+
 ## 0.4.0
 
 ### Patch Changes

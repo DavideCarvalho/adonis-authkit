@@ -14,10 +14,12 @@ back to the static config — zero breaking change.
 | --- | --- | --- |
 | **Runtime setting** (DB) | `auth_settings` table | Business policy — things an operator changes while the app is running |
 | **Static config** (`defineConfig`) | `config/authkit_server.ts` | Infrastructure — secrets, adapters, mail transports, code hooks |
-| **Library default** | Built into AuthKit | Sensible baseline when neither layer provides a value |
+| **Library default** | Built into AuthKit | Sensible baseline when no runtime setting is present |
 
-**Single precedence rule:** `setting > config > default`. If the table is absent or the DB
-call fails for any reason, the config/default takes over — the fail-safe is total.
+**Single precedence rule:** `setting > lib default`. Static config (`defineConfig`) carries
+only infrastructure fields — the policy fields that used to live there have been removed.
+If the `auth_settings` table is absent or the DB call fails for any reason, the lib default
+takes over — the fail-safe is total.
 
 ## Setting up the table
 
@@ -52,11 +54,11 @@ Once the table is present, AuthKit detects it on first access (the result is mem
 | `password_history` | `{ enabled?: boolean; count?: number }` | `{ enabled: false, count: 5 }` | Reuse prevention. Requires `auth_password_history` table. |
 | `password_expiration` | `{ enabled?: boolean; maxAgeDays?: number }` | `{ enabled: false, maxAgeDays: 90 }` | Force password rotation. Requires `password_changed_at` column. |
 | `session_policy` | `{ rememberEnabled?: boolean; rememberDays?: number; defaultSessionHours?: number; singleSession?: boolean; idleTimeoutMinutes?: number }` | `{ rememberEnabled: true, rememberDays: 30, defaultSessionHours: 168, singleSession: false, idleTimeoutMinutes: 0 }` | Session duration, remember-me, single session, idle timeout. |
-| `lockout` | `{ enabled?: boolean; maxAttempts?: number; windowSec?: number; baseLockoutSec?: number; maxLockoutSec?: number }` | `{ enabled: true, maxAttempts: 5, windowSec: 900, baseLockoutSec: 60, maxLockoutSec: 3600 }` | Per-email lockout policy. `store` field stays in config (infra). |
+| `lockout` | `{ enabled?: boolean; maxAttempts?: number; windowSec?: number; baseLockoutSec?: number; maxLockoutSec?: number }` | `{ enabled: true, maxAttempts: 5, windowSec: 900, baseLockoutSec: 60, maxLockoutSec: 3600 }` | Per-email lockout policy. `store` stays in config (infra). |
 | `rate_limit` | `{ login?: { points, duration }; introspection?: { points, duration } }` | `login: { points: 10, duration: '1 min' }; introspection: { points: 60, duration: '1 min' }` | Rate-limit buckets. See [known limitation](#rate_limit-limitation). |
 | `password_policy` | `{ minLength?: number; requireUppercase?: boolean; requireLowercase?: boolean; requireNumbers?: boolean; requireSymbols?: boolean; checkPwned?: boolean }` | `{ minLength: 8, all false }` | Password complexity and HIBP check. |
 | `notifications` | `{ newLoginEmail?: boolean; newDeviceEmail?: boolean }` | `{ newLoginEmail: true, newDeviceEmail: true }` | New-IP and new-device email alerts. |
-| `trusted_devices` | `{ enabled?: boolean; days?: number }` | `{ enabled: true, days: 30 }` | MFA skip via encrypted cookie. `secrets` stays in config. |
+| `trusted_devices` | `{ enabled?: boolean; days?: number }` | `{ enabled: true, days: 30 }` | MFA skip via encrypted cookie. `secrets` stays in config (infra). |
 | `token_ttl` | `{ accessTokenSec?: number; idTokenSec?: number; refreshTokenSec?: number }` | `{ accessTokenSec: 900, idTokenSec: 900, refreshTokenSec: 2592000 }` | Token lifetimes (seconds). Takes effect immediately via holder. Session TTL is in `session_policy`. |
 | `admin_impersonation` | `{ enabled?: boolean }` | `{ enabled: false }` | Show impersonation panel in admin console. |
 | `organizations_policy` | `{ allowSelfCreate?: boolean; invitationTtlHours?: number; roles?: string[] }` | `{ allowSelfCreate: false, invitationTtlHours: 168, roles: ['owner','admin','member'] }` | Org policies. `owner` is always preserved in `roles`. |
@@ -82,12 +84,12 @@ The settings page (`GET {prefix}/settings`) groups the 18 keys into sections:
 | Admin & Orgs | `admin_impersonation`, `organizations_policy`, `lockout`, `rate_limit` |
 
 Each card shows a badge indicating whether the effective value comes from the runtime
-setting (`from setting`) or falls back to the static config (`from config`). When the
+setting (`from setting`) or falls back to the lib default (`from default`). When the
 `auth_settings` table is absent, every card shows the `CREATE TABLE` snippet and submit
 buttons are disabled.
 
 Every save emits a `settings.updated` audit event. Every reset (delete) returns the key to
-config/default and also emits `settings.updated`.
+the lib default and also emits `settings.updated`.
 
 ## Admin REST API
 
@@ -105,7 +107,7 @@ PUT /api/authkit/v1/settings/:key
 Content-Type: application/json
 { "value": { ... } }
 
-# Delete (reset to config/default)
+# Delete (reset to lib default)
 DELETE /api/authkit/v1/settings/:key
 ```
 
@@ -151,7 +153,7 @@ node ace authkit:settings:get session_policy
 # Upsert a setting (JSON value)
 node ace authkit:settings:set session_policy '{"singleSession":true,"rememberDays":7}'
 
-# Delete a setting (reset to config/default)
+# Delete a setting (reset to lib default)
 node ace authkit:settings:unset session_policy
 
 # Machine-readable output
@@ -162,45 +164,42 @@ node ace authkit:settings:get lockout --json
 The `set` command validates the shape of known keys before writing. Unknown keys are
 accepted with a warning. All write commands audit `settings.updated` with `updatedBy: 'cli'`.
 
-## Migrating from static config to runtime settings
+## Setting up policy for the first time
 
-Several config fields have been **deprecated** in favour of runtime settings. The static
-fields continue to work as a fallback — no immediate migration is required. Run
-`node ace authkit:doctor` to see which deprecated fields are still in use.
+Policy fields (lockout, rate-limit buckets, password rules, trusted devices, notifications,
+impersonation, organisations) live exclusively in runtime settings — there are no matching
+config fields. Use the Admin Console or the CLI to set initial values; the lib defaults apply
+until you do.
 
-| Deprecated config field(s) | Move to runtime setting | Notes |
-| --- | --- | --- |
-| `config.lockout.enabled`, `maxAttempts`, `windowSec`, `baseLockoutSec`, `maxLockoutSec` | `lockout` | `store` field stays in config (infra). |
-| `config.rateLimit.login`, `rateLimit.introspection` (bucket values) | `rate_limit` | Route throttle middleware is still boot-time; only lockout-side is dynamic. |
-| `config.notifications.newLoginEmail`, `newDeviceEmail` | `notifications` | — |
-| `config.trustedDevices.enabled`, `trustedDevices.days` | `trusted_devices` | `secrets` and cookie config stay in config. |
-| `config.admin.impersonation` | `admin_impersonation` | — |
-| `config.organizations.allowSelfCreate`, `invitationTtlHours`, `roles` | `organizations_policy` | — |
-| `password.policy.*` fields in `lucidAccountStore` | `password_policy` | `legacyVerifier`, `pepper`, `timeoutMs` stay in config (infra/code). |
-| `password.checkPwned` in `lucidAccountStore` | `password_policy` (`checkPwned` field) | — |
+```bash
+# Example: tighten the lockout policy
+node ace authkit:settings:set lockout \
+  '{"enabled":true,"maxAttempts":3,"windowSec":600,"baseLockoutSec":120,"maxLockoutSec":7200}'
 
-**Migration steps for any deprecated field:**
+# Example: enforce a password policy
+node ace authkit:settings:set password_policy \
+  '{"minLength":12,"requireUppercase":true,"requireNumbers":true,"checkPwned":true}'
 
-1. Run `node ace authkit:settings:set <key> '<json>'` (or use the Admin Console) to persist
-   the current values as a runtime setting.
-2. Remove the deprecated field from `config/authkit_server.ts`.
-3. Run `node ace authkit:doctor` — the deprecation warning should be gone.
-4. The setting is now the authoritative source; the config field no longer contributes.
+# Example: shorten the trusted-device window
+node ace authkit:settings:set trusted_devices '{"enabled":true,"days":7}'
+```
+
+Infra fields (`store`, `secrets`, `pepper`, `legacyVerifier`) continue to live in
+`defineConfig` — they are code or secrets and are never managed at runtime.
 
 ## Fail-safes
 
-- **Table absent** — every `getSetting` call returns `null`; the config/default is used.
+- **Table absent** — every `getSetting` call returns `null`; the lib default is used.
 - **DB error** — same as absent: the resolve function catches the error and returns the
-  config/default.
+  lib default.
 - **Invalid shape** — if the stored JSON does not match the expected shape (e.g. `enabled`
-  is not a boolean), the resolve function ignores it and falls back to the config/default.
+  is not a boolean), the resolve function ignores it and falls back to the lib default.
 - **All-off for `auth_methods`** — if all login methods would be disabled, AuthKit reverts
-  to the config defaults and logs a warning. An empty login screen is never surfaced.
+  to the lib defaults and logs a warning. An empty login screen is never surfaced.
 
 ## `authkit:doctor` checks
 
-`authkit:doctor` runs `checkLegacyPolicyConfig` which emits a `warn` for each deprecated
-config field still in use, and `checkSettings` which:
+`authkit:doctor` runs `checkSettings` which:
 
 - **Table absent** — silently ok (opt-in feature).
 - **`bot_protection` row present but `botProtection.verify` absent from config** — `warn`:

@@ -33,7 +33,6 @@ registerAuthHost(router, {
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | `false` | Mounts the admin console group behind the admin guard. |
 | `roles` | `string[]` | `['ADMIN']` | Global roles that grant access to the console. |
-| `impersonation` | `boolean` | `false` | Show the impersonation panel on user detail pages. |
 
 ### Configurable admin prefix
 
@@ -186,17 +185,15 @@ table query and the Redis adapter's `SCAN` are scoped per model, so the lookup i
 
 ## Impersonation panel
 
-When `admin.impersonation: true`, a user's detail page shows an **Impersonation** panel
-with the exact `token_exchange` parameters needed to assume that user's identity (RFC 8693).
-This surfaces the `subject_token_type`, `requested_token_type`, and a ready-to-run
-`curl` snippet — it does **not** perform the exchange itself.
+When the `admin_impersonation` runtime setting is enabled (`{ "enabled": true }`), a user's
+detail page shows an **Impersonation** panel with the exact `token_exchange` parameters
+needed to assume that user's identity (RFC 8693). This surfaces the `subject_token_type`,
+`requested_token_type`, and a ready-to-run `curl` snippet — it does **not** perform the
+exchange itself.
 
-```ts title="config/authkit.ts"
-admin: {
-  enabled: true,
-  roles: ['ADMIN'],
-  impersonation: true, // default: false
-},
+```bash
+# Enable via runtime setting (no redeploy)
+node ace authkit:settings:set admin_impersonation '{"enabled":true}'
 ```
 
 <Callout type="warn">
@@ -233,17 +230,12 @@ accounts with an "account disabled" message, even with a correct password.
 
 ## Client CRUD
 
-<Callout type="warn">
-  **Static clients are deprecated.** The recommended workflow is to create and manage all
-  clients through this console (or the [Admin REST API](/docs/admin-api#clients)) — no config
-  change or redeploy needed. When your `config/authkit.ts` still has a `clients: [...]` block,
-  a **deprecation banner** appears at the top of this page reminding you to migrate. Run
-  `node ace authkit:clients:import` to copy the static clients to the adapter/DB (see
-  [Reference — authkit:clients:import](/docs/reference#authkitclientsimport)).
-</Callout>
+All clients are managed at runtime — there is no static client list in config. Create them
+via this console, the [Admin REST API](/docs/admin-api#clients), or the
+`authkit:clients:create` command (see [Reference](/docs/reference#authkitclientscreate)).
+No redeploy needed.
 
-The clients page lists **both** the statically-configured `clients` (read-only, shown with
-a "static — managed in config" label) and the **adapter-stored** ones created via the
+The clients page lists all **adapter-stored** clients created via the
 console or [Dynamic Registration](/docs/dynamic-registration). Adapter-stored clients are
 fully manageable via `AdminClientsService`:
 
@@ -265,9 +257,8 @@ emits an audit event: `client.created`, `client.updated`, `client.deleted`.
 Enumeration relies on the adapter's **optional** `list?()` capability (the legacy
 `listClients?()` is still honored for back-compat and now delegates to `list()`). When the
 adapter implements neither, the service's `canList` is `false` and the page **degrades
-gracefully** — static clients still render and the create form still works, but the
-adapter-stored list is hidden with a notice rather than erroring. Statically-configured
-clients are always read-only (they live in your config, not the adapter).
+gracefully** — the create form still works, but the adapter-stored list is hidden with a
+notice rather than erroring.
 
 ## Organizations
 
@@ -283,7 +274,7 @@ that does not require a redeploy. See [Runtime Settings](/docs/settings) for the
 setting catalog, precedence rules, and migration guide.
 
 Every card shows a **badge** indicating whether the effective value comes from the runtime
-setting (`from setting`) or falls back to the static config (`from config`). When the
+setting (`from setting`) or falls back to the lib default (`from default`). When the
 `auth_settings` table is absent, a notice appears with the `CREATE TABLE` snippet and submit
 buttons are disabled.
 
@@ -454,11 +445,11 @@ Cards for `session_policy`, `trusted_devices`, `notifications`, and `token_ttl`.
 | `POST {prefix}/settings/session-policy` | Save (upsert) the `session_policy` setting. |
 | `POST {prefix}/settings/session-policy/reset` | Delete — reverts to defaults. |
 | `POST {prefix}/settings/trusted-devices` | Save (upsert) the `trusted_devices` setting. |
-| `POST {prefix}/settings/trusted-devices/reset` | Delete — reverts to config/defaults. |
+| `POST {prefix}/settings/trusted-devices/reset` | Delete — reverts to lib defaults. |
 | `POST {prefix}/settings/notifications` | Save (upsert) the `notifications` setting. |
 | `POST {prefix}/settings/notifications/reset` | Delete — reverts to defaults. |
 | `POST {prefix}/settings/token-ttl` | Save (upsert) the `token_ttl` setting. |
-| `POST {prefix}/settings/token-ttl/reset` | Delete — reverts to config/defaults. |
+| `POST {prefix}/settings/token-ttl/reset` | Delete — reverts to lib defaults. |
 
 **Session policy card** shows fields for:
 - **Remember me** — enable/disable the "keep me signed in" checkbox and its duration.
@@ -487,13 +478,13 @@ Cards for `admin_impersonation`, `organizations_policy`, `lockout`, and `rate_li
 | Route | Action |
 | --- | --- |
 | `POST {prefix}/settings/admin-impersonation` | Save (upsert) the `admin_impersonation` setting. |
-| `POST {prefix}/settings/admin-impersonation/reset` | Delete — reverts to config/defaults. |
+| `POST {prefix}/settings/admin-impersonation/reset` | Delete — reverts to lib defaults. |
 | `POST {prefix}/settings/organizations-policy` | Save (upsert) the `organizations_policy` setting. |
-| `POST {prefix}/settings/organizations-policy/reset` | Delete — reverts to config/defaults. |
+| `POST {prefix}/settings/organizations-policy/reset` | Delete — reverts to lib defaults. |
 | `POST {prefix}/settings/lockout` | Save (upsert) the `lockout` setting. |
-| `POST {prefix}/settings/lockout/reset` | Delete — reverts to config/defaults. |
+| `POST {prefix}/settings/lockout/reset` | Delete — reverts to lib defaults. |
 | `POST {prefix}/settings/rate-limit` | Save (upsert) the `rate_limit` setting. |
-| `POST {prefix}/settings/rate-limit/reset` | Delete — reverts to config/defaults. |
+| `POST {prefix}/settings/rate-limit/reset` | Delete — reverts to lib defaults. |
 
 The **rate_limit card** shows a notice about the known limitation: the route throttle
 middleware uses boot-time values; only the lockout-side (AccountLockout) is affected by

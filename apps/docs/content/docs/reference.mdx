@@ -11,7 +11,7 @@ description: The full defineConfig option tables for server and client.
 | --- | --- | --- | --- |
 | `issuer` | `string` | — | Public provider URL; must end with `mountPath`. |
 | `adapter` | `AdapterFactory` | — | Storage adapter, e.g. `adapters.database({ connection })`. |
-| `clients` | `ClientConfig[]` | — | **@deprecated** — static client list. Prefer creating clients via the admin console or Admin API; migrate existing ones with `node ace authkit:clients:import`. Omitting this field (or passing `[]`) is the recommended approach going forward. |
+| `clients` | `ClientConfig[]` | — | Internal/test use only. Create clients via the admin console, Admin API (`node ace authkit:clients:create`), or [Dynamic Registration](/docs/dynamic-registration). |
 | `jwks` | `JwksConfig` | — | `{ source: 'managed' \| 'jwks', algorithm?, rotationDays?, keys? }`. |
 | `ttl` | `TtlConfig` | see below | Token/session lifetimes; accepts `'15m'`, `'30d'`, or seconds. |
 | `globalRolesClaim` | `string` | `'roles'` | Claim name where global roles are emitted. |
@@ -24,8 +24,8 @@ description: The full defineConfig option tables for server and client.
 | `branding` | `BrandingConfig` | — | Per-client theming + first-party list. |
 | `social` | `AuthSocialConfig` | — | `{ providers: string[] }`; opt-in social login. |
 | `patIntrospectionSecret` | `string` | — | Shared secret authenticating PAT introspection. |
-| `rateLimit` | `RateLimitConfigInput` | disabled | Opt-in anti-brute-force throttles. Bucket values (`login`, `introspection`) **@deprecated** — manage via `rate_limit` runtime setting. `enabled` and `store` stay in config. |
-| `lockout` | `LockoutConfigInput` | enabled | Progressive per-email lockout. Policy fields **@deprecated** — manage via `lockout` runtime setting. `store` stays in config. See [Account Lockout](/docs/account-lockout). |
+| `rateLimit` | `RateLimitConfigInput` | disabled | Opt-in anti-brute-force throttles. `enabled` and `store` are infra — set here. Bucket values (`login`, `introspection`) are managed via the `rate_limit` runtime setting. |
+| `lockout` | `LockoutConfigInput` | enabled | Progressive per-email lockout. `store` is infra — set here. Policy (`enabled`, `maxAttempts`, etc.) is managed via the `lockout` runtime setting. See [Account Lockout](/docs/account-lockout). |
 | `mail` | `MailHooks` | — | `onPasswordReset` / `onEmailVerification` / `onEmailChangeConfirm` / `onEmailChangeNotice` / `onSecurityNotice` hooks. |
 | `audit` | `AuditSink` | no-op | Best-effort audit sink. |
 | `events` | `EventsConfigInput` | — | `{ onEvent?, webhook? }` — observe every audit event in-process or via an HMAC-signed webhook. See [Events & Webhooks](/docs/events). |
@@ -39,14 +39,14 @@ description: The full defineConfig option tables for server and client.
 | `dpop` | `{ enabled: boolean }` | disabled | DPoP sender-constrained tokens (RFC 9449). See [Security](/docs/security#dpop). |
 | `par` | `{ enabled: boolean; requirePushedAuthorizationRequests?: boolean }` | disabled | Pushed Authorization Requests (RFC 9126). See [Security](/docs/security#par). |
 | `stepUp` | `{ acrValues?: string[]; mfaAcr?: string }` | `mfaAcr: 'urn:authkit:mfa'` | Step-up auth via `acr_values`. See [Security](/docs/security#step-up-authentication). |
-| `trustedDevices` | `{ enabled?: boolean; days?: number }` | enabled, 30 days | Skip MFA on a trusted device via an encrypted cookie. `enabled` and `days` **@deprecated** — manage via `trusted_devices` runtime setting. Cookie secrets stay in config. See [MFA](/docs/mfa#trusted-devices). |
+| `trustedDevices` | `TrustedDevicesConfigInput` | enabled, 30 days | Skip MFA on a trusted device via an encrypted cookie. Cookie secrets stay here (infra). `enabled` and `days` are managed via the `trusted_devices` runtime setting. See [MFA](/docs/mfa#trusted-devices). |
 | `uploads` | `{ avatars?: { disk?: string; directory?: string; maxSizeMb?: number } }` | app's default drive disk, `authkit/avatars`, 5MB | Avatar upload via the app's `@adonisjs/drive`; degrades to URL input when drive is absent. See [Host Kit](/docs/host-kit#avatar-uploads). |
 | `passwordless` | `{ magicLink?: boolean; passkeyFirst?: boolean }` | both disabled | Magic-link email login and/or passkey-first login. See [Passwordless](/docs/passwordless). |
 | `login` | `{ requireVerifiedEmail?: boolean }` | `false` | Block logins for unverified emails. Capability-probed. Overridable at runtime via the `require_verified_email` setting. See [Compliance](/docs/compliance) and [Security — Require verified email toggle](/docs/security#require-verified-email-toggle). |
 | `registration` | `{ enabled?: boolean }` | `{ enabled: true }` | Allow public sign-up. `enabled: false` closes registration statically. Overridable at runtime via the `registration` setting. See [Security — Registration toggle](/docs/security#registration-toggle). |
 | `accessTokens` | `AccessTokensConfig` | `{ format: 'opaque' }` | JWT access tokens (RFC 9068) and per-resource config. See [Security](/docs/security#jwt-access-tokens-rfc-9068). |
 | `botProtection` | `BotProtectionConfigInput` | disabled | Pluggable CAPTCHA/challenge for login, signup, reset. Runtime-toggleable via `auth_settings`. See [Security](/docs/security#bot-protection). |
-| `notifications` | `{ newLoginEmail?: boolean; newDeviceEmail?: boolean }` | both `true` | Security email notifications. **@deprecated** — manage via `notifications` runtime setting. See [Security](/docs/security#new-device-login-notification) and [Runtime Settings — Migration](/docs/settings#migration). |
+| `notifications` | — | — | Removed. New-device and new-IP email alerts are managed via the `notifications` runtime setting (default: both on). See [Runtime Settings](/docs/settings) and [Security](/docs/security#new-device-login-notification). |
 | `resolveGeo` | `(ip: string) => Promise<string \| null>` | — | Pluggable IP → location lookup for session context. See [Admin Console](/docs/admin-console#session-context). |
 | `organizations` | `OrganizationsConfigInput` | auto | Multi-tenancy. See [Organizations](/docs/organizations). |
 
@@ -72,11 +72,11 @@ description: The full defineConfig option tables for server and client.
 
 ### `RateLimitConfigInput`
 
+Infrastructure fields only. Bucket policy (`login`, `introspection`) is managed via the `rate_limit` runtime setting.
+
 | Field | Type | Default |
 | --- | --- | --- |
 | `enabled` | `boolean` | `false` |
-| `login` | `{ points, duration }` | `{ points: 10, duration: '1 min' }` |
-| `introspection` | `{ points, duration }` | `{ points: 60, duration: '1 min' }` |
 | `store` | `string?` | host default store |
 
 ## Client — `defineConfig` (`@dudousxd/adonis-authkit-client`)
@@ -180,13 +180,13 @@ if (supportsSettings(store)) {
 ### Known setting keys
 
 18 known keys. All are capability-probed — if the `auth_settings` table is absent every
-key falls back to the config/default (fail-safe). See [Runtime Settings](/docs/settings)
+key falls back to the lib default (fail-safe). See [Runtime Settings](/docs/settings)
 for the canonical guide, precedence rules, CLI, and migration from static config.
 
 | Key | Shape | Lib default | Notes |
 | --- | --- | --- | --- |
 | `bot_protection` | `{ enabled: boolean; on?: ('login'\|'signup'\|'reset')[] }` | `{ enabled: false }` | Runtime CAPTCHA toggle. See [Security — Runtime toggle](/docs/security#runtime-toggle). |
-| `registration` | `{ enabled: boolean }` | `{ enabled: true }` | Open or close public sign-up. Fallback: `config.registration.enabled`. See [Security — Registration toggle](/docs/security#registration-toggle). |
+| `registration` | `{ enabled: boolean }` | `{ enabled: true }` | Open or close public sign-up. Overrides the static `registration.enabled` in `defineConfig`. See [Security — Registration toggle](/docs/security#registration-toggle). |
 | `require_verified_email` | `{ enabled: boolean; graceDays?: number }` | `{ enabled: false, graceDays: 0 }` | Block unverified accounts. `graceDays` allows newly-registered accounts to log in for N days without verifying. Capability-probed (`isEmailVerified`). See [Compliance — Verified email gate](/docs/compliance#verified-email-grace). |
 | `maintenance_mode` | `{ enabled: boolean; message?: string }` | `{ enabled: false }` | Block login/sign-up/forgot for non-admins. Admin API escape hatch. See [Security — Maintenance mode](/docs/security#maintenance-mode). |
 | `auth_methods` | `{ password?: boolean; magicLink?: boolean; passkey?: boolean; social?: string[]; forgotPassword?: boolean }` | config/capability defaults | Filter login methods at runtime. All fields optional. `forgotPassword` auto-off when `password` off. `social` intersected with static providers. Fail-safe all-off reverts to defaults. See [Security — Authentication methods](/docs/security#authentication-methods). |
@@ -195,14 +195,14 @@ for the canonical guide, precedence rules, CLI, and migration from static config
 | `password_history` | `{ enabled?: boolean; count?: number }` | `{ enabled: false, count: 5 }` | Reuse prevention. Requires `auth_password_history` table. See [Passwords — History](/docs/passwords-and-migration#history). |
 | `password_expiration` | `{ enabled?: boolean; maxAgeDays?: number }` | `{ enabled: false, maxAgeDays: 90 }` | Force password rotation. Requires `password_changed_at` column. See [Passwords — Expiration](/docs/passwords-and-migration#expiration). |
 | `session_policy` | `{ rememberEnabled?: boolean; rememberDays?: number; defaultSessionHours?: number; singleSession?: boolean; idleTimeoutMinutes?: number }` | `{ rememberEnabled: true, rememberDays: 30, defaultSessionHours: 168, singleSession: false, idleTimeoutMinutes: 0 }` | Session duration and behaviour. Idle timeout applies to account console only (not OIDC tokens). |
-| `lockout` | `{ enabled?: boolean; maxAttempts?: number; windowSec?: number; baseLockoutSec?: number; maxLockoutSec?: number }` | `{ enabled: true, maxAttempts: 5, windowSec: 900, baseLockoutSec: 60, maxLockoutSec: 3600 }` | Per-email lockout policy. `store` stays in config. Fallback: `config.lockout.*`. |
-| `rate_limit` | `{ login?: { points, duration }; introspection?: { points, duration } }` | `login: { points: 10, duration: '1 min' }; introspection: { points: 60, duration: '1 min' }` | Rate-limit bucket policy. **Limitation:** route throttle middleware uses boot-time values; only lockout-side is dynamic. Fallback: `config.rateLimit.*`. |
-| `password_policy` | `{ minLength?: number; requireUppercase?: boolean; requireLowercase?: boolean; requireNumbers?: boolean; requireSymbols?: boolean; checkPwned?: boolean }` | `{ minLength: 8, all false }` | Password complexity and HIBP check. Fallback: `lucidAccountStore` password config. See [Passwords](/docs/passwords-and-migration). |
-| `notifications` | `{ newLoginEmail?: boolean; newDeviceEmail?: boolean }` | `{ newLoginEmail: true, newDeviceEmail: true }` | New-IP and new-device email alerts. Fallback: `config.notifications.*`. |
-| `trusted_devices` | `{ enabled?: boolean; days?: number }` | `{ enabled: true, days: 30 }` | MFA skip via encrypted cookie. `secrets` stays in config. Fallback: `config.trustedDevices.*`. |
+| `lockout` | `{ enabled?: boolean; maxAttempts?: number; windowSec?: number; baseLockoutSec?: number; maxLockoutSec?: number }` | `{ enabled: true, maxAttempts: 5, windowSec: 900, baseLockoutSec: 60, maxLockoutSec: 3600 }` | Per-email lockout policy. `store` stays in config (infra). |
+| `rate_limit` | `{ login?: { points, duration }; introspection?: { points, duration } }` | `login: { points: 10, duration: '1 min' }; introspection: { points: 60, duration: '1 min' }` | Rate-limit bucket policy. **Limitation:** route throttle middleware uses boot-time values; only lockout-side is dynamic. |
+| `password_policy` | `{ minLength?: number; requireUppercase?: boolean; requireLowercase?: boolean; requireNumbers?: boolean; requireSymbols?: boolean; checkPwned?: boolean }` | `{ minLength: 8, all false }` | Password complexity and HIBP check. See [Passwords](/docs/passwords-and-migration). |
+| `notifications` | `{ newLoginEmail?: boolean; newDeviceEmail?: boolean }` | `{ newLoginEmail: true, newDeviceEmail: true }` | New-IP and new-device email alerts. |
+| `trusted_devices` | `{ enabled?: boolean; days?: number }` | `{ enabled: true, days: 30 }` | MFA skip via encrypted cookie. `secrets` stays in config (infra). |
 | `token_ttl` | `{ accessTokenSec?: number; idTokenSec?: number; refreshTokenSec?: number }` | `{ accessTokenSec: 900, idTokenSec: 900, refreshTokenSec: 2592000 }` | Token lifetimes (seconds). Takes effect immediately via holder. Session TTL is in `session_policy`. |
-| `admin_impersonation` | `{ enabled?: boolean }` | `{ enabled: false }` | Show impersonation panel in admin console. Fallback: `config.admin.impersonation`. |
-| `organizations_policy` | `{ allowSelfCreate?: boolean; invitationTtlHours?: number; roles?: string[] }` | `{ allowSelfCreate: false, invitationTtlHours: 168, roles: ['owner','admin','member'] }` | Org policies. `owner` is always preserved. Fallback: `config.organizations.*`. |
+| `admin_impersonation` | `{ enabled?: boolean }` | `{ enabled: false }` | Show impersonation panel in admin console. |
+| `organizations_policy` | `{ allowSelfCreate?: boolean; invitationTtlHours?: number; roles?: string[] }` | `{ allowSelfCreate: false, invitationTtlHours: 168, roles: ['owner','admin','member'] }` | Org policies. `owner` is always preserved. |
 
 ## Ace commands
 
@@ -210,15 +210,15 @@ Commands provided by `@dudousxd/adonis-authkit-server`:
 
 | Command | Notes |
 | --- | --- |
-| `node ace authkit:doctor` | Validate the config and peer dependencies; emits findings with `ok`/`warn`/`error` levels. Includes `checkSettings` (bot_protection orphan, require_verified_email capability) and `checkLegacyPolicyConfig` (deprecated config fields). Warns when static `clients` are present in config (deprecated). |
+| `node ace authkit:doctor` | Validate the config and peer dependencies; emits findings with `ok`/`warn`/`error` levels. Includes `checkSettings` (bot_protection orphan, require_verified_email capability) and `checkClients` (informational: adapter volatility warning). |
 | `node ace authkit:eject` | Copy the bundled host-kit controllers/pages into your project for customization. |
 | `node ace authkit:users:import --file <path> [--dry-run]` | Bulk-import users from a JSON array or NDJSON file, preserving hashes as-is for lazy rehash on login. |
 | `node ace authkit:keys:rotate [--keep=N] [--retire] [--dry-run]` | Rotate signing keys in a managed keystore file; keeps a grace-period window of N previous keys (default 2). |
-| `node ace authkit:clients:import [--dry-run]` | Copy the static `clients` from `config/authkit.ts` into the adapter/DB. Idempotent — existing clients (matched by `client_id`) are skipped. The original `client_secret` is preserved for confidential clients. After confirming the import, remove the `clients` block from config. See [below](#authkitclientsimport). |
+| `node ace authkit:clients:create --redirect-uri=<uri> [--client-id] [--public] [--grant] [--post-logout-uri] [--backchannel-logout-uri] [--json]` | Create an OIDC client in the adapter/DB at runtime. For confidential clients a secret is generated and printed **once** — save it immediately. See [below](#authkitclientscreate). |
 | `node ace authkit:settings:list [--json]` | List all runtime settings currently persisted in the `auth_settings` table. |
-| `node ace authkit:settings:get <key> [--json]` | Get a specific setting by key. Prints `null` if the key is not set (config/default applies). |
+| `node ace authkit:settings:get <key> [--json]` | Get a specific setting by key. Prints `null` if the key is not set (lib default applies). |
 | `node ace authkit:settings:set <key> <json> [--json]` | Upsert a setting. Validates shape for known keys. Audits `settings.updated` with `updatedBy: 'cli'`. |
-| `node ace authkit:settings:unset <key> [--json]` | Delete a setting (reset to config/default). Audits `settings.updated`. |
+| `node ace authkit:settings:unset <key> [--json]` | Delete a setting (reset to lib default). Audits `settings.updated`. |
 
 ### `authkit:doctor` — `checkSettings`
 
@@ -231,11 +231,14 @@ When the doctor command probes the `auth_settings` table:
   `bot_protection` row in `auth_settings` is an orphan and has no effect. Either configure
   `botProtection.verify` in `config/authkit.ts` or drop the row.
 
-The doctor also emits a `warn` when `static clients` are present in `config.clients`
-(deprecated), reminding you to migrate them with `node ace authkit:clients:import`.
-Additionally, it emits a `warn` when `maintenance_mode` or `registration` settings are
+The doctor also emits a `warn` when `maintenance_mode` or `registration` settings are
 stored but the `auth_settings` table is absent, or when `require_verified_email: true` is
 set but the `accountStore` lacks the `isEmailVerified` capability.
+
+### `authkit:doctor` — `checkClients` (informational)
+
+- **Persistent adapter (DatabaseAdapter)** — `ok`: clients managed via console/API survive restarts.
+- **Non-persistent adapter** — `warn`: clients created at runtime will be lost on restart unless the adapter persists storage (Redis with AOF/RDB, etc.).
 
 ### `authkit:users:import`
 
@@ -245,40 +248,46 @@ See [Passwords & Migration](/docs/passwords-and-migration#user-import-command) f
 
 See [Security — Signing key rotation](/docs/security#signing-key-rotation) for the flag reference and rotation strategy.
 
-### `authkit:clients:import`
+### `authkit:clients:create`
 
-Migrates the static `clients` list from `config/authkit.ts` into the adapter/DB so they can
-be managed at runtime via the admin console or Admin REST API.
+Creates an OIDC client in the adapter/DB at runtime via `AdminClientsService` — the same
+path used by the admin console and Dynamic Registration (RFC 7591). No redeploy needed.
 
 ```bash
-# Preview what would be created (no writes)
-node ace authkit:clients:import --dry-run
+# Public SPA client
+node ace authkit:clients:create \
+  --client-id=acme-web \
+  --redirect-uri=https://web.acme.com/auth/callback \
+  --public
 
-# Run the migration
-node ace authkit:clients:import
+# Confidential client (secret printed once)
+node ace authkit:clients:create \
+  --client-id=acme-api \
+  --redirect-uri=https://api.acme.com/cb \
+  --grant=authorization_code \
+  --grant=refresh_token
+
+# Machine-readable JSON output
+node ace authkit:clients:create \
+  --redirect-uri=https://app.acme.com/cb \
+  --json
 ```
 
-**Behaviour:**
+**Flags:**
 
-- Each entry in `config.clients` is attempted in order.
-- If a client with the same `client_id` **already exists** in the adapter, the entry is
-  **skipped** (idempotent — the existing secret is preserved).
-- Confidential clients (`clientSecret` set) have their original secret preserved during
-  import. The secret is printed **once** for each newly created client — save it before the
-  command exits.
-- Public clients (no `clientSecret`) are imported without a secret.
-- The command prints a per-client `created` / `skipped` / `error` report and exits non-zero
-  if any entry failed.
+| Flag | Notes |
+| --- | --- |
+| `--redirect-uri=<uri>` | Allowed callback URI (repeatable). **Required.** |
+| `--client-id=<id>` | Desired `client_id`. Omit to generate a random UUID. |
+| `--public` | Create a public client (no secret; `token_endpoint_auth_method=none`). Default: confidential. |
+| `--grant=<type>` | Grant type (repeatable). Default: `authorization_code` + `refresh_token`. |
+| `--post-logout-uri=<uri>` | Post-logout redirect URI (repeatable). |
+| `--backchannel-logout-uri=<uri>` | OIDC Back-Channel Logout endpoint of the RP. |
+| `--json` | Print the result as JSON (includes `clientId` and `clientSecret` for confidential clients). |
 
-**After the import:**
-
-1. Verify the clients appear in the admin console (`/admin/clients`) or Admin API.
-2. Remove the `clients: [...]` block from `config/authkit.ts` (or leave it empty: `clients: []`).
-3. Re-run `node ace authkit:doctor` — the deprecation warning should be gone.
-
-**Requirement:** the adapter must be persistent (e.g. `adapters.database(...)`). If a
-volatile adapter (Redis without AOF/RDB, in-memory) is used, `authkit:doctor` will warn
-that clients managed at runtime will be lost on restart.
+For confidential clients a `clientSecret` is generated and printed **exactly once** — store
+it immediately. The admin console and Admin API are alternatives when you prefer a browser
+or HTTP interface.
 
 ## Client helpers — `@dudousxd/adonis-authkit-client`
 

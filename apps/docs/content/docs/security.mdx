@@ -14,9 +14,7 @@ introspection), backed by `@adonisjs/limiter`. Off by default; mirror the switch
 ```ts title="config/authkit_server.ts"
 rateLimit: {
   enabled: true,
-  login: { points: 10, duration: '1 min' },        // default
-  introspection: { points: 60, duration: '1 min' }, // default
-  // store: 'redis', // optional, a store from config/limiter.ts
+  // store: 'redis', // optional — a store from config/limiter.ts
 }
 ```
 
@@ -25,7 +23,8 @@ registerAuthHost(router, { mountPath: '/oidc', rateLimit: { enabled: true } })
 ```
 
 The `login` bucket is keyed by IP and guards the interactive auth routes; the
-`introspection` bucket guards `/authkit/pat/introspect`. The host must have
+`introspection` bucket guards `/authkit/pat/introspect`. Bucket values are managed via the
+`rate_limit` runtime setting (see [Runtime Settings](/docs/settings)). The host must have
 `@adonisjs/limiter` configured (`config/limiter.ts`).
 
 ## Account lockout
@@ -33,8 +32,8 @@ The `login` bucket is keyed by IP and guards the interactive auth routes; the
 Complementary to the IP-keyed rate-limit, **account lockout** throttles by *email*: after
 repeated password failures an account is locked for a progressively-backing-off duration.
 On by default (no-op without the limiter), it emits an `account.locked` audit event while
-locked. See [Account Lockout](/docs/account-lockout) for the config (`maxAttempts`,
-`windowSec`, `baseLockoutSec`, `maxLockoutSec`).
+locked. See [Account Lockout](/docs/account-lockout) for the full field reference and
+runtime-setting CLI examples.
 
 ## New-device login notification
 
@@ -43,13 +42,10 @@ the host kit sends a **"new device login"** email to the account owner. The trig
 absence of a valid trusted-device cookie — it works whether or not the trusted-devices
 feature is otherwise enabled.
 
-It is **on by default** and opt-out via config:
+It is **on by default**. To opt out, update the `notifications` runtime setting:
 
-```ts title="config/authkit.ts"
-defineConfig({
-  // …
-  notifications: { newDeviceEmail: false }, // default: true
-})
+```bash
+node ace authkit:settings:set notifications '{"newDeviceEmail":false}'
 ```
 
 Override the email template:
@@ -76,13 +72,10 @@ audit sink for prior `login.success` events of the same subject — so it requir
 `AuditSink` that implements `list`; with a write-only sink (or no sink) it **degrades to a
 no-op**. The email includes the IP and timestamp and is sent through the default mailer.
 
-It is **on by default** and opt-out via config:
+It is **on by default**. To opt out, update the `notifications` runtime setting:
 
-```ts title="config/authkit.ts"
-defineConfig({
-  // …
-  notifications: { newLoginEmail: false }, // default: true
-})
+```bash
+node ace authkit:settings:set notifications '{"newLoginEmail":false}'
 ```
 
 The notification is **fail-safe**: it runs fire-and-forget *after* the login completes and

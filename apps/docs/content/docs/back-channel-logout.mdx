@@ -24,21 +24,6 @@ curl -X PATCH https://auth.acme.com/api/authkit/v1/clients/acme-web \
 
 Both fields are also editable in the admin console client form.
 
-If you are still using the legacy static `clients` block in config, the equivalent is:
-
-```ts title="config/authkit_server.ts (legacy — prefer runtime management)"
-// @deprecated: manage clients via admin console / Admin API instead
-clients: [
-  {
-    clientId: 'acme-web',
-    clientSecret: env.get('WEB_CLIENT_SECRET'),
-    redirectUris: [env.get('WEB_REDIRECT_URI')],
-    backchannelLogoutUri: 'https://web.acme.com/auth/backchannel-logout',
-    backchannelLogoutSessionRequired: true,
-  },
-]
-```
-
 | Field | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `backchannelLogoutUri` | `string?` | — | RP endpoint that receives the `logout_token` POST. |

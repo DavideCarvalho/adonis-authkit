@@ -16,7 +16,7 @@ import { registerAuthHost } from '@dudousxd/adonis-authkit-server'
 registerAuthHost(router, {
   mountPath: '/oidc',
   social: { providers: ['google'] }, // opt-in
-  rateLimit: { enabled: true },        // opt-in
+  rateLimit: { enabled: true },      // opt-in
 })
 ```
 
@@ -26,7 +26,7 @@ registerAuthHost(router, {
 | --- | --- | --- |
 | `mountPath` | `string` | Where the OIDC provider is mounted; must match the issuer tail. |
 | `social` | `{ providers: string[] }` | Opt-in; mounts the social redirect/callback routes (uses `ctx.ally`). |
-| `rateLimit` | `RateLimitConfigInput` | Opt-in; throttles login/signup/forgot/reset + PAT introspection. |
+| `rateLimit` | `RateLimitConfigInput` | Opt-in; throttles login/signup/forgot/reset + PAT introspection. Only `enabled` and `store` belong here (infra); bucket values are in the `rate_limit` runtime setting. |
 | `admin` | `true \| { prefix?: string }` | Opt-in; mounts the admin console. `true` = default prefix `/admin` (back-compat). `{ prefix: '/auth/admin' }` = custom prefix. Prefix is normalised: leading `/`, no trailing slash. Mirror `admin.enabled` in `defineConfig`. |
 | `adminApi` | `boolean` | Opt-in; mounts the Admin REST API at `/api/authkit/v1` (unaffected by `admin.prefix`). Mirror `adminApi.enabled` in `defineConfig`. |
 

@@ -65,11 +65,15 @@ disabling MFA emit the `mfa.enabled` / `mfa.disabled` [audit events](/docs/secur
 ## Trusted devices
 
 To avoid asking for the second factor on every sign-in, AuthKit can mark a device as
-**trusted** for a number of days. It's on by default (30 days):
+**trusted** for a number of days. It's on by default (30 days). To tune the policy, use the
+`trusted_devices` runtime setting:
 
-```ts title="config/authkit_server.ts"
-trustedDevices: { enabled: true, days: 30 }, // defaults — omit to use them
+```bash
+node ace authkit:settings:set trusted_devices '{"enabled":true,"days":14}'
 ```
+
+The cookie encryption secrets stay in `defineConfig` (infra — they are code-level secrets,
+not operational policy). See [Runtime Settings](/docs/settings) for the full field reference.
 
 ### How it works (no extra DB)
 

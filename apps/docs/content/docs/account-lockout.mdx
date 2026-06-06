@@ -13,18 +13,22 @@ degrades to a no-op (fail-safe).
 
 ## Configuration
 
+The `lockout` block in `defineConfig` carries only the **infrastructure** `store` field.
+Policy is managed via the `lockout` runtime setting:
+
 ```ts title="config/authkit_server.ts"
 defineConfig({
   // ...
   lockout: {
-    enabled: true,
-    maxAttempts: 5,
-    windowSec: 900,       // 15 min sliding window to count failures
-    baseLockoutSec: 60,   // first lockout duration
-    maxLockoutSec: 3600,  // ceiling of the progressive backoff
-    // store: 'redis',    // a store from config/limiter.ts
+    // store: 'redis',    // optional — a store from config/limiter.ts
   },
 })
+```
+
+```bash
+# Set lockout policy at runtime (no redeploy)
+node ace authkit:settings:set lockout \
+  '{"enabled":true,"maxAttempts":5,"windowSec":900,"baseLockoutSec":60,"maxLockoutSec":3600}'
 ```
 
 | Field | Type | Default | Notes |
@@ -34,7 +38,7 @@ defineConfig({
 | `windowSec` | `number` | `900` | Sliding window (seconds) for counting failures. |
 | `baseLockoutSec` | `number` | `60` | Duration of the first lockout. |
 | `maxLockoutSec` | `number` | `3600` | Ceiling for the progressive backoff. |
-| `store` | `string?` | host default | A store name from `config/limiter.ts`. |
+| `store` | `string?` (config) | host default | Infra — set in `defineConfig`, not the setting. |
 
 ## Behaviour
 

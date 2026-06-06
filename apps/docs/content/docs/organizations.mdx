@@ -53,18 +53,16 @@ schema.createTable('auth_organization_invitations', (table) => {
 
 ## Configuration
 
-Configure organizations in `defineConfig`. Every field is optional — omit the block
-entirely if you want the defaults:
+Configure organizations in `defineConfig`. Only the `enabled` override and `claimStrategy`
+belong here — policy fields (`roles`, `allowSelfCreate`, `invitationTtlHours`) are managed
+via the `organizations_policy` runtime setting:
 
 ```ts title="config/authkit_server.ts"
 defineConfig({
   // …
   organizations: {
-    // enabled: true,             // default: auto (on when tables exist)
-    roles: ['owner', 'admin', 'member'], // default; 'owner' is always included
-    allowSelfCreate: false,        // users may not create orgs themselves (default)
-    invitationTtlHours: 168,       // 7 days (default)
-    claimStrategy: 'active',       // emit claims from the session's active org (default)
+    // enabled: true,        // default: auto (on when tables exist)
+    claimStrategy: 'active', // emit claims from the session's active org (default)
   },
 })
 ```
@@ -72,10 +70,15 @@ defineConfig({
 | Option | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | auto | `undefined` = auto (detects tables at runtime). |
-| `roles` | `string[]` | `['owner','admin','member']` | Accepted role values. `'owner'` is always present (governance invariant). |
-| `allowSelfCreate` | `boolean` | `false` | Allow authenticated users to create orgs from `/account/orgs`. |
-| `invitationTtlHours` | `number` | `168` | Invitation expiry window in hours. |
 | `claimStrategy` | `'active'` | `'active'` | Emit claims from the current active org cookie. The only supported strategy. |
+
+Policy fields (`roles`, `allowSelfCreate`, `invitationTtlHours`) are managed via the
+`organizations_policy` runtime setting — see [Runtime Settings](/docs/settings):
+
+```bash
+node ace authkit:settings:set organizations_policy \
+  '{"allowSelfCreate":false,"invitationTtlHours":72,"roles":["owner","admin","member"]}'
+```
 
 ## Lucid store models
 
@@ -134,7 +137,7 @@ Every authenticated user has access to `/account/orgs`:
 ### Invitation flow
 
 Invitations are sent by email (`mail.onOrgInvitation`) and carry a short-lived signed token
-(SHA-256 hash stored in the DB, TTL from `invitationTtlHours`). The accept URLs are:
+(SHA-256 hash stored in the DB, TTL from `organizations_policy.invitationTtlHours`). The accept URLs are:
 
 ```
 GET  /account/orgs/invitations/:token/accept   → accept form (no session required)
@@ -301,7 +304,7 @@ import {
 
 // Dropdown to switch the active organization; optionally shows a "Create org" button
 <OrganizationSwitcher
-  allowCreate={false}  // default; set true when allowSelfCreate is on
+  allowCreate={false}  // default; set true when the organizations_policy.allowSelfCreate setting is on
   createLabel="New organization"
   className="my-custom-class"
 />

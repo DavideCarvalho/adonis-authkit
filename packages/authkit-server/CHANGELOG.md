@@ -1,5 +1,11 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.17.1
+
+### Patch Changes
+
+- Fix broken console templates in 0.17.0: the styles partial `@include` shared a line with `</head>`, which the Edge lexer cannot tokenize — every console page crashed. Do not use 0.17.0.
+
 ## 0.17.0
 
 ### Minor Changes

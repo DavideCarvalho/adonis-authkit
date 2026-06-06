@@ -25,7 +25,10 @@ export interface JsonColumnOptions<T> {
   emptyOnWrite?: 'null' | 'serialize'
   /** Trata array vazio como "vazio" no write (grava null). Default: false. */
   treatEmptyArrayAsEmpty?: boolean
-  /** Aceita valor já desserializado em `consume` (passthrough). Default: false. */
+  /**
+   * @deprecated `consume` agora SEMPRE aceita valores já desserializados
+   * (drivers de Postgres entregam json/jsonb como objeto). Opção sem efeito.
+   */
   passthroughParsed?: boolean
 }
 
@@ -39,7 +42,6 @@ export function jsonColumn<T>(opts: JsonColumnOptions<T>): {
 } {
   const emptyOnWrite = opts.emptyOnWrite ?? 'null'
   const treatEmptyArrayAsEmpty = opts.treatEmptyArrayAsEmpty ?? false
-  const passthroughParsed = opts.passthroughParsed ?? false
 
   const isEmpty = (value: T | null | undefined): boolean => {
     if (value === null || value === undefined) return true
@@ -56,8 +58,15 @@ export function jsonColumn<T>(opts: JsonColumnOptions<T>): {
     },
     consume: (value) => {
       if (value === null || value === undefined) return opts.fallback
-      if (passthroughParsed && Array.isArray(value)) return value as T
-      return JSON.parse(value as string) as T
+      // Drivers de Postgres entregam colunas json/jsonb JÁ desserializadas
+      // (objeto/array); SQLite entrega TEXT. Só strings precisam de JSON.parse —
+      // parsear um objeto vira JSON.parse("[object Object]") e explode.
+      if (typeof value !== 'string') return value as T
+      try {
+        return JSON.parse(value) as T
+      } catch {
+        return opts.fallback
+      }
     },
   }
 }

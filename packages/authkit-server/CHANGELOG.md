@@ -1,5 +1,11 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.13.1
+
+### Patch Changes
+
+- Fix Postgres json/jsonb columns crashing model hydration: `jsonColumn`'s `consume` blindly `JSON.parse`d every value, but Postgres drivers return json/jsonb columns already deserialized (objects/arrays) — hydrating `global_roles` blew up with `"[object Object]" is not valid JSON` (500 on the admin console right after login). `consume` now passes non-strings through, parses strings, and falls back safely on invalid JSON. The `passthroughParsed` option is deprecated (always on).
+
 ## 0.13.0
 
 ### Minor Changes

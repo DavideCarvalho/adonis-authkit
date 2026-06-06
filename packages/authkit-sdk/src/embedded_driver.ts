@@ -471,7 +471,8 @@ export async function createEmbeddedAuthkit(opts: EmbeddedOptions): Promise<Auth
         const { RuntimeSettings } = await import('@dudousxd/adonis-authkit-server') as unknown as { RuntimeSettings: any }
         let db: any
         try { db = await app.container.make('lucid.db') } catch { return { data: [] } }
-        const svc = new RuntimeSettings(db)
+        const connection: string | undefined = (cfg.accountStore as any)?.connectionName
+        const svc = new RuntimeSettings(db, connection ? { connection } : {})
         const rows = await svc.listSettings()
         return {
           data: rows.map((r: any): AuthkitSetting => ({
@@ -486,7 +487,8 @@ export async function createEmbeddedAuthkit(opts: EmbeddedOptions): Promise<Auth
         const { RuntimeSettings } = await import('@dudousxd/adonis-authkit-server') as unknown as { RuntimeSettings: any }
         let db: any
         try { db = await app.container.make('lucid.db') } catch { throw new Error('Runtime settings not available.') }
-        const svc = new RuntimeSettings(db)
+        const connection: string | undefined = (cfg.accountStore as any)?.connectionName
+        const svc = new RuntimeSettings(db, connection ? { connection } : {})
         const value = await svc.getSetting(key)
         if (value === null) throw new Error(`Setting '${key}' not found.`)
         return { key, value, updatedAt: null, updatedBy: null }
@@ -495,7 +497,8 @@ export async function createEmbeddedAuthkit(opts: EmbeddedOptions): Promise<Auth
         const { RuntimeSettings } = await import('@dudousxd/adonis-authkit-server') as unknown as { RuntimeSettings: any }
         let db: any
         try { db = await app.container.make('lucid.db') } catch { throw new Error('Runtime settings not available.') }
-        const svc = new RuntimeSettings(db)
+        const connection: string | undefined = (cfg.accountStore as any)?.connectionName
+        const svc = new RuntimeSettings(db, connection ? { connection } : {})
         await svc.setSetting(key, value, null)
         const saved = await svc.getSetting(key)
         await cfg.audit?.record({
@@ -510,7 +513,8 @@ export async function createEmbeddedAuthkit(opts: EmbeddedOptions): Promise<Auth
         const { RuntimeSettings } = await import('@dudousxd/adonis-authkit-server') as unknown as { RuntimeSettings: any }
         let db: any
         try { db = await app.container.make('lucid.db') } catch { throw new Error('Runtime settings not available.') }
-        const svc = new RuntimeSettings(db)
+        const connection: string | undefined = (cfg.accountStore as any)?.connectionName
+        const svc = new RuntimeSettings(db, connection ? { connection } : {})
         await svc.deleteSetting(key)
         await cfg.audit?.record({
           type: 'settings.updated',

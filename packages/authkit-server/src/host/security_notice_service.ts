@@ -56,7 +56,10 @@ export async function dispatchSecurityNotice(
 
     try {
       const db = await (ctx.containerResolver as any).make('lucid.db')
-      const runtimeSettings = new RuntimeSettings(db)
+      // Usa a conexão do accountStore para que o probe seja searchPath-aware.
+      const service = await (ctx.containerResolver as any).make('authkit.server').catch(() => null)
+      const connection: string | undefined = (service?.config?.accountStore as any)?.connectionName
+      const runtimeSettings = new RuntimeSettings(db, connection ? { connection } : {})
       if (await runtimeSettings.isTablePresent()) {
         const resolved = await resolveEffectiveSecurityNotifications(runtimeSettings)
         enabled = resolved.enabled

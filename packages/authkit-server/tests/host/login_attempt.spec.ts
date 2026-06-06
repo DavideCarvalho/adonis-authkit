@@ -255,9 +255,12 @@ test.group('attemptPasswordLogin', (group) => {
 
     // DB with runtime setting enabled = true.
     const db = {
-      async connection() { return { schema: { async hasTable() { return true } } } },
       table(_: string) {
         return {
+          // Probe: select().limit() → resolves (table present).
+          select(_cols?: string) {
+            return { limit(_n: number) { return Promise.resolve([]) } }
+          },
           where(_c: string, key: string) {
             return {
               async first() {
@@ -297,9 +300,12 @@ test.group('attemptPasswordLogin', (group) => {
     } as unknown as ResolvedServerConfig
 
     const db = {
-      async connection() { return { schema: { async hasTable() { return true } } } },
       table(_: string) {
         return {
+          // Probe: select().limit() → resolves (table present).
+          select(_cols?: string) {
+            return { limit(_n: number) { return Promise.resolve([]) } }
+          },
           where(_c: string, key: string) {
             return {
               async first() {

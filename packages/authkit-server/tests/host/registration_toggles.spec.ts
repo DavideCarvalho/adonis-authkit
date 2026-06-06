@@ -17,9 +17,12 @@ function fakeSettingsDb(rows: Record<string, any> = {}) {
     Object.entries(rows).map(([k, v]) => [k, { value: JSON.stringify(v) }])
   )
   return {
-    async connection() { return { schema: { async hasTable() { return true } } } },
     table(_n: string) {
       return {
+        // Probe: select().limit() → resolves (table present).
+        select(_cols?: string) {
+          return { limit(_n2: number) { return Promise.resolve([]) } }
+        },
         where(_c: string, key: string) {
           return {
             async first() {
@@ -35,7 +38,7 @@ function fakeSettingsDb(rows: Record<string, any> = {}) {
 
 function noTableDb() {
   return {
-    async connection() { return { schema: { async hasTable() { return false } } } },
+    // table() throws → probe catches → tablePresent = false.
     table() { throw new Error('no table') },
   }
 }

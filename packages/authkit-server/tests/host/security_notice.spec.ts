@@ -210,13 +210,6 @@ test.group('dispatchSecurityNotice', (group) => {
    */
   function fakeDbWithSettings(settingsByKey: Record<string, unknown>) {
     const db: any = {
-      async connection() {
-        return {
-          schema: {
-            async hasTable(tbl: string) { return tbl === 'auth_settings' },
-          },
-        }
-      },
       table(_name: string) {
         let _filterKey: string | undefined
         let _filterValue: string | undefined
@@ -234,7 +227,13 @@ test.group('dispatchSecurityNotice', (group) => {
           },
           delete: async () => {},
           insert: async () => {},
-          select: () => q,
+          // select().limit() → probe (table present quando não lança).
+          select(_cols?: string) {
+            return {
+              limit(_n: number) { return Promise.resolve([]) },
+              then(resolve: any, reject: any) { return Promise.resolve([]).then(resolve, reject) },
+            }
+          },
         }
         return q
       },
@@ -353,10 +352,9 @@ test.group('dispatchSecurityNotice', (group) => {
   })
 
   test('todos os kinds são aceitos por default (tabela ausente = defaults)', async ({ assert }) => {
-    // Sem tabela → todos os kinds habilitados
+    // Sem tabela → todos os kinds habilitados (table() lança → probe detecta ausência)
     const db = {
-      schema: { hasTable: async () => false },
-      table: () => { throw new Error('não deve acessar tabela') },
+      table: () => { throw new Error('table does not exist') },
     } as any
     const logger = fakeLogger()
     const ctx = fakeCtx(logger, { containerDb: db })

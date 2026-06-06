@@ -14,12 +14,11 @@ function makeSettingsDb(initialRows: Record<string, any> = {}) {
   const db = {
     _store: store,
     withNoTable() { _hasTable = false; return db },
-    async connection() {
-      const localHasTable = _hasTable
-      return { schema: { async hasTable() { return localHasTable } } }
-    },
     table(name: string) {
       if (name !== 'auth_settings') throw new Error(`unexpected table: ${name}`)
+      // Probe: select().limit() — se _hasTable for false, lança para simular tabela ausente.
+      if (!_hasTable) throw new Error('table does not exist')
+      const allRows = () => [...store.entries()].map(([key, v]) => ({ key, ...v }))
       return {
         where(_col: string, key: string) {
           return {
@@ -33,8 +32,13 @@ function makeSettingsDb(initialRows: Record<string, any> = {}) {
         async insert(row: any) {
           store.set(row.key, { value: row.value, updated_at: row.updated_at ?? new Date(), updated_by: row.updated_by ?? null })
         },
-        async select() {
-          return [...store.entries()].map(([key, v]) => ({ key, ...v }))
+        // select() retorna chainable com .limit() para o probe funcionar.
+        select(_cols?: string) {
+          const rows = allRows()
+          return {
+            limit(_n: number) { return Promise.resolve(rows.slice(0, _n)) },
+            then(resolve: any, reject: any) { return Promise.resolve(rows).then(resolve, reject) },
+          }
         },
       }
     },

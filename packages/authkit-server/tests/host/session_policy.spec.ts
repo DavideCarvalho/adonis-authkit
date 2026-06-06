@@ -36,11 +36,17 @@ function fakeDb(rows: Record<string, any> = {}) {
     Object.entries(rows).map(([k, v]) => [k, { value: JSON.stringify(v) }])
   )
   return {
-    async connection() {
-      return { schema: { async hasTable() { return true } } }
-    },
     table(_name: string) {
+      const allRows = () => [...store.entries()].map(([key, v]) => ({ key, value: v.value }))
       return {
+        // Probe: select().limit() → resolves (table present).
+        select(_cols?: string) {
+          const rows = allRows()
+          return {
+            limit(_n: number) { return Promise.resolve(rows.slice(0, _n)) },
+            then(resolve: any, reject: any) { return Promise.resolve(rows).then(resolve, reject) },
+          }
+        },
         where(_col: string, key: string) {
           return {
             async first() {
@@ -53,9 +59,6 @@ function fakeDb(rows: Record<string, any> = {}) {
         async insert(row: any) {
           store.set(row.key, { value: row.value })
         },
-        async select() {
-          return [...store.entries()].map(([key, v]) => ({ key, value: v.value }))
-        },
       }
     },
   }
@@ -63,14 +66,14 @@ function fakeDb(rows: Record<string, any> = {}) {
 
 function noTableDb() {
   return {
-    async connection() { return { schema: { async hasTable() { return false } } } },
+    // table() throws → probe catches → tablePresent = false.
     table() { throw new Error('no table') },
   }
 }
 
 function throwingDb() {
   return {
-    async connection() { return { schema: { async hasTable() { throw new Error('db down') } } } },
+    // table() throws → probe catches → fail-safe.
     table() { throw new Error('db down') },
   }
 }
@@ -87,12 +90,11 @@ function makeSettingsDb(initialRows: Record<string, any> = {}) {
   const db = {
     _store: store,
     withNoTable() { _hasTable = false; return db },
-    async connection() {
-      const localHasTable = _hasTable
-      return { schema: { async hasTable() { return localHasTable } } }
-    },
     table(name: string) {
       if (name !== 'auth_settings') throw new Error(`unexpected table: ${name}`)
+      // Probe: se _hasTable for false, lança para simular tabela ausente.
+      if (!_hasTable) throw new Error('table does not exist')
+      const allRows = () => [...store.entries()].map(([key, v]) => ({ key, ...v }))
       return {
         where(_col: string, key: string) {
           return {
@@ -106,8 +108,13 @@ function makeSettingsDb(initialRows: Record<string, any> = {}) {
         async insert(row: any) {
           store.set(row.key, { value: row.value, updated_at: row.updated_at ?? new Date(), updated_by: row.updated_by ?? null })
         },
-        async select() {
-          return [...store.entries()].map(([key, v]) => ({ key, ...v }))
+        // select() retorna chainable com .limit() para o probe funcionar.
+        select(_cols?: string) {
+          const rows = allRows()
+          return {
+            limit(_n: number) { return Promise.resolve(rows.slice(0, _n)) },
+            then(resolve: any, reject: any) { return Promise.resolve(rows).then(resolve, reject) },
+          }
         },
       }
     },

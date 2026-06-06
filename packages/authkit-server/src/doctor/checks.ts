@@ -489,19 +489,23 @@ export function checkSettings(input: DoctorInput): Finding | null {
     return null
   }
 
+  // Informa a conexão usada quando nomeada (ajuda a diagnosticar bugs de searchPath).
+  const connectionName: string | undefined = (cfg.accountStore as any)?.connectionName
+  const connectionHint = connectionName ? ` (connection: '${connectionName}')` : ''
+
   // Table present — check if botProtection.verify is configured.
   const hasBotVerify = typeof cfg.botProtection?.verify === 'function'
   if (!hasBotVerify) {
     return {
       level: 'warn',
       message:
-        'The `auth_settings` table is present, but `botProtection.verify` is not configured in config — any `bot_protection` setting stored in `auth_settings` is an orphan and has no effect. Add `botProtection.verify` to config/authkit.ts or drop the row.',
+        `The \`auth_settings\` table is present${connectionHint}, but \`botProtection.verify\` is not configured in config — any \`bot_protection\` setting stored in \`auth_settings\` is an orphan and has no effect. Add \`botProtection.verify\` to config/authkit.ts or drop the row.`,
     }
   }
 
   return {
     level: 'ok',
-    message: 'auth_settings table present — runtime settings (including bot-protection toggle) are active.',
+    message: `auth_settings table present${connectionHint} — runtime settings (including bot-protection toggle) are active.`,
   }
 }
 

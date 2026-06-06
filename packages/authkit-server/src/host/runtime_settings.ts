@@ -1,14 +1,23 @@
 /**
  * Runtime Settings — mecanismo genérico de configuração persistida em banco.
  *
- * A tabela `auth_settings` é OPCIONAL (capability-probed via `hasTable`). Se a
- * tabela não existir, todas as operações retornam null/empty sem erro — os
+ * A tabela `auth_settings` é OPCIONAL (capability-probed via SELECT tentativo).
+ * Se a tabela não existir, todas as operações retornam null/empty sem erro — os
  * callers devem usar o fallback de config estático. A leitura usa cache em
  * memória com TTL curto (default 15s) para eliminar overhead por request; o
  * método `invalidate()` limpa o cache imediatamente (chamado após escrita).
  *
  * FAIL-SAFE TOTAL: qualquer erro de DB ou de probe → null + caller usa config.
  * Disponibilidade > proteção, consistente com o padrão de bot-protection.
+ *
+ * PROBE SEARCHPATH-AWARE: o probe usa `SELECT key FROM auth_settings LIMIT 1`
+ * em vez de `schema.hasTable`, que ignora o search_path do Postgres. Assim,
+ * quando a tabela existe num schema nomeado (ex.: `auth` com searchPath), o
+ * probe detecta corretamente.
+ *
+ * CONEXÃO NOMEADA: quando `options.connection` for fornecido, todas as queries
+ * usam `db.connection(name)` em vez da conexão default — necessário quando o
+ * auth vive num schema/conexão separados (ex.: host com `auth` connection).
  *
  * @example
  * ```ts
@@ -62,6 +71,13 @@ export function supportsSettings(obj: unknown): obj is SettingsCapability {
 export interface RuntimeSettingsOptions {
   /** TTL do cache em ms. Default: 15_000 (15s). */
   ttlMs?: number
+  /**
+   * Nome da conexão Lucid a usar (ex.: 'auth'). Quando presente, todas as
+   * queries usam `db.connection(name)` em vez da conexão default. Necessário
+   * quando o schema de auth vive numa conexão nomeada com searchPath próprio.
+   * Ausente (ou undefined) → conexão default (back-compat total).
+   */
+  connection?: string
 }
 
 type CacheEntry = { value: unknown | null; expiresAt: number }
@@ -74,6 +90,7 @@ type CacheEntry = { value: unknown | null; expiresAt: number }
 export class RuntimeSettings implements SettingsCapability {
   private readonly db: any
   private readonly ttlMs: number
+  private readonly connectionName: string | undefined
   private cache = new Map<string, CacheEntry>()
   /** null = não foi verificado ainda; false = tabela ausente; true = presente */
   private tablePresent: boolean | null = null
@@ -81,16 +98,35 @@ export class RuntimeSettings implements SettingsCapability {
   constructor(db: any, opts: RuntimeSettingsOptions = {}) {
     this.db = db
     this.ttlMs = opts.ttlMs ?? 15_000
+    this.connectionName = opts.connection
   }
 
-  /** Verifica (e memoriza) se a tabela existe. Fail-safe: erro → false. */
+  /**
+   * Retorna o objeto de conexão Lucid correto.
+   * Quando `connectionName` está definido, usa `db.connection(name)`;
+   * caso contrário usa o `db` diretamente (conexão default).
+   */
+  private conn(): any {
+    return this.connectionName ? this.db.connection(this.connectionName) : this.db
+  }
+
+  /**
+   * Verifica (e memoriza) se a tabela `auth_settings` existe.
+   *
+   * Usa `SELECT key FROM auth_settings LIMIT 1` em vez de `schema.hasTable`
+   * para ser searchPath-aware: `schema.hasTable` no Postgres ignora o
+   * search_path e reporta "ausente" quando a tabela existe apenas no schema
+   * configurado via searchPath da conexão. A tentativa de SELECT em try/catch
+   * detecta a tabela corretamente independente do schema.
+   *
+   * Fail-safe: qualquer erro → false (tabela considerada ausente, sem lançar).
+   */
   private async hasTable(): Promise<boolean> {
     if (this.tablePresent !== null) return this.tablePresent
     try {
-      const conn = await this.db.connection()
-      const exists: boolean = await conn.schema.hasTable('auth_settings')
-      this.tablePresent = exists
-      return exists
+      await this.conn().table('auth_settings').select('key').limit(1)
+      this.tablePresent = true
+      return true
     } catch {
       this.tablePresent = false
       return false
@@ -108,7 +144,7 @@ export class RuntimeSettings implements SettingsCapability {
     }
 
     try {
-      const row = await this.db.table('auth_settings').where('key', key).first()
+      const row = await this.conn().table('auth_settings').where('key', key).first()
       const value = row ? this._parse(row.value) : null
       this._cache(key, value)
       return value
@@ -124,8 +160,8 @@ export class RuntimeSettings implements SettingsCapability {
     const json = JSON.stringify(value)
     try {
       // Delete first then insert = upsert (compatível com sqlite + pg sem UPSERT syntax).
-      await this.db.table('auth_settings').where('key', key).delete()
-      await this.db.table('auth_settings').insert({ key, value: json, updated_at: new Date(), updated_by: updatedBy })
+      await this.conn().table('auth_settings').where('key', key).delete()
+      await this.conn().table('auth_settings').insert({ key, value: json, updated_at: new Date(), updated_by: updatedBy })
     } catch {
       // Fail-safe: não lança.
     }
@@ -135,7 +171,7 @@ export class RuntimeSettings implements SettingsCapability {
   async deleteSetting(key: string): Promise<void> {
     if (!(await this.hasTable())) return
     try {
-      await this.db.table('auth_settings').where('key', key).delete()
+      await this.conn().table('auth_settings').where('key', key).delete()
     } catch {
       // Fail-safe.
     }
@@ -145,7 +181,7 @@ export class RuntimeSettings implements SettingsCapability {
   async listSettings(): Promise<SettingRow[]> {
     if (!(await this.hasTable())) return []
     try {
-      const rows = await this.db.table('auth_settings').select('*')
+      const rows = await this.conn().table('auth_settings').select('*')
       return rows.map((r: any): SettingRow => ({
         key: r.key,
         value: this._parse(r.value),

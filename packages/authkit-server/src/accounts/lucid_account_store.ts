@@ -240,6 +240,14 @@ export function lucidAccountStore(
     __getRawRow: async (accountId: string) => {
       try { return await Model.find(accountId) } catch { return null }
     },
+    /**
+     * Nome da conexão Lucid usada por este store (deriva de `Model.connection`).
+     * Exposto para que os call-sites de RuntimeSettings possam passar
+     * `{ connection: store.connectionName }` e usar a conexão correta.
+     * Undefined quando o model usa a conexão default (back-compat total).
+     * NÃO faz parte do contrato AccountStore.
+     */
+    connectionName: (Model.connection as string | undefined) ?? undefined,
   } as AccountStore
 
   // Histórico de senhas: capability-probed via tabela `auth_password_history`.

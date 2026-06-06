@@ -44,10 +44,8 @@ function fakeDb(rows: Record<string, unknown> = {}) {
   )
   return {
     _hasTable: true,
-    async connection() {
-      return { schema: { async hasTable(name: string) { return name === 'auth_settings' } } }
-    },
     table(_name: string) {
+      const allRows = () => [...store.entries()].map(([key, v]) => ({ key, value: v.value, updated_at: v.updated_at, updated_by: v.updated_by }))
       return {
         where(_col: string, key: string) {
           return {
@@ -61,8 +59,13 @@ function fakeDb(rows: Record<string, unknown> = {}) {
         async insert(row: any) {
           store.set(row.key, { value: row.value, updated_at: row.updated_at ?? new Date(), updated_by: row.updated_by ?? null })
         },
-        async select() {
-          return [...store.entries()].map(([key, v]) => ({ key, value: v.value, updated_at: v.updated_at, updated_by: v.updated_by }))
+        // select() returns a chainable object (supports .limit()) for the probe.
+        select(_cols?: string) {
+          const rows = allRows()
+          return {
+            limit(_n: number) { return Promise.resolve(rows.slice(0, _n)) },
+            then(resolve: any, reject: any) { return Promise.resolve(rows).then(resolve, reject) },
+          }
         },
       }
     },
@@ -72,8 +75,8 @@ function fakeDb(rows: Record<string, unknown> = {}) {
 
 function noTableDb() {
   return {
-    async connection() { return { schema: { async hasTable() { return false } } } },
-    table() { throw new Error('should not be called') },
+    // table() throws → probe catches → tablePresent = false.
+    table() { throw new Error('table does not exist') },
   }
 }
 

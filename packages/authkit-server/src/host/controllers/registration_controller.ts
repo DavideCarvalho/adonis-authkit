@@ -18,9 +18,13 @@ import { dispatchSecurityNotice } from '../security_notice_service.js'
 async function getRuntimeSettings(ctx: HttpContext): Promise<RuntimeSettings> {
   try {
     const db = await ctx.containerResolver.make('lucid.db')
-    return new RuntimeSettings(db)
+    // Passa a conexão do accountStore para que o probe seja searchPath-aware.
+    const service = await ctx.containerResolver.make('authkit.server').catch(() => null)
+    const connection: string | undefined = (service?.config?.accountStore as any)?.connectionName
+    return new RuntimeSettings(db, connection ? { connection } : {})
   } catch {
-    return new RuntimeSettings({ connection: async () => ({ schema: { async hasTable() { return false } } }), table: () => { throw new Error() } })
+    // Fallback: probe via SELECT lança → tabela considerada ausente → config fallback
+    return new RuntimeSettings({ table: () => { throw new Error('no-op') } })
   }
 }
 

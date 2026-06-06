@@ -102,7 +102,15 @@ function validateKnownKey(key: string, value: unknown): string | null {
 async function resolveSettingsService(app: ApplicationService): Promise<RuntimeSettings | null> {
   try {
     const db = await app.container.make('lucid.db' as any)
-    return new RuntimeSettings(db)
+    // Tenta derivar a conexão do accountStore para probe searchPath-aware.
+    let connection: string | undefined
+    try {
+      const cfg = await resolveCfg(app)
+      connection = (cfg?.accountStore as any)?.connectionName
+    } catch {
+      // Silencioso: sem config → default connection.
+    }
+    return new RuntimeSettings(db, connection ? { connection } : {})
   } catch {
     return null
   }

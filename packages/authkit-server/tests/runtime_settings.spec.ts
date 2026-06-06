@@ -10,14 +10,8 @@ function fakeDb(rows: Record<string, string> = {}) {
   )
   return {
     _hasTable: true,
-    async connection() {
-      return {
-        schema: {
-          async hasTable(name: string) { return name === 'auth_settings' },
-        },
-      }
-    },
     table(_name: string) {
+      const allRows = () => [...store.entries()].map(([key, v]) => ({ key, value: v.value, updated_at: v.updatedAt, updated_by: v.updatedBy }))
       return {
         where(_col: string, key: string) {
           return {
@@ -28,8 +22,13 @@ function fakeDb(rows: Record<string, string> = {}) {
             async delete() { store.delete(key) },
           }
         },
-        async select(_cols?: string) {
-          return [...store.entries()].map(([key, v]) => ({ key, value: v.value, updated_at: v.updatedAt, updated_by: v.updatedBy }))
+        // select() returns a chainable object (supports .limit()) for the probe.
+        select(_cols?: string) {
+          const rows = allRows()
+          return {
+            limit(_n: number) { return Promise.resolve(rows.slice(0, _n)) },
+            then(resolve: any, reject: any) { return Promise.resolve(rows).then(resolve, reject) },
+          }
         },
         async insert(row: any) {
           store.set(row.key, { value: row.value, updatedAt: row.updated_at ?? new Date(), updatedBy: row.updated_by ?? null })
@@ -42,18 +41,14 @@ function fakeDb(rows: Record<string, string> = {}) {
 
 function noTableDb() {
   return {
-    async connection() {
-      return { schema: { async hasTable() { return false } } }
-    },
-    table() { throw new Error('should not be called') },
+    // table() throws → probe catches it → tablePresent = false (searchPath-aware probe).
+    table() { throw new Error('table does not exist') },
   }
 }
 
 function throwingDb() {
   return {
-    async connection() {
-      return { schema: { async hasTable() { throw new Error('db is down') } } }
-    },
+    // table() throws → probe catches → fail-safe (tablePresent = false).
     table() { throw new Error('db is down') },
   }
 }
@@ -100,9 +95,12 @@ test.group('RuntimeSettings', () => {
   test('cache: second call within TTL does not re-query DB', async ({ assert }) => {
     let queryCalls = 0
     const db = {
-      async connection() { return { schema: { async hasTable() { return true } } } },
-      table() {
+      table(_name: string) {
         return {
+          // Probe: select().limit() → resolves (table present)
+          select(_cols?: string) {
+            return { limit(_n: number) { return Promise.resolve([]) } }
+          },
           where(_col: string, _key: string) {
             return {
               async first() {
@@ -123,9 +121,12 @@ test.group('RuntimeSettings', () => {
   test('cache: invalidate() clears cache, next call re-queries', async ({ assert }) => {
     let queryCalls = 0
     const db = {
-      async connection() { return { schema: { async hasTable() { return true } } } },
-      table() {
+      table(_name: string) {
         return {
+          // Probe: select().limit() → resolves (table present)
+          select(_cols?: string) {
+            return { limit(_n: number) { return Promise.resolve([]) } }
+          },
           where(_col: string, _key: string) {
             return {
               async first() {
@@ -157,6 +158,207 @@ test.group('RuntimeSettings', () => {
     assert.lengthOf(list, 2)
     assert.isTrue(list.some((r) => r.key === 'key1'))
     assert.isTrue(list.some((r) => r.key === 'key2'))
+  })
+})
+
+// ---- searchPath-aware probe + named connection tests ----
+
+test.group('RuntimeSettings — searchPath-aware probe', () => {
+  test('probe via SELECT detects table present (select resolves)', async ({ assert }) => {
+    // The probe uses table().select('key').limit(1) — if it resolves, table is present.
+    const db = fakeDb({ bot_protection: JSON.stringify({ enabled: true }) })
+    const settings = new RuntimeSettings(db as any)
+    assert.isTrue(await settings.isTablePresent())
+  })
+
+  test('probe via SELECT detects table absent (table() throws)', async ({ assert }) => {
+    // If table() throws (e.g. table not in search_path), probe catches → absent.
+    const settings = new RuntimeSettings(noTableDb() as any)
+    assert.isFalse(await settings.isTablePresent())
+  })
+
+  test('probe result is cached — table() called only once across multiple operations', async ({ assert }) => {
+    let tableCallCount = 0
+    const db = {
+      table(_name: string) {
+        tableCallCount++
+        return {
+          select(_cols?: string) {
+            return { limit(_n: number) { return Promise.resolve([]) } }
+          },
+          where(_col: string, key: string) {
+            return {
+              async first() { return null },
+            }
+          },
+        }
+      },
+    }
+    const settings = new RuntimeSettings(db as any)
+    await settings.getSetting('foo')
+    await settings.getSetting('bar')
+    await settings.isTablePresent()
+    // probe happens on first access; subsequent calls use cache.
+    assert.equal(tableCallCount, 3, 'table() called once for probe, then once per getSetting (queries)')
+    // tablePresent should be true from the probe
+    assert.isTrue(await settings.isTablePresent())
+  })
+
+  test('probe result NOT invalidated by invalidate() — tablePresent cache is separate', async ({ assert }) => {
+    let tableCallCount = 0
+    const db = {
+      table(_name: string) {
+        tableCallCount++
+        return {
+          select(_cols?: string) {
+            return { limit(_n: number) { return Promise.resolve([]) } }
+          },
+          where(_col: string, key: string) {
+            return { async first() { return null } }
+          },
+        }
+      },
+    }
+    const settings = new RuntimeSettings(db as any)
+    await settings.isTablePresent()
+    settings.invalidate() // clears value cache, NOT tablePresent
+    await settings.isTablePresent()
+    // tablePresent was not re-probed (still cached)
+    assert.isTrue(await settings.isTablePresent())
+  })
+})
+
+test.group('RuntimeSettings — named connection option', () => {
+  test('connection option: uses db.connection(name) for all ops', async ({ assert }) => {
+    const namedConns: string[] = []
+    // db.connection(name) returns a connection-like object.
+    const db = {
+      connection(name: string) {
+        namedConns.push(name)
+        return {
+          table(_tableName: string) {
+            return {
+              select(_cols?: string) {
+                return { limit(_n: number) { return Promise.resolve([]) } }
+              },
+              where(_col: string, key: string) {
+                return { async first() { return null } }
+              },
+            }
+          },
+        }
+      },
+    }
+    const settings = new RuntimeSettings(db as any, { connection: 'auth' })
+    await settings.getSetting('test_key')
+    assert.isTrue(namedConns.every(n => n === 'auth'), 'all calls used the named connection')
+    assert.isTrue(namedConns.length > 0, 'at least one named connection call was made')
+  })
+
+  test('connection option absent: uses db directly (back-compat)', async ({ assert }) => {
+    let directTableCalled = false
+    const db = {
+      table(_name: string) {
+        directTableCalled = true
+        return {
+          select(_cols?: string) {
+            return { limit(_n: number) { return Promise.resolve([]) } }
+          },
+          where(_col: string, key: string) {
+            return { async first() { return null } }
+          },
+        }
+      },
+      connection(_name: string) {
+        throw new Error('should not be called when no connectionName')
+      },
+    }
+    const settings = new RuntimeSettings(db as any) // no connection option
+    await settings.getSetting('test_key')
+    assert.isTrue(directTableCalled)
+  })
+
+  test('named connection with table present returns settings correctly', async ({ assert }) => {
+    const settingValue = { enabled: true, on: ['login'] }
+    const db = {
+      connection(_name: string) {
+        return {
+          table(_tableName: string) {
+            return {
+              select(_cols?: string) {
+                return { limit(_n: number) { return Promise.resolve([{ key: 'bot_protection', value: JSON.stringify(settingValue) }]) } }
+              },
+              where(_col: string, key: string) {
+                return {
+                  async first() {
+                    if (key === 'bot_protection') {
+                      return { key, value: JSON.stringify(settingValue), updated_at: new Date(), updated_by: null }
+                    }
+                    return null
+                  },
+                }
+              },
+            }
+          },
+        }
+      },
+    }
+    const settings = new RuntimeSettings(db as any, { connection: 'auth' })
+    const val = await settings.getSetting('bot_protection')
+    assert.deepEqual(val, settingValue)
+  })
+
+  test('named connection with table absent (throws) → fail-safe null', async ({ assert }) => {
+    const db = {
+      connection(_name: string) {
+        return {
+          table(_tableName: string) { throw new Error('relation does not exist') },
+        }
+      },
+    }
+    const settings = new RuntimeSettings(db as any, { connection: 'auth' })
+    const val = await settings.getSetting('bot_protection')
+    assert.isNull(val)
+    assert.isFalse(await settings.isTablePresent())
+  })
+})
+
+// ---- lucidAccountStore connectionName tests ----
+
+import { lucidAccountStore } from '../src/accounts/lucid_account_store.js'
+
+test.group('lucidAccountStore — connectionName', () => {
+  test('connectionName reflects Model.connection when set', ({ assert }) => {
+    class FakeModel {
+      static connection = 'auth'
+      static $columnsDefinitions = new Map([
+        ['id', { columnName: 'id' }],
+        ['email', { columnName: 'email' }],
+        ['password', { columnName: 'password' }],
+        ['globalRoles', { columnName: 'global_roles' }],
+      ])
+      static $hooks = { has: () => false }
+      static findBy = async () => null
+      static find = async () => null
+    }
+    const store = lucidAccountStore(FakeModel as any)
+    assert.equal((store as any).connectionName, 'auth')
+  })
+
+  test('connectionName is undefined when Model.connection is not set', ({ assert }) => {
+    class FakeModel {
+      static $columnsDefinitions = new Map([
+        ['id', { columnName: 'id' }],
+        ['email', { columnName: 'email' }],
+        ['password', { columnName: 'password' }],
+        ['globalRoles', { columnName: 'global_roles' }],
+      ])
+      static $hooks = { has: () => false }
+      static findBy = async () => null
+      static find = async () => null
+    }
+    const store = lucidAccountStore(FakeModel as any)
+    assert.isUndefined((store as any).connectionName)
   })
 })
 

@@ -33,11 +33,22 @@ import {
 } from '../runtime_toggles.js'
 import { dispatchSecurityNotice } from '../security_notice_service.js'
 
+/** Helper: resolve a conexão do accountStore a partir do contexto (fail-safe). */
+async function resolveConnectionName(ctx: HttpContext): Promise<string | undefined> {
+  try {
+    const service = await (ctx.containerResolver as any).make('authkit.server')
+    return (service?.config?.accountStore as any)?.connectionName
+  } catch {
+    return undefined
+  }
+}
+
 /** Resolve os password history settings em runtime (fail-safe). */
 async function resolvePasswordHistorySettings(ctx: HttpContext) {
   try {
     const db = await (ctx.containerResolver as any).make('lucid.db')
-    const runtimeSettings = new RuntimeSettings(db)
+    const connection = await resolveConnectionName(ctx)
+    const runtimeSettings = new RuntimeSettings(db, connection ? { connection } : {})
     if (await runtimeSettings.isTablePresent()) {
       return await resolveEffectivePasswordHistory(runtimeSettings)
     }
@@ -51,7 +62,8 @@ async function resolvePasswordHistorySettings(ctx: HttpContext) {
 async function resolveEmailChangeSettings(ctx: HttpContext) {
   try {
     const db = await (ctx.containerResolver as any).make('lucid.db')
-    const runtimeSettings = new RuntimeSettings(db)
+    const connection = await resolveConnectionName(ctx)
+    const runtimeSettings = new RuntimeSettings(db, connection ? { connection } : {})
     if (await runtimeSettings.isTablePresent()) {
       return await resolveEffectiveEmailChange(runtimeSettings)
     }

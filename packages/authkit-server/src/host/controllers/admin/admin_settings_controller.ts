@@ -48,7 +48,10 @@ import { updateSessionTtlHolder, updateTokenTtlHolder } from '../../../provider/
 async function getRuntimeSettings(ctx: HttpContext): Promise<RuntimeSettings | null> {
   try {
     const db = await ctx.containerResolver.make('lucid.db')
-    return new RuntimeSettings(db)
+    // Passa a conexão do accountStore para que o probe seja searchPath-aware.
+    const service = await ctx.containerResolver.make('authkit.server').catch(() => null)
+    const connection: string | undefined = (service?.config?.accountStore as any)?.connectionName
+    return new RuntimeSettings(db, connection ? { connection } : {})
   } catch {
     return null
   }

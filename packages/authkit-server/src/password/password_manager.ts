@@ -8,6 +8,7 @@ import {
   type ResolvedPasswordConfig,
 } from './policy.js'
 import { isPasswordPwned, type PwnedLogger, type FetchLike } from './pwned.js'
+import { isCommonPassword } from './common_passwords.js'
 
 /**
  * Verificador de hashes legados (de OUTROS sistemas). Chamado quando a
@@ -79,7 +80,7 @@ export interface PasswordConfigInput {
 /** Erro de política/vazamento de senha — carrega a chave i18n + params. */
 export class PasswordPolicyError extends Error {
   constructor(
-    readonly key: PasswordPolicyViolation | 'password.pwned' | 'password.reused',
+    readonly key: PasswordPolicyViolation | 'password.pwned' | 'password.reused' | 'password.common',
     readonly params?: Record<string, string | number>
   ) {
     super(key)
@@ -186,7 +187,7 @@ export class PasswordManager {
    */
   async assertAcceptable(
     plainPassword: string,
-    policyOverride?: { minLength?: number; requireUppercase?: boolean; requireLowercase?: boolean; requireNumbers?: boolean; requireSymbols?: boolean; checkPwned?: boolean }
+    policyOverride?: { minLength?: number; requireUppercase?: boolean; requireLowercase?: boolean; requireNumbers?: boolean; requireSymbols?: boolean; checkPwned?: boolean; blockCommon?: boolean }
   ): Promise<void> {
     const effectivePolicy = policyOverride
       ? {
@@ -202,6 +203,14 @@ export class PasswordManager {
     if (violation) {
       throw new PasswordPolicyError(violation, policyViolationParams(violation, effectivePolicy))
     }
+
+    // Checagem offline de senhas comuns (case-insensitive, ANTES do HIBP).
+    // Default: blockCommon=true. Somente pula se explicitamente desligado.
+    const blockCommon = policyOverride?.blockCommon !== false
+    if (blockCommon && isCommonPassword(plainPassword)) {
+      throw new PasswordPolicyError('password.common')
+    }
+
     if (policyOverride?.checkPwned) {
       const pwned = await isPasswordPwned(plainPassword, {
         timeoutMs: this.pwnedTimeoutMs,

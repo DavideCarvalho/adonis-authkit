@@ -20,6 +20,13 @@ import {
   isTrustedDeviceValid,
 } from '../trusted_device.js'
 import { AdminSessionsService } from '../admin_sessions_service.js'
+import {
+  createOtpLockout,
+  resolveEffectiveOtpLockout,
+  generateOtpUnlockToken,
+  rawToDbOtpUnlockToken,
+} from '../otp_lockout.js'
+import { sendOtpUnlockEmail } from '../default_mailer.js'
 
 /** Best-effort: returns a RuntimeSettings backed by the container DB, or a no-op fallback. */
 async function getRuntimeSettings(ctx: HttpContext): Promise<RuntimeSettings> {
@@ -428,6 +435,25 @@ export default class AuthInteractionController {
 
     const { code, recoveryCode } = ctx.request.only(['code', 'recoveryCode'])
 
+    // Resolve OTP lockout settings (fail-safe).
+    const runtimeForOtp = await getRuntimeSettings(ctx)
+    const otpLockoutCfg = await resolveEffectiveOtpLockout(runtimeForOtp)
+    const otpLockout = createOtpLockout(otpLockoutCfg)
+
+    // Verifica se o fator OTP está travado ANTES de tentar verificar.
+    if (otpLockoutCfg.enabled && await otpLockout.isLocked(accountId)) {
+      return render(ctx, 'mfa-challenge', {
+        uid: ctx.request.param('uid'),
+        csrfToken: ctx.request.csrfToken,
+        error: translate(cfg.messages, 'errors.otp_locked'),
+        brand,
+        passkeyAvailable: await this.hasPasskeys(cfg, accountId),
+        trustedDevicesEnabled: cfg.trustedDevices.enabled,
+        trustedDeviceDays: cfg.trustedDevices.days,
+        otpLocked: true,
+      })
+    }
+
     let ok = false
     let usedRecovery = false
     if (recoveryCode) {
@@ -445,6 +471,26 @@ export default class AuthInteractionController {
         clientId,
         metadata: { stage: 'mfa' },
       })
+
+      // Registra falha OTP e verifica se deve travar.
+      const nowLocked = await otpLockout.recordFailure(accountId, { sink: cfg.audit, ip })
+
+      if (nowLocked) {
+        // Emite e-mail de desbloqueio (best-effort, fail-safe).
+        await this.sendOtpUnlockEmailIfAble(ctx, cfg, accountId, otpLockoutCfg.unlockTtlHours)
+
+        return render(ctx, 'mfa-challenge', {
+          uid: ctx.request.param('uid'),
+          csrfToken: ctx.request.csrfToken,
+          error: translate(cfg.messages, 'errors.otp_locked'),
+          brand,
+          passkeyAvailable: await this.hasPasskeys(cfg, accountId),
+          trustedDevicesEnabled: cfg.trustedDevices.enabled,
+          trustedDeviceDays: cfg.trustedDevices.days,
+          otpLocked: true,
+        })
+      }
+
       return render(ctx, 'mfa-challenge', {
         uid: ctx.request.param('uid'),
         csrfToken: ctx.request.csrfToken,
@@ -455,6 +501,9 @@ export default class AuthInteractionController {
         trustedDeviceDays: cfg.trustedDevices.days,
       })
     }
+
+    // Código correto: zera o contador de falhas OTP.
+    await otpLockout.clearFailures(accountId)
 
     // Sucesso no 2º fator: opcionalmente confia neste dispositivo (checkbox).
     await this.maybeTrustDevice(ctx, cfg, accountId)
@@ -544,6 +593,46 @@ export default class AuthInteractionController {
       sameSite: 'lax',
       maxAge: cfg.trustedDevices.days * 24 * 60 * 60,
     })
+  }
+
+  /**
+   * Emite o e-mail de desbloqueio OTP quando o fator fica travado.
+   * Best-effort, fail-safe: nunca lança na request.
+   */
+  private async sendOtpUnlockEmailIfAble(
+    ctx: HttpContext,
+    cfg: any,
+    accountId: string,
+    unlockTtlHours: number
+  ): Promise<void> {
+    try {
+      const account = await cfg.accountStore.findById(accountId)
+      if (!account?.email) return
+
+      // Gera o token e persiste no campo passwordResetToken (com prefixo `ou:`).
+      // Reutiliza a coluna existente sem nova migração (padrão magic-link/email-change).
+      const { raw, dbValue } = generateOtpUnlockToken()
+      const store = cfg.accountStore
+      const row = await (store as any).__getRawRow?.(accountId)
+      if (row) {
+        row.passwordResetToken = dbValue
+        // Expira em unlockTtlHours horas.
+        const { DateTime } = await import('luxon')
+        row.passwordResetExpiresAt = DateTime.now().plus({ hours: unlockTtlHours })
+        await row.save()
+      }
+
+      const origin = `${ctx.request.protocol()}://${ctx.request.host()}`
+      const unlockUrl = `${origin}/auth/otp-unlock/${encodeURIComponent(raw)}`
+
+      if (cfg.mail?.onOtpUnlock) {
+        await cfg.mail.onOtpUnlock({ email: account.email, unlockUrl, token: raw }).catch(() => {})
+      } else {
+        await sendOtpUnlockEmail(ctx, { email: account.email, unlockUrl }).catch(() => {})
+      }
+    } catch {
+      // Best-effort: nunca propaga erro para o fluxo de login.
+    }
   }
 
   /**
@@ -914,5 +1003,69 @@ export default class AuthInteractionController {
   async consent(ctx: HttpContext) {
     const service = await ctx.containerResolver.make('authkit.server')
     await service.interactions.consent(ctx)
+  }
+
+  /**
+   * GET /auth/otp-unlock/:token
+   * Consome o token de desbloqueio OTP enviado por e-mail. Valida (hash + TTL),
+   * zera o contador/lock, audita `otp.unlocked` e redireciona ao login com mensagem.
+   */
+  async otpUnlock(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const render = cfg.render!
+    const ip = ctx.request.ip?.() ?? null
+
+    const raw = ctx.request.param('token') as string
+    if (!raw) {
+      return render(ctx, 'otp-unlock', { ok: false })
+    }
+
+    const dbValue = rawToDbOtpUnlockToken(raw)
+
+    try {
+      // Busca a conta pelo token (campo passwordResetToken).
+      const store = cfg.accountStore
+      // Usamos findByPasswordResetToken se disponível; senão fallback via raw row scan.
+      let row: any = null
+      if (typeof (store as any).__findByTokenField === 'function') {
+        row = await (store as any).__findByTokenField('passwordResetToken', dbValue)
+      } else {
+        // Fallback: busca direto via raw query (Lucid model).
+        const Model = (store as any).__Model
+        if (Model) {
+          row = await Model.query().where('passwordResetToken', dbValue).first()
+        }
+      }
+
+      if (!row) {
+        await cfg.audit?.record({ type: 'otp.unlock_failed', ip, metadata: { reason: 'token_not_found' } })
+        return render(ctx, 'otp-unlock', { ok: false })
+      }
+
+      // Verifica TTL.
+      const { DateTime } = await import('luxon')
+      const expiresAt = row.passwordResetExpiresAt
+      if (!expiresAt || expiresAt < DateTime.now()) {
+        await cfg.audit?.record({ type: 'otp.unlock_failed', accountId: row.id, ip, metadata: { reason: 'token_expired' } })
+        return render(ctx, 'otp-unlock', { ok: false, expired: true })
+      }
+
+      // Token válido: zera o lock OTP + limpa o token do DB.
+      const runtimeForOtp = await getRuntimeSettings(ctx)
+      const otpLockoutCfg = await resolveEffectiveOtpLockout(runtimeForOtp)
+      const otpLockout = createOtpLockout(otpLockoutCfg)
+      await otpLockout.unlock(row.id)
+
+      row.passwordResetToken = null
+      row.passwordResetExpiresAt = null
+      await row.save()
+
+      await cfg.audit?.record({ type: 'otp.unlocked', accountId: row.id, ip })
+
+      return render(ctx, 'otp-unlock', { ok: true })
+    } catch {
+      return render(ctx, 'otp-unlock', { ok: false })
+    }
   }
 }

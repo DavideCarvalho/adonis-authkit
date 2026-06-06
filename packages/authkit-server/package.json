@@ -52,7 +52,7 @@
     ]
   },
   "scripts": {
-    "build": "node scripts/build_host_css.mjs && tsc && node -e \"require('node:fs').cpSync('stubs','build/stubs',{recursive:true,filter:(s)=>!s.endsWith('.ts')})\" && node -e \"const fs=require('node:fs');if(fs.existsSync('assets'))fs.cpSync('assets','build/assets',{recursive:true})\" && node -e \"require('node:fs').cpSync('src/host/views','build/host/views',{recursive:true})\" && node -e \"require('node:fs').copyFileSync('commands/commands.json','build/commands/commands.json')\"",
+    "build": "node scripts/build_host_css.mjs && tsc && node -e \"require('node:fs').cpSync('stubs','build/stubs',{recursive:true,filter:(s)=>!s.endsWith('.ts')})\" && node -e \"const fs=require('node:fs');if(fs.existsSync('assets'))fs.cpSync('assets','build/assets',{recursive:true})\" && node -e \"require('node:fs').cpSync('src/host/views','build/host/views',{recursive:true})\" && node -e \"require('node:fs').copyFileSync('commands/commands.json','build/commands/commands.json')\" && node -e \"const fs=require('node:fs');fs.mkdirSync('build/password',{recursive:true});fs.copyFileSync('src/password/common_passwords.txt','build/password/common_passwords.txt')\"",
     "typecheck": "tsc --noEmit",
     "test": "node --import=@poppinss/ts-exec bin/test.ts",
     "build:host-css": "node scripts/build_host_css.mjs"

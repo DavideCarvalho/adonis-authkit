@@ -42,6 +42,8 @@ export const SETTING_KEYS = {
   ADMIN_IMPERSONATION: 'admin_impersonation',
   ORGANIZATIONS_POLICY: 'organizations_policy',
   ROLES_CATALOG: 'roles_catalog',
+  OTP_LOCKOUT: 'otp_lockout',
+  SUDO_MODE: 'sudo_mode',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]
@@ -886,6 +888,12 @@ export interface PasswordPolicySetting {
   requireSymbols?: boolean
   /** Verifica se a senha aparece em vazamentos (HaveIBeenPwned, k-anonymity). */
   checkPwned?: boolean
+  /**
+   * Rejeita senhas que constam na lista offline de ~10 000 senhas mais comuns.
+   * A checagem é case-insensitive e roda ANTES do HIBP (mais barata).
+   * Default: true.
+   */
+  blockCommon?: boolean
 }
 
 /** Resultado resolvido da password_policy. */
@@ -896,6 +904,8 @@ export interface ResolvedPasswordPolicySetting {
   requireNumbers: boolean
   requireSymbols: boolean
   checkPwned: boolean
+  /** Rejeita senhas da lista offline de senhas comuns. Default: true. */
+  blockCommon: boolean
 }
 
 export interface PasswordPolicyConfigDefaults {
@@ -905,6 +915,7 @@ export interface PasswordPolicyConfigDefaults {
   requireNumbers?: boolean
   requireSymbols?: boolean
   checkPwned?: boolean
+  blockCommon?: boolean
 }
 
 const PASSWORD_POLICY_LIB_DEFAULTS: ResolvedPasswordPolicySetting = {
@@ -914,6 +925,7 @@ const PASSWORD_POLICY_LIB_DEFAULTS: ResolvedPasswordPolicySetting = {
   requireNumbers: false,
   requireSymbols: false,
   checkPwned: false,
+  blockCommon: true,
 }
 
 /**
@@ -933,6 +945,7 @@ export async function resolveEffectivePasswordPolicy(
     requireNumbers: configDefault.requireNumbers ?? PASSWORD_POLICY_LIB_DEFAULTS.requireNumbers,
     requireSymbols: configDefault.requireSymbols ?? PASSWORD_POLICY_LIB_DEFAULTS.requireSymbols,
     checkPwned: configDefault.checkPwned ?? PASSWORD_POLICY_LIB_DEFAULTS.checkPwned,
+    blockCommon: configDefault.blockCommon ?? PASSWORD_POLICY_LIB_DEFAULTS.blockCommon,
   }
   try {
     const raw = await settings.getSetting(SETTING_KEYS.PASSWORD_POLICY)
@@ -946,6 +959,7 @@ export async function resolveEffectivePasswordPolicy(
       requireNumbers: typeof s.requireNumbers === 'boolean' ? s.requireNumbers : defaults.requireNumbers,
       requireSymbols: typeof s.requireSymbols === 'boolean' ? s.requireSymbols : defaults.requireSymbols,
       checkPwned: typeof s.checkPwned === 'boolean' ? s.checkPwned : defaults.checkPwned,
+      blockCommon: typeof s.blockCommon === 'boolean' ? s.blockCommon : defaults.blockCommon,
     }
   } catch {
     return defaults

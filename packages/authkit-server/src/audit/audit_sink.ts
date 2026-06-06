@@ -65,6 +65,14 @@ export type AuditEventType =
   | 'trusted_device.revoked'
   // Password hygiene
   | 'password.expired_change_forced'
+  // OTP lockout
+  | 'otp.locked'
+  | 'otp.unlocked'
+  | 'otp.unlock_failed'
+  // Sudo mode
+  | 'sudo.confirmed'
+  // Session
+  | 'session.single_enforced'
 
 /**
  * Evento de auditoria a registrar. O timestamp é definido pelo sink (não aqui).

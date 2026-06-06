@@ -218,6 +218,30 @@ export function checkAlly(input: DoctorInput): Finding {
   return { level: 'ok', message: 'social login configured and @adonisjs/ally available.' }
 }
 
+/**
+ * OTP lockout: informativa. Avisa quando enabled mas limiter ausente (no-op).
+ * Não emite nada quando OTP lockout está desligado por setting (runtime).
+ */
+export function checkOtpLockout(input: DoctorInput): Finding | null {
+  // O OTP lockout usa o mesmo limiter do lockout de conta.
+  // Sem limiter → OTP lockout é no-op.
+  if (!input.peers.limiter) {
+    return {
+      level: 'warn',
+      message: 'otp_lockout is enabled by default but @adonisjs/limiter is not installed — OTP factor lockout will be a no-op. Install @adonisjs/limiter to enable it.',
+    }
+  }
+  return { level: 'ok', message: 'otp_lockout: @adonisjs/limiter available.' }
+}
+
+/**
+ * Sudo mode: informativa. O sudo mode requer sessões Adonis (sempre disponíveis
+ * no console de conta). Apenas informa o estado.
+ */
+export function checkSudoMode(_input: DoctorInput): Finding | null {
+  return { level: 'ok', message: 'sudo_mode: enabled by default (15 min grace). Configure via admin settings or sudo_mode runtime setting.' }
+}
+
 /** rateLimit ligado mas @adonisjs/limiter ausente → warn. */
 export function checkRateLimit(input: DoctorInput): Finding {
   const cfg = input.authkitConfig
@@ -832,6 +856,10 @@ export function runAllChecks(input: DoctorInput): Finding[] {
   if (sessionPolicy) findings.push(sessionPolicy)
   const rolesCatalog = checkRolesCatalog(input)
   if (rolesCatalog) findings.push(rolesCatalog)
+  const otpLockout = checkOtpLockout(input)
+  if (otpLockout) findings.push(otpLockout)
+  const sudoMode = checkSudoMode(input)
+  if (sudoMode) findings.push(sudoMode)
   return findings
 }
 

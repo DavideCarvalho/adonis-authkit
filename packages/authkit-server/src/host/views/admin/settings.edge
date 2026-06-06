@@ -314,6 +314,84 @@
       </div>
       <div class="space-y-6">
 
+        {{-- Sudo mode card --}}
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+          <div class="mb-1 flex items-center gap-2">
+            <h2 class="text-sm font-semibold text-gray-900">{{ t('admin.settings.sudo_mode_section') }}</h2>
+            @if(currentSudoModeSetting !== null)
+              <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">{{ t('admin.settings.sudo_mode_from_setting') }}</span>
+            @else
+              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{{ t('admin.settings.sudo_mode_from_config') }}</span>
+            @end
+          </div>
+          <p class="mb-4 text-xs text-gray-500">{{ t('admin.settings.sudo_mode_intro') }}</p>
+          <form method="POST" action="{{ adminBase }}/settings/sudo-mode">
+            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+            <label class="flex items-center gap-2 mb-4">
+              <input type="checkbox" name="enabled" value="1" {{ sudoModeEffective && sudoModeEffective.enabled !== false ? 'checked' : '' }} class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.enabled_label') }}</span>
+            </label>
+            <div class="mb-4">
+              <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.sudo_mode_grace_label') }}</label>
+              <input type="number" name="grace_minutes" min="0" max="1440"
+                value="{{ sudoModeEffective ? sudoModeEffective.graceMinutes : 15 }}"
+                class="w-32 rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-gray-400">
+            </div>
+            <div class="flex items-center gap-3">
+              <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">{{ t('admin.settings.save') }}</button>
+              @if(currentSudoModeSetting !== null)
+                <form method="POST" action="{{ adminBase }}/settings/sudo-mode/reset" class="inline">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('admin.settings.reset_to_config') }}</button>
+                </form>
+              @end
+            </div>
+          </form>
+        </div>
+
+        {{-- OTP lockout card --}}
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+          <div class="mb-1 flex items-center gap-2">
+            <h2 class="text-sm font-semibold text-gray-900">{{ t('admin.settings.otp_lockout_section') }}</h2>
+            @if(currentOtpLockoutSetting !== null)
+              <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">{{ t('admin.settings.otp_lockout_from_setting') }}</span>
+            @else
+              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{{ t('admin.settings.otp_lockout_from_config') }}</span>
+            @end
+          </div>
+          <p class="mb-4 text-xs text-gray-500">{{ t('admin.settings.otp_lockout_intro') }}</p>
+          <form method="POST" action="{{ adminBase }}/settings/otp-lockout">
+            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+            <label class="flex items-center gap-2 mb-4">
+              <input type="checkbox" name="enabled" value="1" {{ otpLockoutEffective && otpLockoutEffective.enabled !== false ? 'checked' : '' }} class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm font-medium text-gray-700">{{ t('admin.settings.enabled_label') }}</span>
+            </label>
+            <div class="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.otp_lockout_max_attempts_label') }}</label>
+                <input type="number" name="max_attempts" min="1" max="20"
+                  value="{{ otpLockoutEffective ? otpLockoutEffective.maxAttempts : 5 }}"
+                  class="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-gray-400">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.settings.otp_lockout_unlock_ttl_label') }}</label>
+                <input type="number" name="unlock_ttl_hours" min="1" max="168"
+                  value="{{ otpLockoutEffective ? otpLockoutEffective.unlockTtlHours : 24 }}"
+                  class="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-gray-400">
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">{{ t('admin.settings.save') }}</button>
+              @if(currentOtpLockoutSetting !== null)
+                <form method="POST" action="{{ adminBase }}/settings/otp-lockout/reset" class="inline">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('admin.settings.reset_to_config') }}</button>
+                </form>
+              @end
+            </div>
+          </form>
+        </div>
+
         {{-- Lockout card --}}
         <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
           <div class="mb-1 flex items-center gap-2">
@@ -441,6 +519,10 @@
             <label class="flex items-center gap-2 mb-4">
               <input type="checkbox" name="check_pwned" value="1" {{ passwordPolicyEffective && passwordPolicyEffective.checkPwned ? 'checked' : '' }} class="h-4 w-4 rounded border-gray-300">
               <span class="text-sm text-gray-700">{{ t('admin.settings.password_policy_check_pwned_label') }}</span>
+            </label>
+            <label class="flex items-center gap-2 mb-4">
+              <input type="checkbox" name="block_common" value="1" {{ !passwordPolicyEffective || passwordPolicyEffective.blockCommon !== false ? 'checked' : '' }} class="h-4 w-4 rounded border-gray-300">
+              <span class="text-sm text-gray-700">{{ t('admin.settings.password_policy_block_common_label') }}</span>
             </label>
             <div class="flex items-center gap-3">
               <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">{{ t('admin.settings.save') }}</button>

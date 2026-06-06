@@ -4,6 +4,7 @@ import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
 import { translate } from '../i18n.js'
 import { attemptPasswordLogin } from '../login_attempt.js'
 import { notifyLoginSuccess } from '../login_notify.js'
+import { markSudo } from '../sudo_mode.js'
 
 /**
  * Valida um valor de `return_to` recebido da query-string ou de um campo hidden.
@@ -71,6 +72,8 @@ export default class AccountSessionController {
 
     const acc = result.account
     ctx.session.put(ACCOUNT_SESSION_KEY, acc.id)
+    // Login com senha = confirmação de identidade → marca sudo (graça a partir do login).
+    markSudo(ctx)
     await notifyLoginSuccess(ctx, cfg, { accountId: acc.id, email, ip })
     // Redireciona pro destino original (validado), ou cai no default /account/tokens.
     return ctx.response.redirect(returnTo ?? '/account/tokens')

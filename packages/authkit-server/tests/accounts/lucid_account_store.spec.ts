@@ -142,7 +142,7 @@ test.group('lucidAccountStore', (group) => {
     const store = lucidAccountStore(TestAccount)
     const acc = await store.create({
       email: 'a@b.com',
-      password: 'secret123',
+      password: 'Xk9pQ!mZr7nL',  // senha única, não está na lista de senhas comuns
       fullName: 'Alice',
       globalRoles: ['ADMIN'],
     })
@@ -150,7 +150,7 @@ test.group('lucidAccountStore', (group) => {
     assert.equal(acc.name, 'Alice')
     assert.deepEqual(acc.globalRoles, ['ADMIN'])
     const row = await TestAccount.findBy('email', 'a@b.com')
-    assert.notEqual(row!.password, 'secret123') // hash
+    assert.notEqual(row!.password, 'Xk9pQ!mZr7nL') // hash
   })
 
   test('findById e findByEmail retornam AuthAccount ou null', async ({ assert }) => {

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="{{ locale ?? 'en' }}"><head><meta charset="utf-8"><title>{{ t('otp_unlock.page_title') }}</title>
+@include('authkit::partials/styles')
+</head>
+<body class="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+  <div class="w-full max-w-sm">
+    <div class="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-black/5 text-center">
+      @if(ok)
+        <div class="mb-4 flex justify-center">
+          <span class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </span>
+        </div>
+        <h1 class="mb-2 text-lg font-semibold text-gray-900">{{ t('otp_unlock.ok_title') }}</h1>
+        <p class="mb-6 text-sm text-gray-600">{{ t('otp_unlock.ok_body') }}</p>
+        <a href="/account/login" class="inline-block rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">{{ t('otp_unlock.login_link') }}</a>
+      @else
+        <div class="mb-4 flex justify-center">
+          <span class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </span>
+        </div>
+        <h1 class="mb-2 text-lg font-semibold text-gray-900">{{ t('otp_unlock.invalid_title') }}</h1>
+        <p class="mb-6 text-sm text-gray-600">
+          @if(expired)
+            {{ t('otp_unlock.expired_body') }}
+          @else
+            {{ t('otp_unlock.invalid_body') }}
+          @end
+        </p>
+        <a href="/account/login" class="inline-block rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">{{ t('otp_unlock.login_link') }}</a>
+      @end
+    </div>
+  </div>
+</body>
+</html>

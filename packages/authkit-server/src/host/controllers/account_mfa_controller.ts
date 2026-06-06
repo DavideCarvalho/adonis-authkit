@@ -5,6 +5,7 @@ import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
 import { translate } from '../i18n.js'
 import { supportsPasskeys } from '../../accounts/account_store.js'
 import { dispatchSecurityNotice } from '../security_notice_service.js'
+import { requireSudo, getRuntimeSettingsForSudo } from '../sudo_mode.js'
 
 /** Desafio WebAuthn pendente (registro) guardado na sessão entre begin/finish. */
 const PASSKEY_REG_CHALLENGE_KEY = 'authkit_passkey_reg_challenge'
@@ -63,6 +64,12 @@ export default class AccountMfaController {
     const service = await ctx.containerResolver.make('authkit.server')
     const cfg = service.config
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
+
+    // Sudo mode gate.
+    const sudoSettingsPkAdd = await getRuntimeSettingsForSudo(ctx)
+    const sudoResultPkAdd = await requireSudo(ctx, sudoSettingsPkAdd)
+    if (sudoResultPkAdd !== true) return sudoResultPkAdd
+
     const challenge = ctx.session.get(PASSKEY_REG_CHALLENGE_KEY) as string | undefined
     if (!challenge) {
       return ctx.response.badRequest({
@@ -103,6 +110,12 @@ export default class AccountMfaController {
     const service = await ctx.containerResolver.make('authkit.server')
     const cfg = service.config
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
+
+    // Sudo mode gate.
+    const sudoSettingsPkRm = await getRuntimeSettingsForSudo(ctx)
+    const sudoResultPkRm = await requireSudo(ctx, sudoSettingsPkRm)
+    if (sudoResultPkRm !== true) return sudoResultPkRm
+
     const credentialId = ctx.request.param('id')
     await cfg.accountStore.removePasskey?.(userId, credentialId)
     await cfg.audit?.record({
@@ -126,6 +139,12 @@ export default class AccountMfaController {
     const render = cfg.render!
 
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
+
+    // Sudo mode gate.
+    const sudoSettingsEnroll = await getRuntimeSettingsForSudo(ctx)
+    const sudoResultEnroll = await requireSudo(ctx, sudoSettingsEnroll)
+    if (sudoResultEnroll !== true) return sudoResultEnroll
+
     const started = await cfg.accountStore.startTotpEnrollment?.(userId)
     if (!started) {
       return ctx.response.redirect('/account/mfa')
@@ -190,6 +209,12 @@ export default class AccountMfaController {
     const cfg = service.config
 
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
+
+    // Sudo mode gate.
+    const sudoSettingsDisable = await getRuntimeSettingsForSudo(ctx)
+    const sudoResultDisable = await requireSudo(ctx, sudoSettingsDisable)
+    if (sudoResultDisable !== true) return sudoResultDisable
+
     await cfg.accountStore.disableMfa?.(userId)
     await cfg.audit?.record({
       type: 'mfa.disabled',

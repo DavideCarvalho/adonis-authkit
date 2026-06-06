@@ -106,6 +106,16 @@ export interface MailHooks {
     newEmail: string
   }) => Promise<void>
   /**
+   * Disparado quando o fator OTP (TOTP/recovery) fica travado por excesso de
+   * tentativas falhas. Envia o link de desbloqueio para o e-mail da conta.
+   * Best-effort, fire-and-forget.
+   */
+  onOtpUnlock?: (data: {
+    email: string
+    unlockUrl: string
+    token: string
+  }) => Promise<void>
+  /**
    * Disparado após um evento de segurança (senha alterada, MFA habilitado/desabilitado,
    * passkey adicionada/removida, e-mail alterado). Substitui o e-mail default quando
    * fornecido. Best-effort, fire-and-forget. Quando ausente, o host-kit envia o e-mail

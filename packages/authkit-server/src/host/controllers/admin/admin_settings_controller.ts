@@ -268,10 +268,11 @@ export default class AdminSettingsController {
       requireNumbers: pwConfig?.policy?.requireNumbers,
       requireSymbols: pwConfig?.policy?.requireSymbols,
       checkPwned: pwConfig?.checkPwned ? true : false,
+      blockCommon: true,
     }
     const passwordPolicyEffective = runtimeSettings
       ? await resolveEffectivePasswordPolicy(runtimeSettings, passwordPolicyConfigDefaults)
-      : { minLength: passwordPolicyConfigDefaults.minLength ?? 8, requireUppercase: passwordPolicyConfigDefaults.requireUppercase ?? false, requireLowercase: passwordPolicyConfigDefaults.requireLowercase ?? false, requireNumbers: passwordPolicyConfigDefaults.requireNumbers ?? false, requireSymbols: passwordPolicyConfigDefaults.requireSymbols ?? false, checkPwned: passwordPolicyConfigDefaults.checkPwned ?? false }
+      : { minLength: passwordPolicyConfigDefaults.minLength ?? 8, requireUppercase: passwordPolicyConfigDefaults.requireUppercase ?? false, requireLowercase: passwordPolicyConfigDefaults.requireLowercase ?? false, requireNumbers: passwordPolicyConfigDefaults.requireNumbers ?? false, requireSymbols: passwordPolicyConfigDefaults.requireSymbols ?? false, checkPwned: passwordPolicyConfigDefaults.checkPwned ?? false, blockCommon: passwordPolicyConfigDefaults.blockCommon ?? true }
 
     // ---- notifications ----
     let currentNotificationsSetting: NotificationsSetting | null = null
@@ -352,6 +353,32 @@ export default class AdminSettingsController {
       ? await resolveEffectiveOrganizationsPolicy(runtimeSettings, orgsPolicyConfigDefaults)
       : { allowSelfCreate: orgsPolicyConfigDefaults.allowSelfCreate ?? false, invitationTtlHours: orgsPolicyConfigDefaults.invitationTtlHours ?? 168, roles: orgsPolicyConfigDefaults.roles ?? ['owner', 'admin', 'member'] }
 
+    // ---- otp_lockout ----
+    let currentOtpLockoutSetting: { enabled?: boolean; maxAttempts?: number; unlockTtlHours?: number } | null = null
+    if (runtimeSettings && hasTable) {
+      const raw = await runtimeSettings.getSetting('otp_lockout')
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        currentOtpLockoutSetting = raw as { enabled?: boolean; maxAttempts?: number; unlockTtlHours?: number }
+      }
+    }
+    const { resolveEffectiveOtpLockout: _resolveOtpLockout } = await import('../../otp_lockout.js')
+    const otpLockoutEffective = runtimeSettings
+      ? await _resolveOtpLockout(runtimeSettings)
+      : { enabled: true, maxAttempts: 5, unlockTtlHours: 24 }
+
+    // ---- sudo_mode ----
+    let currentSudoModeSetting: { enabled?: boolean; graceMinutes?: number } | null = null
+    if (runtimeSettings && hasTable) {
+      const raw = await runtimeSettings.getSetting('sudo_mode')
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        currentSudoModeSetting = raw as { enabled?: boolean; graceMinutes?: number }
+      }
+    }
+    const { resolveEffectiveSudoMode: _resolveSudoMode } = await import('../../sudo_mode.js')
+    const sudoModeEffective = runtimeSettings
+      ? await _resolveSudoMode(runtimeSettings)
+      : { enabled: true, graceMinutes: 15 }
+
     return render(ctx, 'admin/settings', {
       csrfToken: ctx.request.csrfToken,
       adminBase: getAdminPrefix(),
@@ -423,6 +450,12 @@ export default class AdminSettingsController {
       // organizations_policy
       currentOrganizationsPolicySetting,
       organizationsPolicyEffective,
+      // otp_lockout
+      currentOtpLockoutSetting,
+      otpLockoutEffective,
+      // sudo_mode
+      currentSudoModeSetting,
+      sudoModeEffective,
     })
   }
 
@@ -1150,8 +1183,9 @@ export default class AdminSettingsController {
     const requireNumbers = ctx.request.input('require_numbers') === '1' || ctx.request.input('require_numbers') === 'true'
     const requireSymbols = ctx.request.input('require_symbols') === '1' || ctx.request.input('require_symbols') === 'true'
     const checkPwned = ctx.request.input('check_pwned') === '1' || ctx.request.input('check_pwned') === 'true'
+    const blockCommon = ctx.request.input('block_common') !== '0' && ctx.request.input('block_common') !== 'false'
 
-    const setting: PasswordPolicySetting = { minLength, requireUppercase, requireLowercase, requireNumbers, requireSymbols, checkPwned }
+    const setting: PasswordPolicySetting = { minLength, requireUppercase, requireLowercase, requireNumbers, requireSymbols, checkPwned, blockCommon }
     await runtimeSettings.setSetting('password_policy', setting, accountId)
     await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'password_policy', value: setting } })
 
@@ -1394,6 +1428,92 @@ export default class AdminSettingsController {
     if (runtimeSettings) {
       await runtimeSettings.deleteSetting('organizations_policy')
       await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'organizations_policy', action: 'reset_to_config' } })
+    }
+    ctx.session?.flash('flash', t('admin.settings.reset_done'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  // -------------------------------------------------------------------------
+  // OTP lockout
+  // -------------------------------------------------------------------------
+
+  async updateOtpLockout(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (!runtimeSettings || !(await runtimeSettings.isTablePresent())) {
+      ctx.session?.flash('flash', t('admin.settings.no_settings_table'))
+      return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+    }
+
+    const enabled = ctx.request.input('enabled') === '1' || ctx.request.input('enabled') === 'true'
+    const rawMax = ctx.request.input('max_attempts')
+    const maxAttempts = typeof rawMax === 'string' && rawMax.trim() !== '' ? Math.max(1, parseInt(rawMax, 10) || 5) : 5
+    const rawTtl = ctx.request.input('unlock_ttl_hours')
+    const unlockTtlHours = typeof rawTtl === 'string' && rawTtl.trim() !== '' ? Math.max(1, parseInt(rawTtl, 10) || 24) : 24
+
+    const setting = { enabled, maxAttempts, unlockTtlHours }
+    await runtimeSettings.setSetting('otp_lockout', setting, accountId)
+    await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'otp_lockout', value: setting } })
+
+    ctx.session?.flash('flash', t('admin.settings.saved'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  async resetOtpLockout(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (runtimeSettings) {
+      await runtimeSettings.deleteSetting('otp_lockout')
+      await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'otp_lockout', action: 'reset_to_config' } })
+    }
+    ctx.session?.flash('flash', t('admin.settings.reset_done'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  // -------------------------------------------------------------------------
+  // Sudo mode
+  // -------------------------------------------------------------------------
+
+  async updateSudoMode(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (!runtimeSettings || !(await runtimeSettings.isTablePresent())) {
+      ctx.session?.flash('flash', t('admin.settings.no_settings_table'))
+      return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+    }
+
+    const enabled = ctx.request.input('enabled') === '1' || ctx.request.input('enabled') === 'true'
+    const rawGrace = ctx.request.input('grace_minutes')
+    const graceMinutes = typeof rawGrace === 'string' && rawGrace.trim() !== '' ? Math.max(0, parseInt(rawGrace, 10) || 15) : 15
+
+    const setting = { enabled, graceMinutes }
+    await runtimeSettings.setSetting('sudo_mode', setting, accountId)
+    await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'sudo_mode', value: setting } })
+
+    ctx.session?.flash('flash', t('admin.settings.saved'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  async resetSudoMode(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (runtimeSettings) {
+      await runtimeSettings.deleteSetting('sudo_mode')
+      await cfg.audit?.record({ type: 'settings.updated', actorId: accountId, ip: ctx.request.ip?.() ?? null, metadata: { key: 'sudo_mode', action: 'reset_to_config' } })
     }
     ctx.session?.flash('flash', t('admin.settings.reset_done'))
     return ctx.response.redirect(`${getAdminPrefix()}/settings`)

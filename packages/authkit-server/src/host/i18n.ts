@@ -574,6 +574,8 @@ export const DEFAULT_MESSAGES = {
   'errors.invalid_or_expired_token': 'Invalid or expired token',
   'errors.account_locked':
     'Account temporarily locked due to too many attempts. Try again in {seconds}s.',
+  'errors.otp_locked':
+    'Two-factor authentication has been locked due to too many failed attempts. A recovery link has been sent to your email.',
   'errors.bot_protection_failed': 'Bot verification failed. Please try again.',
   'errors.session_expired': 'Session expired',
   'errors.challenge_expired': 'Challenge expired',
@@ -598,6 +600,8 @@ export const DEFAULT_MESSAGES = {
   'password.policy.symbols': 'Password must contain at least one symbol.',
   'password.pwned':
     'This password has appeared in known data breaches. Please choose a different one.',
+  'password.common':
+    'This password is too common. Please choose a more unique password.',
   'password.reused':
     'This password was used recently. Please choose a different one (last {count} passwords are remembered).',
   // Step de troca obrigatória (expiração de senha).
@@ -699,6 +703,56 @@ export const DEFAULT_MESSAGES = {
   'mail.security_notice.kind_passkey_removed': 'passkey removed',
   'mail.security_notice.kind_email_changed': 'email address changed',
 
+  // E-mail de desbloqueio do fator OTP.
+  'mail.otp_unlock.subject': 'Two-factor authentication unlock',
+  'mail.otp_unlock.heading': 'Unlock your two-factor authentication',
+  'mail.otp_unlock.intro':
+    'Your two-factor authentication factor has been locked due to too many failed attempts. Click the button below to unlock it.',
+  'mail.otp_unlock.cta': 'Unlock two-factor',
+  'mail.otp_unlock.fallback':
+    'If you did not attempt to sign in, your account may be at risk — change your password immediately.',
+
+  // Tela de desbloqueio OTP (/auth/otp-unlock/:token).
+  // Sudo mode (confirm identity — /account/confirm).
+  'account.confirm.page_title': 'Confirm your identity',
+  'account.confirm.title': 'Confirm your identity',
+  'account.confirm.intro': 'For security, please confirm your password to continue.',
+  'account.confirm.password_label': 'Password',
+  'account.confirm.submit': 'Confirm',
+  'account.confirm.passkey_button': 'Confirm with passkey',
+  'account.confirm.error': 'Incorrect password.',
+  'account.confirm.passkey_error': 'Could not authenticate with the passkey. Please try again.',
+  'account.confirm.passwordless_notice':
+    'This account does not have a password. Please add a passkey to use sudo-protected features.',
+
+  // Admin settings — sudo_mode card.
+  'admin.settings.sudo_mode_section': 'Sudo mode (identity confirmation)',
+  'admin.settings.sudo_mode_intro':
+    'When enabled, sensitive actions (password change, email change, account deletion, MFA/passkey management, PAT creation/revocation) require the user to confirm their password. The confirmation is valid for a configurable grace period.',
+  'admin.settings.sudo_mode_from_config': 'Source: defaults',
+  'admin.settings.sudo_mode_from_setting': 'Source: runtime setting',
+  'admin.settings.sudo_mode_grace_label': 'Grace period (minutes)',
+
+  'otp_unlock.page_title': 'Two-factor unlock',
+  'otp_unlock.ok_title': 'Two-factor authentication unlocked',
+  'otp_unlock.ok_body':
+    'Your two-factor authentication factor has been unlocked. You can now sign in again.',
+  'otp_unlock.login_link': 'Back to login',
+  'otp_unlock.invalid_title': 'Invalid or expired link',
+  'otp_unlock.invalid_body':
+    'The unlock link is invalid or has already been used. Request a new one by attempting to sign in again.',
+  'otp_unlock.expired_body':
+    'The unlock link has expired. Please sign in again to receive a new link.',
+
+  // Admin settings — otp_lockout card.
+  'admin.settings.otp_lockout_section': 'OTP factor lockout',
+  'admin.settings.otp_lockout_intro':
+    'Locks the TOTP/recovery factor (not the account) after N consecutive failures. Sends an email unlock link. Requires @adonisjs/limiter. Keyed by account ID.',
+  'admin.settings.otp_lockout_from_config': 'Source: defaults',
+  'admin.settings.otp_lockout_from_setting': 'Source: runtime setting',
+  'admin.settings.otp_lockout_max_attempts_label': 'Max failed attempts before lockout',
+  'admin.settings.otp_lockout_unlock_ttl_label': 'Unlock token TTL (hours)',
+
   // Admin settings — email_change card.
   'admin.settings.email_change_section': 'Email change',
   'admin.settings.email_change_intro':
@@ -779,6 +833,7 @@ export const DEFAULT_MESSAGES = {
   'admin.settings.password_policy_require_numbers_label': 'Require number',
   'admin.settings.password_policy_require_symbols_label': 'Require symbol',
   'admin.settings.password_policy_check_pwned_label': 'Check against HaveIBeenPwned (k-anonymity, fail-safe)',
+  'admin.settings.password_policy_block_common_label': 'Block common passwords (offline list of ~10 000 most-used passwords, case-insensitive)',
 
   // Admin settings — notifications card.
   'admin.settings.notifications_section': 'Login notifications',
@@ -1391,6 +1446,8 @@ export const PT_BR_MESSAGES = {
   'errors.invalid_or_expired_token': 'Token inválido ou expirado',
   'errors.account_locked':
     'Conta temporariamente bloqueada por excesso de tentativas. Tente novamente em {seconds}s.',
+  'errors.otp_locked':
+    'A verificação em duas etapas foi bloqueada por excesso de tentativas incorretas. Um link de recuperação foi enviado para o seu e-mail.',
   'errors.bot_protection_failed': 'A verificação anti-bot falhou. Tente novamente.',
   'errors.session_expired': 'Sessão expirada',
   'errors.challenge_expired': 'Desafio expirado',
@@ -1415,6 +1472,8 @@ export const PT_BR_MESSAGES = {
   'password.policy.symbols': 'A senha deve conter ao menos um símbolo.',
   'password.pwned':
     'Esta senha apareceu em vazamentos de dados conhecidos. Escolha uma senha diferente.',
+  'password.common':
+    'Esta senha é muito comum. Escolha uma senha mais única.',
   'password.reused':
     'Esta senha foi usada recentemente. Escolha uma senha diferente (as últimas {count} senhas são lembradas).',
   // Step de troca obrigatória (expiração de senha).
@@ -1516,6 +1575,56 @@ export const PT_BR_MESSAGES = {
   'mail.security_notice.kind_passkey_removed': 'passkey removida',
   'mail.security_notice.kind_email_changed': 'e-mail alterado',
 
+  // Sudo mode (pt-BR).
+  'account.confirm.page_title': 'Confirme sua identidade',
+  'account.confirm.title': 'Confirme sua identidade',
+  'account.confirm.intro': 'Por segurança, confirme sua senha para continuar.',
+  'account.confirm.password_label': 'Senha',
+  'account.confirm.submit': 'Confirmar',
+  'account.confirm.passkey_button': 'Confirmar com passkey',
+  'account.confirm.error': 'Senha incorreta.',
+  'account.confirm.passkey_error': 'Não foi possível autenticar com a passkey. Tente novamente.',
+  'account.confirm.passwordless_notice':
+    'Esta conta não possui senha. Adicione uma passkey para usar funcionalidades protegidas.',
+
+  // Admin settings — sudo_mode card (pt-BR).
+  'admin.settings.sudo_mode_section': 'Modo sudo (confirmação de identidade)',
+  'admin.settings.sudo_mode_intro':
+    'Quando habilitado, ações sensíveis (troca de senha, troca de e-mail, exclusão de conta, gerência de MFA/passkey, criação/revogação de PAT) exigem que o usuário confirme sua senha. A confirmação é válida por um período de graça configurável.',
+  'admin.settings.sudo_mode_from_config': 'Fonte: padrão',
+  'admin.settings.sudo_mode_from_setting': 'Fonte: setting em runtime',
+  'admin.settings.sudo_mode_grace_label': 'Período de graça (minutos)',
+
+  // E-mail de desbloqueio do fator OTP (pt-BR).
+  'mail.otp_unlock.subject': 'Desbloqueio da verificação em duas etapas',
+  'mail.otp_unlock.heading': 'Desbloqueie sua verificação em duas etapas',
+  'mail.otp_unlock.intro':
+    'Sua verificação em duas etapas foi bloqueada após muitas tentativas incorretas. Clique no botão abaixo para desbloquear.',
+  'mail.otp_unlock.cta': 'Desbloquear verificação',
+  'mail.otp_unlock.fallback':
+    'Se você não tentou fazer login, sua conta pode estar em risco — altere sua senha imediatamente.',
+
+  // Tela de desbloqueio OTP (pt-BR).
+  'otp_unlock.page_title': 'Desbloqueio da verificação em duas etapas',
+  'otp_unlock.ok_title': 'Verificação em duas etapas desbloqueada',
+  'otp_unlock.ok_body':
+    'Sua verificação em duas etapas foi desbloqueada. Você pode entrar novamente.',
+  'otp_unlock.login_link': 'Voltar ao login',
+  'otp_unlock.invalid_title': 'Link inválido ou expirado',
+  'otp_unlock.invalid_body':
+    'O link de desbloqueio é inválido ou já foi usado. Tente fazer login novamente para receber um novo link.',
+  'otp_unlock.expired_body':
+    'O link de desbloqueio expirou. Tente fazer login novamente para receber um novo link.',
+
+  // Admin settings — otp_lockout card (pt-BR).
+  'admin.settings.otp_lockout_section': 'Bloqueio do fator OTP',
+  'admin.settings.otp_lockout_intro':
+    'Bloqueia o fator TOTP/recovery (não a conta) após N falhas consecutivas. Envia um link de desbloqueio por e-mail. Requer @adonisjs/limiter. Controlado por accountId.',
+  'admin.settings.otp_lockout_from_config': 'Fonte: padrão',
+  'admin.settings.otp_lockout_from_setting': 'Fonte: setting em runtime',
+  'admin.settings.otp_lockout_max_attempts_label': 'Máximo de tentativas antes do bloqueio',
+  'admin.settings.otp_lockout_unlock_ttl_label': 'Validade do link de desbloqueio (horas)',
+
   // Admin settings — email_change card.
   'admin.settings.email_change_section': 'Troca de e-mail',
   'admin.settings.email_change_intro':
@@ -1596,6 +1705,7 @@ export const PT_BR_MESSAGES = {
   'admin.settings.password_policy_require_numbers_label': 'Exigir número',
   'admin.settings.password_policy_require_symbols_label': 'Exigir símbolo',
   'admin.settings.password_policy_check_pwned_label': 'Verificar contra HaveIBeenPwned (k-anonymity, fail-safe)',
+  'admin.settings.password_policy_block_common_label': 'Bloquear senhas comuns (lista offline com ~10 000 senhas mais usadas, sem distinção de maiúsculas/minúsculas)',
 
   // Admin settings — notifications.
   'admin.settings.notifications_section': 'Notificações de login',

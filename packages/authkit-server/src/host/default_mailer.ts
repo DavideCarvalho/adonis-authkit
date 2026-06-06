@@ -470,6 +470,43 @@ export async function sendSecurityNoticeEmail(
 }
 
 /**
+ * Envia o e-mail de desbloqueio do fator OTP (quando TOTP/recovery excede maxAttempts).
+ * Best-effort: no fallback (sem mail) loga o link; nunca lança.
+ */
+export async function sendOtpUnlockEmail(
+  ctx: HttpContext,
+  data: { email: string; unlockUrl: string }
+): Promise<void> {
+  try {
+    const brand = resolveBrand(ctx)
+    const { messages: t, locale } = resolveMailMessages(ctx)
+    const content = renderTransactionalEmail({
+      brand,
+      locale,
+      linkFallback: translate(t, 'mail.common.link_fallback'),
+      subject: translate(t, 'mail.otp_unlock.subject'),
+      heading: translate(t, 'mail.otp_unlock.heading'),
+      intro: translate(t, 'mail.otp_unlock.intro'),
+      ctaLabel: translate(t, 'mail.otp_unlock.cta'),
+      ctaUrl: data.unlockUrl,
+      footnote: translate(t, 'mail.otp_unlock.fallback'),
+    })
+    const sent = await sendEmail(ctx, data.email, content)
+    if (!sent) {
+      ctx.logger.info(
+        { unlockUrl: data.unlockUrl, email: data.email },
+        'authkit: link de desbloqueio OTP (dev — @adonisjs/mail ausente)'
+      )
+    }
+  } catch (error) {
+    ctx.logger.error(
+      { err: error, email: data.email },
+      'authkit: falha ao enviar e-mail de desbloqueio OTP'
+    )
+  }
+}
+
+/**
  * Envia o e-mail de verificação pelo mailer default do host.
  * Best-effort: no fallback (sem mail) loga o link; nunca lança.
  */

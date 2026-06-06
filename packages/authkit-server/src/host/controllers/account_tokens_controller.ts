@@ -2,6 +2,7 @@ import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { PatRecord } from '../../pat/pat_store.js'
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
+import { requireSudo, getRuntimeSettingsForSudo } from '../sudo_mode.js'
 
 export default class AccountTokensController {
   async index(ctx: HttpContext) {
@@ -31,6 +32,12 @@ export default class AccountTokensController {
     const cfg = service.config
 
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
+
+    // Sudo mode gate.
+    const sudoSettingsPat = await getRuntimeSettingsForSudo(ctx)
+    const sudoResultPat = await requireSudo(ctx, sudoSettingsPat)
+    if (sudoResultPat !== true) return sudoResultPat
+
     const { name } = ctx.request.only(['name'])
     const { token, pat } = await cfg.patStore!.issue({ accountId: userId, name: name || 'Token' })
     ctx.session.flash('createdToken', token)
@@ -48,6 +55,12 @@ export default class AccountTokensController {
     const cfg = service.config
 
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
+
+    // Sudo mode gate.
+    const sudoSettingsPatRev = await getRuntimeSettingsForSudo(ctx)
+    const sudoResultPatRev = await requireSudo(ctx, sudoSettingsPatRev)
+    if (sudoResultPatRev !== true) return sudoResultPatRev
+
     const patId = ctx.request.param('id')
     const revoked = await cfg.patStore!.revoke(userId, patId)
     if (revoked) {

@@ -32,6 +32,7 @@ import {
   resolveEffectivePasswordHistory,
 } from '../runtime_toggles.js'
 import { dispatchSecurityNotice } from '../security_notice_service.js'
+import { requireSudo, getRuntimeSettingsForSudo } from '../sudo_mode.js'
 
 /** Helper: resolve a conexão do accountStore a partir do contexto (fail-safe). */
 async function resolveConnectionName(ctx: HttpContext): Promise<string | undefined> {
@@ -174,6 +175,11 @@ export default class AccountSecurityController {
       return ctx.response.redirect('/account/security')
     }
 
+    // Sudo mode gate (defesa em profundidade — confirmação inline continua abaixo).
+    const sudoSettingsDel = await getRuntimeSettingsForSudo(ctx)
+    const sudoResultDel = await requireSudo(ctx, sudoSettingsDel)
+    if (sudoResultDel !== true) return sudoResultDel
+
     const account = await store.findById(userId)
     if (!account) {
       return ctx.response.redirect('/account/login')
@@ -304,6 +310,11 @@ export default class AccountSecurityController {
       return ctx.response.redirect('/account/security')
     }
 
+    // Sudo mode gate (defesa em profundidade — a verificação de senha ATUAL continua abaixo).
+    const sudoSettings = await getRuntimeSettingsForSudo(ctx)
+    const sudoResult = await requireSudo(ctx, sudoSettings)
+    if (sudoResult !== true) return sudoResult
+
     const { currentPassword, newPassword } = await ctx.request.validateUsing(changePasswordValidator)
     const account = await store.findById(userId)
     // Confirma a senha ATUAL pelo e-mail da conta.
@@ -380,6 +391,11 @@ export default class AccountSecurityController {
     if (!supportsAccountSecurity(store)) {
       return ctx.response.redirect('/account/security')
     }
+
+    // Sudo mode gate.
+    const sudoSettingsEmail = await getRuntimeSettingsForSudo(ctx)
+    const sudoResultEmail = await requireSudo(ctx, sudoSettingsEmail)
+    if (sudoResultEmail !== true) return sudoResultEmail
 
     // Resolve os settings de troca de e-mail em runtime.
     const emailChangeSettings = await resolveEmailChangeSettings(ctx)

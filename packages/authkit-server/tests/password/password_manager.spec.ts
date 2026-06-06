@@ -128,7 +128,8 @@ test.group('PasswordManager.assertAcceptable', () => {
     })
     const pm = new PasswordManager({}, { fetchImpl })
     try {
-      await pm.assertAcceptable('password123', { checkPwned: true })
+      // blockCommon: false para testar somente o caminho HIBP (password123 é senha comum)
+      await pm.assertAcceptable('password123', { checkPwned: true, blockCommon: false })
       assert.fail('deveria ter lançado')
     } catch (error) {
       assert.instanceOf(error, PasswordPolicyError)

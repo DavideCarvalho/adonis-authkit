@@ -215,6 +215,7 @@ const C = {
   accountApps: () => import('./controllers/account_apps_controller.js'),
   accountMfa: () => import('./controllers/account_mfa_controller.js'),
   accountOrgs: () => import('./controllers/account_orgs_controller.js'),
+  accountConfirm: () => import('./controllers/account_confirm_controller.js'),
   adminDashboard: () => import('./controllers/admin/admin_dashboard_controller.js'),
   adminUsers: () => import('./controllers/admin/admin_users_controller.js'),
   adminRoles: () => import('./controllers/admin/admin_roles_controller.js'),
@@ -266,6 +267,8 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
   router.get('/auth/interaction/:uid/magic', [C.interaction, 'magicLinkConsume'])
   router.post('/auth/interaction/:uid/consent', [C.interaction, 'consent'])
   router.get('/auth/interaction/:uid/switch', [C.interaction, 'switchIdentifier'])
+  // OTP unlock: link enviado por e-mail quando o fator TOTP/recovery é travado.
+  router.get('/auth/otp-unlock/:token', [C.interaction, 'otpUnlock'])
   router.get('/auth/interaction/:uid/signup', [C.registration, 'showSignup'])
   withLogin(router.post('/auth/interaction/:uid/signup', [C.registration, 'signup']))
 
@@ -337,6 +340,12 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
       router.post('/account/mfa/passkeys/options', [C.accountMfa, 'passkeyRegisterOptions'])
       router.post('/account/mfa/passkeys/verify', [C.accountMfa, 'passkeyRegisterVerify'])
       router.post('/account/mfa/passkeys/:id/remove', [C.accountMfa, 'passkeyRemove'])
+
+      // Sudo mode (confirm identity): GET exibe o formulário; POST verifica a senha.
+      router.get('/account/confirm', [C.accountConfirm, 'show'])
+      router.post('/account/confirm', [C.accountConfirm, 'confirm'])
+      router.post('/account/confirm/passkey/options', [C.accountConfirm, 'passkeyOptions'])
+      router.post('/account/confirm/passkey', [C.accountConfirm, 'passkeyConfirm'])
 
       // Organizations (multi-tenancy) — sempre montadas; controller retorna 404/403 sem tabelas.
       router.get('/account/orgs', [C.accountOrgs, 'index'])
@@ -437,6 +446,10 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
         router.post(`${ap}/settings/admin-impersonation/reset`, [C.adminSettings, 'resetAdminImpersonation'])
         router.post(`${ap}/settings/organizations-policy`, [C.adminSettings, 'updateOrganizationsPolicy'])
         router.post(`${ap}/settings/organizations-policy/reset`, [C.adminSettings, 'resetOrganizationsPolicy'])
+        router.post(`${ap}/settings/otp-lockout`, [C.adminSettings, 'updateOtpLockout'])
+        router.post(`${ap}/settings/otp-lockout/reset`, [C.adminSettings, 'resetOtpLockout'])
+        router.post(`${ap}/settings/sudo-mode`, [C.adminSettings, 'updateSudoMode'])
+        router.post(`${ap}/settings/sudo-mode/reset`, [C.adminSettings, 'resetSudoMode'])
       })
       .use([adminGuard])
   }

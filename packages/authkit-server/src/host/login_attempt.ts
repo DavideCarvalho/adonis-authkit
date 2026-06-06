@@ -1,9 +1,17 @@
 import type { AuthAccount } from '../accounts/account_store.js'
-import { supportsAccountStatus, supportsEmailVerificationStatus } from '../accounts/account_store.js'
+import {
+  supportsAccountStatus,
+  supportsEmailVerificationStatus,
+  supportsPasswordExpiration,
+} from '../accounts/account_store.js'
 import type { ResolvedServerConfig } from '../define_config.js'
 import { createAccountLockout } from './account_lockout.js'
 import type { SettingsCapability } from './runtime_settings.js'
-import { resolveEffectiveRequireVerifiedEmail } from './runtime_toggles.js'
+import {
+  resolveEffectiveRequireVerifiedEmail,
+  resolveEffectiveRequireVerifiedEmailFull,
+  resolveEffectivePasswordExpiration,
+} from './runtime_toggles.js'
 
 /**
  * `requireVerifiedEmail` efetivo (config ou runtime setting) E o store sabe dizer
@@ -11,6 +19,9 @@ import { resolveEffectiveRequireVerifiedEmail } from './runtime_toggles.js'
  * Capability-probed: sem {@link EmailVerificationStatusCapability} a checagem é
  * no-op (não bloqueia). Compartilhado pelos três fluxos de login (senha, magic
  * link, passkey-first).
+ *
+ * Suporta `graceDays`: se a conta foi criada há menos de `graceDays` dias e ainda
+ * não verificou o e-mail, o login é permitido (mas a UI mostra um banner avisando).
  *
  * @param settings - SettingsCapability para ler o runtime setting. Quando
  *   ausente (chamadores que ainda não injetam o settings), faz fallback ao config.
@@ -27,7 +38,65 @@ export async function isEmailUnverifiedBlock(
 
   if (!requireVerified) return false
   if (!supportsEmailVerificationStatus(cfg.accountStore)) return false
-  return !(await cfg.accountStore.isEmailVerified(accountId))
+  const verified = await cfg.accountStore.isEmailVerified(accountId)
+  if (verified) return false
+
+  // Grace period: se a setting tem graceDays e a conta foi criada recentemente,
+  // permite o login.
+  if (settings) {
+    const full = await resolveEffectiveRequireVerifiedEmailFull(
+      cfg.login?.requireVerifiedEmail ?? false,
+      settings
+    )
+    if (full.graceDays > 0) {
+      // Busca a conta para checar created_at (se o store suportar).
+      const account = await cfg.accountStore.findById(accountId)
+      if (account) {
+        // Tenta ler `created_at` via duck-typing (não é parte do contrato AccountStore).
+        const raw = account as any
+        const createdAt: Date | null = raw.createdAt instanceof Date
+          ? raw.createdAt
+          : typeof raw.createdAt === 'string'
+            ? new Date(raw.createdAt)
+            : null
+        if (createdAt) {
+          const graceCutoff = new Date(createdAt.getTime() + full.graceDays * 24 * 60 * 60 * 1000)
+          if (new Date() <= graceCutoff) {
+            return false // dentro da janela de graça → não bloqueia
+          }
+        }
+      }
+    }
+  }
+
+  return true
+}
+
+/**
+ * Verifica se a senha da conta está vencida (password expiration).
+ * Capability-probed: sem `getPasswordChangedAt` → retorna false.
+ * Quando `password_expiration.enabled` é false ou a coluna não existe → false.
+ *
+ * @returns true se a senha expirou e deve ser trocada antes de completar o login.
+ */
+export async function isPasswordExpired(
+  cfg: ResolvedServerConfig,
+  accountId: string,
+  settings: SettingsCapability
+): Promise<boolean> {
+  const expiration = await resolveEffectivePasswordExpiration(settings)
+  if (!expiration.enabled) return false
+  if (!supportsPasswordExpiration(cfg.accountStore)) return false
+
+  const changedAt = await cfg.accountStore.getPasswordChangedAt!(accountId)
+  if (!changedAt) {
+    // Senha nunca trocada (coluna NULL = conta legacy) → considera vencida quando
+    // expiration está ligada (seguro: força a troca na 1ª vez).
+    return true
+  }
+
+  const maxAgeMs = expiration.maxAgeDays * 24 * 60 * 60 * 1000
+  return Date.now() - changedAt.getTime() > maxAgeMs
 }
 
 /** Entrada de uma tentativa de login por senha (keyed por email). */
@@ -51,7 +120,7 @@ export interface PasswordLoginInput {
 /** Resultado de {@link attemptPasswordLogin}. */
 export type PasswordLoginResult =
   | { ok: true; account: AuthAccount }
-  | { ok: false; locked: boolean; retryAfterSec?: number; disabled?: boolean; unverified?: boolean }
+  | { ok: false; locked: boolean; retryAfterSec?: number; disabled?: boolean; unverified?: boolean; unverifiedGraceDays?: number; passwordExpired?: boolean; account?: AuthAccount }
 
 /**
  * Sequência canônica de login por senha + bloqueio progressivo, compartilhada
@@ -117,6 +186,23 @@ export async function attemptPasswordLogin(
         : { type: 'login.failure', email, ip, metadata: { reason: 'unverified' } }
     )
     return { ok: false, locked: false, unverified: true }
+  }
+
+  // Senha expirada (password expiration): se a senha está vencida, sinaliza ao
+  // controller para forçar a troca ANTES de completar o login.
+  // Capability-probed: sem `getPasswordChangedAt` ou sem a setting → no-op.
+  if (input.settings) {
+    const expired = await isPasswordExpired(cfg, account.id, input.settings)
+    if (expired) {
+      // Não é uma falha de credenciais — limpa o contador.
+      await lockout.clearFailures(email)
+      await cfg.audit?.record(
+        input.clientId !== undefined
+          ? { type: 'password.expired_change_forced', accountId: account.id, email, ip, clientId: input.clientId }
+          : { type: 'password.expired_change_forced', accountId: account.id, email, ip }
+      )
+      return { ok: false, locked: false, passwordExpired: true, account: account as any }
+    }
   }
 
   // Senha correta: limpa o contador de falhas (o lockout protege a etapa de senha).

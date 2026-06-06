@@ -182,6 +182,8 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
   router.post('/auth/interaction/:uid/identifier', [C.interaction, 'identifier'])
   withLogin(router.post('/auth/interaction/:uid/login', [C.interaction, 'login']))
   withLogin(router.post('/auth/interaction/:uid/mfa', [C.interaction, 'mfaVerify']))
+  // Troca de senha obrigatória quando a senha expirou (password expiration gate).
+  withLogin(router.post('/auth/interaction/:uid/password-expired', [C.interaction, 'changeExpiredPassword']))
   // Passkey como 2º fator alternativo no login (begin/finish; challenge na sessão).
   router.post('/auth/interaction/:uid/passkey/options', [C.interaction, 'passkeyOptions'])
   withLogin(router.post('/auth/interaction/:uid/passkey/verify', [C.interaction, 'passkeyVerify']))
@@ -334,6 +336,10 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
         router.post(`${ap}/settings/email-change/reset`, [C.adminSettings, 'resetEmailChange'])
         router.post(`${ap}/settings/security-notifications`, [C.adminSettings, 'updateSecurityNotifications'])
         router.post(`${ap}/settings/security-notifications/reset`, [C.adminSettings, 'resetSecurityNotifications'])
+        router.post(`${ap}/settings/password-history`, [C.adminSettings, 'updatePasswordHistory'])
+        router.post(`${ap}/settings/password-history/reset`, [C.adminSettings, 'resetPasswordHistory'])
+        router.post(`${ap}/settings/password-expiration`, [C.adminSettings, 'updatePasswordExpiration'])
+        router.post(`${ap}/settings/password-expiration/reset`, [C.adminSettings, 'resetPasswordExpiration'])
       })
       .use([adminGuard])
   }

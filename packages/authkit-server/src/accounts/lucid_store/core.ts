@@ -8,6 +8,7 @@ import type {
   MagicLinkCapability,
 } from '../account_store.js'
 import type { LucidStoreContext } from './shared.js'
+import { hasColumn } from './status_profile.js'
 
 /** Prefixo do token de troca de e-mail (reaproveita a coluna emailVerificationToken). */
 const EMAIL_CHANGE_PREFIX = 'ec:'
@@ -64,12 +65,17 @@ export function buildCore(
       // Aplica a política de senha (comprimento/complexidade + vazamento) à senha
       // nova. Lança PasswordPolicyError quando viola — o controller traduz a chave.
       await ctx.passwords.assertAcceptable(input.password)
+      // Aplica o pepper antes do hash (o @beforeSave do mixin hasheia o que receber).
+      const pepperedPassword = ctx.passwords.applyCurrentPepper(input.password)
+      const now = DateTime.now()
       const row = await Model.create({
         email: input.email,
-        password: input.password,
+        password: pepperedPassword,
         fullName: input.fullName ?? null,
         globalRoles: input.globalRoles ?? [],
-        emailVerifiedAt: input.emailVerified ? DateTime.now() : null,
+        emailVerifiedAt: input.emailVerified ? now : null,
+        // Registra quando a senha foi definida (se a coluna existe).
+        ...(hasColumn(Model, 'passwordChangedAt') ? { passwordChangedAt: now } : {}),
       })
       return toAccount(row)
     },
@@ -117,9 +123,14 @@ export function buildCore(
       if (!row.passwordResetExpiresAt || row.passwordResetExpiresAt < DateTime.now()) return false
       // Política de senha aplicada também no reset (lança PasswordPolicyError).
       await ctx.passwords.assertAcceptable(newPassword)
-      row.password = newPassword
+      // Aplica o pepper antes do hash.
+      row.password = ctx.passwords.applyCurrentPepper(newPassword)
       row.passwordResetToken = null
       row.passwordResetExpiresAt = null
+      // Atualiza o timestamp da última troca (se a coluna existe).
+      if (hasColumn(Model, 'passwordChangedAt')) {
+        row.passwordChangedAt = DateTime.now()
+      }
       await row.save()
       return true
     },
@@ -215,7 +226,13 @@ export function buildCore(
       // Política de senha aplicada na troca (lança PasswordPolicyError).
       await ctx.passwords.assertAcceptable(newPassword)
       // O hash acontece no @beforeSave do mixin withAuthUser ao detectar $dirty.password.
-      row.password = newPassword
+      // Aplica o pepper antes do hash.
+      const pepperedNew = ctx.passwords.applyCurrentPepper(newPassword)
+      row.password = pepperedNew
+      // Atualiza o timestamp da última troca (se a coluna existe).
+      if (hasColumn(Model, 'passwordChangedAt')) {
+        row.passwordChangedAt = DateTime.now()
+      }
       await row.save()
       return true
     },

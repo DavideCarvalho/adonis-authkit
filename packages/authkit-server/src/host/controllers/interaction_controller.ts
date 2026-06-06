@@ -229,6 +229,23 @@ export default class AuthInteractionController {
     const result = await attemptPasswordLogin(cfg, { email, password, ip, clientId, settings: runtimeSettings })
 
     if (!result.ok) {
+      // Senha expirada: redireciona para o step de troca obrigatória.
+      if (result.passwordExpired && (result as any).account) {
+        const expiredAcc = (result as any).account
+        const PASSWORD_EXPIRED_KEY = 'authkit_password_expired'
+        ctx.session.put(PASSWORD_EXPIRED_KEY, expiredAcc.id)
+        return render(ctx, 'login', {
+          uid: ctx.request.param('uid'),
+          csrfToken: ctx.request.csrfToken,
+          step: 'password_expired',
+          email,
+          account: { fullName: expiredAcc.name ?? null, globalRoles: expiredAcc.globalRoles ?? [] },
+          error: null,
+          brand,
+          botProtection: undefined,
+        })
+      }
+
       const found = await cfg.accountStore.findByEmail(email)
       const account = found
         ? { fullName: found.name ?? null, globalRoles: found.globalRoles ?? [] }
@@ -734,6 +751,114 @@ export default class AuthInteractionController {
   async switchIdentifier(ctx: HttpContext) {
     ctx.session.forget(SESSION_KEY)
     return ctx.response.redirect(`/auth/interaction/${ctx.request.param('uid')}`)
+  }
+
+  /**
+   * POST /auth/interaction/:uid/password-expired
+   *
+   * Step de troca obrigatória quando a senha expirou. A senha VELHA já foi
+   * verificada em `login` — aqui a conta está no step `password_expired` da
+   * sessão. O usuário informa a nova senha (+ confirmação) e o controller:
+   *   1. Valida política de senha.
+   *   2. Atualiza a senha via `changePassword` (que toca `passwordChangedAt`).
+   *   3. Finaliza a interaction normalmente.
+   *
+   * Capability-probed: sem `changePassword` → redireciona para o login.
+   */
+  async changeExpiredPassword(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const render = cfg.render!
+    const details = await service.interactions.details(ctx)
+    const brand = brandFor(
+      cfg.branding!,
+      details.params.client_id as string | undefined,
+      details.params.audience as string | undefined
+    )
+
+    const PASSWORD_EXPIRED_KEY = 'authkit_password_expired'
+    const accountId = ctx.session.get(PASSWORD_EXPIRED_KEY) as string | undefined
+    const ip = ctx.request.ip?.() ?? null
+    const clientId = (details.params.client_id as string | undefined) ?? null
+
+    if (!accountId) {
+      return ctx.response.redirect(`/auth/interaction/${ctx.request.param('uid')}`)
+    }
+
+    const { newPassword } = ctx.request.only(['newPassword'])
+
+    if (!newPassword) {
+      return render(ctx, 'login', {
+        uid: ctx.request.param('uid'),
+        csrfToken: ctx.request.csrfToken,
+        step: 'password_expired',
+        email: '',
+        account: null,
+        error: translate(cfg.messages, 'errors.invalid_credentials'),
+        brand,
+        botProtection: undefined,
+      })
+    }
+
+    const { PasswordPolicyError } = await import('../../password/password_manager.js')
+    const { supportsAccountSecurity } = await import('../../accounts/account_store.js')
+
+    if (!supportsAccountSecurity(cfg.accountStore)) {
+      return ctx.response.redirect(`/auth/interaction/${ctx.request.param('uid')}`)
+    }
+
+    try {
+      await cfg.accountStore.changePassword!(accountId, newPassword)
+    } catch (error) {
+      if (error instanceof PasswordPolicyError) {
+        return render(ctx, 'login', {
+          uid: ctx.request.param('uid'),
+          csrfToken: ctx.request.csrfToken,
+          step: 'password_expired',
+          email: '',
+          account: null,
+          error: translate(cfg.messages, error.key, error.params),
+          brand,
+          botProtection: undefined,
+        })
+      }
+      throw error
+    }
+
+    await cfg.audit?.record({
+      type: 'password.changed',
+      accountId,
+      ip,
+      clientId,
+      metadata: { reason: 'expired_forced' },
+    })
+
+    // Senha trocada: limpa o step e finaliza o login.
+    ctx.session.forget(PASSWORD_EXPIRED_KEY)
+
+    // Verifica se precisa de MFA mesmo após a troca.
+    const mfa = (await cfg.accountStore.getMfaState?.(accountId)) ?? { enabled: false }
+    if (mfa.enabled) {
+      ctx.session.put(MFA_PENDING_KEY, accountId)
+      const passkeyAvailable = await this.hasPasskeys(cfg, accountId)
+      return render(ctx, 'mfa-challenge', {
+        uid: ctx.request.param('uid'),
+        csrfToken: ctx.request.csrfToken,
+        brand,
+        passkeyAvailable,
+        trustedDevicesEnabled: cfg.trustedDevices.enabled,
+        trustedDeviceDays: cfg.trustedDevices.days,
+      })
+    }
+
+    await service.interactions.completeLogin(ctx, accountId)
+    const account = await cfg.accountStore.findById(accountId)
+    await notifyLoginSuccess(ctx, cfg, {
+      accountId,
+      email: account?.email ?? '',
+      ip,
+      clientId,
+    })
   }
 
   async consent(ctx: HttpContext) {

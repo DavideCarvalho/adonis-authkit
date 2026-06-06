@@ -63,6 +63,8 @@ export type AuditEventType =
   | 'maintenance.enabled'
   | 'maintenance.disabled'
   | 'trusted_device.revoked'
+  // Password hygiene
+  | 'password.expired_change_forced'
 
 /**
  * Evento de auditoria a registrar. O timestamp é definido pelo sink (não aqui).

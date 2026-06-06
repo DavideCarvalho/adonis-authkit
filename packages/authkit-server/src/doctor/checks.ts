@@ -622,6 +622,104 @@ export function checkSecurityNotifications(input: DoctorInput): Finding | null {
   return null // Silencioso quando tudo está ok (não-obrigatório).
 }
 
+/**
+ * Verifica a capability de histórico de senhas.
+ * - Informa se a tabela `auth_password_history` está presente.
+ * - Avisa quando pepper está configurado como string (não array) — rotation recomendada.
+ */
+export function checkPasswordPepper(input: DoctorInput): Finding | null {
+  const store = input.authkitConfig?.accountStore
+  const pepper = store?.__pepper
+  if (!pepper) return null
+
+  if (typeof pepper === 'string') {
+    return {
+      level: 'ok',
+      message:
+        'password.pepper is configured (HMAC-SHA256 before hashing). ' +
+        'Consider using an array `[newPepper, oldPepper]` for rotation without downtime.',
+    }
+  }
+  if (Array.isArray(pepper)) {
+    return {
+      level: 'ok',
+      message:
+        `password.pepper rotation configured (${pepper.length} pepper(s)). ` +
+        'First pepper is current; subsequent peppers are tried on verify (lazy re-hash).',
+    }
+  }
+  return null
+}
+
+/**
+ * Verifica a capability de histórico de senhas (disallow_password_reuse).
+ * Informa se a tabela `auth_password_history` está presente e a capability está disponível.
+ * Avisa quando a setting está ligada mas a capability não está presente.
+ */
+export function checkPasswordHistory(input: DoctorInput): Finding | null {
+  const cfg = input.authkitConfig
+  if (!cfg) return null
+  const store = cfg.accountStore
+  // Capability presente quando o store tem isPasswordReused.
+  const hasCapability = has(store, 'isPasswordReused')
+
+  // Verifica se a setting está ativa (injetada no input pelo doctor command).
+  const histSetting = (input as any).passwordHistorySetting
+  if (histSetting?.enabled && !hasCapability) {
+    return {
+      level: 'warn',
+      message:
+        'password_history setting is enabled but the accountStore lacks PasswordHistoryCapability — ' +
+        'the `auth_password_history` table may be missing. Create it: ' +
+        '`id UUID/SERIAL PK, account_id TEXT NOT NULL, password_hash TEXT NOT NULL, created_at TIMESTAMP NOT NULL`.',
+    }
+  }
+
+  if (hasCapability) {
+    return {
+      level: 'ok',
+      message: 'password history capability present (auth_password_history table detected).',
+    }
+  }
+  return null // Silencioso quando opt-in não configurado.
+}
+
+/**
+ * Verifica a capability de expiração de senha.
+ * Informa se a coluna `password_changed_at` está presente. Avisa quando a setting
+ * está ligada mas a coluna não existe.
+ */
+export function checkPasswordExpiration(input: DoctorInput): Finding | null {
+  const cfg = input.authkitConfig
+  if (!cfg) return null
+  const store = cfg.accountStore
+  // Capability presente quando o store tem getPasswordChangedAt.
+  const hasCapability = has(store, 'getPasswordChangedAt')
+
+  // Verifica se a setting está ativa (injetada no input pelo doctor command).
+  const expSetting = (input as any).passwordExpirationSetting
+  if (expSetting?.enabled && !hasCapability) {
+    return {
+      level: 'warn',
+      message:
+        'password_expiration setting is enabled but the accountStore lacks PasswordExpirationCapability — ' +
+        'the `password_changed_at` column may be missing from the auth users table. ' +
+        'Add it: `password_changed_at TIMESTAMP NULL`.',
+    }
+  }
+
+  if (hasCapability) {
+    const maxAge = expSetting?.maxAgeDays ?? 90
+    return {
+      level: 'ok',
+      message: expSetting?.enabled
+        ? `password expiration is on (max ${maxAge} days).`
+        : 'password_changed_at column detected — password expiration capability available (currently off in settings).',
+    }
+  }
+  return null // Silencioso quando opt-in não configurado.
+}
+
 /** Roda todos os checks e devolve a lista plana de findings. */
 export function runAllChecks(input: DoctorInput): Finding[] {
   const findings: Finding[] = []
@@ -659,6 +757,12 @@ export function runAllChecks(input: DoctorInput): Finding[] {
   if (emailChange) findings.push(emailChange)
   const securityNotifications = checkSecurityNotifications(input)
   if (securityNotifications) findings.push(securityNotifications)
+  const pepper = checkPasswordPepper(input)
+  if (pepper) findings.push(pepper)
+  const passwordHistory = checkPasswordHistory(input)
+  if (passwordHistory) findings.push(passwordHistory)
+  const passwordExpiration = checkPasswordExpiration(input)
+  if (passwordExpiration) findings.push(passwordExpiration)
   return findings
 }
 

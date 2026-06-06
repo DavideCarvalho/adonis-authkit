@@ -5,6 +5,7 @@ import {
   supportsAccountSecurity,
   supportsAccountDeletion,
   supportsProfile,
+  supportsPasswordHistory,
 } from '../../accounts/account_store.js'
 import {
   changePasswordValidator,
@@ -26,8 +27,25 @@ import { AdminSessionsService } from '../admin_sessions_service.js'
 import { enrichSessionsWithContext } from '../session_context.js'
 import { PasswordPolicyError } from '../../password/password_manager.js'
 import { RuntimeSettings } from '../runtime_settings.js'
-import { resolveEffectiveEmailChange } from '../runtime_toggles.js'
+import {
+  resolveEffectiveEmailChange,
+  resolveEffectivePasswordHistory,
+} from '../runtime_toggles.js'
 import { dispatchSecurityNotice } from '../security_notice_service.js'
+
+/** Resolve os password history settings em runtime (fail-safe). */
+async function resolvePasswordHistorySettings(ctx: HttpContext) {
+  try {
+    const db = await (ctx.containerResolver as any).make('lucid.db')
+    const runtimeSettings = new RuntimeSettings(db)
+    if (await runtimeSettings.isTablePresent()) {
+      return await resolveEffectivePasswordHistory(runtimeSettings)
+    }
+  } catch {
+    // DB não disponível ou tabela ausente → usa defaults.
+  }
+  return { enabled: false, count: 5 }
+}
 
 /** Resolve os settings de troca de e-mail em runtime (fail-safe). */
 async function resolveEmailChangeSettings(ctx: HttpContext) {
@@ -283,6 +301,29 @@ export default class AccountSecurityController {
     if (!verified) {
       ctx.session.flash('securityError', translate(cfg.messages, 'errors.invalid_credentials'))
       return ctx.response.redirect('/account/security')
+    }
+
+    // Verificação de histórico de senhas (disallow_password_reuse).
+    // Capability-probed: sem `isPasswordReused` ou com setting desligada → no-op.
+    if (supportsPasswordHistory(store)) {
+      const histSettings = await resolvePasswordHistorySettings(ctx)
+      if (histSettings.enabled) {
+        // Aplica o pepper à senha candidata antes de comparar com os hashes históricos
+        // (que foram gravados já com pepper). Pepper ausente → identidade.
+        const pepperedNew = (cfg.accountStore as any).__passwordManager?.applyCurrentPepper?.(newPassword) ?? newPassword
+        const reused = await store.isPasswordReused!(userId, pepperedNew, histSettings.count)
+        if (reused) {
+          ctx.session.flash('securityError', translate(cfg.messages, 'password.reused', { count: histSettings.count }))
+          return ctx.response.redirect('/account/security')
+        }
+        // Grava o hash ATUAL no histórico antes de trocar.
+        // O hash atual está na linha do DB — buscamos via store.findById + raw model.
+        const rawRow = await (cfg.accountStore as any).__getRawRow?.(userId)
+        if (rawRow?.password) {
+          await store.recordPasswordHistory!(userId, rawRow.password)
+          await store.prunePasswordHistory!(userId, histSettings.count)
+        }
+      }
     }
 
     try {

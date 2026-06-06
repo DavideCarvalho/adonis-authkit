@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto'
 import {
   checkPasswordPolicy,
   policyViolationParams,
@@ -47,17 +48,76 @@ export interface PasswordConfigInput {
    * defaults; um objeto ajusta o `timeoutMs`. Fail-safe (erro/timeout permite).
    */
   checkPwned?: CheckPwnedInput
+  /**
+   * Pepper de infra (segredo de boot). HMAC-SHA256 da senha ANTES do hasher
+   * seguindo OWASP (defense-in-depth: DB comprometido sem o pepper = hashes
+   * inúteis).
+   *
+   * - `string`  → pepper corrente.
+   * - `string[]` → rotação: o PRIMEIRO é o corrente (hash); TODOS são tentados
+   *   no verify. Se confere com um pepper antigo → lazy re-hash com o corrente.
+   * - Ausente → comportamento original (sem HMAC, back-compat total).
+   *
+   * IMPORTANTE: Contas existentes podem ter hash SEM pepper — o verify tenta
+   * com cada pepper E sem pepper (legacy); em sucesso re-hasheia com o corrente.
+   *
+   * @example
+   * // config/authkit.ts
+   * password: { pepper: env.get('PASSWORD_PEPPER') }
+   *
+   * @example
+   * // Rotação: novo pepper primeiro, antigos no array.
+   * password: { pepper: [env.get('PEPPER_V2'), env.get('PEPPER_V1')] }
+   */
+  pepper?: string | string[]
 }
 
 /** Erro de política/vazamento de senha — carrega a chave i18n + params. */
 export class PasswordPolicyError extends Error {
   constructor(
-    readonly key: PasswordPolicyViolation | 'password.pwned',
+    readonly key: PasswordPolicyViolation | 'password.pwned' | 'password.reused',
     readonly params?: Record<string, string | number>
   ) {
     super(key)
     this.name = 'PasswordPolicyError'
   }
+}
+
+// ---------------------------------------------------------------------------
+// Pepper helpers (OWASP pattern: HMAC-SHA256 before hashing)
+// ---------------------------------------------------------------------------
+
+/**
+ * Aplica o pepper à senha em claro via HMAC-SHA256, retornando um hex-digest
+ * que será entregue ao hasher como se fosse a senha. Sem pepper → retorna a
+ * senha inalterada (back-compat total).
+ */
+export function applyPepper(plain: string, pepper: string): string {
+  return createHmac('sha256', pepper).update(plain).digest('hex')
+}
+
+/**
+ * Resolve o array de peppers a tentar no verify, incluindo o sentinel "sem
+ * pepper" (cadeia vazia) para back-compat com hashes antigos sem pepper.
+ *
+ * @returns [corrente, ...antigos, ''] — string vazia = tentar sem HMAC (legacy).
+ */
+export function resolvePeppers(pepper: string | string[] | undefined): string[] {
+  if (!pepper) return ['']
+  const arr = Array.isArray(pepper) ? pepper : [pepper]
+  // Inclui string vazia no final para tentar sem pepper (legacy back-compat).
+  return [...arr, '']
+}
+
+/**
+ * Aplica o pepper corrente à senha em claro. O pepper corrente é SEMPRE o
+ * primeiro do array (ou a string direta). Sem pepper → retorna a senha.
+ */
+export function applyCurrentPepper(plain: string, pepper: string | string[] | undefined): string {
+  if (!pepper) return plain
+  const current = Array.isArray(pepper) ? pepper[0] : pepper
+  if (!current) return plain
+  return applyPepper(plain, current)
 }
 
 /**
@@ -82,6 +142,8 @@ export class PasswordManager {
   private readonly legacyVerifier?: LegacyPasswordVerifier
   private readonly logger?: PwnedLogger
   private readonly fetchImpl?: FetchLike
+  /** Pepper configurado (secret de boot). Pode ser string ou array para rotação. */
+  readonly pepper: string | string[] | undefined
 
   constructor(
     input: PasswordConfigInput = {},
@@ -91,11 +153,20 @@ export class PasswordManager {
     this.legacyVerifier = input.legacyVerifier
     this.logger = deps.logger
     this.fetchImpl = deps.fetchImpl
+    this.pepper = input.pepper
   }
 
   /** Há um verificador de hash legado configurado? */
   hasLegacyVerifier(): boolean {
     return typeof this.legacyVerifier === 'function'
+  }
+
+  /**
+   * Aplica o pepper corrente à senha em claro antes do hash. Sem pepper →
+   * retorna a senha inalterada (back-compat total).
+   */
+  applyCurrentPepper(plain: string): string {
+    return applyCurrentPepper(plain, this.pepper)
   }
 
   /**
@@ -118,13 +189,18 @@ export class PasswordManager {
   }
 
   /**
-   * Verifica `plainPassword` contra o `hashedPassword` armazenado.
+   * Verifica `plainPassword` contra o `hashedPassword` armazenado, com suporte
+   * a pepper.
    *
    * Sequência:
-   *  1. `nativeVerify(hashed, plain)` (hasher atual do model). Se OK → checa
-   *     `needsRehash` (parâmetros desatualizados) e devolve `{ ok: true, rehash }`.
-   *  2. Se a verificação nativa falha, tenta o `legacyVerifier` (quando há um).
-   *     `true` → `{ ok: true, rehash: true }` (re-hasheia com o hasher atual);
+   *  1. Para cada pepper possível (corrente + antigos + sem pepper para legacy):
+   *     a. `nativeVerify(hashed, peppered(plain))`. Se OK → checa `needsRehash`
+   *        e devolve `{ ok: true, rehash }`. rehash=true quando pepper não é o
+   *        corrente (re-hash com o corrente transparente).
+   *  2. Se nenhum pepper funcionou com native, tenta o `legacyVerifier` com
+   *     `applyCurrentPepper(plain)` (e também sem pepper, para import de sistemas
+   *     legados antes de pepperar).
+   *     `true` → `{ ok: true, rehash: true }`;
    *     `false`/`null` → `{ ok: false, rehash: false }`.
    *
    * `nativeVerify`/`needsRehash` são injetados pelo store (vêm do model Lucid),
@@ -138,31 +214,50 @@ export class PasswordManager {
       needsRehash: (hashed: string) => boolean
     }
   ): Promise<PasswordVerifyResult> {
-    let nativeOk = false
-    try {
-      nativeOk = await hooks.nativeVerify(hashedPassword, plainPassword)
-    } catch {
-      // verify nunca deve derrubar o login: trata como falha e segue para legacy.
-      nativeOk = false
-    }
-    if (nativeOk) {
-      let rehash = false
+    const peppers = resolvePeppers(this.pepper)
+    const currentPepper = Array.isArray(this.pepper) ? this.pepper[0] : (this.pepper ?? '')
+
+    for (let i = 0; i < peppers.length; i++) {
+      const p = peppers[i]
+      const peppered = p ? applyPepper(plainPassword, p) : plainPassword
+      let nativeOk = false
       try {
-        rehash = hooks.needsRehash(hashedPassword)
+        nativeOk = await hooks.nativeVerify(hashedPassword, peppered)
       } catch {
-        rehash = false
+        nativeOk = false
       }
-      return { ok: true, rehash }
+      if (nativeOk) {
+        // Se este não é o pepper corrente → re-hash obrigatório com o corrente.
+        const isCurrentPepper = (p === currentPepper) || (!p && !this.pepper)
+        let rehash = isCurrentPepper ? false : true
+        if (!rehash) {
+          try {
+            rehash = hooks.needsRehash(hashedPassword)
+          } catch {
+            rehash = false
+          }
+        }
+        return { ok: true, rehash }
+      }
     }
 
+    // Nenhum pepper funcionou com nativeVerify → tenta legacyVerifier.
     if (this.legacyVerifier) {
-      let legacy: boolean | null = null
-      try {
-        legacy = await this.legacyVerifier(hashedPassword, plainPassword)
-      } catch {
-        legacy = null
+      // Tenta com o pepper corrente E sem pepper (para hashes de sistemas legados
+      // que ainda não tinham pepper).
+      const tryCandidates = this.pepper
+        ? [applyCurrentPepper(plainPassword, this.pepper), plainPassword]
+        : [plainPassword]
+
+      for (const candidate of tryCandidates) {
+        let legacy: boolean | null = null
+        try {
+          legacy = await this.legacyVerifier(hashedPassword, candidate)
+        } catch {
+          legacy = null
+        }
+        if (legacy === true) return { ok: true, rehash: true }
       }
-      if (legacy === true) return { ok: true, rehash: true }
     }
 
     return { ok: false, rehash: false }

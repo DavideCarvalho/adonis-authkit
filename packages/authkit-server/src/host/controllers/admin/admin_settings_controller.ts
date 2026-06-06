@@ -9,13 +9,21 @@ import {
   resolveEffectiveAuthMethods,
   resolveEffectiveEmailChange,
   resolveEffectiveSecurityNotifications,
+  resolveEffectivePasswordHistory,
+  resolveEffectivePasswordExpiration,
   ALL_SECURITY_NOTIFICATION_KINDS,
   type AuthMethodsSetting,
   type EmailChangeSetting,
   type SecurityNotificationsSetting,
+  type PasswordHistorySetting,
+  type PasswordExpirationSetting,
 } from '../../runtime_toggles.js'
 import { getAdminPrefix } from '../../admin_prefix.js'
-import { supportsMagicLink } from '../../../accounts/account_store.js'
+import {
+  supportsMagicLink,
+  supportsPasswordHistory,
+  supportsPasswordExpiration,
+} from '../../../accounts/account_store.js'
 
 /** Best-effort: returns RuntimeSettings from container DB, or null if unavailable. */
 async function getRuntimeSettings(ctx: HttpContext): Promise<RuntimeSettings | null> {
@@ -147,6 +155,32 @@ export default class AdminSettingsController {
       ? await resolveEffectiveSecurityNotifications(runtimeSettings)
       : { enabled: true, kinds: [...ALL_SECURITY_NOTIFICATION_KINDS] }
 
+    // ---- password_history ----
+    let currentPasswordHistorySetting: PasswordHistorySetting | null = null
+    if (runtimeSettings && hasTable) {
+      const raw = await runtimeSettings.getSetting('password_history')
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        currentPasswordHistorySetting = raw as PasswordHistorySetting
+      }
+    }
+    const passwordHistoryEffective = runtimeSettings
+      ? await resolveEffectivePasswordHistory(runtimeSettings)
+      : { enabled: false, count: 5 }
+    const passwordHistoryCapable = supportsPasswordHistory(cfg.accountStore)
+
+    // ---- password_expiration ----
+    let currentPasswordExpirationSetting: PasswordExpirationSetting | null = null
+    if (runtimeSettings && hasTable) {
+      const raw = await runtimeSettings.getSetting('password_expiration')
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        currentPasswordExpirationSetting = raw as PasswordExpirationSetting
+      }
+    }
+    const passwordExpirationEffective = runtimeSettings
+      ? await resolveEffectivePasswordExpiration(runtimeSettings)
+      : { enabled: false, maxAgeDays: 90 }
+    const passwordExpirationCapable = supportsPasswordExpiration(cfg.accountStore)
+
     return render(ctx, 'admin/settings', {
       csrfToken: ctx.request.csrfToken,
       adminBase: getAdminPrefix(),
@@ -182,6 +216,14 @@ export default class AdminSettingsController {
       currentSecurityNotificationsSetting,
       securityNotificationsEffective,
       allSecurityNotificationKinds: ALL_SECURITY_NOTIFICATION_KINDS,
+      // password_history
+      currentPasswordHistorySetting,
+      passwordHistoryEffective,
+      passwordHistoryCapable,
+      // password_expiration
+      currentPasswordExpirationSetting,
+      passwordExpirationEffective,
+      passwordExpirationCapable,
     })
   }
 
@@ -601,6 +643,114 @@ export default class AdminSettingsController {
         actorId: accountId,
         ip: ctx.request.ip?.() ?? null,
         metadata: { key: 'security_notifications', action: 'reset_to_config' },
+      })
+    }
+
+    ctx.session?.flash('flash', t('admin.settings.reset_done'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  // -------------------------------------------------------------------------
+  // Password history
+  // -------------------------------------------------------------------------
+
+  async updatePasswordHistory(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (!runtimeSettings || !(await runtimeSettings.isTablePresent())) {
+      ctx.session?.flash('flash', t('admin.settings.no_settings_table'))
+      return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+    }
+
+    const enabled = ctx.request.input('enabled') === '1' || ctx.request.input('enabled') === 'true'
+    const rawCount = ctx.request.input('count')
+    const count = typeof rawCount === 'string' && rawCount.trim() !== '' ? Math.max(1, parseInt(rawCount, 10) || 5) : 5
+
+    const setting: PasswordHistorySetting = { enabled, count }
+    await runtimeSettings.setSetting('password_history', setting, accountId)
+    await cfg.audit?.record({
+      type: 'settings.updated',
+      actorId: accountId,
+      ip: ctx.request.ip?.() ?? null,
+      metadata: { key: 'password_history', value: setting },
+    })
+
+    ctx.session?.flash('flash', t('admin.settings.saved'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  async resetPasswordHistory(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (runtimeSettings) {
+      await runtimeSettings.deleteSetting('password_history')
+      await cfg.audit?.record({
+        type: 'settings.updated',
+        actorId: accountId,
+        ip: ctx.request.ip?.() ?? null,
+        metadata: { key: 'password_history', action: 'reset_to_config' },
+      })
+    }
+
+    ctx.session?.flash('flash', t('admin.settings.reset_done'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  // -------------------------------------------------------------------------
+  // Password expiration
+  // -------------------------------------------------------------------------
+
+  async updatePasswordExpiration(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (!runtimeSettings || !(await runtimeSettings.isTablePresent())) {
+      ctx.session?.flash('flash', t('admin.settings.no_settings_table'))
+      return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+    }
+
+    const enabled = ctx.request.input('enabled') === '1' || ctx.request.input('enabled') === 'true'
+    const rawDays = ctx.request.input('max_age_days')
+    const maxAgeDays = typeof rawDays === 'string' && rawDays.trim() !== '' ? Math.max(1, parseInt(rawDays, 10) || 90) : 90
+
+    const setting: PasswordExpirationSetting = { enabled, maxAgeDays }
+    await runtimeSettings.setSetting('password_expiration', setting, accountId)
+    await cfg.audit?.record({
+      type: 'settings.updated',
+      actorId: accountId,
+      ip: ctx.request.ip?.() ?? null,
+      metadata: { key: 'password_expiration', value: setting },
+    })
+
+    ctx.session?.flash('flash', t('admin.settings.saved'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  async resetPasswordExpiration(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (runtimeSettings) {
+      await runtimeSettings.deleteSetting('password_expiration')
+      await cfg.audit?.record({
+        type: 'settings.updated',
+        actorId: accountId,
+        ip: ctx.request.ip?.() ?? null,
+        metadata: { key: 'password_expiration', action: 'reset_to_config' },
       })
     }
 

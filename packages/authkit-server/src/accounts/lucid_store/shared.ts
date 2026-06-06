@@ -62,6 +62,12 @@ export interface LucidStoreContext {
    * Ausente → o evento não é emitido (capability-probed).
    */
   audit?: AuditSink
+  /**
+   * Verifica uma senha em claro contra um hash armazenado usando o hasher nativo
+   * do app (Scrypt). Injetado pelo `lucidAccountStore` a partir do modelo. Usado
+   * pela verificação de histórico de senhas.
+   */
+  nativeVerifyHash?: (hash: string, plain: string) => Promise<boolean>
 }
 
 export const sha256 = (value: string): string =>

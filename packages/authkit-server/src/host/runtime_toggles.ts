@@ -30,6 +30,8 @@ export const SETTING_KEYS = {
   AUTH_METHODS: 'auth_methods',
   EMAIL_CHANGE: 'email_change',
   SECURITY_NOTIFICATIONS: 'security_notifications',
+  PASSWORD_HISTORY: 'password_history',
+  PASSWORD_EXPIRATION: 'password_expiration',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]
@@ -83,9 +85,22 @@ export async function resolveEffectiveRegistration(
  *
  * Quando presente, sobrescreve `login.requireVerifiedEmail` do config estático
  * para todos os três fluxos de login (senha, magic link, passkey-first).
+ *
+ * `graceDays` (opcional, default 0): conta NÃO verificada pode logar até
+ * `created_at + graceDays` dias. Após a janela, comporta-se como hoje (bloqueia).
+ * 0 = sem graça (comportamento original).
  */
 export interface RequireVerifiedEmailSetting {
   enabled: boolean
+  /** Dias de graça após o cadastro. Default: 0 (sem graça). */
+  graceDays?: number
+}
+
+/** Resultado resolvido de `require_verified_email`. */
+export interface ResolvedRequireVerifiedEmail {
+  enabled: boolean
+  /** Dias de graça após o cadastro (0 = sem graça). */
+  graceDays: number
 }
 
 /**
@@ -107,6 +122,30 @@ export async function resolveEffectiveRequireVerifiedEmail(
     return configDefault // shape inválida → fallback
   }
   return (raw as RequireVerifiedEmailSetting).enabled
+}
+
+/**
+ * Resolve o valor efetivo COMPLETO de `require_verified_email` incluindo
+ * `graceDays`. Usado pelo gate de login para implementar a janela de graça.
+ *
+ * FAIL-SAFE: qualquer erro → `{ enabled: configDefault, graceDays: 0 }`.
+ */
+export async function resolveEffectiveRequireVerifiedEmailFull(
+  configDefault: boolean = false,
+  settings: SettingsCapability
+): Promise<ResolvedRequireVerifiedEmail> {
+  try {
+    const raw = await settings.getSetting(SETTING_KEYS.REQUIRE_VERIFIED_EMAIL)
+    if (raw === null || raw === undefined) return { enabled: configDefault, graceDays: 0 }
+    if (typeof raw !== 'object' || typeof (raw as any).enabled !== 'boolean') {
+      return { enabled: configDefault, graceDays: 0 }
+    }
+    const s = raw as RequireVerifiedEmailSetting
+    const graceDays = typeof s.graceDays === 'number' && s.graceDays >= 0 ? Math.floor(s.graceDays) : 0
+    return { enabled: s.enabled, graceDays }
+  } catch {
+    return { enabled: configDefault, graceDays: 0 }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -431,6 +470,103 @@ export async function resolveEffectiveSecurityNotifications(
       kinds = [...ALL_SECURITY_NOTIFICATION_KINDS]
     }
     return { enabled, kinds }
+  } catch {
+    return defaults
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 7. password_history setting
+// ---------------------------------------------------------------------------
+
+/**
+ * Shape da setting `password_history` em `auth_settings`.
+ *
+ * Quando `enabled: true` E a tabela `auth_password_history` existe (capability-
+ * probed), a aplicação verifica os últimos `count` hashes ANTES de aceitar uma
+ * nova senha e rejeita reutilização.
+ *
+ * Sem tabela → setting sem efeito; doctor explica o schema necessário.
+ */
+export interface PasswordHistorySetting {
+  enabled?: boolean
+  /** Quantos hashes anteriores verificar. Default: 5. */
+  count?: number
+}
+
+/** Resultado resolvido de `password_history`. */
+export interface ResolvedPasswordHistory {
+  enabled: boolean
+  /** Quantos hashes anteriores verificar (>= 1). */
+  count: number
+}
+
+/**
+ * Resolve as configurações efetivas de histórico de senhas.
+ *
+ * FAIL-SAFE: qualquer erro → `{ enabled: false, count: 5 }`.
+ */
+export async function resolveEffectivePasswordHistory(
+  settings: SettingsCapability
+): Promise<ResolvedPasswordHistory> {
+  const defaults: ResolvedPasswordHistory = { enabled: false, count: 5 }
+  try {
+    const raw = await settings.getSetting(SETTING_KEYS.PASSWORD_HISTORY)
+    if (raw === null || raw === undefined) return defaults
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
+    const s = raw as PasswordHistorySetting
+    return {
+      enabled: typeof s.enabled === 'boolean' ? s.enabled : defaults.enabled,
+      count: typeof s.count === 'number' && s.count >= 1 ? Math.floor(s.count) : defaults.count,
+    }
+  } catch {
+    return defaults
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 8. password_expiration setting
+// ---------------------------------------------------------------------------
+
+/**
+ * Shape da setting `password_expiration` em `auth_settings`.
+ *
+ * Quando `enabled: true` E a coluna `password_changed_at` existe (capability-
+ * probed), força a troca de senha no login após `maxAgeDays` dias sem trocar.
+ *
+ * Sem coluna → setting sem efeito; doctor explica a migração necessária.
+ */
+export interface PasswordExpirationSetting {
+  enabled?: boolean
+  /** Máximo de dias desde a última troca. Default: 90. */
+  maxAgeDays?: number
+}
+
+/** Resultado resolvido de `password_expiration`. */
+export interface ResolvedPasswordExpiration {
+  enabled: boolean
+  /** Máximo de dias desde a última troca (>= 1). */
+  maxAgeDays: number
+}
+
+/**
+ * Resolve as configurações efetivas de expiração de senha.
+ *
+ * FAIL-SAFE: qualquer erro → `{ enabled: false, maxAgeDays: 90 }`.
+ */
+export async function resolveEffectivePasswordExpiration(
+  settings: SettingsCapability
+): Promise<ResolvedPasswordExpiration> {
+  const defaults: ResolvedPasswordExpiration = { enabled: false, maxAgeDays: 90 }
+  try {
+    const raw = await settings.getSetting(SETTING_KEYS.PASSWORD_EXPIRATION)
+    if (raw === null || raw === undefined) return defaults
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
+    const s = raw as PasswordExpirationSetting
+    return {
+      enabled: typeof s.enabled === 'boolean' ? s.enabled : defaults.enabled,
+      maxAgeDays: typeof s.maxAgeDays === 'number' && s.maxAgeDays >= 1 ? Math.floor(s.maxAgeDays) : defaults.maxAgeDays,
+    }
   } catch {
     return defaults
   }

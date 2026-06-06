@@ -316,6 +316,57 @@ export interface AccountDeletionCapability {
   deleteAccount(accountId: string): Promise<boolean>
 }
 
+/**
+ * Histórico de senhas (disallow_password_reuse). CAPACIDADE opcional, presente
+ * quando a tabela `auth_password_history` existe (capability-probed). Grava o
+ * hash ANTERIOR a cada troca e rejeita reutilização dos últimos N hashes.
+ *
+ * Tabela mínima: `id UUID/SERIAL PK, account_id TEXT NOT NULL, password_hash TEXT NOT NULL, created_at TIMESTAMP NOT NULL`.
+ */
+export interface PasswordHistoryCapability {
+  /**
+   * Verifica se a senha em claro já foi usada recentemente (últimos `count` hashes).
+   * Retorna true se é REUTILIZAÇÃO (deve ser rejeitada).
+   *
+   * @param nativeVerify - função de verificação do model (opcional: quando omitida
+   *   ou null, o store usa seu próprio hook interno configurado via `nativeVerifyHash`
+   *   do contexto Lucid). Mantido para extensibilidade.
+   */
+  isPasswordReused(
+    accountId: string,
+    plainPassword: string,
+    count: number,
+    nativeVerify?: ((hashed: string, plain: string) => Promise<boolean>) | null
+  ): Promise<boolean>
+  /**
+   * Grava o hash ATUAL antes de substituí-lo (chamado ANTES de `changePassword`
+   * ou equivalente). Best-effort: falha silenciosa não impede a troca.
+   */
+  recordPasswordHistory(accountId: string, oldHash: string): Promise<void>
+  /**
+   * Remove entradas de histórico além dos últimos `count` por conta. Best-effort.
+   */
+  prunePasswordHistory(accountId: string, count: number): Promise<void>
+}
+
+/**
+ * Expiração de senha. CAPACIDADE opcional, presente quando a coluna
+ * `password_changed_at` existe no model de auth_users (capability-probed).
+ * Atualiza o timestamp em toda troca/criação de senha.
+ */
+export interface PasswordExpirationCapability {
+  /**
+   * Retorna o timestamp da última troca de senha, ou null se nunca foi definida
+   * (conta legacy sem a coluna / coluna NULL).
+   */
+  getPasswordChangedAt(accountId: string): Promise<Date | null>
+  /**
+   * Atualiza a coluna `password_changed_at` para o momento atual. Chamado após
+   * toda troca/criação de senha. Best-effort: falha não impede a operação.
+   */
+  touchPasswordChangedAt(accountId: string): Promise<void>
+}
+
 /** Entrada do import de uma conta (comando `authkit:users:import`). */
 export interface ImportAccountInput {
   email: string
@@ -469,7 +520,9 @@ export type AccountStore = CoreAccountStore &
       EmailVerificationStatusCapability &
       AccountDeletionCapability &
       AccountImportCapability &
-      OrganizationsCapability
+      OrganizationsCapability &
+      PasswordHistoryCapability &
+      PasswordExpirationCapability
   >
 
 /** Type guard: o store implementa a capacidade de MFA / TOTP. */
@@ -534,4 +587,18 @@ export function supportsAccountImport(
   store: AccountStore
 ): store is AccountStore & AccountImportCapability {
   return typeof store.importAccount === 'function'
+}
+
+/** Type guard: o store implementa histórico de senhas (disallow_password_reuse). */
+export function supportsPasswordHistory(
+  store: AccountStore
+): store is AccountStore & PasswordHistoryCapability {
+  return typeof store.isPasswordReused === 'function'
+}
+
+/** Type guard: o store implementa expiração de senha (password_changed_at coluna). */
+export function supportsPasswordExpiration(
+  store: AccountStore
+): store is AccountStore & PasswordExpirationCapability {
+  return typeof store.getPasswordChangedAt === 'function'
 }

@@ -9,6 +9,7 @@ import {
   type AccountSecretEncrypter,
   type LucidStoreContext,
   type WebauthnCeremonies,
+  hasTable,
 } from './lucid_store/shared.js'
 import { buildCore } from './lucid_store/core.js'
 import { buildMfa } from './lucid_store/mfa.js'
@@ -22,6 +23,7 @@ import {
   hasColumn,
 } from './lucid_store/status_profile.js'
 import { buildOrganizations } from './lucid_store/organizations.js'
+import { buildPasswordHistory, buildPasswordExpiration } from './lucid_store/password_hygiene.js'
 import { PasswordManager, type PasswordConfigInput } from '../password/password_manager.js'
 import type { AuditSink } from '../audit/audit_sink.js'
 import type { PwnedLogger, FetchLike } from '../password/pwned.js'
@@ -118,6 +120,12 @@ export interface LucidAccountStoreOptions {
  * (WebAuthn) e account linking por provider só são montados quando o model
  * correspondente é fornecido — caso contrário a capacidade fica ABSENTE (os
  * métodos não existem no objeto retornado, em vez de presentes-mas-lançando).
+ *
+ * @remarks Para capabilities que dependem de tabelas opcionais (ex.:
+ *   `auth_password_history`), use {@link lucidAccountStoreAsync} que probe o DB
+ *   e monta o store já com as capabilities detectadas, sem a necessidade de
+ *   fornecer um model separado. A versão síncrona (`lucidAccountStore`) é mantida
+ *   por back-compat — capabilities de tabela ficam AUSENTES nela.
  */
 export function lucidAccountStore(
   Model: any,
@@ -170,12 +178,27 @@ export function lucidAccountStore(
       name: row.fullName ?? undefined,
       avatarUrl: row.avatarUrl ?? undefined,
     }),
+    // nativeVerifyHash: usa o verifyPassword do model para verificar hashes históricos.
+    nativeVerifyHash: async (hash: string, plain: string) => {
+      // Cria uma instância temporária do model só para usar o método de hash.
+      try {
+        const tempRow = new Model()
+        tempRow.password = hash
+        // verifyPassword é injetado pelo mixin withAuthUser.
+        if (typeof tempRow.verifyPassword === 'function') {
+          return tempRow.verifyPassword(plain)
+        }
+        return false
+      } catch {
+        return false
+      }
+    },
   }
 
   // Núcleo + MFA são sempre presentes. Passkeys e provider-identity só entram
   // quando o model correspondente foi fornecido (capacidade genuinamente ausente
   // quando não configurada).
-  return {
+  const store = {
     ...buildCore(ctx),
     ...buildMfa(ctx),
     ...(ProviderIdentityModel ? buildProviderIdentity(ctx, ProviderIdentityModel) : {}),
@@ -192,6 +215,8 @@ export function lucidAccountStore(
     ...(hasColumn(Model, 'emailVerifiedAt') ? buildEmailVerificationStatus(ctx) : {}),
     // Deleção da conta: sempre disponível (qualquer model Lucid pode deletar).
     ...buildDeletion(ctx),
+    // Expiração de senha: só quando o model tem a coluna `password_changed_at`.
+    ...(hasColumn(Model, 'passwordChangedAt') ? buildPasswordExpiration(ctx) : {}),
     // Organizations (multi-tenancy): só quando os três models foram fornecidos.
     ...(OrgModels
       ? buildOrganizations({
@@ -207,5 +232,80 @@ export function lucidAccountStore(
     // Config de senha resolvida — exposta (não-enumerável) para o authkit:doctor
     // inspecionar policy/checkPwned. NÃO faz parte do contrato AccountStore.
     __passwordConfig: passwords.config,
+    // Pepper configurado — exposto para o doctor verificar.
+    __pepper: passwords.pepper,
+    // PasswordManager exposto para controllers poderem aplicar pepper e verificar.
+    __passwordManager: passwords,
+    // Helper para o controller buscar o hash atual antes de gravar no histórico.
+    __getRawRow: async (accountId: string) => {
+      try { return await Model.find(accountId) } catch { return null }
+    },
   } as AccountStore
+
+  // Histórico de senhas: capability-probed via tabela `auth_password_history`.
+  // A versão síncrona não pode fazer o probe de DB, então a capability fica
+  // AUSENTE aqui. Use `lucidAccountStoreAsync` para probe automático, OU injete
+  // o `passwordHistoryDb` nas options para montagem síncrona com DB explícito.
+  const passwordHistoryDb = (options as any).passwordHistoryDb
+  if (passwordHistoryDb) {
+    Object.assign(store, buildPasswordHistory(ctx, passwordHistoryDb))
+  }
+
+  return store
 }
+
+/**
+ * Options estendidas para uso em testes ou quando o DB é injetado diretamente
+ * para o probe de histórico de senhas. Uso interno/avançado.
+ */
+export interface LucidAccountStoreAsyncOptions extends LucidAccountStoreOptions {
+  /**
+   * Instância de DB Lucid. Quando fornecida, o factory faz o probe da tabela
+   * `auth_password_history` e monta a capability automaticamente.
+   */
+  db?: any
+}
+
+/**
+ * Versão assíncrona do {@link lucidAccountStore} que faz o probe de DB para
+ * detectar tabelas opcionais (`auth_password_history`) e monta as capabilities
+ * correspondentes. Use esta versão quando o `db` está disponível no momento do
+ * boot (ex.: no `register_auth_host.ts` ou no `app/providers/auth_provider.ts`).
+ */
+export async function lucidAccountStoreAsync(
+  Model: any,
+  options: LucidAccountStoreAsyncOptions = {}
+): Promise<AccountStore> {
+  const { db, ...rest } = options
+  const base = lucidAccountStore(Model, rest)
+
+  if (db) {
+    // Probe da tabela auth_password_history.
+    const historyPresent = await hasTable(db, 'auth_password_history')
+    if (historyPresent) {
+      const ctx: LucidStoreContext = {
+        Model,
+        mfaIssuer: options.mfaIssuer ?? 'AuthKit',
+        recoveryCodeCount: options.recoveryCodeCount ?? 8,
+        passwords: new PasswordManager(options.password, {
+          logger: options.logger,
+          fetchImpl: options.pwnedFetch,
+        }),
+        audit: options.audit,
+        sealSecret: (s) => s,
+        openSecret: (s) => s ?? null,
+        toAccount: (row: any) => ({
+          id: row.id,
+          email: row.email,
+          globalRoles: row.globalRoles ?? [],
+          name: row.fullName ?? undefined,
+          avatarUrl: row.avatarUrl ?? undefined,
+        }),
+      }
+      Object.assign(base, buildPasswordHistory(ctx, db))
+    }
+  }
+
+  return base
+}
+

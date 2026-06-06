@@ -585,7 +585,7 @@ export const DEFAULT_MESSAGES = {
   'maintenance.admin_login_note':
     'If you are an administrator, you may still log in to manage the system.',
 
-  // Política de senha (validação ao definir uma senha nova) + vazamento (HIBP).
+  // Política de senha (validação ao definir uma senha nova) + vazamento (HIBP) + histórico + expiração.
   'password.policy.min_length': 'Password must be at least {min} characters long.',
   'password.policy.uppercase': 'Password must contain at least one uppercase letter.',
   'password.policy.lowercase': 'Password must contain at least one lowercase letter.',
@@ -593,6 +593,32 @@ export const DEFAULT_MESSAGES = {
   'password.policy.symbols': 'Password must contain at least one symbol.',
   'password.pwned':
     'This password has appeared in known data breaches. Please choose a different one.',
+  'password.reused':
+    'This password was used recently. Please choose a different one (last {count} passwords are remembered).',
+  // Step de troca obrigatória (expiração de senha).
+  'login.password_expired_title': 'Password expired',
+  'login.password_expired_intro': 'Your password has expired. Please set a new password to continue.',
+  'login.password_expired_new_label': 'New password',
+  'login.password_expired_submit': 'Set new password',
+  // Banner de graça de verificação de e-mail.
+  'login.email_grace_banner': 'Please verify your email. You have {days} day(s) remaining.',
+  // Admin settings — password hygiene cards.
+  'admin.settings.password_history_section': 'Password reuse history',
+  'admin.settings.password_history_intro':
+    'Prevents users from reusing recent passwords. Requires the `auth_password_history` table. When enabled, the last N password hashes are stored and checked on every password change.',
+  'admin.settings.password_history_count_label': 'Password history count',
+  'admin.settings.password_history_from_config': 'Source: defaults',
+  'admin.settings.password_history_from_setting': 'Source: runtime setting',
+  'admin.settings.password_history_no_table':
+    'The `auth_password_history` table is not present. Create it to enable this feature: `id UUID/SERIAL PK, account_id TEXT NOT NULL, password_hash TEXT NOT NULL, created_at TIMESTAMP NOT NULL`.',
+  'admin.settings.password_expiration_section': 'Password expiration',
+  'admin.settings.password_expiration_intro':
+    'Forces users to change their password after a set number of days. Requires the `password_changed_at` column in the auth users table.',
+  'admin.settings.password_expiration_max_age_label': 'Max password age (days)',
+  'admin.settings.password_expiration_from_config': 'Source: defaults',
+  'admin.settings.password_expiration_from_setting': 'Source: runtime setting',
+  'admin.settings.password_expiration_no_column':
+    'The `password_changed_at` column is not present in the auth users table. Add it (TIMESTAMP NULL) to enable this feature.',
 
   // Assuntos/corpos de e-mail transacional (default_mailer).
   'mail.common.link_fallback':
@@ -1245,7 +1271,7 @@ export const PT_BR_MESSAGES = {
   'maintenance.admin_login_note':
     'Se você é administrador, ainda pode entrar para gerenciar o sistema.',
 
-  // Política de senha (validação ao definir uma senha nova) + vazamento (HIBP).
+  // Política de senha (validação ao definir uma senha nova) + vazamento (HIBP) + histórico + expiração.
   'password.policy.min_length': 'A senha deve ter no mínimo {min} caracteres.',
   'password.policy.uppercase': 'A senha deve conter ao menos uma letra maiúscula.',
   'password.policy.lowercase': 'A senha deve conter ao menos uma letra minúscula.',
@@ -1253,6 +1279,32 @@ export const PT_BR_MESSAGES = {
   'password.policy.symbols': 'A senha deve conter ao menos um símbolo.',
   'password.pwned':
     'Esta senha apareceu em vazamentos de dados conhecidos. Escolha uma senha diferente.',
+  'password.reused':
+    'Esta senha foi usada recentemente. Escolha uma senha diferente (as últimas {count} senhas são lembradas).',
+  // Step de troca obrigatória (expiração de senha).
+  'login.password_expired_title': 'Senha expirada',
+  'login.password_expired_intro': 'Sua senha expirou. Defina uma nova senha para continuar.',
+  'login.password_expired_new_label': 'Nova senha',
+  'login.password_expired_submit': 'Definir nova senha',
+  // Banner de graça de verificação de e-mail.
+  'login.email_grace_banner': 'Verifique seu e-mail. Você tem {days} dia(s) restante(s).',
+  // Admin settings — password hygiene cards (pt-BR).
+  'admin.settings.password_history_section': 'Histórico de senhas',
+  'admin.settings.password_history_intro':
+    'Impede reutilização de senhas recentes. Requer a tabela `auth_password_history`. Quando habilitado, os últimos N hashes de senha são armazenados e verificados em cada troca.',
+  'admin.settings.password_history_count_label': 'Senhas lembradas',
+  'admin.settings.password_history_from_config': 'Fonte: padrão',
+  'admin.settings.password_history_from_setting': 'Fonte: setting em runtime',
+  'admin.settings.password_history_no_table':
+    'A tabela `auth_password_history` não existe. Crie-a para habilitar este recurso: `id UUID/SERIAL PK, account_id TEXT NOT NULL, password_hash TEXT NOT NULL, created_at TIMESTAMP NOT NULL`.',
+  'admin.settings.password_expiration_section': 'Expiração de senha',
+  'admin.settings.password_expiration_intro':
+    'Força os usuários a trocar a senha após um número de dias. Requer a coluna `password_changed_at` na tabela de usuários.',
+  'admin.settings.password_expiration_max_age_label': 'Dias máximos sem troca',
+  'admin.settings.password_expiration_from_config': 'Fonte: padrão',
+  'admin.settings.password_expiration_from_setting': 'Fonte: setting em runtime',
+  'admin.settings.password_expiration_no_column':
+    'A coluna `password_changed_at` não existe na tabela de usuários. Adicione-a (TIMESTAMP NULL) para habilitar este recurso.',
 
   // Assuntos/corpos de e-mail transacional (default_mailer).
   'mail.common.link_fallback':

@@ -138,6 +138,46 @@ export class AdminSessionsService {
   }
 
   /**
+   * Revoga todas as sessões e grants da conta EXCETO a sessão corrente (pelo id).
+   * Usado pela política single-session: após login, revoga todas as outras sessões
+   * preservando a recém-criada. Retorna as contagens do que foi removido.
+   *
+   * @param accountId Id da conta.
+   * @param exceptSessionId Id da sessão OIDC a preservar (a sessão corrente).
+   */
+  async revokeAllExcept(accountId: string, exceptSessionId: string): Promise<RevokeResult> {
+    const sessionAdapter = this.#adapter('Session')
+    const grantAdapter = this.#adapter('Grant')
+
+    const sessions = await this.listSessions(accountId)
+    const sessionsToRevoke = sessions.filter((s) => s.id !== exceptSessionId)
+    for (const s of sessionsToRevoke) {
+      await sessionAdapter.destroy(s.id)
+    }
+
+    // Revogamos todos os grants da conta (que pertencem à conta, não à sessão
+    // específica). A sessão corrente gerará novos grants no próximo authorize.
+    // Isso garante que sessões antigas não mantenham tokens vivos.
+    const grants = await this.listGrants(accountId)
+    const grantIds = new Set(grants.map((g) => g.id))
+    let accessTokens = 0
+    let refreshTokens = 0
+    accessTokens = await this.#destroyTokensOfGrants('AccessToken', grantIds)
+    refreshTokens = await this.#destroyTokensOfGrants('RefreshToken', grantIds)
+    for (const g of grants) {
+      await grantAdapter.revokeByGrantId(g.id)
+      await grantAdapter.destroy(g.id)
+    }
+
+    return {
+      sessions: sessionsToRevoke.length,
+      grants: grants.length,
+      accessTokens,
+      refreshTokens,
+    }
+  }
+
+  /**
    * Revoga TODAS as sessões e grants da conta. Destruir os grants já invalida os
    * tokens (cascata via `grant not found`); ainda assim, quando o adapter enumera,
    * destruímos explicitamente as linhas de AT/RT desses grants (belt-and-braces),

@@ -10,6 +10,46 @@ import {
   setAdminApiPrefix,
   normalizeAdminApiPrefix,
 } from './admin_prefix.js'
+import { RuntimeSettings } from './runtime_settings.js'
+import { resolveEffectiveSessionPolicy } from './runtime_toggles.js'
+
+/** Chave da sessão Adonis que registra o timestamp da última atividade (idle timeout). */
+export const ACCOUNT_LAST_SEEN_KEY = 'authkit_last_seen'
+
+/**
+ * Verifica o idle timeout da sessão do console de conta. Lê `idleTimeoutMinutes`
+ * da setting `session_policy` (runtime, fail-safe). Se a sessão excedeu o idle,
+ * apaga a sessão e retorna true (caller deve redirecionar ao login).
+ *
+ * Sempre atualiza `authkit_last_seen` quando o idle não foi excedido.
+ *
+ * FAIL-SAFE: qualquer erro → nunca encerra a sessão (disponibilidade > segurança).
+ */
+async function checkAndRefreshIdle(ctx: any): Promise<boolean> {
+  try {
+    const db = await ctx.containerResolver?.make?.('lucid.db')
+    if (!db) return false
+    const runtimeSettings = new RuntimeSettings(db)
+    const policy = await resolveEffectiveSessionPolicy(runtimeSettings)
+    const idleMs = policy.idleTimeoutMinutes * 60 * 1000
+    if (idleMs <= 0) return false // idle desligado
+
+    const lastSeen = ctx.session?.get(ACCOUNT_LAST_SEEN_KEY) as number | undefined
+    const now = Date.now()
+    if (lastSeen !== undefined && now - lastSeen > idleMs) {
+      // Idle excedido: encerra a sessão.
+      ctx.session?.forget(ACCOUNT_SESSION_KEY)
+      ctx.session?.forget(ACCOUNT_LAST_SEEN_KEY)
+      return true
+    }
+    // Atualiza o timestamp de última atividade.
+    ctx.session?.put(ACCOUNT_LAST_SEEN_KEY, now)
+    return false
+  } catch {
+    // FAIL-SAFE: nunca encerra a sessão em caso de erro.
+    return false
+  }
+}
 
 /**
  * Guard inline do console de conta. Usamos uma closure (forma confiável do
@@ -20,6 +60,11 @@ import {
 const accountGuard = async (ctx: any, next: () => Promise<void>) => {
   if (!ctx.session?.get(ACCOUNT_SESSION_KEY)) {
     return ctx.response.redirect('/account/login')
+  }
+  // Idle timeout: encerra e redireciona com query param de motivo.
+  const idleExpired = await checkAndRefreshIdle(ctx)
+  if (idleExpired) {
+    return ctx.response.redirect('/account/login?reason=idle')
   }
   return next()
 }
@@ -46,6 +91,11 @@ export const adminGuard = async (ctx: any, next: () => Promise<void>) => {
   if (!accountId) {
     // `/account/login` é sempre o login da conta — NÃO muda com o prefixo admin.
     return ctx.response.redirect('/account/login')
+  }
+  // Idle timeout: também protege o console admin.
+  const idleExpired = await checkAndRefreshIdle(ctx)
+  if (idleExpired) {
+    return ctx.response.redirect('/account/login?reason=idle')
   }
   const allowed = cfg.admin.roles as string[]
   const account = await cfg.accountStore.findById(accountId)
@@ -340,6 +390,8 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
         router.post(`${ap}/settings/password-history/reset`, [C.adminSettings, 'resetPasswordHistory'])
         router.post(`${ap}/settings/password-expiration`, [C.adminSettings, 'updatePasswordExpiration'])
         router.post(`${ap}/settings/password-expiration/reset`, [C.adminSettings, 'resetPasswordExpiration'])
+        router.post(`${ap}/settings/session-policy`, [C.adminSettings, 'updateSessionPolicy'])
+        router.post(`${ap}/settings/session-policy/reset`, [C.adminSettings, 'resetSessionPolicy'])
       })
       .use([adminGuard])
   }

@@ -11,12 +11,14 @@ import {
   resolveEffectiveSecurityNotifications,
   resolveEffectivePasswordHistory,
   resolveEffectivePasswordExpiration,
+  resolveEffectiveSessionPolicy,
   ALL_SECURITY_NOTIFICATION_KINDS,
   type AuthMethodsSetting,
   type EmailChangeSetting,
   type SecurityNotificationsSetting,
   type PasswordHistorySetting,
   type PasswordExpirationSetting,
+  type SessionPolicySetting,
 } from '../../runtime_toggles.js'
 import { getAdminPrefix } from '../../admin_prefix.js'
 import {
@@ -24,6 +26,7 @@ import {
   supportsPasswordHistory,
   supportsPasswordExpiration,
 } from '../../../accounts/account_store.js'
+import { updateSessionTtlHolder } from '../../../provider/build_provider.js'
 
 /** Best-effort: returns RuntimeSettings from container DB, or null if unavailable. */
 async function getRuntimeSettings(ctx: HttpContext): Promise<RuntimeSettings | null> {
@@ -181,6 +184,19 @@ export default class AdminSettingsController {
       : { enabled: false, maxAgeDays: 90 }
     const passwordExpirationCapable = supportsPasswordExpiration(cfg.accountStore)
 
+    // ---- session_policy ----
+    let currentSessionPolicySetting: SessionPolicySetting | null = null
+    if (runtimeSettings && hasTable) {
+      const raw = await runtimeSettings.getSetting('session_policy')
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        currentSessionPolicySetting = raw as SessionPolicySetting
+      }
+    }
+    const configSessionHours = cfg.ttl?.session ? Math.ceil(cfg.ttl.session / 3600) : undefined
+    const sessionPolicyEffective = runtimeSettings
+      ? await resolveEffectiveSessionPolicy(runtimeSettings, configSessionHours)
+      : { rememberEnabled: true, rememberDays: 30, defaultSessionHours: configSessionHours ?? 168, singleSession: false, idleTimeoutMinutes: 0 }
+
     return render(ctx, 'admin/settings', {
       csrfToken: ctx.request.csrfToken,
       adminBase: getAdminPrefix(),
@@ -224,6 +240,10 @@ export default class AdminSettingsController {
       currentPasswordExpirationSetting,
       passwordExpirationEffective,
       passwordExpirationCapable,
+      // session_policy
+      currentSessionPolicySetting,
+      sessionPolicyEffective,
+      configSessionHours,
     })
   }
 
@@ -751,6 +771,83 @@ export default class AdminSettingsController {
         actorId: accountId,
         ip: ctx.request.ip?.() ?? null,
         metadata: { key: 'password_expiration', action: 'reset_to_config' },
+      })
+    }
+
+    ctx.session?.flash('flash', t('admin.settings.reset_done'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  // -------------------------------------------------------------------------
+  // Session policy
+  // -------------------------------------------------------------------------
+
+  async updateSessionPolicy(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (!runtimeSettings || !(await runtimeSettings.isTablePresent())) {
+      ctx.session?.flash('flash', t('admin.settings.no_settings_table'))
+      return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+    }
+
+    const rememberEnabled = ctx.request.input('remember_enabled') === '1' || ctx.request.input('remember_enabled') === 'true'
+    const rawRememberDays = ctx.request.input('remember_days')
+    const rememberDays = typeof rawRememberDays === 'string' && rawRememberDays.trim() !== '' ? Math.max(1, parseInt(rawRememberDays, 10) || 30) : 30
+    const rawDefaultHours = ctx.request.input('default_session_hours')
+    const defaultSessionHours = typeof rawDefaultHours === 'string' && rawDefaultHours.trim() !== '' ? Math.max(1, parseInt(rawDefaultHours, 10) || 168) : 168
+    const singleSession = ctx.request.input('single_session') === '1' || ctx.request.input('single_session') === 'true'
+    const rawIdleMinutes = ctx.request.input('idle_timeout_minutes')
+    const idleTimeoutMinutes = typeof rawIdleMinutes === 'string' && rawIdleMinutes.trim() !== '' ? Math.max(0, parseInt(rawIdleMinutes, 10) || 0) : 0
+
+    const setting: SessionPolicySetting = {
+      rememberEnabled,
+      rememberDays,
+      defaultSessionHours,
+      singleSession,
+      idleTimeoutMinutes,
+    }
+    await runtimeSettings.setSetting('session_policy', setting, accountId)
+
+    // Atualiza o holder de TTL do OidcService em runtime (sem redeploy).
+    updateSessionTtlHolder(service.sessionTtlHolder, { rememberDays, defaultSessionHours })
+
+    await cfg.audit?.record({
+      type: 'settings.updated',
+      actorId: accountId,
+      ip: ctx.request.ip?.() ?? null,
+      metadata: { key: 'session_policy', value: setting },
+    })
+
+    ctx.session?.flash('flash', t('admin.settings.saved'))
+    return ctx.response.redirect(`${getAdminPrefix()}/settings`)
+  }
+
+  async resetSessionPolicy(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+    const t = (key: string) => translate(cfg.messages, key)
+    const accountId = ctx.session?.get('authkit_account_id') as string | undefined ?? null
+
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    if (runtimeSettings) {
+      await runtimeSettings.deleteSetting('session_policy')
+
+      // Reseta o holder de TTL para os valores do config estático.
+      const configSessionSec = cfg.ttl?.session ?? 604800
+      updateSessionTtlHolder(service.sessionTtlHolder, {
+        rememberDays: Math.ceil(configSessionSec / 86400),
+        defaultSessionHours: Math.ceil(configSessionSec / 3600),
+      })
+
+      await cfg.audit?.record({
+        type: 'settings.updated',
+        actorId: accountId,
+        ip: ctx.request.ip?.() ?? null,
+        metadata: { key: 'session_policy', action: 'reset_to_config' },
       })
     }
 

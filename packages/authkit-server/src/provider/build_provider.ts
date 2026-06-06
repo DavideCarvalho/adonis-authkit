@@ -8,7 +8,35 @@ export interface BuildProviderOptions {
   findAccount: (ctx: any, sub: string, token?: any) => Promise<any>
 }
 
-export function buildProvider(config: ResolvedServerConfig, options: BuildProviderOptions) {
+/**
+ * Holder mutável dos TTLs de sessão OIDC. Lido de forma SÍNCRONA pelo TTL function do
+ * oidc-provider (que não aceita async). Atualizado assincronamente após write/reset
+ * da setting `session_policy` via `updateSessionTtlHolder`.
+ *
+ * Valores em SEGUNDOS. `rememberSec` é o TTL da sessão persistente (remember-me ON).
+ * `transientSec` é o TTL da sessão transiente (remember-me OFF ou rememberEnabled=false).
+ */
+export interface SessionTtlHolder {
+  /** TTL da sessão persistente (remember-me ON). Segundos. */
+  rememberSec: number
+  /** TTL da sessão transiente (browser session). Segundos. */
+  transientSec: number
+}
+
+/** Atualiza o holder mutável do TTL de sessão com os valores da setting. */
+export function updateSessionTtlHolder(
+  holder: SessionTtlHolder,
+  policy: { rememberDays: number; defaultSessionHours: number }
+): void {
+  holder.rememberSec = Math.max(1, Math.floor(policy.rememberDays * 86400))
+  holder.transientSec = Math.max(1, Math.floor(policy.defaultSessionHours * 3600))
+}
+
+export function buildProvider(
+  config: ResolvedServerConfig,
+  options: BuildProviderOptions,
+  sessionTtlHolder?: SessionTtlHolder
+) {
   const cookieKeys = config.cookieKeys.length ? config.cookieKeys : [options.appKey]
 
   // OIDC Dynamic Client Registration (RFC 7591/7592). Só montamos as chaves de feature
@@ -167,7 +195,19 @@ export function buildProvider(config: ResolvedServerConfig, options: BuildProvid
       AccessToken: config.ttl.accessToken,
       RefreshToken: config.ttl.refreshToken,
       IdToken: config.ttl.idToken,
-      Session: config.ttl.session,
+      // Session TTL: quando um SessionTtlHolder é fornecido, usa uma função que diferencia
+      // sessões persistentes (remember-me ON → rememberSec) das transientes (remember-me
+      // OFF → transientSec). A função é SÍNCRONA (restrição do oidc-provider). O holder é
+      // atualizado de forma assíncrona após write/reset da setting `session_policy`.
+      // `session.transient` é true quando `result.login.remember === false` (o provider
+      // seta `transient: !remember` em loginAccount — ver shared/session.js do oidc-provider).
+      // Sem holder: fallback ao TTL estático do config (zero regressão).
+      Session: sessionTtlHolder
+        ? (_ctx: any, session: any) =>
+            session.transient
+              ? (sessionTtlHolder as SessionTtlHolder).transientSec
+              : (sessionTtlHolder as SessionTtlHolder).rememberSec
+        : config.ttl.session,
       Interaction: 3600,
       Grant: config.ttl.refreshToken,
     },

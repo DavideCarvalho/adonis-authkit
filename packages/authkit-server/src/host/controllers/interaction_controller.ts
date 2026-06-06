@@ -10,6 +10,7 @@ import {
   resolveEffectiveMaintenanceMode,
   resolveEffectiveRegistration,
   resolveEffectiveAuthMethods,
+  resolveEffectiveSessionPolicy,
 } from '../runtime_toggles.js'
 import { supportsPasskeys, supportsMagicLink } from '../../accounts/account_store.js'
 import { sendMagicLinkEmail } from '../default_mailer.js'
@@ -18,6 +19,7 @@ import {
   buildTrustedDevicePayload,
   isTrustedDeviceValid,
 } from '../trusted_device.js'
+import { AdminSessionsService } from '../admin_sessions_service.js'
 
 /** Best-effort: returns a RuntimeSettings backed by the container DB, or a no-op fallback. */
 async function getRuntimeSettings(ctx: HttpContext): Promise<RuntimeSettings> {
@@ -139,6 +141,9 @@ export default class AuthInteractionController {
     // Effective bot protection: may be overridden at runtime via auth_settings.
     const effectiveBot = await resolveEffectiveBotProtection(cfg.botProtection, await getRuntimeSettings(ctx))
 
+    // Session policy: resolve para exibir o checkbox "manter conectado".
+    const sessionPolicyForShow = await resolveEffectiveSessionPolicy(runtimeSettingsForMaintenance, cfg.ttl?.session ? Math.ceil(cfg.ttl.session / 3600) : undefined)
+
     return render(ctx, 'login', {
       uid: details.uid,
       csrfToken: ctx.request.csrfToken,
@@ -150,6 +155,8 @@ export default class AuthInteractionController {
       passkeyFirstAvailable,
       botProtection: effectiveBot?.on.includes('login') ? effectiveBot.widget : undefined,
       authMethods,
+      rememberEnabled: sessionPolicyForShow.rememberEnabled,
+      rememberDays: sessionPolicyForShow.rememberDays,
     })
   }
 
@@ -188,7 +195,7 @@ export default class AuthInteractionController {
     const ip = ctx.request.ip?.() ?? null
     const clientId = (details.params.client_id as string | undefined) ?? null
 
-    // Resolve runtime settings (reutilizado por bot + maintenance + verifiedEmail).
+    // Resolve runtime settings (reutilizado por bot + maintenance + verifiedEmail + session_policy).
     const runtimeSettings = await getRuntimeSettings(ctx)
 
     // Maintenance mode: verifica se a conta que tenta logar é admin.
@@ -346,8 +353,48 @@ export default class AuthInteractionController {
     }
 
     // Sem MFA: finaliza a interaction (escreve o 303 de volta para o client).
-    await service.interactions.completeLogin(ctx, acc.id)
+    // Resolve session_policy para remember-me e single-session.
+    const sessionPolicy = await resolveEffectiveSessionPolicy(runtimeSettings, cfg.ttl?.session ? Math.ceil(cfg.ttl.session / 3600) : undefined)
+    // remember-me: lê o checkbox do form. Checkbox HTML ausente/desmarcado = sem valor.
+    // Quando rememberEnabled=false, ignora o checkbox (sessão sempre transiente).
+    const rememberChecked = ctx.request.input('remember')
+    const rememberOn = rememberChecked === 'on' || rememberChecked === '1' || rememberChecked === 'true' || rememberChecked === true
+    const remember = sessionPolicy.rememberEnabled ? rememberOn : false
+
+    // single-session: lista sessões ANTES do login para saber quais existem.
+    // Após o completeLogin, a sessão NOVA é criada; revogamos as ANTERIORES.
+    // Obtemos os ids das sessões correntes para que possamos preservar a nova.
+    let prevSessionIds: Set<string> = new Set()
+    if (sessionPolicy.singleSession) {
+      const sessionsSvc = new AdminSessionsService(service)
+      if (sessionsSvc.canList) {
+        const prev = await sessionsSvc.listSessions(acc.id)
+        prevSessionIds = new Set(prev.map((s) => s.id))
+      }
+    }
+
+    await service.interactions.completeLogin(ctx, acc.id, { remember })
     await notifyLoginSuccess(ctx, cfg, { accountId: acc.id, email, ip, clientId })
+
+    // single-session: após o completeLogin, revoga sessões que existiam ANTES.
+    // A sessão nova foi criada pelo provider no resume — ela NÃO está em prevSessionIds.
+    if (sessionPolicy.singleSession && prevSessionIds.size > 0) {
+      const sessionsSvc = new AdminSessionsService(service)
+      if (sessionsSvc.canList) {
+        const current = await sessionsSvc.listSessions(acc.id)
+        const newSession = current.find((s) => !prevSessionIds.has(s.id))
+        const exceptId = newSession?.id ?? '__none__'
+        await sessionsSvc.revokeAllExcept(acc.id, exceptId)
+        await cfg.audit?.record({
+          type: 'session.single_enforced',
+          accountId: acc.id,
+          ip,
+          clientId,
+          metadata: { revokedCount: prevSessionIds.size },
+        })
+      }
+    }
+
     // Clean up the session key after a successful login.
     ctx.session.forget(SESSION_KEY)
   }

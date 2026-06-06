@@ -32,6 +32,7 @@ export const SETTING_KEYS = {
   SECURITY_NOTIFICATIONS: 'security_notifications',
   PASSWORD_HISTORY: 'password_history',
   PASSWORD_EXPIRATION: 'password_expiration',
+  SESSION_POLICY: 'session_policy',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]
@@ -518,6 +519,112 @@ export async function resolveEffectivePasswordHistory(
     return {
       enabled: typeof s.enabled === 'boolean' ? s.enabled : defaults.enabled,
       count: typeof s.count === 'number' && s.count >= 1 ? Math.floor(s.count) : defaults.count,
+    }
+  } catch {
+    return defaults
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 9. session_policy setting
+// ---------------------------------------------------------------------------
+
+/**
+ * Shape da setting `session_policy` em `auth_settings`.
+ *
+ * Controla o comportamento da sessão SSO do oidc-provider e da sessão do console
+ * de conta em runtime, sem necessidade de redeploy.
+ *
+ * ### remember-me
+ * Quando `rememberEnabled: true` (default), a tela de login exibe o checkbox
+ * "manter conectado". Marcado → sessão persistente por `rememberDays` dias.
+ * Desmarcado → sessão transiente (cookie expires ao fechar o browser) com duração
+ * máxima de `defaultSessionHours` horas.
+ *
+ * ### single session
+ * Quando `singleSession: true`, após um login bem-sucedido TODAS as outras sessões
+ * OIDC da conta são revogadas (grants + tokens cascateados). A sessão RECÉM-CRIADA
+ * é preservada. Auditado como `session.single_enforced`.
+ *
+ * ### idle timeout
+ * Quando `idleTimeoutMinutes > 0`, o console de conta (e o console admin) registra
+ * o timestamp da última atividade (`authkit_last_seen`) na sessão Adonis. A cada
+ * request autenticado, se a inatividade exceder o limite, a sessão é encerrada e o
+ * usuário é redirecionado ao login com uma mensagem i18n. Apenas o console de conta
+ * é coberto — o lado OIDC (refresh tokens) tem vida própria e está fora de escopo.
+ *
+ * @remarks
+ * A duração da sessão OIDC é controlada pelo TTL do oidc-provider, que é uma função
+ * configurada em build_provider.ts e lê esta setting via um holder mutável atualizado
+ * a cada save/reset desta setting. O TTL é **síncrono** no oidc-provider — não podemos
+ * fazer leituras de DB no path. O holder é atualizado de forma assíncrona (após write)
+ * e cacheado; num restart sem setting persistida, o provider usa o config estático.
+ */
+export interface SessionPolicySetting {
+  /** Exibe checkbox "manter conectado" na tela de login. Default: true. */
+  rememberEnabled?: boolean
+  /** Duração da sessão quando "manter conectado" está marcado (dias). Default: 30. */
+  rememberDays?: number
+  /**
+   * Duração máxima da sessão quando "manter conectado" NÃO está marcado (horas).
+   * Default: derivado de `config.ttl.session` em horas (default 168 h = 7 dias).
+   * Independente do remember, a sessão OIDC nunca excede este valor quando transiente.
+   */
+  defaultSessionHours?: number
+  /** Força sessão única por conta: revoga outras sessões no login. Default: false. */
+  singleSession?: boolean
+  /**
+   * Timeout de inatividade do console de conta (minutos). 0 = desligado. Default: 0.
+   * O idle é rastreado pela sessão Adonis; não cobre o lado OIDC (tokens independentes).
+   */
+  idleTimeoutMinutes?: number
+}
+
+/** Resultado resolvido de `session_policy`. */
+export interface ResolvedSessionPolicy {
+  rememberEnabled: boolean
+  rememberDays: number
+  defaultSessionHours: number
+  singleSession: boolean
+  idleTimeoutMinutes: number
+}
+
+/** Defaults da session_policy quando a setting não existe. */
+export const SESSION_POLICY_DEFAULTS: ResolvedSessionPolicy = {
+  rememberEnabled: true,
+  rememberDays: 30,
+  defaultSessionHours: 168, // 7 dias em horas (= 604800 s padrão do oidc-provider)
+  singleSession: false,
+  idleTimeoutMinutes: 0,
+}
+
+/**
+ * Resolve as configurações efetivas de session policy.
+ *
+ * FAIL-SAFE: qualquer erro → defaults (comportamento original intacto).
+ *
+ * @param configDefaultSessionHours Horas derivadas de `config.ttl.session` (em segundos → horas).
+ *   Quando ausente, usa 168 h (7 dias = padrão do oidc-provider).
+ */
+export async function resolveEffectiveSessionPolicy(
+  settings: SettingsCapability,
+  configDefaultSessionHours?: number
+): Promise<ResolvedSessionPolicy> {
+  const defaults: ResolvedSessionPolicy = {
+    ...SESSION_POLICY_DEFAULTS,
+    defaultSessionHours: configDefaultSessionHours ?? SESSION_POLICY_DEFAULTS.defaultSessionHours,
+  }
+  try {
+    const raw = await settings.getSetting(SETTING_KEYS.SESSION_POLICY)
+    if (raw === null || raw === undefined) return defaults
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
+    const s = raw as SessionPolicySetting
+    return {
+      rememberEnabled: typeof s.rememberEnabled === 'boolean' ? s.rememberEnabled : defaults.rememberEnabled,
+      rememberDays: typeof s.rememberDays === 'number' && s.rememberDays >= 1 ? Math.floor(s.rememberDays) : defaults.rememberDays,
+      defaultSessionHours: typeof s.defaultSessionHours === 'number' && s.defaultSessionHours >= 1 ? Math.floor(s.defaultSessionHours) : defaults.defaultSessionHours,
+      singleSession: typeof s.singleSession === 'boolean' ? s.singleSession : defaults.singleSession,
+      idleTimeoutMinutes: typeof s.idleTimeoutMinutes === 'number' && s.idleTimeoutMinutes >= 0 ? Math.floor(s.idleTimeoutMinutes) : defaults.idleTimeoutMinutes,
     }
   } catch {
     return defaults

@@ -4,7 +4,7 @@ import Koa from 'koa'
 import mount from 'koa-mount'
 import type { ResolvedServerConfig } from '../define_config.js'
 import { wireProviderEvents } from '../observability/wire_provider_events.js'
-import { buildProvider } from './build_provider.js'
+import { buildProvider, type SessionTtlHolder } from './build_provider.js'
 import { createInteractionActions, type InteractionActions } from './interaction_actions.js'
 import { registerTokenExchange } from './token_exchange.js'
 import { readActiveOrgFromKoaCtx } from '../host/active_org_cookie.js'
@@ -16,6 +16,8 @@ export class OidcService {
   readonly mountPath: string
   readonly recorder: MetricsRecorder
   readonly interactions: InteractionActions
+  /** Holder mutável dos TTLs de sessão OIDC (lido sincronamente pelo oidc-provider). */
+  readonly sessionTtlHolder: SessionTtlHolder
   #clients: ClientConfig[]
   #config: ResolvedServerConfig
 
@@ -27,6 +29,13 @@ export class OidcService {
     this.#config = config
     this.#clients = config.clients ?? []
     this.recorder = recorder
+    // Inicializa o holder de TTL com os valores do config estático.
+    // Será atualizado em runtime quando a setting `session_policy` for salva/apagada.
+    const configSessionSec = config.ttl.session
+    this.sessionTtlHolder = {
+      rememberSec: Math.max(1, configSessionSec),
+      transientSec: Math.max(1, configSessionSec),
+    }
     this.provider = buildProvider(config, {
       appKey,
       findAccount: async (ctx, sub) => {
@@ -57,7 +66,7 @@ export class OidcService {
           },
         }
       },
-    })
+    }, this.sessionTtlHolder)
     wireProviderEvents(this.provider, recorder)
 
     registerTokenExchange(this.provider, {

@@ -8,6 +8,16 @@ export interface InteractionDeps {
 export interface CompleteLoginExtra {
   acr?: string
   amr?: string[]
+  /**
+   * "Manter conectado" (remember-me). Mapeado para `result.login.remember` do
+   * oidc-provider. Quando `false`, a sessão se torna transiente (cookie expira ao
+   * fechar o browser); o TTL function do provider usa `session.transient` para
+   * aplicar o TTL curto (defaultSessionHours). Default: `true` (persistente).
+   *
+   * NOTA: o campo `remember` em `result.login` é NATIVO do oidc-provider v9 —
+   * ver `resume.js`: `let { remember = true, accountId, ... } = result.login`.
+   */
+  remember?: boolean
 }
 
 export interface InteractionActions {
@@ -51,6 +61,10 @@ export function createInteractionActions(provider: any, deps: InteractionDeps): 
       const login: Record<string, unknown> = { accountId }
       if (extra?.acr) login.acr = extra.acr
       if (extra?.amr && extra.amr.length) login.amr = extra.amr
+      // remember-me: `remember: false` → sessão transiente (transient: true no provider);
+      // `remember: true` ou ausente → sessão persistente (padrão do oidc-provider).
+      // O campo `remember` é nativo do oidc-provider v9 — veja resume.js.
+      if (extra?.remember === false) login.remember = false
       await provider.interactionFinished(
         ctx.request.request,
         ctx.response.response,

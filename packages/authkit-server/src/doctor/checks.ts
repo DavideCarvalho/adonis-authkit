@@ -720,6 +720,48 @@ export function checkPasswordExpiration(input: DoctorInput): Finding | null {
   return null // Silencioso quando opt-in não configurado.
 }
 
+/**
+ * Verifica a setting `session_policy` para valores absurdos ou inconsistentes.
+ *
+ * Checks:
+ *   - idleTimeoutMinutes > defaultSessionHours*60: idle timeout nunca irá disparar.
+ *   - rememberDays > 365: incomumente longo (warn).
+ *   - idleTimeoutMinutes > 0 mas defaultSessionHours = 0: impossível (error).
+ */
+export function checkSessionPolicy(input: DoctorInput): Finding | null {
+  const policy = (input as any).sessionPolicySetting
+  if (!policy || typeof policy !== 'object') return null
+
+  const idleMin: number = typeof policy.idleTimeoutMinutes === 'number' ? policy.idleTimeoutMinutes : 0
+  const defaultHours: number = typeof policy.defaultSessionHours === 'number' ? policy.defaultSessionHours : 168
+  const rememberDays: number = typeof policy.rememberDays === 'number' ? policy.rememberDays : 30
+
+  if (idleMin > 0 && defaultHours > 0 && idleMin > defaultHours * 60) {
+    return {
+      level: 'warn',
+      message:
+        `session_policy: idleTimeoutMinutes (${idleMin}) exceeds defaultSessionHours*60 (${defaultHours * 60}). ` +
+        'The idle timeout will never trigger — increase defaultSessionHours or reduce idleTimeoutMinutes.',
+    }
+  }
+
+  if (rememberDays > 365) {
+    return {
+      level: 'warn',
+      message:
+        `session_policy: rememberDays (${rememberDays}) exceeds 365. This is an unusually long session duration.`,
+    }
+  }
+
+  return {
+    level: 'ok',
+    message:
+      `session_policy: rememberEnabled=${policy.rememberEnabled ?? true}, ` +
+      `rememberDays=${rememberDays}, defaultSessionHours=${defaultHours}, ` +
+      `singleSession=${policy.singleSession ?? false}, idleTimeoutMinutes=${idleMin}.`,
+  }
+}
+
 /** Roda todos os checks e devolve a lista plana de findings. */
 export function runAllChecks(input: DoctorInput): Finding[] {
   const findings: Finding[] = []
@@ -763,6 +805,8 @@ export function runAllChecks(input: DoctorInput): Finding[] {
   if (passwordHistory) findings.push(passwordHistory)
   const passwordExpiration = checkPasswordExpiration(input)
   if (passwordExpiration) findings.push(passwordExpiration)
+  const sessionPolicy = checkSessionPolicy(input)
+  if (sessionPolicy) findings.push(sessionPolicy)
   return findings
 }
 

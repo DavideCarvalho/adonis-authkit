@@ -51,6 +51,10 @@ export const DEFAULT_MESSAGES = {
   'login.switch_account': 'Switch account',
   'login.password_label': 'Password',
   'login.submit': 'Log in',
+  // Remember-me (session_policy).
+  'login.remember_me': 'Keep me signed in',
+  // Idle timeout redirect reason.
+  'account.login.idle_timeout': 'Your session expired due to inactivity. Please sign in again.',
   // Passwordless (login).
   'login.magic_link_button': 'Email me a login link',
   'login.magic_link_sent': 'If the account exists, we sent you a login link.',
@@ -716,6 +720,24 @@ export const DEFAULT_MESSAGES = {
   'admin.settings.security_notifications_kind_passkey_added': 'Passkey added',
   'admin.settings.security_notifications_kind_passkey_removed': 'Passkey removed',
   'admin.settings.security_notifications_kind_email_changed': 'Email changed',
+
+  // Admin settings — session_policy card.
+  'admin.settings.session_policy_section': 'Session policy',
+  'admin.settings.session_policy_intro':
+    'Controls session lifetime and single-session enforcement. "Remember me" lets users opt into a longer session. Single session revokes all other active OIDC sessions on login. Idle timeout ends the account-console session after inactivity (OIDC tokens are unaffected).',
+  'admin.settings.session_policy_from_config': 'Source: defaults',
+  'admin.settings.session_policy_from_setting': 'Source: runtime setting',
+  'admin.settings.session_policy_remember_enabled_label': 'Show "Keep me signed in" checkbox',
+  'admin.settings.session_policy_remember_days_label': 'Remember-me duration (days)',
+  'admin.settings.session_policy_remember_days_hint': 'Duration of the persistent OIDC session when the checkbox is checked.',
+  'admin.settings.session_policy_default_hours_label': 'Default session duration (hours)',
+  'admin.settings.session_policy_default_hours_hint': 'Max duration of a transient session (checkbox unchecked or disabled). Derived from config.ttl.session when not set.',
+  'admin.settings.session_policy_single_session_label': 'Single active session per account',
+  'admin.settings.session_policy_single_session_hint': 'When enabled, signing in revokes all other active OIDC sessions for the account. Tokens issued in prior sessions become invalid.',
+  'admin.settings.session_policy_idle_timeout_label': 'Account-console idle timeout (minutes, 0 = off)',
+  'admin.settings.session_policy_idle_timeout_hint': 'Ends the account-console session after this many minutes of inactivity. Does not affect OIDC sessions or tokens.',
+  'admin.settings.session_policy_idle_warn': 'Idle timeout warning: idleTimeoutMinutes exceeds defaultSessionHours. The idle timeout will never trigger.',
+  'admin.settings.session_policy_remember_days_warn': 'Remember-me days exceeds 365. This is unusually long.',
 } satisfies AuthMessages
 
 /**
@@ -741,6 +763,10 @@ export const PT_BR_MESSAGES = {
   'login.switch_account': 'Trocar de conta',
   'login.password_label': 'Senha',
   'login.submit': 'Entrar',
+  // Remember-me (session_policy).
+  'login.remember_me': 'Manter conectado',
+  // Idle timeout redirect reason.
+  'account.login.idle_timeout': 'Sua sessão expirou por inatividade. Por favor, entre novamente.',
   // Passwordless (login).
   'login.magic_link_button': 'Me envie um link de login',
   'login.magic_link_sent': 'Se a conta existir, enviamos um link de login.',
@@ -1402,6 +1428,24 @@ export const PT_BR_MESSAGES = {
   'admin.settings.security_notifications_kind_passkey_added': 'Passkey adicionada',
   'admin.settings.security_notifications_kind_passkey_removed': 'Passkey removida',
   'admin.settings.security_notifications_kind_email_changed': 'E-mail alterado',
+
+  // Admin settings — session_policy card (pt-BR).
+  'admin.settings.session_policy_section': 'Política de sessão',
+  'admin.settings.session_policy_intro':
+    'Controla o tempo de vida da sessão e a imposição de sessão única. "Manter conectado" permite que o usuário opte por uma sessão mais longa. Sessão única revoga todas as outras sessões OIDC ativas no login. O timeout por inatividade encerra a sessão do console de conta após inatividade (tokens OIDC não são afetados).',
+  'admin.settings.session_policy_from_config': 'Fonte: padrão',
+  'admin.settings.session_policy_from_setting': 'Fonte: setting em runtime',
+  'admin.settings.session_policy_remember_enabled_label': 'Exibir checkbox "Manter conectado"',
+  'admin.settings.session_policy_remember_days_label': 'Duração do "manter conectado" (dias)',
+  'admin.settings.session_policy_remember_days_hint': 'Duração da sessão OIDC persistente quando o checkbox está marcado.',
+  'admin.settings.session_policy_default_hours_label': 'Duração padrão da sessão (horas)',
+  'admin.settings.session_policy_default_hours_hint': 'Duração máxima da sessão transiente (checkbox desmarcado ou desabilitado). Derivado de config.ttl.session quando não definido.',
+  'admin.settings.session_policy_single_session_label': 'Sessão única por conta',
+  'admin.settings.session_policy_single_session_hint': 'Quando habilitado, o login revoga todas as outras sessões OIDC ativas da conta. Tokens emitidos em sessões anteriores ficam inválidos.',
+  'admin.settings.session_policy_idle_timeout_label': 'Timeout de inatividade no console de conta (minutos, 0 = desligado)',
+  'admin.settings.session_policy_idle_timeout_hint': 'Encerra a sessão do console de conta após este número de minutos de inatividade. Não afeta sessões OIDC ou tokens.',
+  'admin.settings.session_policy_idle_warn': 'Aviso de timeout de inatividade: idleTimeoutMinutes excede defaultSessionHours. O timeout de inatividade nunca irá disparar.',
+  'admin.settings.session_policy_remember_days_warn': 'Os dias de "manter conectado" excedem 365. Isso é incomumente longo.',
 } satisfies AuthMessages
 
 /**

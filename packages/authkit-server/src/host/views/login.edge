@@ -99,6 +99,15 @@
             <div class="mt-4">{{{ botProtection.html }}}</div>
           @end
 
+          {{-- Remember-me checkbox: visível apenas quando rememberEnabled=true (session_policy). --}}
+          @if(rememberEnabled !== false)
+            <div class="mt-4 flex items-center gap-2">
+              <input id="remember" name="remember" type="checkbox" value="on"
+                class="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+              <label for="remember" class="text-sm text-gray-700">{{ t('login.remember_me') }}</label>
+            </div>
+          @end
+
           <button type="submit"
             class="mt-6 w-full rounded-lg bg-gray-900 py-2.5 text-sm font-semibold text-white transition hover:opacity-90">
             {{ t('login.submit') }}

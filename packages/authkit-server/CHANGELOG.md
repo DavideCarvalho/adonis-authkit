@@ -1,5 +1,11 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.20.1
+
+### Patch Changes
+
+- Fix "Failed to execute 'fetch' on 'Window': Illegal invocation": the typed client stored `globalThis.fetch` unbound and called it as an instance method, losing the Window binding. The default fetch is now bound to `globalThis`. The admin console SPA is also refactored into per-section containers, each with its own loading skeleton and a `react-error-boundary`-backed error state with retry.
+
 ## 0.20.0
 
 ### Minor Changes

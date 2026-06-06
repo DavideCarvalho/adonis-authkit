@@ -181,7 +181,10 @@ class AuthkitClient {
     this._baseUrl = opts.baseUrl ?? win!.endpoints.api
     this._accountBaseUrl = opts.accountBaseUrl ?? '/account/api'
     this._csrfToken = opts.csrfToken ?? win?.csrfToken
-    this._fetch = opts.fetch ?? globalThis.fetch
+    // `globalThis.fetch` PRECISA ser chamado com `this === Window`. Guardá-lo como
+    // método de instância e chamar via `this._fetch(...)` perde esse binding →
+    // "Failed to execute 'fetch' on 'Window': Illegal invocation". Bind explícito.
+    this._fetch = opts.fetch ?? globalThis.fetch.bind(globalThis)
   }
 
   // ─── Core request ──────────────────────────────────────────────────────────

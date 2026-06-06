@@ -246,3 +246,23 @@ test.group('AuthkitClient — credentials', () => {
     assert.equal(calls[0].init.credentials, 'include')
   })
 })
+
+test.group('AuthkitClient — fetch binding', () => {
+  test('default fetch é bindado ao globalThis (sem Illegal invocation)', async ({ assert }) => {
+    // Regressão: globalThis.fetch exige `this === Window`. Guardado desbindado e
+    // chamado via this._fetch(...) lança "Illegal invocation" no browser.
+    const original = globalThis.fetch
+    try {
+      globalThis.fetch = function (this: unknown) {
+        if (this !== globalThis && this !== undefined) {
+          throw new TypeError("Failed to execute 'fetch' on 'Window': Illegal invocation")
+        }
+        return Promise.resolve(new Response('{}', { status: 200 })) as any
+      } as typeof fetch
+      const client = createAuthkitClient({ baseUrl: '/admin/api' })
+      await assert.doesNotReject(() => client.admin.overview())
+    } finally {
+      globalThis.fetch = original
+    }
+  })
+})

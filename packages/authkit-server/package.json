@@ -52,9 +52,10 @@
     ]
   },
   "scripts": {
-    "build": "tsc && node -e \"require('node:fs').cpSync('stubs','build/stubs',{recursive:true,filter:(s)=>!s.endsWith('.ts')})\" && node -e \"const fs=require('node:fs');if(fs.existsSync('assets'))fs.cpSync('assets','build/assets',{recursive:true})\" && node -e \"require('node:fs').cpSync('src/host/views','build/host/views',{recursive:true})\" && node -e \"require('node:fs').copyFileSync('commands/commands.json','build/commands/commands.json')\"",
+    "build": "node scripts/build_host_css.mjs && tsc && node -e \"require('node:fs').cpSync('stubs','build/stubs',{recursive:true,filter:(s)=>!s.endsWith('.ts')})\" && node -e \"const fs=require('node:fs');if(fs.existsSync('assets'))fs.cpSync('assets','build/assets',{recursive:true})\" && node -e \"require('node:fs').cpSync('src/host/views','build/host/views',{recursive:true})\" && node -e \"require('node:fs').copyFileSync('commands/commands.json','build/commands/commands.json')\"",
     "typecheck": "tsc --noEmit",
-    "test": "node --import=@poppinss/ts-exec bin/test.ts"
+    "test": "node --import=@poppinss/ts-exec bin/test.ts",
+    "build:host-css": "node scripts/build_host_css.mjs"
   },
   "peerDependencies": {
     "@adonisjs/ally": "catalog:adonis",
@@ -108,6 +109,7 @@
     "ioredis": "catalog:",
     "ioredis-mock": "^8.9.0",
     "luxon": "catalog:",
+    "tailwindcss": "^3.4.19",
     "typescript": "catalog:frontend"
   }
 }

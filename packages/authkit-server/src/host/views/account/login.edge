@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="pt-br"><head><meta charset="utf-8"><title>{{ t('account.login.page_title') }}</title>
-<script src="https://cdn.tailwindcss.com"></script></head>
+@include('authkit::partials/styles')</head>
 <body class="min-h-screen flex items-center justify-center bg-gray-100 p-4">
   <form method="POST" action="/account/login"
     class="w-full max-w-sm rounded-2xl bg-white p-8 shadow-xl ring-1 ring-black/5">

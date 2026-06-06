@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="pt-br"><head><meta charset="utf-8"><title>{{ t('login.page_title') }} — {{ brand && brand.appName ? brand.appName : t('common.app_fallback') }}</title>
-<script src="https://cdn.tailwindcss.com"></script>
+@include('authkit::partials/styles')
 @if(botProtection && botProtection.scriptUrl)
   <script src="{{ botProtection.scriptUrl }}" async defer></script>
 @end

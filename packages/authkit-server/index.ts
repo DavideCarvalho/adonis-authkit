@@ -148,6 +148,7 @@ export {
 } from './src/events/dispatcher.js'
 export type { EventsConfigInput, ResolvedEventsConfig } from './src/events/dispatcher.js'
 export { inertiaRenderer } from './src/host/renderers/inertia_renderer.js'
+export type { InertiaRendererOptions } from './src/host/renderers/inertia_renderer.js'
 export { edgeRenderer } from './src/host/renderers/edge_renderer.js'
 export { brandFor, isFirstParty } from './src/host/branding.js'
 export type { BrandingConfig, ClientBrand } from './src/host/branding.js'

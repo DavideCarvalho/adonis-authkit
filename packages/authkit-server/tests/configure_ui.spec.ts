@@ -1,4 +1,6 @@
 import { test } from '@japa/runner'
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { resolveUiPreset, uiStubPaths } from '../commands/ui_preset.js'
 
 test.group('ui preset', () => {
@@ -38,5 +40,34 @@ test.group('ui preset', () => {
   test('uiStubPaths: react não inclui stubs de controller', ({ assert }) => {
     const paths = uiStubPaths('react')
     assert.notInclude(paths, 'ui/react/auth_interaction_controller.stub')
+  })
+
+  // ─── stub de config react ──────────────────────────────────────────────────
+
+  test('stub authkit_react inclui inertiaRenderer com allowlist views no build', async ({ assert }) => {
+    const { stubsRoot } = await import('../build/stubs/main.js')
+    assert.isTrue(existsSync(join(stubsRoot, 'config/authkit_react.stub')))
+    const content = readFileSync(join(stubsRoot, 'config/authkit_react.stub'), 'utf8')
+    // Deve conter o renderer com a option views.
+    assert.include(content, 'inertiaRenderer')
+    assert.include(content, "views:")
+    // Deve listar as 10 páginas geradas pelo scaffold.
+    const expectedViews = [
+      "'login'",
+      "'consent'",
+      "'signup'",
+      "'forgot'",
+      "'reset'",
+      "'verify-email'",
+      "'mfa-challenge'",
+      "'account/login'",
+      "'account/tokens'",
+      "'account/mfa'",
+    ]
+    for (const v of expectedViews) {
+      assert.include(content, v, `stub deve listar a view ${v}`)
+    }
+    // NÃO deve listar views admin/* (são sempre edge, não vai no allowlist).
+    assert.notInclude(content, "'admin/")
   })
 })

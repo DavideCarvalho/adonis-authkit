@@ -18,14 +18,28 @@ async function resolveMessagesFromCtx(ctx: HttpContext): Promise<AuthMessages> {
   return { ...DEFAULT_MESSAGES }
 }
 
+/**
+ * Função low-level que renderiza uma view Edge built-in da lib sem criar um
+ * closure. Usada internamente pelo `edgeRenderer()` e pelo `inertiaRenderer()`
+ * como fallback silencioso para views não listadas no allowlist (incluindo todas
+ * as telas `admin/*`).
+ *
+ * @internal Exportada para reuso — não faz parte da API pública do seam.
+ */
+export async function renderEdgeView(
+  ctx: HttpContext,
+  view: string,
+  props: Record<string, unknown>
+): Promise<unknown> {
+  const messages = await resolveMessagesFromCtx(ctx)
+  const t = (key: string, params?: Record<string, string | number>) =>
+    translate(messages, key, params)
+  return (ctx as any).view.render(`authkit::${view}`, { ...props, t, messages })
+}
+
 /** Renderer do seam para hosts Edge. As views são donas-da-lib (disco `authkit::`). */
 export function edgeRenderer() {
   return async (ctx: HttpContext, view: string, props: Record<string, unknown>) => {
-    const messages = await resolveMessagesFromCtx(ctx)
-    // Helper `t` exposto às views: `{{ t('login.title') }}` ou
-    // `{{ t('login.greeting', { name: account.fullName }) }}`.
-    const t = (key: string, params?: Record<string, string | number>) =>
-      translate(messages, key, params)
-    return (ctx as any).view.render(`authkit::${view}`, { ...props, t, messages })
+    return renderEdgeView(ctx, view, props)
   }
 }

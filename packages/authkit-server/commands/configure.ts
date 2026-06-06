@@ -31,7 +31,10 @@ export async function configure(command: Configure) {
 
   const codemods = await command.createCodemods()
 
-  await codemods.makeUsingStub(stubsRoot, 'config/authkit.stub', {})
+  // O preset react usa um stub de config dedicado que inclui `inertiaRenderer` com
+  // o allowlist `views` já preenchido — evitando SSR crash por páginas inexistentes.
+  const configStub = preset === 'react' ? 'config/authkit_react.stub' : 'config/authkit.stub'
+  await codemods.makeUsingStub(stubsRoot, configStub, {})
   await codemods.makeUsingStub(stubsRoot, 'models/auth_user.stub', {})
   for (const path of uiStubPaths(preset)) {
     await codemods.makeUsingStub(stubsRoot, path, {})

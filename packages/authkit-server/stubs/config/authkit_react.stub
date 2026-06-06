@@ -1,0 +1,52 @@
+{{{
+  exports({ to: app.configPath('authkit.ts'), overwrite: true })
+}}}
+import env from '#start/env'
+import AuthUser from '#models/auth_user'
+import { defineConfig, adapters, inertiaRenderer } from '@dudousxd/adonis-authkit-server'
+
+const authServerConfig = defineConfig({
+  issuer: env.get('AUTHKIT_ISSUER'),
+  adapter: adapters.redis({ connection: 'main' }),
+  jwks: { source: 'managed', algorithm: 'RS256' },
+  clients: [
+    // registre seus clients OIDC aqui
+  ],
+  ttl: { accessToken: '15m', refreshToken: '30d' },
+  globalRolesClaim: 'roles',
+  findAccount: async (sub) => {
+    const user = await AuthUser.find(sub)
+    if (!user) return null
+    return { id: user.id, email: user.email, globalRoles: user.globalRoles }
+  },
+  verifyCredentials: async (email, password) => {
+    const user = await AuthUser.query().where('email', email).first()
+    if (!user || !(await user.verifyPassword(password))) return null
+    return { id: user.id }
+  },
+  /**
+   * Renderer Inertia/React: apenas as views listadas em `views` vão ao Inertia;
+   * as demais (incluindo todas as telas admin/*) recaem silenciosamente no
+   * renderer Edge built-in da lib — evitando SSR crash por página inexistente.
+   *
+   * A lista abaixo corresponde exatamente às páginas que o scaffold gerou.
+   * Adicione entradas aqui somente se criar a página React correspondente.
+   */
+  render: inertiaRenderer({
+    prefix: 'authkit',
+    views: [
+      'login',
+      'consent',
+      'signup',
+      'forgot',
+      'reset',
+      'verify-email',
+      'mfa-challenge',
+      'account/login',
+      'account/tokens',
+      'account/mfa',
+    ],
+  }),
+})
+
+export default authServerConfig

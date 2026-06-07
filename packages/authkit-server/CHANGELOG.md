@@ -1,5 +1,20 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.20.3
+
+### Patch Changes
+
+- fix(console): register GET/POST api/users/:id/sessions routes before shell catch-all
+
+  The admin React console drawer for a user was failing with "Unexpected token '<',
+  '<!doctype'... is not valid JSON" because `GET {adminBase}/api/users/:id/sessions`
+  and `POST {adminBase}/api/users/:id/revoke-sessions` were not registered in React
+  mode — the catch-all served the SPA shell HTML instead of JSON.
+
+  Adds `userSessions` and `userRevokeSessions` methods to `ConsoleSessionsController`
+  (reusing the existing per-account logic via a private helper) and registers both
+  routes before the `${ap}/*` catch-all in `register_auth_host.ts`.
+
 ## 0.20.2
 
 ### Patch Changes

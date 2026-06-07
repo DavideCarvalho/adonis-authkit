@@ -459,6 +459,9 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
           // Sessões.
           router.get(`${ap}/api/sessions`, [C.consoleSessions, 'index'])
           router.post(`${ap}/api/sessions/revoke-all`, [C.consoleSessions, 'revokeAll'])
+          // Sessões por usuário (drawer do user — ANTES do catch-all para não receber HTML).
+          router.get(`${ap}/api/users/:id/sessions`, [C.consoleSessions, 'userSessions'])
+          router.post(`${ap}/api/users/:id/revoke-sessions`, [C.consoleSessions, 'userRevokeSessions'])
           // Clients OIDC.
           router.get(`${ap}/api/clients`, [C.consoleClients, 'index'])
           router.post(`${ap}/api/clients`, [C.consoleClients, 'store'])

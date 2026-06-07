@@ -115,6 +115,32 @@ test.group('registerAuthHost', () => {
     }
   })
 
+  test('console React: rotas /api/users/:id/sessions e /api/users/:id/revoke-sessions são registradas ANTES do catch-all', ({
+    assert,
+  }) => {
+    // Regressão: sem essas rotas o catch-all servia HTML → "Unexpected token '<'" no drawer do usuário.
+    const router = fakeRouter()
+    registerAuthHost(router, { mountPath: '/oidc', admin: { ui: 'react', prefix: '/admin' } })
+
+    const idxCatchAll = (router.routes as any[]).findIndex(
+      (r) => r.method === 'GET' && r.pattern === '/admin/*'
+    )
+    assert.isAbove(idxCatchAll, -1, 'catch-all do shell deve existir')
+
+    // GET sessions por usuário deve existir e vir antes do catch-all.
+    const idxGetSessions = (router.routes as any[]).findIndex(
+      (r) => r.method === 'GET' && r.pattern === '/admin/api/users/:id/sessions'
+    )
+    assert.isAbove(idxGetSessions, -1, 'GET /admin/api/users/:id/sessions deve estar registrada')
+    assert.isBelow(idxGetSessions, idxCatchAll, 'GET /admin/api/users/:id/sessions deve vir antes do catch-all')
+
+    // POST revoke-sessions por usuário deve existir.
+    const hasPostRevoke = (router.routes as any[]).some(
+      (r) => r.method === 'POST' && r.pattern === '/admin/api/users/:id/revoke-sessions'
+    )
+    assert.isTrue(hasPostRevoke, 'POST /admin/api/users/:id/revoke-sessions deve estar registrada')
+  })
+
   test('console React: rotas com mesmo controller.método têm nomes explícitos distintos (anti-colisão)', ({
     assert,
   }) => {

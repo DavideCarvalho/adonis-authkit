@@ -411,7 +411,7 @@ importers:
         specifier: catalog:frontend
         version: 6.1.2(react@19.2.6)
       recharts:
-        specifier: ^3.8.1
+        specifier: 3.8.1
         version: 3.8.1(@types/react@19.2.15)(react-dom@19.2.6(react@19.2.6))(react-is@19.2.7)(react@19.2.6)(redux@5.0.1)
       tailwindcss:
         specifier: ^3.4.19

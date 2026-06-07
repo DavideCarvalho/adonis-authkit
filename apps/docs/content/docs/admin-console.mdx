@@ -70,8 +70,10 @@ registerAuthHost(router, {
 })
 ```
 
-The dashboard is then at `https://auth.acme.com/auth/admin`. The SPA uses hash-routing
-(`#/users`, `#/settings`, …), so all page URLs are served by the same shell at `{prefix}`.
+The dashboard is then at `https://auth.acme.com/auth/admin`. The SPA keeps all navigation
+and filter state in the URL query string via [nuqs](https://nuqs.47ng.com/) (`?view=users`,
+`?view=users&q=ana&page=2`, …), so every page and filter is deep-linkable and the same shell
+at `{prefix}` serves them all.
 
 <Callout type="info">
   When `prefix` is omitted inside the object form (`admin: {}`), the default `/admin` is
@@ -80,15 +82,19 @@ The dashboard is then at `https://auth.acme.com/auth/admin`. The SPA uses hash-r
 
 ### The SPA under the hood
 
-The console is a self-contained, Vite-built React application (hash-routing, dark/light
+The console is a self-contained, Vite-built React application (nuqs URL state, dark/light
 theme, violet accent `#625fff`) bundled **inside** the npm package — zero extra build step
 for the host. It is:
 
 - **Pre-built and bundled inside `@dudousxd/adonis-authkit-server`** — the Vite output lands
-  in `build/host/ui-dist/` at publish time and is served directly by `AdminShellController`.
+  in `build/src/host/ui-dist/` at publish time and is served directly by `AdminShellController`.
   No separate build, no Vite dev server, no extra npm scripts on the host.
-- **Hash-routing** — every URL like `{prefix}#/users` or `{prefix}#/settings` is served by
-  the same `index.html` shell. Deep links work without server-side route matching.
+- **nuqs URL state** — page navigation (`?view=users`) and per-page filters (search,
+  pagination, the open detail drawer) live in the query string via
+  [nuqs](https://nuqs.47ng.com/)'s generic React adapter (`nuqs/adapters/react`). Every view
+  and filter combination is deep-linkable and survives refresh; switching pages clears the
+  shared filter params so state never leaks between views. Ephemeral UI (modals, forms)
+  stays in React state.
 - **JSON API + TanStack Query** — the SPA fetches all data client-side via
   `@dudousxd/adonis-authkit-react`'s typed client and TanStack Query hooks
   (`useUsersQueryOptions`, `useCreateUserMutationOptions`, etc.). The API endpoints live
@@ -130,7 +136,7 @@ under `{prefix}/api/*`. All endpoints are protected by the `adminGuard`.
 
 | Route | Notes |
 | --- | --- |
-| `GET {prefix}` | Shell HTML — SPA loads, hash-router takes over |
+| `GET {prefix}` | Shell HTML — SPA loads, [nuqs](https://nuqs.47ng.com/) drives URL state |
 | `GET {prefix}/*` | Shell HTML — catches all SPA deep links |
 | `GET {prefix}/assets/*` | Vite-built JS/CSS/fonts (hashed names, `Cache-Control: immutable`) |
 | `GET {prefix}/api/overview` | Dashboard metrics (total users, MAU, sessions, daily charts) |
@@ -142,7 +148,9 @@ under `{prefix}/api/*`. All endpoints are protected by the `adminGuard`.
 | `POST {prefix}/api/users/:id/enable` | Enable account |
 | `POST {prefix}/api/users/:id/reset-password` | Send password reset email |
 | `DELETE {prefix}/api/users/:id` | Delete user (cascade + anonymize) |
-| `GET {prefix}/api/sessions` | List active sessions/grants |
+| `GET {prefix}/api/users/:id/sessions` | List a single user's active sessions |
+| `POST {prefix}/api/users/:id/revoke-sessions` | Disconnect a user from all devices (revoke all their sessions + grants) |
+| `GET {prefix}/api/sessions` | List active sessions/grants (all accounts) |
 | `POST {prefix}/api/sessions/revoke-all` | Revoke all sessions for an account |
 | `GET {prefix}/api/clients` | List adapter-stored OIDC clients |
 | `POST {prefix}/api/clients` | Create a dynamic client |
@@ -200,10 +208,15 @@ location shown) and never delays the listing.
 
 ## Sessions & revocation
 
-Each user row links to **`/admin/users/:id/sessions`**, which lists the account's active
-**sessions** (IdP logins) and **grants** (per-client authorizations), with a live count of
-access / refresh tokens per grant. A single **"Revoke all sessions and grants"** button
-destroys them via `AdminSessionsService`.
+The user detail drawer lists the account's active **sessions** (IdP logins) and **grants**
+(per-client authorizations), with a live count of access / refresh tokens per grant
+(`GET {prefix}/api/users/:id/sessions`). The drawer's **Actions** row exposes a
+**"Disconnect all devices"** button that revokes every session and grant for that single
+user (`POST {prefix}/api/users/:id/revoke-sessions`) — the admin-side equivalent of the
+self-service "Sign out of all devices" action on `/account/security`.
+
+The global **Sessions** page additionally offers a **"Revoke all sessions and grants"**
+button across all accounts, served by `AdminSessionsService`.
 
 Revocation works by destroying the account's `Session` and `Grant` artifacts directly
 through the OIDC adapter. Destroying a grant **cascades** to its tokens: oidc-provider

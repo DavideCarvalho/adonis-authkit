@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useQueryState, parseAsInteger, parseAsString } from 'nuqs'
 import { AuditTableContainer, AuditEventDetailContainer } from '../containers/audit.containers'
 import type { AuditEventEntry } from '@dudousxd/adonis-authkit-react'
 
@@ -18,8 +19,10 @@ const EVENT_TYPES = [
 ]
 
 export function Audit() {
-  const [page, setPage] = useState(1)
-  const [typeFilter, setTypeFilter] = useState('')
+  // Estado de rota (URL): paginação e filtro de tipo via nuqs.
+  const [page, setPage] = useQueryState('page', parseAsInteger.withDefault(1))
+  const [typeFilter, setTypeFilter] = useQueryState('type', parseAsString.withDefault(''))
+  // `selected` carrega o objeto inteiro do evento (não é deep-link) — fica local.
   const [selected, setSelected] = useState<AuditEventEntry | null>(null)
   const [unavailable, setUnavailable] = useState(false)
 

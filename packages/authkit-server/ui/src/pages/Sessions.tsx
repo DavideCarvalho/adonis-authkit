@@ -1,5 +1,6 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueryState, parseAsInteger } from 'nuqs'
 import {
   useRevokeAllSessionsMutationOptions,
   authkitKeys,
@@ -10,7 +11,7 @@ import { SessionsTableContainer, useSessionsTotal } from '../containers/sessions
 export function Sessions() {
   const toast = useToast()
   const queryClient = useQueryClient()
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useQueryState('page', parseAsInteger.withDefault(1))
   const total = useSessionsTotal()
 
   const revokeMutation = useMutation(useRevokeAllSessionsMutationOptions())

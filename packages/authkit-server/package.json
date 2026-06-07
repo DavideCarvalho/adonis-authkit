@@ -122,6 +122,6 @@
     "@tanstack/react-query": "catalog:frontend",
     "react-error-boundary": "catalog:frontend",
     "nuqs": "2.8.9",
-    "recharts": "^3.8.1"
+    "recharts": "3.8.1"
   }
 }

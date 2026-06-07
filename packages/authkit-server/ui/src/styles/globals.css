@@ -607,3 +607,18 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; }
 .toast.toast-error svg { color: var(--red); }
 .toast.toast-info svg { color: var(--accent); }
 @keyframes toast-in { from { opacity: 0; transform: translateX(16px); } }
+
+/* ── chart tooltip (recharts, shadcn-like) ── */
+.chart-tip {
+  background: var(--panel, var(--bg));
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 11.5px;
+  color: var(--text);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+}
+.chart-tip-label { color: var(--faint); font-size: 10px; margin-bottom: 4px; }
+.chart-tip-row { display: flex; align-items: center; gap: 6px; }
+.chart-tip-row b { font-weight: 600; }
+.chart-tip-dot { width: 7px; height: 7px; border-radius: 2px; flex: none; }

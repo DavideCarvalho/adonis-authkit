@@ -9,6 +9,7 @@ import {
   useResetPasswordMutationOptions,
   useDeleteUserMutationOptions,
   useUpdateUserMutationOptions,
+  useRevokeUserSessionsMutationOptions,
   useImpersonationQueryOptions,
   authkitKeys,
 } from '@dudousxd/adonis-authkit-react'
@@ -133,6 +134,7 @@ export function UserInfoContainer({ userId, onMutated, onClose }: UserInfoContai
   const enableMutation = useMutation(useEnableUserMutationOptions(userId))
   const resetPwMutation = useMutation(useResetPasswordMutationOptions(userId))
   const deleteMutation = useMutation(useDeleteUserMutationOptions(userId))
+  const revokeSessionsMutation = useMutation(useRevokeUserSessionsMutationOptions(userId))
 
   const impersonationQuery = useQuery({
     ...useImpersonationQueryOptions(userId),
@@ -173,6 +175,18 @@ export function UserInfoContainer({ userId, onMutated, onClose }: UserInfoContai
       toast.success('User deleted')
       onClose()
       onMutated()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  async function handleRevokeSessions() {
+    if (!user) return
+    if (!confirm(`Disconnect ${user.email} from all devices? Every active session and grant will be revoked.`)) return
+    try {
+      const result = await revokeSessionsMutation.mutateAsync()
+      toast.success(`Disconnected from all devices${typeof result?.revoked === 'number' ? ` (${result.revoked} sessions)` : ''}`)
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.userSessions(userId) })
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : String(err))
     }
@@ -246,6 +260,13 @@ export function UserInfoContainer({ userId, onMutated, onClose }: UserInfoContai
               </button>
               <button className="btn btn-sm" onClick={handleImpersonate} disabled={impersonationQuery.isFetching}>
                 Impersonate
+              </button>
+              <button
+                className="btn btn-sm btn-danger"
+                onClick={handleRevokeSessions}
+                disabled={revokeSessionsMutation.isPending}
+              >
+                Disconnect all devices
               </button>
               <button className="btn btn-sm btn-danger" onClick={handleDelete} disabled={deleteMutation.isPending}>
                 Delete user

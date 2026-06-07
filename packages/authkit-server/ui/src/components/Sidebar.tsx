@@ -1,5 +1,5 @@
 import React from 'react'
-import { useRouter } from '../lib/router'
+import { useRouter, type Route } from '../lib/router'
 import { useTheme } from '../lib/theme'
 import { getConfig } from '../lib/config'
 
@@ -141,8 +141,8 @@ export function Sidebar() {
               <a
                 key={item.id}
                 className={`nav-item${route === item.id ? ' active' : ''}`}
-                onClick={() => navigate(item.id as any)}
-                href={`#${item.id}`}
+                onClick={(e) => { e.preventDefault(); navigate(item.id as Route) }}
+                href={item.id === 'overview' ? '?' : `?view=${item.id}`}
                 style={{ textDecoration: 'none' }}
               >
                 <span className="nav-ico">{item.icon}</span>

@@ -1,7 +1,8 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   useOrgsQueryOptions,
+  useUsersQueryOptions,
   useOrgQueryOptions,
   useCreateOrgMutationOptions,
   useUpdateOrgMutationOptions,
@@ -26,6 +27,15 @@ const PER_PAGE = 20
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function useDebouncedValue<T>(value: T, ms: number): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), ms)
+    return () => clearTimeout(t)
+  }, [value, ms])
+  return debounced
+}
+
 function slugify(s: string) {
   return s
     .toLowerCase()
@@ -33,6 +43,89 @@ function slugify(s: string) {
     .replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
+}
+
+
+// ── UserPicker ────────────────────────────────────────────────────────────────
+
+interface PickedUser {
+  id: string
+  email: string
+  name?: string | null
+}
+
+/** Busca de usuário por email/nome com dropdown — substitui campos de UUID cru. */
+function UserPicker({ onPick, placeholder }: { onPick: (u: PickedUser) => void; placeholder?: string }) {
+  const [search, setSearch] = useState('')
+  const dSearch = useDebouncedValue(search, 250)
+  const usersQuery = useQuery({
+    ...useUsersQueryOptions({ search: dSearch, limit: 6 }),
+    enabled: dSearch.trim().length >= 2,
+  })
+  const candidates = usersQuery.data?.data ?? []
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        className="input"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder={placeholder ?? 'Search user by email or name…'}
+        autoFocus
+      />
+      {dSearch.trim().length >= 2 && (
+        <div
+          style={{
+            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 30, marginTop: 4,
+            background: 'var(--panel, var(--bg))', border: '1px solid var(--line)',
+            borderRadius: 6, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+          }}
+        >
+          {usersQuery.isLoading ? (
+            <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--faint)' }}>Searching…</div>
+          ) : candidates.length === 0 ? (
+            <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--faint)' }}>No users match.</div>
+          ) : (
+            candidates.map((u: any) => (
+              <button
+                key={u.id}
+                type="button"
+                onClick={() => onPick({ id: u.id, email: u.email, name: u.name ?? u.fullName ?? null })}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px',
+                  background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', fontSize: 12.5,
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--line)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+              >
+                <span style={{ fontWeight: 600 }}>{u.name ?? u.fullName ?? u.email}</span>
+                {(u.name ?? u.fullName) && (
+                  <span style={{ color: 'var(--muted)', marginLeft: 8 }}>{u.email}</span>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Chip do usuário escolhido, com X pra trocar. */
+function PickedUserChip({ user, onClear }: { user: PickedUser; onClear: () => void }) {
+  return (
+    <span className="badge badge-muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      {user.name ? `${user.name} · ` : ''}{user.email}
+      <button
+        type="button"
+        onClick={onClear}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, lineHeight: 1 }}
+        aria-label="Clear selected user"
+      >
+        ×
+      </button>
+    </span>
+  )
 }
 
 // ── CreateOrgModal ────────────────────────────────────────────────────────────
@@ -49,7 +142,7 @@ export function CreateOrgModal({ open, onClose, onCreated }: CreateOrgModalProps
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
   const [slugTouched, setSlugTouched] = useState(false)
-  const [ownerAccountId, setOwnerAccountId] = useState('')
+  const [owner, setOwner] = useState<PickedUser | null>(null)
 
   const createMutation = useMutation(useCreateOrgMutationOptions())
 
@@ -60,12 +153,12 @@ export function CreateOrgModal({ open, onClose, onCreated }: CreateOrgModalProps
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!name.trim() || !slug.trim() || !ownerAccountId.trim()) return
+    if (!name.trim() || !slug.trim() || !owner) return
     try {
-      await createMutation.mutateAsync({ name: name.trim(), slug: slug.trim(), ownerAccountId: ownerAccountId.trim() })
+      await createMutation.mutateAsync({ name: name.trim(), slug: slug.trim(), ownerAccountId: owner.id })
       queryClient.invalidateQueries({ queryKey: authkitKeys.admin.orgs() })
       toast.success('Organization created')
-      setName(''); setSlug(''); setOwnerAccountId(''); setSlugTouched(false)
+      setName(''); setSlug(''); setOwner(null); setSlugTouched(false)
       onCreated()
     } catch (err: any) {
       toast.error(err?.message ?? 'Failed to create organization')
@@ -103,14 +196,12 @@ export function CreateOrgModal({ open, onClose, onCreated }: CreateOrgModalProps
             />
           </div>
           <div>
-            <label className="field-label">Owner Account ID</label>
-            <input
-              className="input"
-              value={ownerAccountId}
-              onChange={(e) => setOwnerAccountId(e.target.value)}
-              placeholder="account UUID of the initial owner"
-              required
-            />
+            <label className="field-label">Owner</label>
+            {owner ? (
+              <PickedUserChip user={owner} onClear={() => setOwner(null)} />
+            ) : (
+              <UserPicker onPick={setOwner} placeholder="Search the initial owner by email…" />
+            )}
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
@@ -283,48 +374,61 @@ interface AddMemberSectionProps {
   onDone: () => void
 }
 
+/** Roles de organização oferecidos nos selects (espelha o default da lib). */
+const DEFAULT_ORG_ROLES = ['owner', 'admin', 'member']
+
+function OrgRoleSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const roles = DEFAULT_ORG_ROLES.includes(value) ? DEFAULT_ORG_ROLES : [...DEFAULT_ORG_ROLES, value]
+  return (
+    <select className="input" value={value} onChange={(e) => onChange(e.target.value)} style={{ width: 110 }}>
+      {roles.map((r) => (
+        <option key={r} value={r}>{r}</option>
+      ))}
+    </select>
+  )
+}
+
 function AddMemberSection({ orgId, onDone }: AddMemberSectionProps) {
   const toast = useToast()
   const queryClient = useQueryClient()
-  const [accountId, setAccountId] = useState('')
+  const [picked, setPicked] = useState<PickedUser | null>(null)
   const [role, setRole] = useState('member')
 
   const addMutation = useMutation(useAddOrgMemberMutationOptions(orgId))
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!accountId.trim()) return
+    if (!picked) return
     try {
-      await addMutation.mutateAsync({ accountId: accountId.trim(), role })
+      await addMutation.mutateAsync({ accountId: picked.id, role })
       queryClient.invalidateQueries({ queryKey: authkitKeys.admin.org(orgId) })
       queryClient.invalidateQueries({ queryKey: authkitKeys.admin.orgs() })
-      toast.success('Member added')
-      setAccountId(''); onDone()
+      toast.success(`${picked.email} added as ${role}`)
+      onDone()
     } catch (err: any) {
       toast.error(err?.message ?? 'Failed to add member')
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-      <div style={{ flex: 1, minWidth: 160 }}>
-        <label className="field-label">Account ID</label>
-        <input
-          className="input"
-          value={accountId}
-          onChange={(e) => setAccountId(e.target.value)}
-          placeholder="account UUID"
-          required
-        />
-      </div>
-      <div>
-        <label className="field-label">Role</label>
-        <input className="input" value={role} onChange={(e) => setRole(e.target.value)} placeholder="member" style={{ width: 90 }} />
-      </div>
-      <button type="submit" className="btn btn-primary btn-sm" disabled={addMutation.isPending}>
-        {addMutation.isPending ? 'Adding…' : 'Add'}
-      </button>
-      <button type="button" className="btn btn-ghost btn-sm" onClick={onDone}>Cancel</button>
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {picked ? (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <PickedUserChip user={picked} onClear={() => setPicked(null)} />
+          <OrgRoleSelect value={role} onChange={setRole} />
+          <button type="submit" className="btn btn-primary btn-sm" disabled={addMutation.isPending}>
+            {addMutation.isPending ? 'Adding…' : 'Add member'}
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onDone}>Cancel</button>
+        </div>
+      ) : (
+        <div>
+          <UserPicker onPick={setPicked} />
+          <div style={{ marginTop: 6, display: 'flex', justifyContent: 'flex-end' }}>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onDone}>Cancel</button>
+          </div>
+        </div>
+      )}
     </form>
   )
 }
@@ -372,7 +476,7 @@ function InviteSection({ orgId, onDone }: InviteSectionProps) {
       </div>
       <div>
         <label className="field-label">Role</label>
-        <input className="input" value={role} onChange={(e) => setRole(e.target.value)} placeholder="member" style={{ width: 90 }} />
+        <OrgRoleSelect value={role} onChange={setRole} />
       </div>
       <button type="submit" className="btn btn-primary btn-sm" disabled={inviteMutation.isPending}>
         {inviteMutation.isPending ? 'Sending…' : 'Invite'}
@@ -550,7 +654,6 @@ function OrgSettingsSection({ orgId }: { orgId: string }) {
   const removeMutation = useMutation(useRemoveSettingMutationOptions(orgId))
 
   const [editingKey, setEditingKey] = useState<OrgScopableKey | null>(null)
-  const [editValue, setEditValue] = useState('')
 
   const orgEntries = orgSettings?.data ?? []
   const globalEntries = globalSettings?.data ?? []
@@ -562,19 +665,14 @@ function OrgSettingsSection({ orgId }: { orgId: string }) {
     return globalEntries.find((e) => e.key === key) ?? null
   }
 
-  async function handleSave(key: OrgScopableKey) {
+  async function handleSave(key: OrgScopableKey, value: unknown) {
     try {
-      const parsed = JSON.parse(editValue)
-      await setMutation.mutateAsync({ key, value: parsed })
+      await setMutation.mutateAsync({ key, value })
       queryClient.invalidateQueries({ queryKey: authkitKeys.admin.settings(orgId) })
       toast.success('Setting saved for this organization')
       setEditingKey(null)
     } catch (err: any) {
-      if (err instanceof SyntaxError) {
-        toast.error('Invalid JSON value')
-      } else {
-        toast.error(err?.message ?? 'Failed to save setting')
-      }
+      toast.error(err?.message ?? 'Failed to save setting')
     }
   }
 
@@ -586,13 +684,6 @@ function OrgSettingsSection({ orgId }: { orgId: string }) {
     } catch (err: any) {
       toast.error(err?.message ?? 'Failed to remove setting')
     }
-  }
-
-  function startEdit(key: OrgScopableKey) {
-    const orgEntry = getOrgEntry(key)
-    const defaultVal = orgEntry ? JSON.stringify(orgEntry.value, null, 2) : '{}'
-    setEditValue(defaultVal)
-    setEditingKey(key)
   }
 
   if (isLoading) return null
@@ -617,10 +708,12 @@ function OrgSettingsSection({ orgId }: { orgId: string }) {
               : { text: 'default', color: 'var(--faint)' }
 
           const isEditing = editingKey === key
+          /** Valor herdado que pré-popula o form quando não há override da org. */
+          const inherited = (orgEntry?.value ?? globalEntry?.value ?? null) as any
 
           return (
             <div key={key} style={{ background: 'var(--surface, var(--bg))', border: '1px solid var(--line)', borderRadius: 6, padding: '10px 12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: isEditing ? 8 : 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: isEditing ? 10 : 0 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{label.en}</div>
                   <div style={{ fontSize: 11, color: 'var(--muted)' }}>{label.pt}</div>
@@ -640,10 +733,7 @@ function OrgSettingsSection({ orgId }: { orgId: string }) {
                 </span>
                 {!isEditing && (
                   <>
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => startEdit(key)}
-                    >
+                    <button className="btn btn-ghost btn-sm" onClick={() => setEditingKey(key)}>
                       {orgEntry ? 'Edit' : 'Override'}
                     </button>
                     {orgEntry && (
@@ -661,30 +751,266 @@ function OrgSettingsSection({ orgId }: { orgId: string }) {
                 )}
               </div>
 
-              {isEditing && (
-                <div>
-                  <textarea
-                    className="input"
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    style={{ width: '100%', fontFamily: 'monospace', fontSize: 11, minHeight: 80, resize: 'vertical', marginBottom: 6 }}
-                    spellCheck={false}
-                  />
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button
-                      className="btn btn-primary btn-sm"
-                      onClick={() => handleSave(key)}
-                      disabled={setMutation.isPending}
-                    >
-                      {setMutation.isPending ? 'Saving…' : 'Save'}
-                    </button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => setEditingKey(null)}>Cancel</button>
-                  </div>
-                </div>
+              {!isEditing && <SettingSummary settingKey={key} value={inherited} />}
+
+              {isEditing && key === 'organizations_policy' && (
+                <OrgPolicyForm
+                  initial={inherited}
+                  saving={setMutation.isPending}
+                  onSave={(value) => handleSave(key, value)}
+                  onCancel={() => setEditingKey(null)}
+                />
+              )}
+              {isEditing && key === 'roles_catalog' && (
+                <RolesCatalogForm
+                  initial={inherited}
+                  saving={setMutation.isPending}
+                  onSave={(value) => handleSave(key, value)}
+                  onCancel={() => setEditingKey(null)}
+                />
               )}
             </div>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+// ── Setting forms (estruturados — nada de JSON cru) ──────────────────────────
+
+const ORG_POLICY_DEFAULTS = { allowSelfCreate: false, invitationTtlHours: 168, roles: DEFAULT_ORG_ROLES }
+
+/** Resumo de leitura do valor efetivo, mostrado fora do modo de edição. */
+function SettingSummary({ settingKey, value }: { settingKey: OrgScopableKey; value: any }) {
+  if (settingKey === 'organizations_policy') {
+    const v = { ...ORG_POLICY_DEFAULTS, ...(value ?? {}) }
+    return (
+      <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <span className="badge badge-muted">self-create: {v.allowSelfCreate ? 'on' : 'off'}</span>
+        <span className="badge badge-muted">invite TTL: {v.invitationTtlHours}h</span>
+        {(v.roles ?? []).map((r: string) => (
+          <span key={r} className="badge badge-muted">{r}</span>
+        ))}
+      </div>
+    )
+  }
+  const roles = value?.roles ?? [{ name: 'ADMIN' }]
+  return (
+    <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      {roles.map((r: any) => (
+        <span key={r.name} className="badge badge-muted" title={r.description ?? ''}>{r.name}</span>
+      ))}
+    </div>
+  )
+}
+
+function FieldRow({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)' }}>{label}</div>
+        {hint && <div style={{ fontSize: 11, color: 'var(--faint)' }}>{hint}</div>}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      style={{
+        position: 'relative', width: 36, height: 20, borderRadius: 999, border: 'none', cursor: 'pointer',
+        background: checked ? 'var(--accent)' : 'var(--line)', transition: 'background 0.15s',
+      }}
+    >
+      <span
+        style={{
+          position: 'absolute', top: 2, left: checked ? 18 : 2, width: 16, height: 16,
+          borderRadius: '50%', background: '#fff', transition: 'left 0.15s',
+        }}
+      />
+    </button>
+  )
+}
+
+/** Editor de chips: lista de strings com remover + adicionar. */
+function ChipsEditor({ values, onChange, locked = [], placeholder }: {
+  values: string[]
+  onChange: (v: string[]) => void
+  locked?: string[]
+  placeholder?: string
+}) {
+  const [draft, setDraft] = useState('')
+  function add() {
+    const v = draft.trim()
+    if (!v || values.includes(v)) return
+    onChange([...values, v])
+    setDraft('')
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {values.map((v) => (
+          <span key={v} className="badge badge-muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            {v}
+            {!locked.includes(v) && (
+              <button
+                type="button"
+                onClick={() => onChange(values.filter((x) => x !== v))}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, lineHeight: 1 }}
+                aria-label={`Remove ${v}`}
+              >
+                ×
+              </button>
+            )}
+          </span>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <input
+          className="input"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add() } }}
+          placeholder={placeholder ?? 'add…'}
+          style={{ maxWidth: 160 }}
+        />
+        <button type="button" className="btn btn-ghost btn-sm" onClick={add}>Add</button>
+      </div>
+    </div>
+  )
+}
+
+function OrgPolicyForm({ initial, saving, onSave, onCancel }: {
+  initial: any
+  saving: boolean
+  onSave: (value: unknown) => void
+  onCancel: () => void
+}) {
+  const base = { ...ORG_POLICY_DEFAULTS, ...(initial ?? {}) }
+  const [allowSelfCreate, setAllowSelfCreate] = useState<boolean>(Boolean(base.allowSelfCreate))
+  const [ttlHours, setTtlHours] = useState<number>(Number(base.invitationTtlHours) || 168)
+  const [roles, setRoles] = useState<string[]>(Array.isArray(base.roles) && base.roles.length ? base.roles : DEFAULT_ORG_ROLES)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <FieldRow label="Allow self-create" hint="Members can create their own organizations">
+        <Toggle checked={allowSelfCreate} onChange={setAllowSelfCreate} />
+      </FieldRow>
+      <FieldRow label="Invitation TTL" hint="Hours before a pending invitation expires">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <input
+            className="input"
+            type="number"
+            min={1}
+            value={ttlHours}
+            onChange={(e) => setTtlHours(Number(e.target.value))}
+            style={{ width: 80 }}
+          />
+          <span style={{ fontSize: 11, color: 'var(--faint)' }}>h</span>
+        </div>
+      </FieldRow>
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', marginBottom: 6 }}>Organization roles</div>
+        {/* `owner` é invariante do domínio: sempre preservado. */}
+        <ChipsEditor values={roles} onChange={setRoles} locked={['owner']} placeholder="new role…" />
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          disabled={saving}
+          onClick={() => onSave({ allowSelfCreate, invitationTtlHours: ttlHours, roles })}
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  )
+}
+
+function RolesCatalogForm({ initial, saving, onSave, onCancel }: {
+  initial: any
+  saving: boolean
+  onSave: (value: unknown) => void
+  onCancel: () => void
+}) {
+  const initialRoles: Array<{ name: string; description?: string }> =
+    Array.isArray(initial?.roles) && initial.roles.length
+      ? initial.roles
+      : [{ name: 'ADMIN', description: 'Full access to the admin console' }]
+  const [rows, setRows] = useState(initialRoles.map((r) => ({ name: r.name, description: r.description ?? '' })))
+  const [newName, setNewName] = useState('')
+  const [newDesc, setNewDesc] = useState('')
+
+  function addRow() {
+    const name = newName.trim().toUpperCase()
+    if (!name || rows.some((r) => r.name === name)) return
+    setRows([...rows, { name, description: newDesc.trim() }])
+    setNewName(''); setNewDesc('')
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {rows.map((row, i) => (
+        <div key={row.name} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span className="badge badge-muted" style={{ minWidth: 70, justifyContent: 'center' }}>{row.name}</span>
+          <input
+            className="input"
+            value={row.description}
+            onChange={(e) => setRows(rows.map((r, j) => (j === i ? { ...r, description: e.target.value } : r)))}
+            placeholder="description…"
+            style={{ flex: 1 }}
+          />
+          {/* ADMIN é o gate do console — o backend o garante de qualquer forma. */}
+          {row.name !== 'ADMIN' && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              style={{ color: 'var(--danger, #e53e3e)' }}
+              onClick={() => setRows(rows.filter((_, j) => j !== i))}
+            >
+              ×
+            </button>
+          )}
+        </div>
+      ))}
+      <div style={{ display: 'flex', gap: 6 }}>
+        <input
+          className="input"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRow() } }}
+          placeholder="ROLE_NAME"
+          style={{ width: 130 }}
+        />
+        <input
+          className="input"
+          value={newDesc}
+          onChange={(e) => setNewDesc(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRow() } }}
+          placeholder="description…"
+          style={{ flex: 1 }}
+        />
+        <button type="button" className="btn btn-ghost btn-sm" onClick={addRow}>Add</button>
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          disabled={saving}
+          onClick={() => onSave({ roles: rows.map((r) => ({ name: r.name, description: r.description || undefined })) })}
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button>
       </div>
     </div>
   )

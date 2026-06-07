@@ -1,7 +1,7 @@
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useOverviewQueryOptions } from '@dudousxd/adonis-authkit-react'
-import { SparkLine } from '../components/SparkLine'
+import { TrendChart } from '../components/TrendChart'
 import { QueryBoundary } from '../components/QueryBoundary'
 import { SkeletonCards, SkeletonCard, SkeletonPanelTable, Skeleton } from '../components/Skeleton'
 
@@ -102,7 +102,7 @@ export function SignInsChartContainer() {
           </div>
           <div className="panel-body" style={{ paddingBottom: '4px' }}>
             {data.signInsPerDay.length > 0 ? (
-              <SparkLine data={data.signInsPerDay} color="var(--accent)" />
+              <TrendChart data={data.signInsPerDay} color="var(--accent)" label="sign-ins" />
             ) : (
               <div style={{ height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--faint)', fontSize: 12 }}>
                 No data yet
@@ -135,7 +135,7 @@ export function SignUpsChartContainer() {
           </div>
           <div className="panel-body" style={{ paddingBottom: '4px' }}>
             {data.signUpsPerDay.length > 0 ? (
-              <SparkLine data={data.signUpsPerDay} color="var(--green)" />
+              <TrendChart data={data.signUpsPerDay} color="var(--green)" label="sign-ups" />
             ) : (
               <div style={{ height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--faint)', fontSize: 12 }}>
                 No data yet

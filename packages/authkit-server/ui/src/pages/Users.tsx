@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueryState, parseAsInteger, parseAsString } from 'nuqs'
 import {
   useCreateUserMutationOptions,
   authkitKeys,
@@ -21,12 +22,14 @@ export function Users() {
   const toast = useToast()
   const queryClient = useQueryClient()
 
-  const [page, setPage] = useState(1)
-  const [search, setSearch] = useState('')
+  // Estado de rota (URL): paginação, busca e drawer de detalhe via nuqs.
+  const [page, setPage] = useQueryState('page', parseAsInteger.withDefault(1))
+  const [search, setSearch] = useQueryState('q', parseAsString.withDefault(''))
+  const [detailUserId, setDetailUserId] = useQueryState('user')
   const dSearch = useDebounce(search, 300)
 
+  // Estado efêmero de UI (modal/form) permanece local.
   const [createOpen, setCreateOpen] = useState(false)
-  const [detailUserId, setDetailUserId] = useState<string | null>(null)
   const [createForm, setCreateForm] = useState({ email: '', name: '', password: '', invite: false })
 
   const createMutation = useMutation(useCreateUserMutationOptions())

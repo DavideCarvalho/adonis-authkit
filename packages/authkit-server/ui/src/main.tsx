@@ -1,12 +1,12 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
+import { NuqsAdapter } from 'nuqs/adapters/react'
 import {
   AuthkitClientProvider,
   createAuthkitQueryClient,
 } from '@dudousxd/adonis-authkit-react'
 import { ThemeProvider } from './lib/theme'
-import { RouterProvider } from './lib/router'
 import { ToastProvider } from './lib/toast'
 import { App } from './app'
 import './styles/globals.css'
@@ -20,13 +20,13 @@ createRoot(root).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <AuthkitClientProvider>
-        <ThemeProvider>
-          <RouterProvider>
+        <NuqsAdapter>
+          <ThemeProvider>
             <ToastProvider>
               <App />
             </ToastProvider>
-          </RouterProvider>
-        </ThemeProvider>
+          </ThemeProvider>
+        </NuqsAdapter>
       </AuthkitClientProvider>
     </QueryClientProvider>
   </React.StrictMode>

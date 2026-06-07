@@ -1,37 +1,53 @@
-import React, { createContext, useContext, useState, useCallback } from 'react'
+import { useCallback } from 'react'
+import { useQueryState, useQueryStates, parseAsInteger, parseAsString, parseAsStringLiteral } from 'nuqs'
 
-type Route =
-  | 'overview'
-  | 'users'
-  | 'sessions'
-  | 'clients'
-  | 'roles'
-  | 'orgs'
-  | 'audit'
-  | 'settings'
+export const ROUTES = [
+  'overview',
+  'users',
+  'sessions',
+  'clients',
+  'roles',
+  'orgs',
+  'audit',
+  'settings',
+] as const
 
-interface RouterCtx {
-  route: Route
-  navigate: (r: Route) => void
-}
+export type Route = (typeof ROUTES)[number]
 
-const Ctx = createContext<RouterCtx>({ route: 'overview', navigate: () => {} })
+/**
+ * Roteamento e estado de rota do console via nuqs (query params na URL).
+ *
+ * - `view` controla a página atual (omitido quando `overview`, o default).
+ * - Ao navegar, limpamos os filtros compartilhados (page/q/user/org/type) para
+ *   que o estado de uma página não vaze para outra — todas as páginas montam no
+ *   mesmo querystring, uma de cada vez.
+ *
+ * O adapter é o `NuqsAdapter` de `nuqs/adapters/react` (SPA sem framework),
+ * montado em `main.tsx`.
+ */
+export function useRouter() {
+  const [route, setView] = useQueryState(
+    'view',
+    parseAsStringLiteral(ROUTES).withDefault('overview')
+  )
 
-export function RouterProvider({ children }: { children: React.ReactNode }) {
-  const [route, setRoute] = useState<Route>(() => {
-    const hash = window.location.hash.replace('#', '') as Route
-    const valid: Route[] = ['overview', 'users', 'sessions', 'clients', 'roles', 'orgs', 'audit', 'settings']
-    return valid.includes(hash) ? hash : 'overview'
+  // Filtros compartilhados entre páginas — declarados aqui só para poder
+  // limpá-los numa transição de rota. Cada página continua dona dos seus.
+  const [, clearFilters] = useQueryStates({
+    page: parseAsInteger,
+    q: parseAsString,
+    user: parseAsString,
+    org: parseAsString,
+    type: parseAsString,
   })
 
-  const navigate = useCallback((r: Route) => {
-    window.location.hash = r
-    setRoute(r)
-  }, [])
+  const navigate = useCallback(
+    (r: Route) => {
+      void setView(r === 'overview' ? null : r)
+      void clearFilters({ page: null, q: null, user: null, org: null, type: null })
+    },
+    [setView, clearFilters]
+  )
 
-  return <Ctx.Provider value={{ route, navigate }}>{children}</Ctx.Provider>
-}
-
-export function useRouter() {
-  return useContext(Ctx)
+  return { route, navigate }
 }

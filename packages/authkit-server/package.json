@@ -120,6 +120,8 @@
     "vite": "catalog:",
     "@dudousxd/adonis-authkit-react": "workspace:*",
     "@tanstack/react-query": "catalog:frontend",
-    "react-error-boundary": "catalog:frontend"
+    "react-error-boundary": "catalog:frontend",
+    "nuqs": "2.8.9",
+    "recharts": "^3.8.1"
   }
 }

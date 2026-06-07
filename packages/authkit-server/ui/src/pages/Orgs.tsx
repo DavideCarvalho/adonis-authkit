@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useQueryState, parseAsInteger, parseAsString } from 'nuqs'
 import { OrgsTableContainer, OrgDetailDrawer, CreateOrgModal, useOrgsTotal } from '../containers/orgs.containers'
 
 function useDebounce<T>(value: T, ms: number): T {
@@ -11,10 +12,12 @@ function useDebounce<T>(value: T, ms: number): T {
 }
 
 export function Orgs() {
-  const [page, setPage] = useState(1)
-  const [search, setSearch] = useState('')
+  // Estado de rota (URL): paginação, busca e drawer de detalhe via nuqs.
+  const [page, setPage] = useQueryState('page', parseAsInteger.withDefault(1))
+  const [search, setSearch] = useQueryState('q', parseAsString.withDefault(''))
+  const [detailOrgId, setDetailOrgId] = useQueryState('org')
   const dSearch = useDebounce(search, 300)
-  const [detailOrgId, setDetailOrgId] = useState<string | null>(null)
+  // Estado efêmero de UI permanece local.
   const [unavailable, setUnavailable] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
 

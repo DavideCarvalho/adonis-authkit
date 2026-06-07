@@ -366,6 +366,13 @@ export interface RevokeOthersResult {
   [key: string]: unknown
 }
 
+export interface RevokeAllResult {
+  ok: boolean
+  /** true quando a sessão Adonis do console também foi encerrada (logout global) */
+  signedOut: boolean
+  [key: string]: unknown
+}
+
 // ---------------------------------------------------------------------------
 // Account – Apps / Grants
 // ---------------------------------------------------------------------------

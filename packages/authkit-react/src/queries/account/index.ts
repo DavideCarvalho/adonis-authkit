@@ -26,6 +26,7 @@ import type {
   AccountSessionsResult,
   RevokeSessionResult,
   RevokeOthersResult,
+  RevokeAllResult,
   AccountAppsResult,
   RevokeAppResult,
   AccountMfaStatus,
@@ -154,6 +155,21 @@ export function useRevokeOtherSessionsMutationOptions() {
     mutationKey: ['authkit', 'account', 'sessions', 'revoke-others'],
     mutationFn: () => client.account.sessions.revokeOthers(),
   } satisfies UseMutationOptions<RevokeOthersResult, AuthkitClientError, void>
+}
+
+/**
+ * Mutation: revogar TODAS as sessões OIDC + grants da conta e encerrar a sessão
+ * do console (logout global). O resultado inclui `signedOut: true` — a UI deve
+ * redirecionar para o login após o sucesso.
+ *
+ * Invalida `authkitKeys.account.sessions()` (embora após o redirect não seja necessário).
+ */
+export function useAccountRevokeAllSessionsMutationOptions() {
+  const client = useAuthkitClient()
+  return {
+    mutationKey: ['authkit', 'account', 'sessions', 'revoke-all'],
+    mutationFn: () => client.account.sessions.revokeAll(),
+  } satisfies UseMutationOptions<RevokeAllResult, AuthkitClientError, void>
 }
 
 // ---------------------------------------------------------------------------

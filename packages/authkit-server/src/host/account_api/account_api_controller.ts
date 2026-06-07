@@ -14,6 +14,7 @@
  *   GET  /account/api/sessions              → sessões ativas
  *   DELETE /account/api/sessions/:id        → revogar uma sessão
  *   POST /account/api/sessions/revoke-others → revogar todas exceto a atual
+ *   POST /account/api/sessions/revoke-all   → revogar TODAS + logout global (signedOut: true)
  *   GET  /account/api/apps                  → grants (apps autorizados)
  *   DELETE /account/api/apps/:clientId      → revogar consentimento de um app
  *   GET  /account/api/mfa                   → status MFA (totp + passkeys + recovery)
@@ -613,6 +614,45 @@ export default class AccountApiController {
     })
 
     return { ok: true, ...result }
+  }
+
+  // ─── POST /account/api/sessions/revoke-all ──────────────────────────────
+
+  /**
+   * Revogar TODAS as sessões OIDC + grants/tokens da conta e encerrar a sessão
+   * Adonis do console (logout global). Retorna `{ ok, signedOut: true }` para que
+   * a UI redirecione para o login.
+   *
+   * i18n keys: account.sessions.revoke_all_success (unused server-side — JSON API)
+   */
+  async revokeAllSessions(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+
+    const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
+
+    const adminSessions = new AdminSessionsService(service)
+    if (!adminSessions.canList) {
+      return ctx.response.status(422).send(
+        apiErr('capability_unsupported', 'Session enumeration not supported by this adapter.')
+      )
+    }
+
+    // Revogar todas as sessões OIDC + grants da conta.
+    const result = await adminSessions.revokeAll(userId)
+
+    await cfg.audit?.record({
+      type: 'account.signed_out_all',
+      accountId: userId,
+      ip: ctx.request.ip?.() ?? null,
+      metadata: { ...result, source: 'self' },
+    })
+
+    // Encerrar a sessão Adonis do console (logout global do self-service).
+    ctx.session.forget(ACCOUNT_SESSION_KEY)
+    await ctx.session.regenerate()
+
+    return { ok: true, signedOut: true, ...result }
   }
 
   // ─── GET /account/api/apps ──────────────────────────────────────────────

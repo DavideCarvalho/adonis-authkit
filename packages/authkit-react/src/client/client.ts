@@ -54,6 +54,7 @@ import type {
   AccountSessionsResult,
   RevokeSessionResult,
   RevokeOthersResult,
+  RevokeAllResult,
   AccountAppsResult,
   RevokeAppResult,
   AccountMfaStatus,
@@ -445,6 +446,8 @@ class AuthkitClient {
         this.delete<RevokeSessionResult>(this.a(`/sessions/${encodeURIComponent(id)}`)),
       /** POST /account/api/sessions/revoke-others */
       revokeOthers: () => this.post<RevokeOthersResult>(this.a('/sessions/revoke-others')),
+      /** POST /account/api/sessions/revoke-all — revoga TODAS as sessões + logout global */
+      revokeAll: () => this.post<RevokeAllResult>(this.a('/sessions/revoke-all')),
     },
 
     apps: {

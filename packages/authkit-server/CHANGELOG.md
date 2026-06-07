@@ -1,5 +1,23 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.23.0
+
+### Minor Changes
+
+- feat(account): global sign-out — revoke all sessions across all devices
+
+  **Server (`@dudousxd/adonis-authkit-server`):**
+  - `POST /account/api/sessions/revoke-all` — revokes all OIDC sessions/grants for the account
+    and terminates the current Adonis console session (global logout).
+    Returns `{ ok: true, signedOut: true }` so the UI can redirect to login.
+    Emits audit event `account.signed_out_all`.
+
+  **React SDK (`@dudousxd/adonis-authkit-react`):**
+  - `RevokeAllResult` type (`{ ok, signedOut, ...rest }`)
+  - `client.account.sessions.revokeAll()` method
+  - `useAccountRevokeAllSessionsMutationOptions()` hook (account namespace;
+    distinct from the admin `useRevokeAllSessionsMutationOptions`)
+
 ## 0.22.0
 
 ### Minor Changes

@@ -150,6 +150,7 @@ export type {
   AccountSessionsResult,
   RevokeSessionResult,
   RevokeOthersResult,
+  RevokeAllResult,
   // Account – Apps
   AccountAppEntry,
   AccountAppsResult,
@@ -259,6 +260,7 @@ export {
   useAccountSessionsQueryOptions,
   useRevokeSessionMutationOptions,
   useRevokeOtherSessionsMutationOptions,
+  useAccountRevokeAllSessionsMutationOptions,
   // Apps
   useAppsQueryOptions,
   useRevokeAppMutationOptions,

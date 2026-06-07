@@ -3,7 +3,9 @@ import {
   ArrowRight,
   Fingerprint,
   KeyRound,
+  LayoutDashboard,
   Lock,
+  Monitor,
   ScrollText,
   ShieldCheck,
   Terminal,
@@ -19,7 +21,9 @@ export default function HomePage() {
     <main className="relative flex flex-1 flex-col overflow-hidden">
       <BackgroundTexture />
       <Hero />
-      <ConsolePreview />
+      <AdminConsoleMockSection />
+      <ReactComponentsSection />
+      <TypedClientSection />
       <FeatureGrid />
       <WireItIn />
       <FinalCta />
@@ -72,17 +76,17 @@ function Hero() {
         </span>
 
         <h1 className="max-w-3xl text-balance text-4xl font-semibold tracking-tight sm:text-6xl">
-          A complete identity provider, {' '}
+          A complete identity provider,{' '}
           <span className="bg-gradient-to-r from-[#625fff] to-[#9a8bff] bg-clip-text text-transparent">
             dropped into your app.
           </span>
         </h1>
 
         <p className="mt-6 max-w-2xl text-pretty text-lg text-fd-muted-foreground">
-          A drop-in OpenID Connect authorization server plus a client kit —
-          organizations, JWT access tokens, LGPD/GDPR compliance, MFA, bot
-          protection, impersonation, audit logging, and RP-initiated logout.
-          Run it standalone as a hosted IdP, or embed it right inside your
+          A drop-in OpenID Connect authorization server, a batteries-included
+          admin console, Clerk-style React components, and a typed TanStack
+          Query client — organizations, JWT access tokens, LGPD/GDPR compliance,
+          MFA, and audit logging. Run it standalone or embedded inside your
           AdonisJS app.
         </p>
 
@@ -116,7 +120,7 @@ function Hero() {
         </div>
 
         <p className="mt-6 font-mono text-xs text-fd-muted-foreground">
-          3 packages on npm · standalone or embedded · OTel-instrumented
+          3 packages on npm · admin console included · React components + hooks · standalone or embedded
         </p>
       </div>
     </section>
@@ -124,228 +128,572 @@ function Hero() {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Console preview — faithful reproduction of the shipped host-kit screens:    */
-/*  the IdP login (login.edge) + the admin audit log (admin/audit.edge),        */
-/*  with the real pt-BR i18n labels and the real audit event types we emit.     */
+/*  Admin Console mock — faithful SPA mock: sidebar + overview cards + users   */
 /* -------------------------------------------------------------------------- */
 
-interface AuditRow {
-  type: string
-  typeColor: string
-  detail: string
-  time: string
+interface MetricCard {
+  label: string
+  value: string
+  delta: string
+  positive: boolean
 }
 
-// Real event types emitted by the host kit (see authkit-server emitters).
-const AUDIT_ROWS: readonly AuditRow[] = [
-  {
-    type: 'login.success',
-    typeColor: 'text-emerald-400',
-    detail: 'jane@acme.dev · acc_8f3a · web-app · 187.0.12.4',
-    time: '2 min ago',
-  },
-  {
-    type: 'mfa.enabled',
-    typeColor: 'text-sky-400',
-    detail: 'jane@acme.dev · acc_8f3a · 187.0.12.4',
-    time: '14 min ago',
-  },
-  {
-    type: 'pat.issued',
-    typeColor: 'text-amber-400',
-    detail: 'ci-runner · acc_2b1c · 10.0.4.7',
-    time: '1 h ago',
-  },
-  {
-    type: 'client.created',
-    typeColor: 'text-[#9a8bff]',
-    detail: 'mobile-app · acc_1a9f · 187.0.12.4',
-    time: '3 h ago',
-  },
-  {
-    type: 'session.revoked_all',
-    typeColor: 'text-rose-400',
-    detail: 'sam@acme.dev · acc_77de · 201.55.9.2',
-    time: '5 h ago',
-  },
-  {
-    type: 'login.failure',
-    typeColor: 'text-zinc-400',
-    detail: 'sam@acme.dev · 201.55.9.2',
-    time: 'ontem',
-  },
+const METRIC_CARDS: readonly MetricCard[] = [
+  { label: 'Total users', value: '4 821', delta: '+12% this week', positive: true },
+  { label: 'Active sessions', value: '318', delta: '+3% today', positive: true },
+  { label: 'OAuth clients', value: '14', delta: '2 new', positive: true },
+  { label: 'Lockouts (24 h)', value: '7', delta: '-40% vs yesterday', positive: true },
 ]
 
-function ConsolePreview() {
+interface UserRow {
+  name: string
+  email: string
+  role: string
+  status: 'active' | 'locked'
+  joined: string
+}
+
+const USER_ROWS: readonly UserRow[] = [
+  { name: 'Jane Smith', email: 'jane@acme.dev', role: 'Admin', status: 'active', joined: '2 d ago' },
+  { name: 'Tom Hanks', email: 'tom@acme.dev', role: 'Member', status: 'active', joined: '5 d ago' },
+  { name: 'Sara Lee', email: 'sara@acme.dev', role: 'Member', status: 'locked', joined: '12 d ago' },
+  { name: 'Alex Kim', email: 'alex@acme.dev', role: 'Viewer', status: 'active', joined: '1 mo ago' },
+]
+
+const SIDEBAR_ITEMS = [
+  { icon: LayoutDashboard, label: 'Overview', active: false },
+  { icon: Users, label: 'Users', active: true },
+  { icon: Monitor, label: 'Sessions', active: false },
+  { icon: KeyRound, label: 'Clients', active: false },
+  { icon: ScrollText, label: 'Audit', active: false },
+]
+
+function AdminConsoleMockSection() {
   return (
     <section className="mx-auto w-full max-w-5xl px-4 pb-24">
+      {/* section header */}
+      <div className="mb-10 text-center">
+        <span className="inline-block rounded-full border border-[#625fff]/40 bg-[#625fff]/10 px-3 py-1 font-mono text-xs text-[#9a8bff]">
+          batteries included
+        </span>
+        <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
+          A full admin console, out of the box
+        </h2>
+        <p className="mx-auto mt-3 max-w-2xl text-fd-muted-foreground">
+          Enable it with two config lines and get a Vite-built React SPA with
+          dark/light themes, violet accent{' '}
+          <code className="rounded bg-fd-muted px-1.5 py-0.5 font-mono text-xs">#625fff</code>,
+          and eight screens: Overview, Users, Sessions, OAuth Clients, Roles,
+          Organizations, Audit, and Settings.
+        </p>
+        <Link
+          href="/docs/admin-console"
+          className="mt-4 inline-flex items-center gap-1.5 font-medium text-[#9a8bff] transition-opacity hover:opacity-80"
+        >
+          Admin Console docs
+          <ArrowRight className="size-3.5" />
+        </Link>
+      </div>
+
+      {/* console mock */}
       <div className="relative">
         <div
           aria-hidden
           className="absolute -inset-x-10 -bottom-8 top-10 -z-10 rounded-[2rem] bg-[#625fff]/10 blur-3xl"
         />
 
-        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
-          <LoginScreenMock />
-          <AdminAuditMock />
+        {/* outer chrome */}
+        <div className="overflow-hidden rounded-xl border border-zinc-800 bg-[#0d0d10] shadow-2xl shadow-black/50 ring-1 ring-white/5">
+          {/* window bar */}
+          <div className="flex items-center gap-2 border-b border-zinc-800 bg-[#16161b]/90 px-4 py-2.5">
+            <span className="size-3 rounded-full bg-zinc-700" />
+            <span className="size-3 rounded-full bg-zinc-700" />
+            <span className="size-3 rounded-full bg-zinc-700" />
+            <span className="ml-4 truncate font-mono text-xs text-zinc-500">
+              auth.acme.dev · /admin
+            </span>
+            <span className="ml-auto inline-flex items-center gap-1.5 font-mono text-[11px] text-[#9a8bff]">
+              <span className="animate-ak-blink size-1.5 rounded-full bg-[#9a8bff]" />
+              AuthKit Admin
+            </span>
+          </div>
+
+          {/* app shell */}
+          <div className="flex min-h-[420px]">
+            {/* sidebar */}
+            <aside className="hidden w-48 shrink-0 border-r border-zinc-800 bg-[#0f0f13] sm:block">
+              <div className="border-b border-zinc-800 px-4 py-4">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500">
+                  Acme
+                </p>
+                <p className="mt-0.5 text-sm font-semibold text-zinc-100">Auth Console</p>
+              </div>
+              <nav className="p-2">
+                {SIDEBAR_ITEMS.map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <div
+                      key={item.label}
+                      className={`mb-0.5 flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm ${
+                        item.active
+                          ? 'bg-[#625fff]/20 font-medium text-[#9a8bff]'
+                          : 'text-zinc-500'
+                      }`}
+                    >
+                      <Icon className="size-4 shrink-0" />
+                      {item.label}
+                    </div>
+                  )
+                })}
+              </nav>
+            </aside>
+
+            {/* main content */}
+            <div className="flex-1 overflow-hidden p-5">
+              {/* page title */}
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500">
+                    Identity
+                  </p>
+                  <h3 className="text-lg font-semibold text-zinc-100">Users</h3>
+                </div>
+                <div className="rounded-lg bg-[#625fff] px-4 py-1.5 text-sm font-semibold text-white">
+                  Invite user
+                </div>
+              </div>
+
+              {/* metric cards */}
+              <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                {METRIC_CARDS.map((card) => (
+                  <div
+                    key={card.label}
+                    className="rounded-xl border border-zinc-800 bg-[#16161b]/60 p-3"
+                  >
+                    <p className="text-xs text-zinc-500">{card.label}</p>
+                    <p className="mt-1 text-lg font-semibold text-zinc-100">{card.value}</p>
+                    <p
+                      className={`mt-0.5 text-[11px] font-mono ${card.positive ? 'text-emerald-400' : 'text-rose-400'}`}
+                    >
+                      {card.delta}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {/* search bar */}
+              <div className="mb-3 flex gap-2">
+                <div className="flex-1 rounded-lg border border-zinc-700 bg-[#16161b]/60 px-3 py-2 text-sm text-zinc-600">
+                  Search by name or email…
+                </div>
+                <div className="rounded-lg border border-zinc-700 bg-[#16161b]/60 px-3 py-2 text-sm text-zinc-500">
+                  Role ▾
+                </div>
+              </div>
+
+              {/* users table */}
+              <div className="overflow-hidden rounded-xl border border-zinc-800 bg-[#16161b]/40">
+                <div className="grid grid-cols-4 border-b border-zinc-800 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-600">
+                  <span>Name</span>
+                  <span className="hidden sm:block">Email</span>
+                  <span>Role</span>
+                  <span>Status</span>
+                </div>
+                {USER_ROWS.map((row) => (
+                  <div
+                    key={row.email}
+                    className="grid grid-cols-4 border-b border-zinc-800/60 px-4 py-3 text-sm last:border-0"
+                  >
+                    <span className="font-medium text-zinc-200">{row.name}</span>
+                    <span className="hidden font-mono text-xs text-zinc-500 sm:block self-center">
+                      {row.email}
+                    </span>
+                    <span className="text-zinc-400 self-center">{row.role}</span>
+                    <span className="self-center">
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                          row.status === 'active'
+                            ? 'bg-emerald-500/10 text-emerald-400'
+                            : 'bg-rose-500/10 text-rose-400'
+                        }`}
+                      >
+                        <span
+                          className={`size-1.5 rounded-full ${row.status === 'active' ? 'bg-emerald-400' : 'bg-rose-400'}`}
+                        />
+                        {row.status}
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-3 flex items-center justify-between text-xs text-zinc-600">
+                <span>4 821 users · page 1 of 49</span>
+                <div className="flex gap-2">
+                  <span className="rounded border border-zinc-800 px-2 py-1">←</span>
+                  <span className="rounded border border-zinc-800 px-2 py-1">→</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <p className="mt-5 text-center font-mono text-xs text-fd-muted-foreground">
-          Real host-kit screens: login + admin console
+          Shipped inside the npm package — React SPA, zero extra build step
         </p>
       </div>
     </section>
   )
 }
 
-/* Faithful reproduction of packages/authkit-server/src/host/views/login.edge   */
-function LoginScreenMock() {
+/* -------------------------------------------------------------------------- */
+/*  React components section                                                    */
+/* -------------------------------------------------------------------------- */
+
+interface ComponentItem {
+  name: string
+  desc: string
+}
+
+const COMPONENT_ITEMS: readonly ComponentItem[] = [
+  { name: 'SignInButton', desc: 'Starts the OIDC redirect. Hidden when already authenticated.' },
+  { name: 'SignOutButton', desc: 'Logs out the current user. Renders nothing when unauthenticated.' },
+  { name: 'UserButton', desc: 'Avatar + dropdown: profile, orgs, sign out — Clerk-style.' },
+  { name: 'UserProfile', desc: 'Full account management panel: profile, password, MFA, sessions.' },
+  { name: 'OrganizationSwitcher', desc: 'Switch between orgs or create one. Syncs the active org claim.' },
+  { name: 'OrganizationProfile', desc: 'Org settings panel: members, invitations, roles, danger zone.' },
+  { name: 'AuthorizedApps', desc: 'Lists and revokes OAuth client consents for the current user.' },
+  { name: 'Avatar', desc: 'User avatar with fallback initials. Headless-style, accepts className.' },
+  {
+    name: 'PasswordStrengthMeter',
+    desc: 'Visual strength bar + HIBP breach check. Plugs into react-hook-form.',
+  },
+]
+
+function ReactComponentsSection() {
   return (
-    <div className="overflow-hidden rounded-xl border border-zinc-800 bg-[#0d0d10] shadow-2xl shadow-black/40 ring-1 ring-white/5 lg:mt-8">
-      {/* window chrome */}
-      <div className="flex items-center gap-2 border-b border-zinc-800 bg-[#16161b]/80 px-4 py-3">
-        <span className="size-3 rounded-full bg-zinc-700" />
-        <span className="size-3 rounded-full bg-zinc-700" />
-        <span className="size-3 rounded-full bg-zinc-700" />
-        <span className="ml-3 truncate font-mono text-xs text-zinc-500">
-          auth.acme.dev · /auth/interaction
-        </span>
-      </div>
-
-      {/* the login card itself (card markup mirrors login.edge) */}
-      <div className="bg-[#0d0d10] p-6">
-        <div className="mx-auto w-full max-w-sm rounded-2xl border border-zinc-800 bg-[#16161b]/60 p-6 ring-1 ring-white/5">
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9a8bff]">
-            Acme
+    <section className="mx-auto w-full max-w-5xl px-4 pb-24">
+      <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        {/* left: description + component list */}
+        <div>
+          <span className="inline-block rounded-full border border-[#625fff]/40 bg-[#625fff]/10 px-3 py-1 font-mono text-xs text-[#9a8bff]">
+            @dudousxd/adonis-authkit-react
+          </span>
+          <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
+            Clerk-style React components
+          </h2>
+          <p className="mt-3 text-fd-muted-foreground">
+            Pre-built, themeable UI components that consume the auth state
+            the AdonisJS host already resolved — no extra wiring beyond the
+            initial provider setup. Drop them into any layout.
           </p>
-          <h3 className="mt-1 text-lg font-semibold text-zinc-100">Login</h3>
-          <p className="mt-1 text-sm text-zinc-500">Enter your email to continue.</p>
+          <Link
+            href="/docs/components"
+            className="mt-4 inline-flex items-center gap-1.5 font-medium text-[#9a8bff] transition-opacity hover:opacity-80"
+          >
+            Component reference
+            <ArrowRight className="size-3.5" />
+          </Link>
 
-          <div className="mt-5">
-            <label className="mb-1 block text-sm font-medium text-zinc-300">Email</label>
-            <div className="w-full rounded-lg border border-zinc-700 bg-[#0d0d10] px-3 py-2 text-sm text-zinc-300">
-              jane@acme.dev
+          <ul className="mt-8 space-y-3">
+            {COMPONENT_ITEMS.map((c) => (
+              <li key={c.name} className="flex items-start gap-3">
+                <code className="mt-0.5 shrink-0 rounded bg-[#625fff]/15 px-2 py-0.5 font-mono text-xs text-[#9a8bff]">
+                  {c.name}
+                </code>
+                <span className="text-sm text-fd-muted-foreground">{c.desc}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* right: import snippet + gating components */}
+        <div className="space-y-4">
+          {/* import snippet */}
+          <div className="overflow-hidden rounded-xl border border-zinc-800 bg-[#0d0d10] shadow-xl shadow-black/30 ring-1 ring-white/5">
+            <div className="flex items-center gap-2 border-b border-zinc-800 bg-[#16161b]/80 px-4 py-2.5">
+              <Terminal className="size-3.5 text-zinc-500" />
+              <span className="font-mono text-xs text-zinc-500">app.tsx</span>
             </div>
+            <pre className="overflow-x-auto p-4 font-mono text-[13px] leading-relaxed">
+              <code>
+                <div className="whitespace-pre">
+                  <span className="text-[#9a8bff]">import</span>
+                  <span className="text-zinc-300"> {`'@dudousxd/adonis-authkit-react/styles.css'`}</span>
+                </div>
+                <div className="whitespace-pre"> </div>
+                <div className="whitespace-pre">
+                  <span className="text-[#9a8bff]">import</span>
+                  <span className="text-zinc-300"> {'{'}</span>
+                </div>
+                {[
+                  'SignInButton',
+                  'UserButton',
+                  'UserProfile',
+                  'OrganizationSwitcher',
+                  'OrganizationProfile',
+                  'AuthorizedApps',
+                  'Avatar',
+                  'PasswordStrengthMeter',
+                ].map((name) => (
+                  <div key={name} className="whitespace-pre">
+                    <span className="text-amber-300">{'  '}{name}</span>
+                    <span className="text-zinc-300">,</span>
+                  </div>
+                ))}
+                <div className="whitespace-pre">
+                  <span className="text-zinc-300">{'}'}</span>
+                  <span className="text-[#9a8bff]"> from</span>
+                  <span className="text-teal-300"> {`'@dudousxd/adonis-authkit-react'`}</span>
+                </div>
+                <div className="whitespace-pre"> </div>
+                <div className="whitespace-pre">
+                  <span className="text-zinc-600">{'// in any layout:'}</span>
+                </div>
+                <div className="whitespace-pre">
+                  <span className="text-zinc-300">{'<'}</span>
+                  <span className="text-sky-400">UserButton</span>
+                  <span className="text-zinc-300">{' />'}</span>
+                  <span className="text-zinc-600">{'  // avatar + org switcher'}</span>
+                </div>
+                <div className="whitespace-pre">
+                  <span className="text-zinc-300">{'<'}</span>
+                  <span className="text-sky-400">SignInButton</span>
+                  <span className="text-zinc-300">{' returnTo='}</span>
+                  <span className="text-teal-300">{`"/dashboard"`}</span>
+                  <span className="text-zinc-300">{' />'}</span>
+                </div>
+              </code>
+            </pre>
           </div>
 
-          <div className="mt-4">
-            <label className="mb-1 block text-sm font-medium text-zinc-300">Password</label>
-            <div className="w-full rounded-lg border border-zinc-700 bg-[#0d0d10] px-3 py-2 text-sm tracking-widest text-zinc-500">
-              ••••••••••
+          {/* gating primitives */}
+          <div className="overflow-hidden rounded-xl border border-zinc-800 bg-[#0d0d10] shadow-xl shadow-black/30 ring-1 ring-white/5">
+            <div className="flex items-center gap-2 border-b border-zinc-800 bg-[#16161b]/80 px-4 py-2.5">
+              <Terminal className="size-3.5 text-zinc-500" />
+              <span className="font-mono text-xs text-zinc-500">auth gates</span>
             </div>
-          </div>
-
-          <div className="mt-5 w-full rounded-lg bg-[#625fff] py-2.5 text-center text-sm font-semibold text-white">
-            Log in
-          </div>
-
-          <div className="mt-4 flex justify-between text-sm text-zinc-500">
-            <span className="hover:underline">Create account</span>
-            <span className="hover:underline">Forgot password</span>
-          </div>
-
-          <div className="my-5 flex items-center gap-3 text-xs text-zinc-600">
-            <span className="h-px flex-1 bg-zinc-800" />
-            or
-            <span className="h-px flex-1 bg-zinc-800" />
-          </div>
-
-          <div className="flex w-full items-center justify-center gap-2 rounded-lg border border-zinc-700 bg-[#0d0d10] py-2.5 text-sm font-medium text-zinc-300">
-            <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                fill="#4285F4"
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1Z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84Z"
-              />
-              <path
-                fill="#EA4335"
-                d="M12 4.75c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 1.46 14.97.5 12 .5A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.3 9.14 4.75 12 4.75Z"
-              />
-            </svg>
-            Sign in with Google
+            <pre className="overflow-x-auto p-4 font-mono text-[13px] leading-relaxed">
+              <code>
+                <div className="whitespace-pre">
+                  <span className="text-[#9a8bff]">import</span>
+                  <span className="text-zinc-300"> {'{ Authenticated, Can, useAuth }'}</span>
+                </div>
+                <div className="whitespace-pre">
+                  <span className="text-[#9a8bff]">  from</span>
+                  <span className="text-teal-300"> {`'@dudousxd/adonis-authkit-react'`}</span>
+                </div>
+                <div className="whitespace-pre"> </div>
+                <div className="whitespace-pre">
+                  <span className="text-zinc-300">{'<'}</span>
+                  <span className="text-sky-400">Authenticated</span>
+                  <span className="text-amber-300"> fallback</span>
+                  <span className="text-zinc-300">={'{'}</span>
+                  <span className="text-zinc-300">{'<'}</span>
+                  <span className="text-sky-400">SignInButton</span>
+                  <span className="text-zinc-300">{' />}>'}</span>
+                </div>
+                <div className="whitespace-pre">
+                  <span className="text-zinc-300">{'  <'}</span>
+                  <span className="text-sky-400">Can</span>
+                  <span className="text-amber-300"> ability</span>
+                  <span className="text-zinc-300">={'`'}posts:publish{'`'}</span>
+                  <span className="text-zinc-300">{'>'}</span>
+                </div>
+                <div className="whitespace-pre">
+                  <span className="text-zinc-300">{'    <'}</span>
+                  <span className="text-zinc-400">PublishButton</span>
+                  <span className="text-zinc-300">{' />'}</span>
+                </div>
+                <div className="whitespace-pre">
+                  <span className="text-zinc-300">{'  </'}</span>
+                  <span className="text-sky-400">Can</span>
+                  <span className="text-zinc-300">{'>'}</span>
+                </div>
+                <div className="whitespace-pre">
+                  <span className="text-zinc-300">{'</'}</span>
+                  <span className="text-sky-400">Authenticated</span>
+                  <span className="text-zinc-300">{'>'}</span>
+                </div>
+              </code>
+            </pre>
           </div>
         </div>
       </div>
-    </div>
+    </section>
   )
 }
 
-/* Faithful reproduction of packages/authkit-server/src/host/views/admin/audit.edge */
-function AdminAuditMock() {
+/* -------------------------------------------------------------------------- */
+/*  Typed client + TanStack Query section                                       */
+/* -------------------------------------------------------------------------- */
+
+const HOOKS_LIST = [
+  { name: 'useUsersQueryOptions', kind: 'query' },
+  { name: 'useUserQueryOptions', kind: 'query' },
+  { name: 'useSessionsQueryOptions', kind: 'query' },
+  { name: 'useOrganizationsQueryOptions', kind: 'query' },
+  { name: 'useAuditQueryOptions', kind: 'query' },
+  { name: 'useCreateUserMutationOptions', kind: 'mutation' },
+  { name: 'useUpdateUserMutationOptions', kind: 'mutation' },
+  { name: 'useRevokeSessionMutationOptions', kind: 'mutation' },
+  { name: 'useImpersonateMutationOptions', kind: 'mutation' },
+] as const
+
+const CLIENT_CODE_LINES: readonly { tokens: { text: string; cls?: string }[] }[] = [
+  {
+    tokens: [
+      { text: 'import', cls: 'text-[#9a8bff]' },
+      { text: ' {' },
+      { text: ' createAuthkitQueryClient', cls: 'text-amber-300' },
+      { text: ',' },
+    ],
+  },
+  {
+    tokens: [
+      { text: '         ', },
+      { text: 'AuthkitClientProvider', cls: 'text-amber-300' },
+      { text: ',' },
+    ],
+  },
+  {
+    tokens: [
+      { text: '         ', },
+      { text: 'useUsersQueryOptions', cls: 'text-amber-300' },
+      { text: ' }' },
+      { text: ' from', cls: 'text-[#9a8bff]' },
+      { text: " '@dudousxd/adonis-authkit-react'", cls: 'text-teal-300' },
+    ],
+  },
+  { tokens: [] },
+  {
+    tokens: [
+      { text: 'const', cls: 'text-[#9a8bff]' },
+      { text: ' qc ' },
+      { text: '=', cls: 'text-[#9a8bff]' },
+      { text: ' ' },
+      { text: 'createAuthkitQueryClient', cls: 'text-sky-400' },
+      { text: '()' },
+    ],
+  },
+  { tokens: [] },
+  {
+    tokens: [
+      { text: '// inside your admin page:', cls: 'text-zinc-600' },
+    ],
+  },
+  {
+    tokens: [
+      { text: 'const', cls: 'text-[#9a8bff]' },
+      { text: ' { data } ' },
+      { text: '=', cls: 'text-[#9a8bff]' },
+      { text: ' ' },
+      { text: 'useQuery', cls: 'text-sky-400' },
+      { text: '(' },
+      { text: 'useUsersQueryOptions', cls: 'text-amber-300' },
+      { text: '({ search, page }))' },
+    ],
+  },
+  { tokens: [] },
+  {
+    tokens: [
+      { text: '// typed, cached, refetched automatically', cls: 'text-zinc-600' },
+    ],
+  },
+  {
+    tokens: [
+      { text: 'data', cls: 'text-amber-300' },
+      { text: '?.users  ' },
+      { text: '// User[]', cls: 'text-zinc-600' },
+    ],
+  },
+]
+
+function TypedClientSection() {
   return (
-    <div className="overflow-hidden rounded-xl border border-zinc-800 bg-[#0d0d10] shadow-2xl shadow-black/40 ring-1 ring-white/5">
-      {/* window chrome */}
-      <div className="flex items-center gap-2 border-b border-zinc-800 bg-[#16161b]/80 px-4 py-3">
-        <span className="size-3 rounded-full bg-zinc-700" />
-        <span className="size-3 rounded-full bg-zinc-700" />
-        <span className="size-3 rounded-full bg-zinc-700" />
-        <span className="ml-3 font-mono text-xs text-zinc-500">auth.acme.dev · /admin/audit</span>
-        <span className="ml-auto inline-flex items-center gap-1.5 font-mono text-[11px] text-[#9a8bff]">
-          <span className="animate-ak-blink size-1.5 rounded-full bg-[#9a8bff]" />
-          live
-        </span>
-      </div>
-
-      <div className="bg-[#0d0d10] p-5">
-        {/* header: eyebrow + title (mirrors admin/audit.edge) */}
-        <div className="mb-4">
-          <div className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500">
-            Auth
+    <section className="mx-auto w-full max-w-5xl px-4 pb-24">
+      <div className="grid items-center gap-10 lg:grid-cols-2">
+        {/* code panel */}
+        <div className="overflow-hidden rounded-xl border border-zinc-800 bg-[#0d0d10] shadow-xl shadow-black/30 ring-1 ring-white/5">
+          <div className="flex items-center gap-2 border-b border-zinc-800 bg-[#16161b]/80 px-4 py-2.5">
+            <Terminal className="size-3.5 text-zinc-500" />
+            <span className="font-mono text-xs text-zinc-500">admin/users_page.tsx</span>
           </div>
-          <h3 className="text-lg font-semibold text-zinc-100">Audit log</h3>
+          <pre className="overflow-x-auto p-4 font-mono text-[13px] leading-relaxed">
+            <code>
+              {CLIENT_CODE_LINES.map((line, lineIndex) => (
+                <div key={lineIndex} className="whitespace-pre">
+                  {line.tokens.map((token, tokenIndex) => (
+                    <span key={tokenIndex} className={token.cls ?? 'text-zinc-300'}>
+                      {token.text}
+                    </span>
+                  ))}
+                  {line.tokens.length === 0 ? ' ' : null}
+                </div>
+              ))}
+            </code>
+          </pre>
         </div>
 
-        {/* admin nav */}
-        <nav className="mb-4 flex gap-4 text-sm font-medium">
-          <span className="text-zinc-500">Dashboard</span>
-          <span className="text-zinc-500">Users</span>
-          <span className="text-zinc-500">Clients</span>
-          <span className="text-zinc-100 underline">Audit</span>
-        </nav>
+        {/* right: description + hooks list */}
+        <div>
+          <span className="inline-block rounded-full border border-[#625fff]/40 bg-[#625fff]/10 px-3 py-1 font-mono text-xs text-[#9a8bff]">
+            typed client + TanStack Query
+          </span>
+          <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
+            Full type-safety, zero boilerplate
+          </h2>
+          <p className="mt-3 text-fd-muted-foreground">
+            <code className="rounded bg-fd-muted px-1.5 py-0.5 font-mono text-sm">
+              createAuthkitClient
+            </code>{' '}
+            is a typed fetch wrapper for both the admin and account APIs.
+            Wrap it once with{' '}
+            <code className="rounded bg-fd-muted px-1.5 py-0.5 font-mono text-sm">
+              AuthkitClientProvider
+            </code>{' '}
+            and all hooks become available — no hand-written fetch calls,
+            structured cache keys (
+            <code className="rounded bg-fd-muted px-1.5 py-0.5 font-mono text-sm">
+              authkitKeys.*
+            </code>
+            ), and auto-invalidation patterns.
+          </p>
+          <Link
+            href="/docs/data-fetching"
+            className="mt-4 inline-flex items-center gap-1.5 font-medium text-[#9a8bff] transition-opacity hover:opacity-80"
+          >
+            Typed Client &amp; TanStack Query docs
+            <ArrowRight className="size-3.5" />
+          </Link>
 
-        {/* filter form */}
-        <div className="mb-4 flex gap-2">
-          <div className="flex-1 rounded-lg border border-zinc-700 bg-[#16161b]/60 px-3 py-2 text-sm text-zinc-600">
-            Filter by type
-          </div>
-          <div className="flex-1 rounded-lg border border-zinc-700 bg-[#16161b]/60 px-3 py-2 text-sm text-zinc-600">
-            Filter by subject (accountId)
-          </div>
-          <div className="rounded-lg bg-[#625fff] px-4 py-2 text-sm font-semibold text-white">
-            Filter
-          </div>
-        </div>
-
-        {/* events list (each row = type + createdAt, then detail line) */}
-        <div className="overflow-hidden rounded-xl border border-zinc-800 bg-[#16161b]/40">
-          {AUDIT_ROWS.map((row) => (
-            <div key={row.type + row.time} className="border-b border-zinc-800/80 p-4 last:border-0">
-              <div className="flex items-center justify-between">
-                <p className={`font-mono text-sm font-medium ${row.typeColor}`}>{row.type}</p>
-                <p className="text-xs text-zinc-600">{row.time}</p>
+          <div className="mt-6 grid grid-cols-2 gap-2">
+            {HOOKS_LIST.map((hook) => (
+              <div
+                key={hook.name}
+                className="flex items-center gap-2 rounded-lg border border-fd-border bg-fd-card/40 px-3 py-2"
+              >
+                <span
+                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${hook.kind === 'query' ? 'bg-sky-400' : 'bg-[#9a8bff]'}`}
+                />
+                <code className="truncate font-mono text-xs text-fd-muted-foreground">
+                  {hook.name}
+                </code>
               </div>
-              <p className="mt-1 font-mono text-xs text-zinc-500">{row.detail}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* pagination */}
-        <div className="mt-4 flex items-center justify-between text-sm text-zinc-500">
-          <span>Page 1 of 8</span>
-          <div className="flex gap-2">
-            <span className="rounded border border-zinc-700 px-3 py-1">Previous</span>
-            <span className="rounded border border-zinc-700 px-3 py-1">Next</span>
+            ))}
           </div>
+          <p className="mt-3 text-xs text-fd-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-1.5 rounded-full bg-sky-400" /> query
+            </span>
+            {'  '}
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-1.5 rounded-full bg-[#9a8bff]" /> mutation
+            </span>
+          </p>
         </div>
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -358,6 +706,7 @@ interface Feature {
   title: string
   body: string
   accent: string
+  href?: string
 }
 
 const FEATURES: readonly Feature[] = [
@@ -380,10 +729,11 @@ const FEATURES: readonly Feature[] = [
     accent: 'text-violet-400',
   },
   {
-    icon: Terminal,
-    title: 'Admin API & SDK',
-    body: 'A versioned admin REST API (users, orgs, clients, sessions, stats, audit) secured by API keys, plus a typed SDK that runs remote or in-process.',
-    accent: 'text-indigo-400',
+    icon: Monitor,
+    title: 'Admin console (React SPA)',
+    body: 'A batteries-included Vite-built React SPA — overview, users, sessions, clients, roles, orgs, audit, and settings — dark/light, violet accent, zero extra build step.',
+    accent: 'text-[#625fff]',
+    href: '/docs/admin-console',
   },
   {
     icon: KeyRound,
@@ -396,6 +746,13 @@ const FEATURES: readonly Feature[] = [
     title: 'Impersonation & admin',
     body: 'Safely act-as another user for support, with a full admin surface, bot protection, new-device notifications, and dynamic client registration.',
     accent: 'text-emerald-400',
+  },
+  {
+    icon: Terminal,
+    title: 'Typed client + TanStack hooks',
+    body: 'createAuthkitClient + useUsersQueryOptions, useMutation hooks, authkitKeys — full type inference over both the admin and account APIs.',
+    accent: 'text-indigo-400',
+    href: '/docs/data-fetching',
   },
   {
     icon: ScrollText,
@@ -434,7 +791,7 @@ function FeatureGrid() {
 
 function FeatureCard({ feature }: { feature: Feature }) {
   const Icon = feature.icon
-  return (
+  const inner = (
     <div className="group relative overflow-hidden rounded-xl border border-fd-border bg-fd-card/50 p-5 backdrop-blur transition-colors hover:border-[#625fff]/40">
       <div
         aria-hidden
@@ -452,6 +809,14 @@ function FeatureCard({ feature }: { feature: Feature }) {
         <p className="mt-2 text-sm leading-relaxed text-fd-muted-foreground">{feature.body}</p>
       </div>
     </div>
+  )
+
+  return feature.href ? (
+    <Link href={feature.href} className="block no-underline">
+      {inner}
+    </Link>
+  ) : (
+    inner
   )
 }
 
@@ -504,6 +869,17 @@ const CODE_LINES: readonly { tokens: { text: string; cls?: string }[] }[] = [
       { text: ',' },
     ],
   },
+  {
+    tokens: [
+      { text: '  admin', cls: 'text-amber-300' },
+      { text: ': { ' },
+      { text: 'enabled', cls: 'text-amber-300' },
+      { text: ': ' },
+      { text: 'true', cls: 'text-[#9a8bff]' },
+      { text: ' },' },
+      { text: ' // React SPA console', cls: 'text-zinc-600' },
+    ],
+  },
   { tokens: [{ text: '})' }] },
 ]
 
@@ -522,18 +898,27 @@ function WireItIn() {
             Register the{' '}
             <code className="rounded bg-fd-muted px-1.5 py-0.5 font-mono text-sm">server</code>{' '}
             kit, point it at your issuer URL, and you have a working OIDC
-            provider. Add the{' '}
-            <code className="rounded bg-fd-muted px-1.5 py-0.5 font-mono text-sm">client</code>{' '}
-            kit to any AdonisJS app to consume it. Eject the internals whenever
-            you need full control.
+            provider with admin console. Add the{' '}
+            <code className="rounded bg-fd-muted px-1.5 py-0.5 font-mono text-sm">react</code>{' '}
+            package for Clerk-style components and typed hooks in any AdonisJS
+            app. Eject the internals whenever you need full control.
           </p>
-          <Link
-            href="/docs/getting-started"
-            className="mt-6 inline-flex items-center gap-2 font-medium text-fd-primary transition-colors hover:opacity-80"
-          >
-            Full setup guide
-            <ArrowRight className="size-4" />
-          </Link>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href="/docs/getting-started"
+              className="inline-flex items-center gap-2 font-medium text-fd-primary transition-colors hover:opacity-80"
+            >
+              Full setup guide
+              <ArrowRight className="size-4" />
+            </Link>
+            <Link
+              href="/docs/react"
+              className="inline-flex items-center gap-2 font-medium text-[#9a8bff] transition-colors hover:opacity-80"
+            >
+              React package
+              <ArrowRight className="size-4" />
+            </Link>
+          </div>
         </div>
 
         <div className="overflow-hidden rounded-xl border border-zinc-800 bg-[#0d0d10] shadow-xl shadow-black/30 ring-1 ring-white/5">
@@ -597,8 +982,9 @@ function FinalCta() {
           Stop bolting auth on by hand.
         </h2>
         <p className="mx-auto mt-3 max-w-xl text-fd-muted-foreground">
-          Drop in a real OpenID Connect provider, get MFA, PATs and audit for
-          free, and ship identity to production with confidence.
+          Drop in a real OpenID Connect provider, get MFA, admin console,
+          React components, typed hooks, and audit for free — ship identity
+          to production with confidence.
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Link

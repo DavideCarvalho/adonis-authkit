@@ -1,11 +1,17 @@
 import type { OidcService } from '../provider/oidc_service.js'
 import type { EnumeratedArtifact, OidcAdapter } from '../adapters/adapter_contract.js'
+import type { AccountStore } from '../accounts/account_store.js'
 
 /** Uma sessão ativa do IdP (login do usuário no provider), apresentada ao admin. */
 export interface AdminSession {
   /** Id do artefato `Session` no adapter. */
   id: string
   accountId: string
+  /**
+   * Email da conta — resolvido pelo `listAllSessions()` na listagem global.
+   * Ausente em `listSessions(accountId)` (já é implícito pelo contexto).
+   */
+  email?: string | null
   /** Epoch (segundos) do login, quando presente no payload. */
   loginTs?: number
   /** Métodos de autenticação registrados na sessão (amr), quando presentes. */
@@ -59,11 +65,16 @@ export interface RevokeResult {
  *     por garantia (belt-and-braces), também destruímos as linhas de AT/RT que
  *     referenciam os grants revogados quando o adapter enumera.
  */
+/** Limite máximo de sessões retornadas na listagem global (proteção contra explosão de memória). */
+const GLOBAL_SESSION_LIMIT = 500
+
 export class AdminSessionsService {
   #AdapterClass: any
+  #accountStore: AccountStore
 
   constructor(oidc: OidcService) {
     this.#AdapterClass = oidc.config.AdapterClass
+    this.#accountStore = oidc.config.accountStore
   }
 
   #adapter(model: string): OidcAdapter {
@@ -101,6 +112,46 @@ export class AdminSessionsService {
         loginTs: r.payload.loginTs as number | undefined,
         amr: (r.payload.amr as string[] | undefined) ?? undefined,
       }))
+  }
+
+  /**
+   * Lista TODAS as sessões ativas de TODAS as contas — usada pela listagem global
+   * do console admin (sem `accountId`). Resolve o email de cada conta via
+   * `accountStore.findById` com cache por id (evita N+1). Limita a
+   * {@link GLOBAL_SESSION_LIMIT} entradas; quando truncado, inclui `truncated:true`
+   * nos metadados (accessível via `result.truncated`). Retorna vazio quando o
+   * adapter não enumera.
+   */
+  async listAllSessions(): Promise<{ sessions: AdminSession[]; truncated: boolean }> {
+    const rows = await this.#listModel('Session')
+    const truncated = rows.length > GLOBAL_SESSION_LIMIT
+    const slice = truncated ? rows.slice(0, GLOBAL_SESSION_LIMIT) : rows
+
+    // Cache accountId → email para evitar N+1
+    const emailCache = new Map<string, string | null>()
+    const resolveEmail = async (accountId: string): Promise<string | null> => {
+      if (emailCache.has(accountId)) return emailCache.get(accountId)!
+      const account = await this.#accountStore.findById(accountId)
+      const email = account?.email ?? null
+      emailCache.set(accountId, email)
+      return email
+    }
+
+    const sessions = await Promise.all(
+      slice.map(async (r) => {
+        const accountId = (r.payload.accountId as string | undefined) ?? ''
+        const email = accountId ? await resolveEmail(accountId) : null
+        return {
+          id: r.id,
+          accountId,
+          email,
+          loginTs: r.payload.loginTs as number | undefined,
+          amr: (r.payload.amr as string[] | undefined) ?? undefined,
+        } satisfies AdminSession
+      })
+    )
+
+    return { sessions, truncated }
   }
 
   /**

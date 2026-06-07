@@ -1,5 +1,19 @@
 # @dudousxd/adonis-authkit-react
 
+## 0.5.3
+
+### Patch Changes
+
+- fix(sessions): listagem global no console admin quando accountId ausente
+  - `ConsoleSessionsController.index`: sem `accountId` retorna lista global de todas as sessões ativas (todas as contas) em vez de 400
+  - `AdminSessionsService.listAllSessions()`: enumera todas as sessões via adapter, resolve email por conta com cache (evita N+1), limita a 500 entradas com flag `truncated`
+  - `AdminSession`: novo campo opcional `email`
+  - `sessionDto`: inclui `email` na projeção JSON
+  - `AdminSessionEntry` (react types): campo `email: string | null`
+  - `UserSessionsResult` (react types): campo `truncated?: boolean`; renomeia `canList` → `supported` para alinhar com a resposta real do servidor
+  - SPA `sessions.containers.tsx`: exibe email acima do accountId na coluna Account quando presente
+  - Testes: cobre listagem global, truncamento a 500, capability ausente e resolução de email
+
 ## 0.5.2
 
 ### Patch Changes

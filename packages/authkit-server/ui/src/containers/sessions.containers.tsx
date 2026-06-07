@@ -51,7 +51,12 @@ export function SessionsTableContainer({ page, onPage }: SessionsTableContainerP
               <tbody>
                 {sessions.map((s) => (
                   <tr key={s.id} style={{ cursor: 'default' }}>
-                    <td><span className="mono text-sm">{s.accountId}</span></td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {s.email && <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)' }}>{s.email}</span>}
+                        <span className="mono text-sm" style={{ color: s.email ? 'var(--faint)' : undefined }}>{s.accountId}</span>
+                      </div>
+                    </td>
                     <td>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                         <span style={{ color: 'var(--text)', fontWeight: 500, fontSize: 12 }}>{s.browser ?? '—'}</span>

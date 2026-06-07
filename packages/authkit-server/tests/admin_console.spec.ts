@@ -582,11 +582,15 @@ test.group('Console JSON API — controller unit tests', (group) => {
 
   // ─── Sessions ──────────────────────────────────────────────────────────────
 
-  test('GET /api/sessions sem accountId → 400', async ({ assert }) => {
+  test('GET /api/sessions sem accountId → listagem global (shape correta)', async ({ assert }) => {
     const ctrl = new ConsoleSessionsController()
-    const { ctx, captured } = fakeCtx({ service, inputs: { accountId: '' } })
-    await ctrl.index(ctx)
-    assert.equal(captured.status(), 400)
+    const { ctx } = fakeCtx({ service, inputs: { accountId: '' } })
+    const result: any = await ctrl.index(ctx)
+    // Sem accountId: retorna lista global de todas as sessões (pode ser vazio em ambiente de teste)
+    assert.isBoolean(result.supported)
+    assert.isArray(result.sessions)
+    assert.isArray(result.grants)
+    assert.isBoolean(result.truncated)
   })
 
   test('GET /api/sessions com accountId inexistente → 404', async ({ assert }) => {

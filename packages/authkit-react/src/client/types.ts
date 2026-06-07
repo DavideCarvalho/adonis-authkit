@@ -53,6 +53,8 @@ export interface UpdateUserInput {
 export interface AdminSessionEntry {
   id: string
   accountId: string
+  /** Email da conta — presente na listagem global (sem accountId). */
+  email: string | null
   loginTs: string | null
   amr: string[]
   userAgent: string | null
@@ -71,7 +73,9 @@ export interface AdminGrantEntry {
 }
 
 export interface UserSessionsResult {
-  canList: boolean
+  supported: boolean
+  /** true quando o número de sessões foi truncado ao limite máximo da listagem global. */
+  truncated?: boolean
   sessions: AdminSessionEntry[]
   grants: AdminGrantEntry[]
 }

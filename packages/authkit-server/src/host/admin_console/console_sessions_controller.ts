@@ -18,16 +18,9 @@ export default class ConsoleSessionsController {
     const service = await ctx.containerResolver.make('authkit.server')
     const cfg = service.config
     const accountId = (ctx.request.input('accountId', '') as string).trim()
+    const adminSvc = new AdminSessionsService(service)
 
-    if (!accountId) {
-      return ctx.response.badRequest(apiError('invalid_request', 'O parâmetro accountId é obrigatório.'))
-    }
-
-    const account = await cfg.accountStore.findById(accountId)
-    if (!account) return ctx.response.notFound(apiError('not_found', 'Usuário não encontrado.'))
-
-    const sessions = new AdminSessionsService(service)
-    if (!sessions.canList) {
+    if (!adminSvc.canList) {
       return {
         supported: false,
         sessions: [],
@@ -35,12 +28,28 @@ export default class ConsoleSessionsController {
       }
     }
 
-    const rawSessions = await sessions.listSessions(accountId)
+    // Sem accountId → listagem global de todas as sessões ativas
+    if (!accountId) {
+      const { sessions: rawSessions, truncated } = await adminSvc.listAllSessions()
+      return {
+        supported: true,
+        truncated,
+        sessions: rawSessions.map(sessionDto),
+        grants: [],
+      }
+    }
+
+    // Com accountId → listagem por conta (comportamento original)
+    const account = await cfg.accountStore.findById(accountId)
+    if (!account) return ctx.response.notFound(apiError('not_found', 'Usuário não encontrado.'))
+
+    const rawSessions = await adminSvc.listSessions(accountId)
     const enriched = await enrichSessionsWithContext(cfg, accountId, rawSessions)
-    const grants = await sessions.listGrants(accountId)
+    const grants = await adminSvc.listGrants(accountId)
 
     return {
       supported: true,
+      truncated: false,
       sessions: enriched.map(sessionDto),
       grants: grants.map(grantDto),
     }

@@ -157,6 +157,52 @@ test.group('AdminSessionsService (sessões/grants + revogação adapter-backed)'
     assert.isOk(await new DatabaseAdapter('AccessToken', db).find('at-c2'))
   })
 
+  test('listAllSessions retorna sessões de todas as contas com email resolvido', async ({
+    assert,
+    cleanup,
+  }) => {
+    const port = 9854
+    const { service, server } = await startService(port, db)
+    cleanup(() => new Promise<void>((r) => server.close(() => r())))
+
+    await seedArtifacts(db, 'acc-1', 'grant-1')
+    await seedArtifacts(db, 'acc-2', 'grant-2')
+
+    const admin = new AdminSessionsService(service)
+    const { sessions, truncated } = await admin.listAllSessions()
+
+    // Ambas as contas aparecem na listagem global
+    assert.isFalse(truncated)
+    assert.lengthOf(sessions, 2)
+    const ids = sessions.map((s) => s.accountId).sort()
+    assert.deepEqual(ids, ['acc-1', 'acc-2'])
+
+    // Email resolvido via fakeAccountStore (retorna email fixo: fixed.email de bootstrap)
+    for (const s of sessions) {
+      assert.isString(s.email)
+    }
+  })
+
+  test('listAllSessions retorna truncated=true quando sessions > 500', async ({
+    assert,
+    cleanup,
+  }) => {
+    const port = 9855
+    const { service, server } = await startService(port, db)
+    cleanup(() => new Promise<void>((r) => server.close(() => r())))
+
+    // Insere 501 sessões (contas distintas para evitar colisão de PK)
+    const session = new DatabaseAdapter('Session', db)
+    for (let i = 0; i < 501; i++) {
+      await session.upsert(`sess-bulk-${i}`, { accountId: `bulk-${i}`, loginTs: 1700000000 } as any, 3600)
+    }
+
+    const admin = new AdminSessionsService(service)
+    const { sessions, truncated } = await admin.listAllSessions()
+    assert.isTrue(truncated)
+    assert.equal(sessions.length, 500)
+  })
+
   test('canList=false e listas vazias quando o adapter não enumera', async ({ assert }) => {
     // Adapter sem `list`: o serviço degrada graciosamente.
     class NoListAdapter {
@@ -174,12 +220,17 @@ test.group('AdminSessionsService (sessões/grants + revogação adapter-backed)'
       }
       async revokeByGrantId() {}
     }
-    const fakeService = { config: { AdapterClass: NoListAdapter } } as any
+    const fakeAccountStore = { findById: async () => null } as any
+    const fakeService = { config: { AdapterClass: NoListAdapter, accountStore: fakeAccountStore } } as any
     const admin = new AdminSessionsService(fakeService)
     assert.isFalse(admin.canList)
     assert.lengthOf(await admin.listSessions('acc-1'), 0)
     assert.lengthOf(await admin.listGrants('acc-1'), 0)
     const result = await admin.revokeAll('acc-1')
     assert.deepEqual(result, { sessions: 0, grants: 0, accessTokens: 0, refreshTokens: 0 })
+    // listAllSessions também retorna vazio quando canList=false
+    const { sessions, truncated } = await admin.listAllSessions()
+    assert.lengthOf(sessions, 0)
+    assert.isFalse(truncated)
   })
 })

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useToast } from '../lib/toast'
-import { OrgsTableContainer, OrgDetailDrawer, useOrgsTotal } from '../containers/orgs.containers'
+import { OrgsTableContainer, OrgDetailDrawer, CreateOrgModal, useOrgsTotal } from '../containers/orgs.containers'
 
 function useDebounce<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value)
@@ -17,6 +16,7 @@ export function Orgs() {
   const dSearch = useDebounce(search, 300)
   const [detailOrgId, setDetailOrgId] = useState<string | null>(null)
   const [unavailable, setUnavailable] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
 
   const total = useOrgsTotal(dSearch)
 
@@ -36,6 +36,9 @@ export function Orgs() {
           <div className="page-title">Organizations</div>
           <div className="page-sub">{total.toLocaleString()} orgs</div>
         </div>
+        <button className="btn btn-primary" onClick={() => setCreateOpen(true)}>
+          New organization
+        </button>
       </div>
 
       <div className="panel" style={{ marginBottom: 0 }}>
@@ -60,11 +63,18 @@ export function Orgs() {
         onPage={setPage}
         onSelectOrg={setDetailOrgId}
         onUnavailable={() => setUnavailable(true)}
+        onCreateClick={() => setCreateOpen(true)}
       />
 
       {detailOrgId && (
         <OrgDetailDrawer orgId={detailOrgId} onClose={() => setDetailOrgId(null)} />
       )}
+
+      <CreateOrgModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => setCreateOpen(false)}
+      />
     </div>
   )
 }

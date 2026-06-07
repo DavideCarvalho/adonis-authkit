@@ -36,6 +36,7 @@ import type {
   UpdateRoleInput,
   AdminOrgListResult,
   AdminOrgDetail,
+  AdminOrgInvitation,
   AuditListResult,
   AuditListParams,
   SettingListResult,
@@ -354,6 +355,21 @@ class AuthkitClient {
       /** DELETE {base}/orgs/:id */
       remove: (id: string) =>
         this.delete<{ id: string; deleted: boolean }>(this.b(`/orgs/${encodeURIComponent(id)}`)),
+      /** POST {base}/orgs/:id/members */
+      addMember: (orgId: string, data: { accountId: string; role: string }) =>
+        this.post<{ ok: boolean }>(this.b(`/orgs/${encodeURIComponent(orgId)}/members`), data),
+      /** DELETE {base}/orgs/:id/members/:accountId */
+      removeMember: (orgId: string, accountId: string) =>
+        this.delete<{ ok: boolean }>(this.b(`/orgs/${encodeURIComponent(orgId)}/members/${encodeURIComponent(accountId)}`)),
+      /** PATCH {base}/orgs/:id/members/:accountId */
+      updateMemberRole: (orgId: string, accountId: string, role: string) =>
+        this.patch<{ ok: boolean }>(this.b(`/orgs/${encodeURIComponent(orgId)}/members/${encodeURIComponent(accountId)}`), { role }),
+      /** POST {base}/orgs/:id/invitations */
+      createInvitation: (orgId: string, data: { email: string; role: string }) =>
+        this.post<{ ok: boolean; invitation: AdminOrgInvitation }>(this.b(`/orgs/${encodeURIComponent(orgId)}/invitations`), data),
+      /** DELETE {base}/orgs/:id/invitations/:invitationId */
+      revokeInvitation: (orgId: string, invitationId: string) =>
+        this.delete<{ ok: boolean }>(this.b(`/orgs/${encodeURIComponent(orgId)}/invitations/${encodeURIComponent(invitationId)}`)),
     },
 
     audit: {

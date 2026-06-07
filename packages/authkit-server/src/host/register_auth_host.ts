@@ -474,8 +474,19 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
           router.patch(`${ap}/api/roles/:name`, [C.consoleRoles, 'update'])
           router.delete(`${ap}/api/roles/:name`, [C.consoleRoles, 'destroy'])
           // Organizações (capability-gated: 404 quando store não suporta).
+          // ⚠️ Rotas fixas ANTES de parametrizadas para evitar shadowing.
           router.get(`${ap}/api/orgs`, [C.consoleOrgs, 'index'])
+          router.post(`${ap}/api/orgs`, [C.consoleOrgs, 'store'])
           router.get(`${ap}/api/orgs/:id`, [C.consoleOrgs, 'show'])
+          router.patch(`${ap}/api/orgs/:id`, [C.consoleOrgs, 'update'])
+          router.delete(`${ap}/api/orgs/:id`, [C.consoleOrgs, 'destroy'])
+          // Membros: PATCH (role) ANTES de DELETE para não colidir, ambos antes do catch-all.
+          router.post(`${ap}/api/orgs/:id/members`, [C.consoleOrgs, 'addMember'])
+          router.patch(`${ap}/api/orgs/:id/members/:accountId`, [C.consoleOrgs, 'updateMemberRole'])
+          router.delete(`${ap}/api/orgs/:id/members/:accountId`, [C.consoleOrgs, 'removeMember'])
+          // Convites.
+          router.post(`${ap}/api/orgs/:id/invitations`, [C.consoleOrgs, 'createInvitation'])
+          router.delete(`${ap}/api/orgs/:id/invitations/:invitationId`, [C.consoleOrgs, 'revokeInvitation'])
           // Auditoria (capability-gated: 404 quando sink não suporta consulta).
           router.get(`${ap}/api/audit`, [C.consoleAudit, 'index'])
           // Settings.

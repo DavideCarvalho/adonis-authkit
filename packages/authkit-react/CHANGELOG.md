@@ -1,5 +1,43 @@
 # @dudousxd/adonis-authkit-react
 
+## 0.6.0
+
+### Minor Changes
+
+- feat(console): gestão completa de organizations no console admin React
+
+  Adiciona CRUD completo de organizações na JSON API do console React
+  (console_orgs_controller) e na SPA (Orgs.tsx + orgs.containers.tsx):
+
+  **Novos endpoints no console React JSON API (`{adminPrefix}/api/orgs/*`):**
+  - `POST   /api/orgs` → criar org (name + slug + ownerAccountId)
+  - `PATCH  /api/orgs/:id` → editar nome/logo
+  - `DELETE /api/orgs/:id` → remover org
+  - `POST   /api/orgs/:id/members` → adicionar membro (accountId + role)
+  - `PATCH  /api/orgs/:id/members/:accountId` → alterar role do membro
+  - `DELETE /api/orgs/:id/members/:accountId` → remover membro
+  - `POST   /api/orgs/:id/invitations` → criar convite (email + role)
+  - `DELETE /api/orgs/:id/invitations/:invitationId` → revogar convite
+
+  Todos os endpoints retornam 404 `capability_unsupported` quando o store não
+  suporta organizações. Lógica reutiliza `AdminOrgsService` (sem duplicação).
+
+  **SDK `@dudousxd/adonis-authkit-react`:**
+  - `client.admin.orgs`: novos métodos `addMember`, `removeMember`,
+    `updateMemberRole`, `createInvitation`, `revokeInvitation`
+  - Novos hooks: `useAddOrgMemberMutationOptions`, `useRemoveOrgMemberMutationOptions`,
+    `useUpdateOrgMemberRoleMutationOptions`, `useCreateOrgInvitationMutationOptions`,
+    `useRevokeOrgInvitationMutationOptions`
+
+  **SPA do console:**
+  - Botão "New organization" na header (modal com name + slug auto-gerado + ownerAccountId)
+  - Empty state com CTA de criar
+  - Drawer da org: editar nome/logo, deletar (com confirmação), listar membros com
+    add/mudar-role/remover, convites pendentes com criar e revogar
+  - Padrão containers + skeleton + QueryBoundary + toasts
+
+  i18n: strings em inglês (interface do console); mensagens de erro do servidor em pt-BR.
+
 ## 0.5.3
 
 ### Patch Changes

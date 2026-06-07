@@ -34,6 +34,7 @@ import type {
   UpdateRoleInput,
   AdminOrgListResult,
   AdminOrgDetail,
+  AdminOrgInvitation,
   AuditListResult,
   AuditListParams,
   SettingListResult,
@@ -299,6 +300,48 @@ export function useDeleteOrgMutationOptions(id: string) {
     mutationKey: ['authkit', 'admin', 'orgs', id, 'delete'],
     mutationFn: () => client.admin.orgs.remove(id),
   } satisfies UseMutationOptions<{ id: string; deleted: boolean }, AuthkitClientError, void>
+}
+
+export function useAddOrgMemberMutationOptions(orgId: string) {
+  const client = useAuthkitClient()
+  return {
+    mutationKey: ['authkit', 'admin', 'orgs', orgId, 'members', 'add'],
+    mutationFn: (data: { accountId: string; role: string }) =>
+      client.admin.orgs.addMember(orgId, data),
+  } satisfies UseMutationOptions<{ ok: boolean }, AuthkitClientError, { accountId: string; role: string }>
+}
+
+export function useRemoveOrgMemberMutationOptions(orgId: string, accountId: string) {
+  const client = useAuthkitClient()
+  return {
+    mutationKey: ['authkit', 'admin', 'orgs', orgId, 'members', accountId, 'remove'],
+    mutationFn: () => client.admin.orgs.removeMember(orgId, accountId),
+  } satisfies UseMutationOptions<{ ok: boolean }, AuthkitClientError, void>
+}
+
+export function useUpdateOrgMemberRoleMutationOptions(orgId: string, accountId: string) {
+  const client = useAuthkitClient()
+  return {
+    mutationKey: ['authkit', 'admin', 'orgs', orgId, 'members', accountId, 'role'],
+    mutationFn: (role: string) => client.admin.orgs.updateMemberRole(orgId, accountId, role),
+  } satisfies UseMutationOptions<{ ok: boolean }, AuthkitClientError, string>
+}
+
+export function useCreateOrgInvitationMutationOptions(orgId: string) {
+  const client = useAuthkitClient()
+  return {
+    mutationKey: ['authkit', 'admin', 'orgs', orgId, 'invitations', 'create'],
+    mutationFn: (data: { email: string; role: string }) =>
+      client.admin.orgs.createInvitation(orgId, data),
+  } satisfies UseMutationOptions<{ ok: boolean; invitation: AdminOrgInvitation }, AuthkitClientError, { email: string; role: string }>
+}
+
+export function useRevokeOrgInvitationMutationOptions(orgId: string, invitationId: string) {
+  const client = useAuthkitClient()
+  return {
+    mutationKey: ['authkit', 'admin', 'orgs', orgId, 'invitations', invitationId, 'revoke'],
+    mutationFn: () => client.admin.orgs.revokeInvitation(orgId, invitationId),
+  } satisfies UseMutationOptions<{ ok: boolean }, AuthkitClientError, void>
 }
 
 // ---------------------------------------------------------------------------

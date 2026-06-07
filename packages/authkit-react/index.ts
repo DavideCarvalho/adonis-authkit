@@ -228,6 +228,11 @@ export {
   useCreateOrgMutationOptions,
   useUpdateOrgMutationOptions,
   useDeleteOrgMutationOptions,
+  useAddOrgMemberMutationOptions,
+  useRemoveOrgMemberMutationOptions,
+  useUpdateOrgMemberRoleMutationOptions,
+  useCreateOrgInvitationMutationOptions,
+  useRevokeOrgInvitationMutationOptions,
   // Audit
   useAuditQueryOptions,
   // Settings

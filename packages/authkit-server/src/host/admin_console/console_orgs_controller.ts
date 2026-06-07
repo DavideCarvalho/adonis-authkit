@@ -1,5 +1,6 @@
 import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
+import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
 import { AdminOrgsService } from '../admin_api/admin_orgs_service.js'
 import { orgDto, orgDetailDto, apiError } from '../admin_api/dto.js'
 
@@ -7,14 +8,34 @@ import { orgDto, orgDetailDto, apiError } from '../admin_api/dto.js'
  * Endpoints JSON de organizações do console admin React.
  * 404 honesto quando o store não suporta organizações (`capability_unsupported`).
  *
- * GET {prefix}/api/orgs              → lista orgs com contagem de membros
- * GET {prefix}/api/orgs/:id          → detalhe da org (membros + convites)
+ * GET    {prefix}/api/orgs                                → lista orgs com contagem de membros
+ * POST   {prefix}/api/orgs                                → cria uma org
+ * GET    {prefix}/api/orgs/:id                            → detalhe da org (membros + convites)
+ * PATCH  {prefix}/api/orgs/:id                            → edita nome/slug/logo
+ * DELETE {prefix}/api/orgs/:id                            → remove a org
+ * POST   {prefix}/api/orgs/:id/members                    → adiciona membro (accountId + role)
+ * DELETE {prefix}/api/orgs/:id/members/:accountId         → remove membro
+ * PATCH  {prefix}/api/orgs/:id/members/:accountId         → altera role do membro
+ * POST   {prefix}/api/orgs/:id/invitations                → cria convite (email + role)
+ * DELETE {prefix}/api/orgs/:id/invitations/:invitationId  → revoga convite
  */
 export default class ConsoleOrgsController {
+  private async svc(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    return new AdminOrgsService(service.config)
+  }
+
+  private actor(ctx: HttpContext) {
+    return {
+      actorId: (ctx.session?.get(ACCOUNT_SESSION_KEY) as string) ?? null,
+      ip: ctx.request.ip?.() ?? null,
+      source: 'admin' as const,
+    }
+  }
+
   /** GET {prefix}/api/orgs */
   async index(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make('authkit.server')
-    const svc = new AdminOrgsService(service.config)
+    const svc = await this.svc(ctx)
 
     if (!svc.supported) {
       return ctx.response.notFound(
@@ -32,10 +53,50 @@ export default class ConsoleOrgsController {
     return { data: result.map((o) => orgDto(o)) }
   }
 
+  /** POST {prefix}/api/orgs */
+  async store(ctx: HttpContext) {
+    const svc = await this.svc(ctx)
+
+    if (!svc.supported) {
+      return ctx.response.notFound(
+        apiError('capability_unsupported', 'O store não suporta organizações.')
+      )
+    }
+
+    const body = ctx.request.body() as Record<string, unknown>
+    const name = (body.name as string | undefined)?.trim() ?? ''
+    const slug = (body.slug as string | undefined)?.trim() ?? ''
+    const ownerAccountId = (body.ownerAccountId as string | undefined)?.trim() ?? ''
+    const logoUrl = (body.logoUrl as string | null | undefined) ?? null
+
+    if (!name || !slug || !ownerAccountId) {
+      return ctx.response.badRequest(
+        apiError('invalid_input', 'Os campos name, slug e ownerAccountId são obrigatórios.')
+      )
+    }
+
+    const result = await svc.createOrg(
+      { name, slug, ownerAccountId, logoUrl },
+      this.actor(ctx)
+    )
+
+    if ('ok' in result && result.ok === false) {
+      if (result.reason === 'slug_taken') {
+        return ctx.response.unprocessableEntity(
+          apiError('slug_taken', 'Este slug já está em uso.')
+        )
+      }
+      return ctx.response.notFound(
+        apiError('capability_unsupported', 'O store não suporta organizações.')
+      )
+    }
+
+    return ctx.response.created(orgDto(result as any))
+  }
+
   /** GET {prefix}/api/orgs/:id */
   async show(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make('authkit.server')
-    const svc = new AdminOrgsService(service.config)
+    const svc = await this.svc(ctx)
 
     if (!svc.supported) {
       return ctx.response.notFound(
@@ -56,5 +117,242 @@ export default class ConsoleOrgsController {
     }
 
     return orgDetailDto(result as any)
+  }
+
+  /** PATCH {prefix}/api/orgs/:id */
+  async update(ctx: HttpContext) {
+    const svc = await this.svc(ctx)
+
+    if (!svc.supported) {
+      return ctx.response.notFound(
+        apiError('capability_unsupported', 'O store não suporta organizações.')
+      )
+    }
+
+    const id = ctx.request.param('id') as string
+    const body = ctx.request.body() as Record<string, unknown>
+    const patch: { name?: string; logoUrl?: string | null } = {}
+    if (body.name !== undefined) patch.name = (body.name as string).trim()
+    if (body.logoUrl !== undefined) patch.logoUrl = body.logoUrl as string | null
+
+    const result = await svc.updateOrg(id, patch, this.actor(ctx))
+
+    if ('ok' in result && result.ok === false) {
+      if (result.reason === 'not_found') {
+        return ctx.response.notFound(apiError('not_found', 'Organização não encontrada.'))
+      }
+      if (result.reason === 'slug_taken') {
+        return ctx.response.unprocessableEntity(
+          apiError('slug_taken', 'Este slug já está em uso.')
+        )
+      }
+      return ctx.response.notFound(
+        apiError('capability_unsupported', 'O store não suporta organizações.')
+      )
+    }
+
+    return orgDto(result as any)
+  }
+
+  /** DELETE {prefix}/api/orgs/:id */
+  async destroy(ctx: HttpContext) {
+    const svc = await this.svc(ctx)
+
+    if (!svc.supported) {
+      return ctx.response.notFound(
+        apiError('capability_unsupported', 'O store não suporta organizações.')
+      )
+    }
+
+    const id = ctx.request.param('id') as string
+    const result = await svc.deleteOrg(id, this.actor(ctx))
+
+    if ('ok' in result && result.ok === false) {
+      if (result.reason === 'not_found') {
+        return ctx.response.notFound(apiError('not_found', 'Organização não encontrada.'))
+      }
+      return ctx.response.notFound(
+        apiError('capability_unsupported', 'O store não suporta organizações.')
+      )
+    }
+
+    return { id, deleted: true }
+  }
+
+  /** POST {prefix}/api/orgs/:id/members */
+  async addMember(ctx: HttpContext) {
+    const svc = await this.svc(ctx)
+
+    if (!svc.supported) {
+      return ctx.response.notFound(
+        apiError('capability_unsupported', 'O store não suporta organizações.')
+      )
+    }
+
+    const orgId = ctx.request.param('id') as string
+    const body = ctx.request.body() as Record<string, unknown>
+    const accountId = (body.accountId as string | undefined)?.trim() ?? ''
+    const role = (body.role as string | undefined)?.trim() ?? 'member'
+
+    if (!accountId) {
+      return ctx.response.badRequest(apiError('invalid_input', 'O campo accountId é obrigatório.'))
+    }
+
+    const result = await svc.addMember(orgId, { accountId, role }, this.actor(ctx))
+
+    if ('ok' in result && result.ok === false) {
+      if (result.reason === 'not_found') {
+        return ctx.response.notFound(apiError('not_found', 'Organização não encontrada.'))
+      }
+      if (result.reason === 'account_not_found') {
+        return ctx.response.notFound(apiError('account_not_found', 'Conta não encontrada.'))
+      }
+      return ctx.response.notFound(
+        apiError('capability_unsupported', 'O store não suporta organizações.')
+      )
+    }
+
+    return { ok: true }
+  }
+
+  /** DELETE {prefix}/api/orgs/:id/members/:accountId */
+  async removeMember(ctx: HttpContext) {
+    const svc = await this.svc(ctx)
+
+    if (!svc.supported) {
+      return ctx.response.notFound(
+        apiError('capability_unsupported', 'O store não suporta organizações.')
+      )
+    }
+
+    const orgId = ctx.request.param('id') as string
+    const accountId = ctx.request.param('accountId') as string
+
+    const result = await svc.removeMember(orgId, accountId, this.actor(ctx))
+
+    if ('ok' in result && result.ok === false) {
+      if (result.reason === 'not_found') {
+        return ctx.response.notFound(apiError('not_found', 'Organização não encontrada.'))
+      }
+      if (result.reason === 'last_owner') {
+        return ctx.response.unprocessableEntity(
+          apiError('last_owner', 'Não é possível remover o último owner da organização.')
+        )
+      }
+      if (result.reason === 'member_not_found') {
+        return ctx.response.notFound(apiError('member_not_found', 'Membro não encontrado.'))
+      }
+      return ctx.response.notFound(
+        apiError('capability_unsupported', 'O store não suporta organizações.')
+      )
+    }
+
+    return { ok: true }
+  }
+
+  /** PATCH {prefix}/api/orgs/:id/members/:accountId */
+  async updateMemberRole(ctx: HttpContext) {
+    const svc = await this.svc(ctx)
+
+    if (!svc.supported) {
+      return ctx.response.notFound(
+        apiError('capability_unsupported', 'O store não suporta organizações.')
+      )
+    }
+
+    const orgId = ctx.request.param('id') as string
+    const accountId = ctx.request.param('accountId') as string
+    const body = ctx.request.body() as Record<string, unknown>
+    const role = (body.role as string | undefined)?.trim() ?? ''
+
+    if (!role) {
+      return ctx.response.badRequest(apiError('invalid_input', 'O campo role é obrigatório.'))
+    }
+
+    const result = await svc.updateMemberRole(orgId, accountId, role, this.actor(ctx))
+
+    if ('ok' in result && result.ok === false) {
+      if (result.reason === 'not_found') {
+        return ctx.response.notFound(apiError('not_found', 'Organização não encontrada.'))
+      }
+      if (result.reason === 'last_owner') {
+        return ctx.response.unprocessableEntity(
+          apiError('last_owner', 'Não é possível alterar o role do último owner.')
+        )
+      }
+      if (result.reason === 'member_not_found') {
+        return ctx.response.notFound(apiError('member_not_found', 'Membro não encontrado.'))
+      }
+      return ctx.response.notFound(
+        apiError('capability_unsupported', 'O store não suporta organizações.')
+      )
+    }
+
+    return { ok: true }
+  }
+
+  /** POST {prefix}/api/orgs/:id/invitations */
+  async createInvitation(ctx: HttpContext) {
+    const svc = await this.svc(ctx)
+
+    if (!svc.supported) {
+      return ctx.response.notFound(
+        apiError('capability_unsupported', 'O store não suporta organizações.')
+      )
+    }
+
+    const orgId = ctx.request.param('id') as string
+    const body = ctx.request.body() as Record<string, unknown>
+    const email = (body.email as string | undefined)?.trim() ?? ''
+    const role = (body.role as string | undefined)?.trim() ?? 'member'
+
+    if (!email) {
+      return ctx.response.badRequest(apiError('invalid_input', 'O campo email é obrigatório.'))
+    }
+
+    const origin = `${ctx.request.protocol()}://${ctx.request.host()}`
+    const result = await svc.createInvitation(orgId, { email, role }, this.actor(ctx), origin)
+
+    if ('ok' in result && result.ok === false) {
+      if (result.reason === 'not_found') {
+        return ctx.response.notFound(apiError('not_found', 'Organização não encontrada.'))
+      }
+      return ctx.response.notFound(
+        apiError('capability_unsupported', 'O store não suporta organizações.')
+      )
+    }
+
+    const ok = result as { ok: true; invitation: any; token: string }
+    return ctx.response.created({ ok: true, invitation: ok.invitation })
+  }
+
+  /** DELETE {prefix}/api/orgs/:id/invitations/:invitationId */
+  async revokeInvitation(ctx: HttpContext) {
+    const svc = await this.svc(ctx)
+
+    if (!svc.supported) {
+      return ctx.response.notFound(
+        apiError('capability_unsupported', 'O store não suporta organizações.')
+      )
+    }
+
+    const orgId = ctx.request.param('id') as string
+    const invitationId = ctx.request.param('invitationId') as string
+
+    const result = await svc.revokeInvitation(orgId, invitationId, this.actor(ctx))
+
+    if ('ok' in result && result.ok === false) {
+      if (result.reason === 'not_found') {
+        return ctx.response.notFound(apiError('not_found', 'Organização não encontrada.'))
+      }
+      if (result.reason === 'invitation_not_found') {
+        return ctx.response.notFound(apiError('invitation_not_found', 'Convite não encontrado.'))
+      }
+      return ctx.response.notFound(
+        apiError('capability_unsupported', 'O store não suporta organizações.')
+      )
+    }
+
+    return { ok: true }
   }
 }

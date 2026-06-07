@@ -22,9 +22,24 @@ import { AdminUsersService } from '../../src/host/admin_api/admin_users_service.
 // ---------------------------------------------------------------------------
 
 function fakeDb(rows: Record<string, any> = {}) {
-  const store = new Map<string, { value: string }>(
-    Object.entries(rows).map(([k, v]) => [k, { value: JSON.stringify(v) }])
+  const storeKey = (key: string, orgId: string | null) => `${key}|${orgId ?? ''}`
+  const store = new Map<string, { key: string; org_id: string | null; value: string }>(
+    Object.entries(rows).map(([k, v]) => [storeKey(k, null), { key: k, org_id: null, value: JSON.stringify(v) }])
   )
+  function makeChain(filters: Array<{ col: string; val: string | null; isNull: boolean }>) {
+    return {
+      where(col: string, val: string) { return makeChain([...filters, { col, val, isNull: false }]) },
+      whereNull(col: string) { return makeChain([...filters, { col, val: null, isNull: true }]) },
+      async first() {
+        const keyFilter = filters.find(f => f.col === 'key')
+        const orgFilter = filters.find(f => f.col === 'organization_id')
+        if (!keyFilter) return null
+        const orgId: string | null = orgFilter ? (orgFilter.isNull ? null : orgFilter.val) : null
+        const v = store.get(storeKey(keyFilter.val!, orgId))
+        return v ? { key: v.key, organization_id: v.org_id, value: v.value, updated_at: new Date(), updated_by: null } : null
+      },
+    }
+  }
   return {
     from(name: string) { return this.table(name) },
     table(_name: string) {
@@ -32,14 +47,8 @@ function fakeDb(rows: Record<string, any> = {}) {
         select(_cols?: string) {
           return { limit(_n: number) { return Promise.resolve([]) } }
         },
-        where(_col: string, key: string) {
-          return {
-            async first() {
-              const v = store.get(key)
-              return v ? { key, value: v.value, updated_at: new Date(), updated_by: null } : null
-            },
-          }
-        },
+        where(col: string, val: string) { return makeChain([{ col, val, isNull: false }]) },
+        whereNull(col: string) { return makeChain([{ col, val: null, isNull: true }]) },
       }
     },
   }

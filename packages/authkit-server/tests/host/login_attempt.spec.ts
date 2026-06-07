@@ -267,21 +267,27 @@ test.group('attemptPasswordLogin', (group) => {
     const db = {
       from(...args: any[]) { return (this as any).table(...args) },
       table(_: string) {
+        function makeChain(filters: Array<{ col: string; val: string | null; isNull: boolean }>) {
+          return {
+            where(col: string, val: string) { return makeChain([...filters, { col, val, isNull: false }]) },
+            whereNull(col: string) { return makeChain([...filters, { col, val: null, isNull: true }]) },
+            async first() {
+              const keyFilter = filters.find(f => f.col === 'key')
+              const keyVal = keyFilter?.val
+              if (keyVal === 'require_verified_email') {
+                return { key: keyVal, organization_id: null, value: JSON.stringify({ enabled: true }), updated_at: new Date(), updated_by: null }
+              }
+              return null
+            },
+          }
+        }
         return {
           // Probe: select().limit() → resolves (table present).
           select(_cols?: string) {
             return { limit(_n: number) { return Promise.resolve([]) } }
           },
-          where(_c: string, key: string) {
-            return {
-              async first() {
-                if (key === 'require_verified_email') {
-                  return { key, value: JSON.stringify({ enabled: true }), updated_at: new Date(), updated_by: null }
-                }
-                return null
-              },
-            }
-          },
+          where(col: string, val: string) { return makeChain([{ col, val, isNull: false }]) },
+          whereNull(col: string) { return makeChain([{ col, val: null, isNull: true }]) },
         }
       },
     }
@@ -313,21 +319,27 @@ test.group('attemptPasswordLogin', (group) => {
     const db = {
       from(...args: any[]) { return (this as any).table(...args) },
       table(_: string) {
+        function makeChain(filters: Array<{ col: string; val: string | null; isNull: boolean }>) {
+          return {
+            where(col: string, val: string) { return makeChain([...filters, { col, val, isNull: false }]) },
+            whereNull(col: string) { return makeChain([...filters, { col, val: null, isNull: true }]) },
+            async first() {
+              const keyFilter = filters.find(f => f.col === 'key')
+              const keyVal = keyFilter?.val
+              if (keyVal === 'require_verified_email') {
+                return { key: keyVal, organization_id: null, value: JSON.stringify({ enabled: false }), updated_at: new Date(), updated_by: null }
+              }
+              return null
+            },
+          }
+        }
         return {
           // Probe: select().limit() → resolves (table present).
           select(_cols?: string) {
             return { limit(_n: number) { return Promise.resolve([]) } }
           },
-          where(_c: string, key: string) {
-            return {
-              async first() {
-                if (key === 'require_verified_email') {
-                  return { key, value: JSON.stringify({ enabled: false }), updated_at: new Date(), updated_by: null }
-                }
-                return null
-              },
-            }
-          },
+          where(col: string, val: string) { return makeChain([{ col, val, isNull: false }]) },
+          whereNull(col: string) { return makeChain([{ col, val: null, isNull: true }]) },
         }
       },
     }

@@ -32,13 +32,35 @@ import { createServer } from 'node:http'
 // ---------------------------------------------------------------------------
 
 function fakeDb(rows: Record<string, any> = {}) {
-  const store = new Map<string, { value: string }>(
-    Object.entries(rows).map(([k, v]) => [k, { value: JSON.stringify(v) }])
+  const storeKey = (key: string, orgId: string | null) => `${key}|${orgId ?? ''}`
+  const store = new Map<string, { key: string; org_id: string | null; value: string }>(
+    Object.entries(rows).map(([k, v]) => [storeKey(k, null), { key: k, org_id: null, value: JSON.stringify(v) }])
   )
+  function makeChain(filters: Array<{ col: string; val: string | null; isNull: boolean }>) {
+    return {
+      where(col: string, val: string) { return makeChain([...filters, { col, val, isNull: false }]) },
+      whereNull(col: string) { return makeChain([...filters, { col, val: null, isNull: true }]) },
+      async first() {
+        const keyFilter = filters.find(f => f.col === 'key')
+        const orgFilter = filters.find(f => f.col === 'organization_id')
+        if (!keyFilter) return null
+        const orgId: string | null = orgFilter ? (orgFilter.isNull ? null : orgFilter.val) : null
+        const v = store.get(storeKey(keyFilter.val!, orgId))
+        return v ? { key: v.key, organization_id: v.org_id, value: v.value, updated_at: new Date(), updated_by: null } : null
+      },
+      async delete() {
+        const keyFilter = filters.find(f => f.col === 'key')
+        const orgFilter = filters.find(f => f.col === 'organization_id')
+        if (!keyFilter) return
+        const orgId: string | null = orgFilter ? (orgFilter.isNull ? null : orgFilter.val) : null
+        store.delete(storeKey(keyFilter.val!, orgId))
+      },
+    }
+  }
   return {
     from(name: string) { return this.table(name) },
     table(_name: string) {
-      const allRows = () => [...store.entries()].map(([key, v]) => ({ key, value: v.value }))
+      const allRows = () => [...store.values()].map(v => ({ key: v.key, organization_id: v.org_id, value: v.value }))
       return {
         // Probe: select().limit() → resolves (table present).
         select(_cols?: string) {
@@ -48,17 +70,11 @@ function fakeDb(rows: Record<string, any> = {}) {
             then(resolve: any, reject: any) { return Promise.resolve(rows).then(resolve, reject) },
           }
         },
-        where(_col: string, key: string) {
-          return {
-            async first() {
-              const v = store.get(key)
-              return v ? { key, value: v.value, updated_at: new Date(), updated_by: null } : null
-            },
-            async delete() { store.delete(key) },
-          }
-        },
+        where(col: string, val: string) { return makeChain([{ col, val, isNull: false }]) },
+        whereNull(col: string) { return makeChain([{ col, val: null, isNull: true }]) },
         async insert(row: any) {
-          store.set(row.key, { value: row.value })
+          const orgId: string | null = row.organization_id ?? null
+          store.set(storeKey(row.key, orgId), { key: row.key, org_id: orgId, value: row.value })
         },
       }
     },
@@ -86,10 +102,32 @@ function settings(db: any) {
 }
 
 function makeSettingsDb(initialRows: Record<string, any> = {}) {
-  const store = new Map<string, { value: string; updated_at: Date; updated_by: string | null }>(
-    Object.entries(initialRows).map(([k, v]) => [k, { value: JSON.stringify(v), updated_at: new Date(), updated_by: null }])
+  const sk = (key: string, orgId: string | null) => `${key}|${orgId ?? ''}`
+  const store = new Map<string, { key: string; org_id: string | null; value: string; updated_at: Date; updated_by: string | null }>(
+    Object.entries(initialRows).map(([k, v]) => [sk(k, null), { key: k, org_id: null, value: JSON.stringify(v), updated_at: new Date(), updated_by: null }])
   )
   let _hasTable = true
+  function makeChain(filters: Array<{ col: string; val: string | null; isNull: boolean }>) {
+    return {
+      where(col: string, val: string) { return makeChain([...filters, { col, val, isNull: false }]) },
+      whereNull(col: string) { return makeChain([...filters, { col, val: null, isNull: true }]) },
+      async first() {
+        const keyFilter = filters.find(f => f.col === 'key')
+        const orgFilter = filters.find(f => f.col === 'organization_id')
+        if (!keyFilter) return null
+        const orgId: string | null = orgFilter ? (orgFilter.isNull ? null : orgFilter.val) : null
+        const v = store.get(sk(keyFilter.val!, orgId))
+        return v ? { key: v.key, organization_id: v.org_id, value: v.value, updated_at: v.updated_at, updated_by: v.updated_by } : null
+      },
+      async delete() {
+        const keyFilter = filters.find(f => f.col === 'key')
+        const orgFilter = filters.find(f => f.col === 'organization_id')
+        if (!keyFilter) return
+        const orgId: string | null = orgFilter ? (orgFilter.isNull ? null : orgFilter.val) : null
+        store.delete(sk(keyFilter.val!, orgId))
+      },
+    }
+  }
   const db = {
     _store: store,
     withNoTable() { _hasTable = false; return db },
@@ -98,19 +136,13 @@ function makeSettingsDb(initialRows: Record<string, any> = {}) {
       if (name !== 'auth_settings') throw new Error(`unexpected table: ${name}`)
       // Probe: se _hasTable for false, lança para simular tabela ausente.
       if (!_hasTable) throw new Error('table does not exist')
-      const allRows = () => [...store.entries()].map(([key, v]) => ({ key, ...v }))
+      const allRows = () => [...store.values()].map(v => ({ key: v.key, organization_id: v.org_id, value: v.value, updated_at: v.updated_at, updated_by: v.updated_by }))
       return {
-        where(_col: string, key: string) {
-          return {
-            async first() {
-              const v = store.get(key)
-              return v ? { key, ...v } : null
-            },
-            async delete() { store.delete(key) },
-          }
-        },
+        where(col: string, val: string) { return makeChain([{ col, val, isNull: false }]) },
+        whereNull(col: string) { return makeChain([{ col, val: null, isNull: true }]) },
         async insert(row: any) {
-          store.set(row.key, { value: row.value, updated_at: row.updated_at ?? new Date(), updated_by: row.updated_by ?? null })
+          const orgId: string | null = row.organization_id ?? null
+          store.set(sk(row.key, orgId), { key: row.key, org_id: orgId, value: row.value, updated_at: row.updated_at ?? new Date(), updated_by: row.updated_by ?? null })
         },
         // select() retorna chainable com .limit() para o probe funcionar.
         select(_cols?: string) {
@@ -118,6 +150,14 @@ function makeSettingsDb(initialRows: Record<string, any> = {}) {
           return {
             limit(_n: number) { return Promise.resolve(rows.slice(0, _n)) },
             then(resolve: any, reject: any) { return Promise.resolve(rows).then(resolve, reject) },
+            where(col: string, val: string) {
+              const f = rows.filter(r => (r as any)[col] === val)
+              return { limit: (_n: number) => Promise.resolve(f), then: (res: any, _j: any) => Promise.resolve(f).then(res) }
+            },
+            whereNull(col: string) {
+              const f = rows.filter(r => (r as any)[col] === null || (r as any)[col] === undefined)
+              return { limit: (_n: number) => Promise.resolve(f), then: (res: any, _j: any) => Promise.resolve(f).then(res) }
+            },
           }
         },
       }

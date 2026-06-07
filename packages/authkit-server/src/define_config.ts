@@ -830,6 +830,17 @@ export interface AuthServerConfigInput {
    * curto: erro/timeout → sem localização.
    */
   resolveGeo?: ResolveGeo
+  /**
+   * Gestão automática do schema das tabelas do authkit (`authkit_oidc_payloads`,
+   * `auth_settings`, `auth_password_history` e as três de organizations).
+   *
+   * - `autoManage` (default `true`): no boot, cria as tabelas que faltam e
+   *   adiciona colunas novas (aditivo — nunca dropa nem altera tipos).
+   * - `autoManage: false`: nada roda no boot; gerencie o schema você mesmo —
+   *   de preferência chamando `ensureAuthkitSchema(this.db)` numa migration.
+   * - `connection`: conexão Lucid a usar (default: primária).
+   */
+  schema?: { autoManage?: boolean; connection?: string }
 }
 
 export interface ResolvedServerConfig {
@@ -901,6 +912,8 @@ export interface ResolvedServerConfig {
   messages: AuthMessages
   /** Locale ativo (default 'pt-BR'). */
   locale: string
+  /** Gestão automática de schema resolvida (default ligada). */
+  schema: { autoManage: boolean; connection?: string }
 }
 
 const UNITS: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 }
@@ -990,6 +1003,10 @@ export function defineConfig(config: AuthServerConfigInput) {
       resolveGeo: config.resolveGeo,
       messages: resolveMessages(config.i18n),
       locale: config.i18n?.locale ?? 'pt-BR',
+      schema: {
+        autoManage: config.schema?.autoManage !== false,
+        connection: config.schema?.connection,
+      },
     }
   })
 }

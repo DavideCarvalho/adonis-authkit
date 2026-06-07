@@ -248,6 +248,8 @@ export interface AuditListParams {
 
 export interface SettingEntry {
   key: string
+  /** null = setting global; uuid = setting escopada a uma organização */
+  organizationId: string | null
   value: unknown
   updatedAt: string | null
   updatedBy: string | null

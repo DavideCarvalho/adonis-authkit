@@ -19,21 +19,34 @@
  * usam `db.connection(name)` em vez da conexão default — necessário quando o
  * auth vive num schema/conexão separados (ex.: host com `auth` connection).
  *
+ * ESCOPO DE ORG: settings podem ser globais (organization_id NULL) ou escopadas
+ * a uma organização (organization_id = uuid). A resolução efetiva segue a cadeia
+ * org → global → null, implementada em `getEffective(key, orgId?)`.
+ *
+ * Keys org-scopáveis: `organizations_policy`, `roles_catalog`.
+ * As demais keys são GLOBAIS (a UI não oferece escopo por org para elas).
+ *
  * @example
  * ```ts
  * const settings = new RuntimeSettings(db)
  * const raw = await settings.getSetting('bot_protection')
  * // raw é `unknown | null`. Null = tabela ausente ou key inexistente.
  * const botSetting = raw as BotProtectionSetting | null
+ *
+ * // Resolução org→global→null:
+ * const effective = await settings.getEffective('organizations_policy', orgId)
  * ```
  *
  * Schema esperado da tabela `auth_settings`:
  * ```sql
  * CREATE TABLE auth_settings (
- *   key        TEXT PRIMARY KEY,
- *   value      TEXT NOT NULL,        -- JSON
- *   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
- *   updated_by TEXT                  -- nullable accountId do admin
+ *   key             TEXT NOT NULL,
+ *   organization_id TEXT,               -- NULL = global
+ *   value           TEXT NOT NULL,      -- JSON
+ *   updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ *   updated_by      TEXT,               -- nullable accountId do admin
+ *   UNIQUE (key, organization_id)       -- NULL tratado como distinct via UNIQUE NULLS NOT DISTINCT
+ *                                       -- ou via unique index parcial (ver migração)
  * );
  * ```
  */
@@ -41,6 +54,7 @@
 /** Uma entrada da tabela `auth_settings`. */
 export interface SettingRow {
   key: string
+  organizationId: string | null
   value: unknown // JSON parseado
   updatedAt: Date | string | null
   updatedBy: string | null
@@ -51,14 +65,25 @@ export interface SettingRow {
  * existe. Use `supportsSettings` para verificar em runtime.
  */
 export interface SettingsCapability {
-  /** Lê uma key; retorna null se ausente ou tabela inexistente. Usa cache TTL. */
-  getSetting(key: string): Promise<unknown | null>
-  /** Grava (upsert) uma key com o value JSON-serializável. Invalida o cache. */
-  setSetting(key: string, value: unknown, updatedBy?: string | null): Promise<void>
-  /** Remove uma key. Invalida o cache. */
-  deleteSetting(key: string): Promise<void>
-  /** Lista todas as keys. Sem cache (low-frequency). */
-  listSettings(): Promise<SettingRow[]>
+  /**
+   * Lê uma key no escopo especificado (global se orgId omitido).
+   * Retorna null se ausente ou tabela inexistente. Usa cache TTL.
+   */
+  getSetting(key: string, orgId?: string | null): Promise<unknown | null>
+  /**
+   * Grava (upsert) uma key no escopo especificado.
+   * Invalida o cache para essa (key, orgId).
+   */
+  setSetting(key: string, value: unknown, updatedBy?: string | null, orgId?: string | null): Promise<void>
+  /** Remove uma key no escopo especificado. Invalida o cache. */
+  deleteSetting(key: string, orgId?: string | null): Promise<void>
+  /** Lista settings. Sem orgId = todas; com orgId = apenas escopo da org. */
+  listSettings(orgId?: string | null): Promise<SettingRow[]>
+  /**
+   * Resolve efetivamente: org-setting → global-setting → null.
+   * Sem orgId equivale a getSetting(key) (global apenas).
+   */
+  getEffective(key: string, orgId?: string | null): Promise<unknown | null>
 }
 
 /**
@@ -81,6 +106,11 @@ export interface RuntimeSettingsOptions {
 }
 
 type CacheEntry = { value: unknown | null; expiresAt: number }
+
+/** Chave de cache: combina key + escopo de org (null = global). */
+function cacheKey(key: string, orgId: string | null | undefined): string {
+  return orgId ? `${key}\x00${orgId}` : key
+}
 
 /**
  * Implementação default do SettingsCapability sobre um `Database` Lucid.
@@ -133,57 +163,107 @@ export class RuntimeSettings implements SettingsCapability {
     }
   }
 
-  async getSetting(key: string): Promise<unknown | null> {
+  async getSetting(key: string, orgId?: string | null): Promise<unknown | null> {
+    const ck = cacheKey(key, orgId ?? null)
     // Cache hit?
-    const cached = this.cache.get(key)
+    const cached = this.cache.get(ck)
     if (cached && cached.expiresAt > Date.now()) return cached.value
 
     if (!(await this.hasTable())) {
-      this._cache(key, null)
+      this._cache(ck, null)
       return null
     }
 
     try {
-      const row = await this.conn().from('auth_settings').where('key', key).first()
+      let q = this.conn().from('auth_settings').where('key', key)
+      if (orgId) {
+        q = q.where('organization_id', orgId)
+      } else {
+        q = q.whereNull('organization_id')
+      }
+      const row = await q.first()
       const value = row ? this._parse(row.value) : null
-      this._cache(key, value)
+      this._cache(ck, value)
       return value
     } catch {
       // FAIL-SAFE: erro de DB → null, caller usa config estático.
-      this._cache(key, null)
+      this._cache(ck, null)
       return null
     }
   }
 
-  async setSetting(key: string, value: unknown, updatedBy: string | null = null): Promise<void> {
+  /**
+   * Resolve efetivamente: org-setting → global-setting → null.
+   * Se orgId não fornecido, equivale a getSetting(key) (global apenas).
+   */
+  async getEffective(key: string, orgId?: string | null): Promise<unknown | null> {
+    if (orgId) {
+      const orgValue = await this.getSetting(key, orgId)
+      if (orgValue !== null) return orgValue
+    }
+    return this.getSetting(key, null)
+  }
+
+  async setSetting(key: string, value: unknown, updatedBy: string | null = null, orgId?: string | null): Promise<void> {
     if (!(await this.hasTable())) return
     const json = JSON.stringify(value)
+    const resolvedOrgId = orgId ?? null
     try {
       // Delete first then insert = upsert (compatível com sqlite + pg sem UPSERT syntax).
-      await this.conn().from('auth_settings').where('key', key).delete()
-      await this.conn().table('auth_settings').insert({ key, value: json, updated_at: new Date(), updated_by: updatedBy })
+      let q = this.conn().from('auth_settings').where('key', key)
+      if (resolvedOrgId) {
+        q = q.where('organization_id', resolvedOrgId)
+      } else {
+        q = q.whereNull('organization_id')
+      }
+      await q.delete()
+      await this.conn().table('auth_settings').insert({
+        key,
+        organization_id: resolvedOrgId,
+        value: json,
+        updated_at: new Date(),
+        updated_by: updatedBy,
+      })
     } catch {
       // Fail-safe: não lança.
     }
-    this.invalidate(key)
+    this.invalidate(key, resolvedOrgId)
   }
 
-  async deleteSetting(key: string): Promise<void> {
+  async deleteSetting(key: string, orgId?: string | null): Promise<void> {
     if (!(await this.hasTable())) return
+    const resolvedOrgId = orgId ?? null
     try {
-      await this.conn().from('auth_settings').where('key', key).delete()
+      let q = this.conn().from('auth_settings').where('key', key)
+      if (resolvedOrgId) {
+        q = q.where('organization_id', resolvedOrgId)
+      } else {
+        q = q.whereNull('organization_id')
+      }
+      await q.delete()
     } catch {
       // Fail-safe.
     }
-    this.invalidate(key)
+    this.invalidate(key, resolvedOrgId)
   }
 
-  async listSettings(): Promise<SettingRow[]> {
+  async listSettings(orgId?: string | null): Promise<SettingRow[]> {
     if (!(await this.hasTable())) return []
     try {
-      const rows = await this.conn().from('auth_settings').select('*')
+      let q = this.conn().from('auth_settings').select('*')
+      if (orgId !== undefined) {
+        // orgId fornecido: filtra pelo escopo
+        if (orgId) {
+          q = q.where('organization_id', orgId)
+        } else {
+          q = q.whereNull('organization_id')
+        }
+      }
+      // orgId undefined = lista tudo (global + todos os orgs)
+      const rows = await q
       return rows.map((r: any): SettingRow => ({
         key: r.key,
+        organizationId: r.organization_id ?? null,
         value: this._parse(r.value),
         updatedAt: r.updated_at ?? null,
         updatedBy: r.updated_by ?? null,
@@ -206,9 +286,9 @@ export class RuntimeSettings implements SettingsCapability {
    * Chamado AUTOMATICAMENTE após setSetting/deleteSetting.
    * Chame externamente após writes que contornam este serviço.
    */
-  invalidate(key?: string): void {
-    if (key) {
-      this.cache.delete(key)
+  invalidate(key?: string, orgId?: string | null): void {
+    if (key !== undefined) {
+      this.cache.delete(cacheKey(key, orgId ?? null))
     } else {
       this.cache.clear()
     }

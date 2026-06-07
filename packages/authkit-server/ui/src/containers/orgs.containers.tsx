@@ -11,6 +11,9 @@ import {
   useUpdateOrgMemberRoleMutationOptions,
   useCreateOrgInvitationMutationOptions,
   useRevokeOrgInvitationMutationOptions,
+  useSettingsQueryOptions,
+  useSetSettingMutationOptions,
+  useRemoveSettingMutationOptions,
   authkitKeys,
 } from '@dudousxd/adonis-authkit-react'
 import { Drawer } from '../components/Drawer'
@@ -482,6 +485,9 @@ function OrgDetailContent({ orgId, onDeleted }: OrgDetailContentProps) {
             ))}
           </div>
 
+          {/* ── Organization Settings ── */}
+          <OrgSettingsSection orgId={orgId} />
+
           {/* ── Danger Zone ── */}
           <div style={{ borderTop: '1px solid var(--line)', paddingTop: 16 }}>
             <div style={{ fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--danger, #e53e3e)', fontWeight: 600, marginBottom: 8 }}>
@@ -508,6 +514,179 @@ function OrgDetailContent({ orgId, onDeleted }: OrgDetailContentProps) {
         </div>
       )}
     </QueryBoundary>
+  )
+}
+
+// ── OrgSettingsSection ────────────────────────────────────────────────────────
+
+/**
+ * Keys de settings que fazem sentido por organização.
+ * As demais (bot_protection, lockout, rate_limit, etc.) são GLOBAIS
+ * e permanecem somente na página global de Settings.
+ */
+const ORG_SCOPABLE_KEYS = ['organizations_policy', 'roles_catalog'] as const
+
+type OrgScopableKey = (typeof ORG_SCOPABLE_KEYS)[number]
+
+const ORG_SETTING_LABELS: Record<OrgScopableKey, { en: string; pt: string }> = {
+  organizations_policy: {
+    en: 'Organizations policy',
+    pt: 'Política de organizações',
+  },
+  roles_catalog: {
+    en: 'Roles catalog',
+    pt: 'Catálogo de papéis',
+  },
+}
+
+function OrgSettingsSection({ orgId }: { orgId: string }) {
+  const toast = useToast()
+  const queryClient = useQueryClient()
+
+  const { data: orgSettings, isLoading } = useQuery({ ...useSettingsQueryOptions(orgId), retry: false })
+  const { data: globalSettings } = useQuery({ ...useSettingsQueryOptions(null), retry: false })
+
+  const setMutation = useMutation(useSetSettingMutationOptions(orgId))
+  const removeMutation = useMutation(useRemoveSettingMutationOptions(orgId))
+
+  const [editingKey, setEditingKey] = useState<OrgScopableKey | null>(null)
+  const [editValue, setEditValue] = useState('')
+
+  const orgEntries = orgSettings?.data ?? []
+  const globalEntries = globalSettings?.data ?? []
+
+  function getOrgEntry(key: OrgScopableKey) {
+    return orgEntries.find((e) => e.key === key) ?? null
+  }
+  function getGlobalEntry(key: OrgScopableKey) {
+    return globalEntries.find((e) => e.key === key) ?? null
+  }
+
+  async function handleSave(key: OrgScopableKey) {
+    try {
+      const parsed = JSON.parse(editValue)
+      await setMutation.mutateAsync({ key, value: parsed })
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.settings(orgId) })
+      toast.success('Setting saved for this organization')
+      setEditingKey(null)
+    } catch (err: any) {
+      if (err instanceof SyntaxError) {
+        toast.error('Invalid JSON value')
+      } else {
+        toast.error(err?.message ?? 'Failed to save setting')
+      }
+    }
+  }
+
+  async function handleRemove(key: OrgScopableKey) {
+    try {
+      await removeMutation.mutateAsync(key)
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.settings(orgId) })
+      toast.success('Organization setting removed (falls back to global)')
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to remove setting')
+    }
+  }
+
+  function startEdit(key: OrgScopableKey) {
+    const orgEntry = getOrgEntry(key)
+    const defaultVal = orgEntry ? JSON.stringify(orgEntry.value, null, 2) : '{}'
+    setEditValue(defaultVal)
+    setEditingKey(key)
+  }
+
+  if (isLoading) return null
+
+  return (
+    <div style={{ borderTop: '1px solid var(--line)', paddingTop: 16 }}>
+      <div style={{ fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--faint)', fontWeight: 600, marginBottom: 12 }}>
+        Organization Settings
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {ORG_SCOPABLE_KEYS.map((key) => {
+          const orgEntry = getOrgEntry(key)
+          const globalEntry = getGlobalEntry(key)
+          const label = ORG_SETTING_LABELS[key]
+
+          // Badge: from org > from global > default
+          const sourceBadge = orgEntry
+            ? { text: 'from org', color: 'var(--accent, #4f46e5)' }
+            : globalEntry
+              ? { text: 'from global', color: 'var(--muted)' }
+              : { text: 'default', color: 'var(--faint)' }
+
+          const isEditing = editingKey === key
+
+          return (
+            <div key={key} style={{ background: 'var(--surface, var(--bg))', border: '1px solid var(--line)', borderRadius: 6, padding: '10px 12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: isEditing ? 8 : 0 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{label.en}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{label.pt}</div>
+                </div>
+                <span
+                  style={{
+                    fontSize: 10,
+                    padding: '2px 6px',
+                    borderRadius: 4,
+                    background: 'transparent',
+                    border: `1px solid ${sourceBadge.color}`,
+                    color: sourceBadge.color,
+                    fontWeight: 600,
+                  }}
+                >
+                  {sourceBadge.text}
+                </span>
+                {!isEditing && (
+                  <>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => startEdit(key)}
+                    >
+                      {orgEntry ? 'Edit' : 'Override'}
+                    </button>
+                    {orgEntry && (
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => handleRemove(key)}
+                        disabled={removeMutation.isPending}
+                        style={{ color: 'var(--danger, #e53e3e)' }}
+                        title="Remove org override (falls back to global)"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {isEditing && (
+                <div>
+                  <textarea
+                    className="input"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    style={{ width: '100%', fontFamily: 'monospace', fontSize: 11, minHeight: 80, resize: 'vertical', marginBottom: 6 }}
+                    spellCheck={false}
+                  />
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={() => handleSave(key)}
+                      disabled={setMutation.isPending}
+                    >
+                      {setMutation.isPending ? 'Saving…' : 'Save'}
+                    </button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setEditingKey(null)}>Cancel</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 

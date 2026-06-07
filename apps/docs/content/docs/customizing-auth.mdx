@@ -254,10 +254,11 @@ not be overwritten by future `node ace add` runs.
 
 #### The `views` allowlist and the Edge fallback
 
-`views` is an explicit list of the screen names you have React pages for. When a screen
-name is **not** in the list (for example, a screen added in a future AuthKit release that
-you have not yet created a page for), the renderer silently falls back to the built-in Edge
-view instead of throwing an SSR error.
+`views` is an explicit **set** of the screen names you have React pages for — the order of
+the array is irrelevant, only membership matters. When a screen name is **not** in the set
+(for example, a screen added in a future AuthKit release that you have not yet created a
+page for), the renderer silently falls back to the built-in Edge view instead of throwing
+an SSR error. Watch for typos: a misspelled name simply falls back to Edge for that screen.
 
 ```
 Requested screen: 'verify-email'

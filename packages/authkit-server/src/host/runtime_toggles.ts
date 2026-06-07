@@ -1288,15 +1288,21 @@ export const ROLES_CATALOG_DEFAULT: ResolvedRolesCatalog = {
  *
  * FAIL-SAFE: qualquer erro DB → default.
  */
+/**
+ * Resolve roles catalog efetivo: org → global → default.
+ *
+ * @param settings - SettingsCapability
+ * @param orgId - opcional; quando fornecido, tenta settings da org antes do global
+ */
 export async function resolveEffectiveRolesCatalog(
-  settings: SettingsCapability
+  settings: SettingsCapability,
+  orgId?: string | null
 ): Promise<ResolvedRolesCatalog> {
-  try {
-    const raw = await settings.getSetting(SETTING_KEYS.ROLES_CATALOG)
-    if (raw === null || raw === undefined) return ROLES_CATALOG_DEFAULT
-    if (typeof raw !== 'object' || Array.isArray(raw)) return ROLES_CATALOG_DEFAULT
+  async function fromRaw(raw: unknown): Promise<ResolvedRolesCatalog | null> {
+    if (raw === null || raw === undefined) return null
+    if (typeof raw !== 'object' || Array.isArray(raw)) return null
     const s = raw as RolesCatalogSetting
-    if (!Array.isArray(s.roles)) return ROLES_CATALOG_DEFAULT
+    if (!Array.isArray(s.roles)) return null
 
     // Filtra entradas válidas (name deve ser string não-vazia).
     const entries: RoleCatalogEntry[] = s.roles
@@ -1314,10 +1320,23 @@ export async function resolveEffectiveRolesCatalog(
       entries.unshift({ name: 'ADMIN', description: 'Full access to the admin console' })
     }
 
-    // Ordena por nome (ADMIN pode ficar em qualquer posição; deixamos sort alfabético).
+    // Ordena por nome.
     entries.sort((a, b) => a.name.localeCompare(b.name))
 
     return { roles: entries }
+  }
+
+  try {
+    // Resolução org → global → default
+    if (orgId) {
+      const orgRaw = await settings.getSetting(SETTING_KEYS.ROLES_CATALOG, orgId)
+      const orgResult = await fromRaw(orgRaw)
+      if (orgResult) return orgResult
+    }
+    const globalRaw = await settings.getSetting(SETTING_KEYS.ROLES_CATALOG, null)
+    const globalResult = await fromRaw(globalRaw)
+    if (globalResult) return globalResult
+    return ROLES_CATALOG_DEFAULT
   } catch {
     return ROLES_CATALOG_DEFAULT
   }
@@ -1326,14 +1345,19 @@ export async function resolveEffectiveRolesCatalog(
 /**
  * Resolve as configurações efetivas de política de organizações.
  *
- * Precedência: setting BD → configDefault → lib default.
+ * Precedência: org-setting → global-setting → configDefault → lib default.
  * FAIL-SAFE: qualquer erro → configDefault.
  *
  * Invariante mantida: 'owner' é sempre incluído na lista de roles (governance).
+ *
+ * @param settings - SettingsCapability
+ * @param configDefault - defaults estáticos do config do host
+ * @param orgId - opcional; quando fornecido, tenta settings da org antes do global
  */
 export async function resolveEffectiveOrganizationsPolicy(
   settings: SettingsCapability,
-  configDefault: OrganizationsPolicyConfigDefaults = {}
+  configDefault: OrganizationsPolicyConfigDefaults = {},
+  orgId?: string | null
 ): Promise<ResolvedOrganizationsPolicySetting> {
   const defaultRoles = configDefault.roles ?? ORGS_POLICY_LIB_DEFAULTS.roles
   const rolesWithOwner = defaultRoles.includes('owner') ? defaultRoles : ['owner', ...defaultRoles]
@@ -1342,10 +1366,10 @@ export async function resolveEffectiveOrganizationsPolicy(
     invitationTtlHours: configDefault.invitationTtlHours ?? ORGS_POLICY_LIB_DEFAULTS.invitationTtlHours,
     roles: rolesWithOwner,
   }
-  try {
-    const raw = await settings.getSetting(SETTING_KEYS.ORGANIZATIONS_POLICY)
-    if (raw === null || raw === undefined) return defaults
-    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
+
+  function applyRaw(raw: unknown): ResolvedOrganizationsPolicySetting | null {
+    if (raw === null || raw === undefined) return null
+    if (typeof raw !== 'object' || Array.isArray(raw)) return null
     const s = raw as OrganizationsPolicySetting
     // Roles: usa o valor da setting apenas se for um array não-vazio; sempre
     // garante que 'owner' está presente (invariante de governance).
@@ -1358,6 +1382,19 @@ export async function resolveEffectiveOrganizationsPolicy(
       invitationTtlHours: typeof s.invitationTtlHours === 'number' && s.invitationTtlHours >= 1 ? Math.floor(s.invitationTtlHours) : defaults.invitationTtlHours,
       roles,
     }
+  }
+
+  try {
+    // Resolução org → global → defaults
+    if (orgId) {
+      const orgRaw = await settings.getSetting(SETTING_KEYS.ORGANIZATIONS_POLICY, orgId)
+      const orgResult = applyRaw(orgRaw)
+      if (orgResult) return orgResult
+    }
+    const globalRaw = await settings.getSetting(SETTING_KEYS.ORGANIZATIONS_POLICY, null)
+    const globalResult = applyRaw(globalRaw)
+    if (globalResult) return globalResult
+    return defaults
   } catch {
     return defaults
   }

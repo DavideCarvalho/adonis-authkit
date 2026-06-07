@@ -34,32 +34,90 @@ import {
 // helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * fakeDb — simula auth_settings com escopo (key, organization_id).
+ *
+ * rows: Record<settingKey, value> — populado como settings GLOBAIS (organization_id = null).
+ * Para rows com escopo de org use o formato composto: `${key}\x00${orgId}` como chave.
+ */
 function fakeDb(rows: Record<string, unknown> = {}) {
-  const store = new Map<string, { value: string; updated_at: Date; updated_by: string | null }>(
-    Object.entries(rows).map(([k, v]) => [k, { value: JSON.stringify(v), updated_at: new Date(), updated_by: null }])
+  // Store key: `${key}|${orgId ?? ''}`. orgId empty string = null (global).
+  const storeKey = (key: string, orgId: string | null) => `${key}|${orgId ?? ''}`
+  const store = new Map<string, { key: string; org_id: string | null; value: string; updated_at: Date; updated_by: string | null }>(
+    Object.entries(rows).map(([k, v]) => [storeKey(k, null), { key: k, org_id: null, value: JSON.stringify(v), updated_at: new Date(), updated_by: null }])
   )
+
+  function makeChain(filters: Array<{ col: string; val: string | null; isNull: boolean }>) {
+    return {
+      where(col: string, val: string) {
+        return makeChain([...filters, { col, val, isNull: false }])
+      },
+      whereNull(col: string) {
+        return makeChain([...filters, { col, val: null, isNull: true }])
+      },
+      async first() {
+        const keyFilter = filters.find(f => f.col === 'key')
+        const orgFilter = filters.find(f => f.col === 'organization_id')
+        if (!keyFilter) return null
+        const keyVal = keyFilter.val!
+        let orgId: string | null = null
+        if (orgFilter) {
+          orgId = orgFilter.isNull ? null : orgFilter.val
+        }
+        const sk = storeKey(keyVal, orgId)
+        const v = store.get(sk)
+        if (!v) return null
+        return { key: v.key, organization_id: v.org_id, value: v.value, updated_at: v.updated_at, updated_by: v.updated_by }
+      },
+      async delete() {
+        const keyFilter = filters.find(f => f.col === 'key')
+        const orgFilter = filters.find(f => f.col === 'organization_id')
+        if (!keyFilter) return
+        const keyVal = keyFilter.val!
+        let orgId: string | null = null
+        if (orgFilter) {
+          orgId = orgFilter.isNull ? null : orgFilter.val
+        }
+        store.delete(storeKey(keyVal, orgId))
+      },
+    }
+  }
+
   return {
     _hasTable: true,
     from(name: string) { return this.table(name) },
     table(_name: string) {
-      const allRows = () => [...store.entries()].map(([key, v]) => ({ key, value: v.value, updated_at: v.updated_at, updated_by: v.updated_by }))
+      const allRows = () => [...store.values()].map(v => ({ key: v.key, organization_id: v.org_id, value: v.value, updated_at: v.updated_at, updated_by: v.updated_by }))
       return {
-        where(_col: string, key: string) {
-          return {
-            async first() {
-              const v = store.get(key)
-              return v ? { key, value: v.value, updated_at: v.updated_at, updated_by: v.updated_by } : null
-            },
-            async delete() { store.delete(key) },
-          }
+        where(col: string, val: string) {
+          return makeChain([{ col, val, isNull: false }])
+        },
+        whereNull(col: string) {
+          return makeChain([{ col, val: null, isNull: true }])
         },
         async insert(row: any) {
-          store.set(row.key, { value: row.value, updated_at: row.updated_at ?? new Date(), updated_by: row.updated_by ?? null })
+          const orgId: string | null = row.organization_id ?? null
+          const sk = storeKey(row.key, orgId)
+          store.set(sk, { key: row.key, org_id: orgId, value: row.value, updated_at: row.updated_at ?? new Date(), updated_by: row.updated_by ?? null })
         },
-        // select() returns a chainable object (supports .limit()) for the probe.
+        // select() returns chainable with .limit() and .then() for probe + listSettings.
         select(_cols?: string) {
           const rows = allRows()
           return {
+            where(col: string, val: string) {
+              const filtered = rows.filter(r => (r as any)[col] === val)
+              return {
+                limit(_n: number) { return Promise.resolve(filtered.slice(0, _n)) },
+                then(resolve: any, reject: any) { return Promise.resolve(filtered).then(resolve, reject) },
+              }
+            },
+            whereNull(col: string) {
+              const filtered = rows.filter(r => (r as any)[col] === null || (r as any)[col] === undefined)
+              return {
+                limit(_n: number) { return Promise.resolve(filtered.slice(0, _n)) },
+                then(resolve: any, reject: any) { return Promise.resolve(filtered).then(resolve, reject) },
+              }
+            },
             limit(_n: number) { return Promise.resolve(rows.slice(0, _n)) },
             then(resolve: any, reject: any) { return Promise.resolve(rows).then(resolve, reject) },
           }
@@ -67,6 +125,7 @@ function fakeDb(rows: Record<string, unknown> = {}) {
       }
     },
     __store: store,
+    __storeKey: storeKey,
   }
 }
 
@@ -539,9 +598,9 @@ test.group('settingsSet', () => {
     const app = fakeApp({})
     const ok = await settingsSet(app as any, SETTING_KEYS.LOCKOUT, '{"enabled":false,"maxAttempts":3}', { logger: { info: () => {}, warn: () => {}, error: () => {} } })
     assert.isTrue(ok)
-    // Verify it was persisted
+    // Verify it was persisted (global scope = key|)
     const db = (app as any).__db
-    const raw = db.__store.get(SETTING_KEYS.LOCKOUT)
+    const raw = db.__store.get(db.__storeKey(SETTING_KEYS.LOCKOUT, null))
     assert.isDefined(raw)
     const parsed = JSON.parse(raw.value)
     assert.isFalse(parsed.enabled)
@@ -556,7 +615,7 @@ test.group('settingsSet', () => {
     assert.isTrue(warns.some(m => m.includes('not in the known setting catalog')))
     // Still saved
     const db = (app as any).__db
-    const raw = db.__store.get('my_custom_key')
+    const raw = db.__store.get(db.__storeKey('my_custom_key', null))
     assert.isDefined(raw)
   })
 
@@ -625,5 +684,112 @@ test.group('settingsUnset', () => {
     assert.isDefined(jsonLine)
     const result = JSON.parse(jsonLine!)
     assert.isFalse(result.deleted)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Org-scoped settings: resolução org→global→default
+// ---------------------------------------------------------------------------
+
+test.group('RuntimeSettings — org scope', () => {
+  test('getSetting returns global value when no orgId', async ({ assert }) => {
+    const db = fakeDb({ organizations_policy: { allowSelfCreate: true } })
+    const svc = new RuntimeSettings(db as any)
+    const val = await svc.getSetting('organizations_policy')
+    assert.deepEqual((val as any).allowSelfCreate, true)
+  })
+
+  test('getSetting with orgId returns null when no org-scoped row', async ({ assert }) => {
+    const db = fakeDb({ organizations_policy: { allowSelfCreate: true } })
+    const svc = new RuntimeSettings(db as any)
+    const val = await svc.getSetting('organizations_policy', 'org-123')
+    assert.isNull(val)
+  })
+
+  test('setSetting with orgId stores scoped row', async ({ assert }) => {
+    const db = fakeDb({})
+    const svc = new RuntimeSettings(db as any)
+    await svc.setSetting('organizations_policy', { allowSelfCreate: false }, null, 'org-123')
+    const orgVal = await svc.getSetting('organizations_policy', 'org-123')
+    const globalVal = await svc.getSetting('organizations_policy')
+    assert.deepEqual((orgVal as any).allowSelfCreate, false)
+    assert.isNull(globalVal)
+  })
+
+  test('getEffective: org-setting overrides global', async ({ assert }) => {
+    const db = fakeDb({ organizations_policy: { allowSelfCreate: true } })
+    const svc = new RuntimeSettings(db as any)
+    await svc.setSetting('organizations_policy', { allowSelfCreate: false }, null, 'org-123')
+    const val = await svc.getEffective('organizations_policy', 'org-123')
+    assert.deepEqual((val as any).allowSelfCreate, false)
+  })
+
+  test('getEffective: falls back to global when no org-setting', async ({ assert }) => {
+    const db = fakeDb({ organizations_policy: { allowSelfCreate: true } })
+    const svc = new RuntimeSettings(db as any)
+    const val = await svc.getEffective('organizations_policy', 'org-no-override')
+    assert.deepEqual((val as any).allowSelfCreate, true)
+  })
+
+  test('getEffective: returns null when no org nor global setting', async ({ assert }) => {
+    const db = fakeDb({})
+    const svc = new RuntimeSettings(db as any)
+    const val = await svc.getEffective('organizations_policy', 'org-123')
+    assert.isNull(val)
+  })
+
+  test('deleteSetting with orgId removes only scoped row', async ({ assert }) => {
+    const db = fakeDb({ organizations_policy: { allowSelfCreate: true } })
+    const svc = new RuntimeSettings(db as any)
+    await svc.setSetting('organizations_policy', { allowSelfCreate: false }, null, 'org-123')
+    await svc.deleteSetting('organizations_policy', 'org-123')
+    const orgVal = await svc.getSetting('organizations_policy', 'org-123')
+    const globalVal = await svc.getSetting('organizations_policy')
+    assert.isNull(orgVal)
+    assert.deepEqual((globalVal as any).allowSelfCreate, true)
+  })
+
+  test('cache is scoped: org and global are cached independently', async ({ assert }) => {
+    const db = fakeDb({ organizations_policy: { allowSelfCreate: true } })
+    const svc = new RuntimeSettings(db as any, { ttlMs: 60000 })
+    await svc.setSetting('organizations_policy', { allowSelfCreate: false }, null, 'org-456')
+    const orgVal = await svc.getSetting('organizations_policy', 'org-456')
+    const globalVal = await svc.getSetting('organizations_policy')
+    assert.deepEqual((orgVal as any).allowSelfCreate, false)
+    assert.deepEqual((globalVal as any).allowSelfCreate, true)
+  })
+})
+
+test.group('resolveEffectiveOrganizationsPolicy — org scope', () => {
+  test('org-setting overrides global (all 3 layers)', async ({ assert }) => {
+    const db = fakeDb({ organizations_policy: { allowSelfCreate: true, invitationTtlHours: 48 } })
+    const svc = new RuntimeSettings(db as any)
+    await svc.setSetting('organizations_policy', { allowSelfCreate: false, invitationTtlHours: 24, roles: ['owner', 'viewer'] }, null, 'org-abc')
+    const result = await resolveEffectiveOrganizationsPolicy(svc, {}, 'org-abc')
+    assert.isFalse(result.allowSelfCreate, 'org setting should override global')
+    assert.equal(result.invitationTtlHours, 24)
+    assert.isTrue(result.roles.includes('viewer'))
+  })
+
+  test('global setting used when no org-setting', async ({ assert }) => {
+    const db = fakeDb({ organizations_policy: { allowSelfCreate: true, invitationTtlHours: 72 } })
+    const svc = new RuntimeSettings(db as any)
+    const result = await resolveEffectiveOrganizationsPolicy(svc, {}, 'org-no-override')
+    assert.isTrue(result.allowSelfCreate)
+    assert.equal(result.invitationTtlHours, 72)
+  })
+
+  test('lib defaults used when no setting at all', async ({ assert }) => {
+    const svc = settings({})
+    const result = await resolveEffectiveOrganizationsPolicy(svc, {}, 'org-empty')
+    assert.isFalse(result.allowSelfCreate)
+    assert.equal(result.invitationTtlHours, 168)
+  })
+
+  test('without orgId behaves like before (global only)', async ({ assert }) => {
+    const svc = settings({ organizations_policy: { allowSelfCreate: true, invitationTtlHours: 10 } })
+    const result = await resolveEffectiveOrganizationsPolicy(svc)
+    assert.isTrue(result.allowSelfCreate)
+    assert.equal(result.invitationTtlHours, 10)
   })
 })

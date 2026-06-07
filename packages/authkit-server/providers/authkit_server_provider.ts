@@ -107,4 +107,40 @@ export default class AuthkitServerProvider {
       return config.patStore
     })
   }
+
+  /**
+   * Gestão automática de schema: com `schema.autoManage` (default), garante
+   * as tabelas do authkit no start — cria as que faltam e adiciona colunas
+   * novas (aditivo). Falha de DB aqui não derruba o boot: loga warning e as
+   * features degradam como sempre degradaram (capability probing).
+   */
+  async start() {
+    try {
+      const value = this.app.config.get('authkit')
+      if (!value) return
+      const config = (await configProvider.resolve(this.app, value)) as ResolvedServerConfig | null
+      if (!config?.schema?.autoManage) return
+
+      const db = await this.app.container.make('lucid.db' as any).catch(() => null)
+      if (!db) return // host sem @adonisjs/lucid — nada a gerenciar
+
+      const { ensureAuthkitSchema } = await import('../src/schema/ensure.js')
+      const report = await ensureAuthkitSchema(db, { connection: config.schema.connection })
+
+      const logger = await this.app.container.make('logger').catch(() => null)
+      if (report.created.length > 0) {
+        logger?.info('authkit: created tables %s', report.created.join(', '))
+      }
+      for (const [table, columns] of Object.entries(report.altered)) {
+        logger?.info('authkit: added columns to %s: %s', table, columns.join(', '))
+      }
+    } catch (error) {
+      const logger = await this.app.container.make('logger').catch(() => null)
+      logger?.warn(
+        { err: error },
+        'authkit: schema auto-manage failed — features degrade gracefully; ' +
+          'run ensureAuthkitSchema() in a migration or fix DB connectivity'
+      )
+    }
+  }
 }

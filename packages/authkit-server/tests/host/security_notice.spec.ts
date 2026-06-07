@@ -212,31 +212,34 @@ test.group('dispatchSecurityNotice', (group) => {
     const db: any = {
       from(name: string) { return this.table(name) },
       table(_name: string) {
-        let _filterKey: string | undefined
-        let _filterValue: string | undefined
-        const q: any = {
-          where(col: string, val: string) {
-            _filterKey = col
-            _filterValue = val
-            return q
-          },
-          async first() {
-            if (_filterKey === 'key' && _filterValue && _filterValue in settingsByKey) {
-              return { key: _filterValue, value: JSON.stringify(settingsByKey[_filterValue]) }
-            }
-            return null
-          },
-          delete: async () => {},
-          insert: async () => {},
-          // select().limit() → probe (table present quando não lança).
-          select(_cols?: string) {
-            return {
-              limit(_n: number) { return Promise.resolve([]) },
-              then(resolve: any, reject: any) { return Promise.resolve([]).then(resolve, reject) },
-            }
-          },
+        const filters: Array<{ col: string; val: string | null; isNull: boolean }> = []
+        function makeChain(f: typeof filters): any {
+          const q: any = {
+            where(col: string, val: string) { return makeChain([...f, { col, val, isNull: false }]) },
+            whereNull(col: string) { return makeChain([...f, { col, val: null, isNull: true }]) },
+            async first() {
+              const keyFilter = f.find(x => x.col === 'key')
+              const keyVal = keyFilter?.val
+              if (keyVal && keyVal in settingsByKey) {
+                return { key: keyVal, organization_id: null, value: JSON.stringify(settingsByKey[keyVal]) }
+              }
+              return null
+            },
+            delete: async () => {},
+            insert: async () => {},
+            // select().limit() → probe (table present quando não lança).
+            select(_cols?: string) {
+              return {
+                limit(_n: number) { return Promise.resolve([]) },
+                then(resolve: any, reject: any) { return Promise.resolve([]).then(resolve, reject) },
+                where(_c: string, _v: string) { return { limit: (_n: number) => Promise.resolve([]), then: (r: any, _j: any) => Promise.resolve([]).then(r) } },
+                whereNull(_c: string) { return { limit: (_n: number) => Promise.resolve([]), then: (r: any, _j: any) => Promise.resolve([]).then(r) } },
+              }
+            },
+          }
+          return q
         }
-        return q
+        return makeChain(filters)
       },
     }
     return db

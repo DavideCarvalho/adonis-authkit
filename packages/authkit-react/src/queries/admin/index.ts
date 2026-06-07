@@ -360,29 +360,41 @@ export function useAuditQueryOptions(params?: AuditListParams) {
 // Settings – Query + Mutations
 // ---------------------------------------------------------------------------
 
-export function useSettingsQueryOptions() {
+/**
+ * Query para listar settings.
+ * @param orgId - quando fornecido, lista settings da org; null/undefined = global
+ */
+export function useSettingsQueryOptions(orgId?: string | null) {
   const client = useAuthkitClient()
   return {
-    queryKey: authkitKeys.admin.settings(),
-    queryFn: () => client.admin.settings.list(),
+    queryKey: authkitKeys.admin.settings(orgId),
+    queryFn: () => client.admin.settings.list(orgId),
   } satisfies UseQueryOptions<SettingListResult, AuthkitClientError>
 }
 
-export function useSetSettingMutationOptions() {
+/**
+ * Mutation para gravar uma setting.
+ * @param orgId - quando fornecido, grava no escopo da org; null/undefined = global
+ */
+export function useSetSettingMutationOptions(orgId?: string | null) {
   const client = useAuthkitClient()
   return {
-    mutationKey: ['authkit', 'admin', 'settings', 'set'],
+    mutationKey: ['authkit', 'admin', 'settings', 'set', orgId ?? null],
     mutationFn: ({ key, value }: { key: string; value: unknown }) =>
-      client.admin.settings.set(key, value),
+      client.admin.settings.set(key, value, orgId),
   } satisfies UseMutationOptions<SettingEntry, AuthkitClientError, { key: string; value: unknown }>
 }
 
-export function useRemoveSettingMutationOptions() {
+/**
+ * Mutation para remover uma setting.
+ * @param orgId - quando fornecido, remove no escopo da org; null/undefined = global
+ */
+export function useRemoveSettingMutationOptions(orgId?: string | null) {
   const client = useAuthkitClient()
   return {
-    mutationKey: ['authkit', 'admin', 'settings', 'remove'],
-    mutationFn: (key: string) => client.admin.settings.remove(key),
-  } satisfies UseMutationOptions<{ key: string; deleted: boolean }, AuthkitClientError, string>
+    mutationKey: ['authkit', 'admin', 'settings', 'remove', orgId ?? null],
+    mutationFn: (key: string) => client.admin.settings.remove(key, orgId),
+  } satisfies UseMutationOptions<{ key: string; organizationId: string | null; deleted: boolean }, AuthkitClientError, string>
 }
 
 // ---------------------------------------------------------------------------

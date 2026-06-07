@@ -22,35 +22,54 @@ async function getSettingsService(ctx: HttpContext): Promise<RuntimeSettings | n
   }
 }
 
+/** Extrai organizationId do query string. null = global. */
+function resolveOrgId(ctx: HttpContext): string | null {
+  const qs = ctx.request.qs() as Record<string, string | undefined>
+  if ('organizationId' in qs) {
+    const v = qs['organizationId']
+    return v && v.trim() ? v.trim() : null
+  }
+  return null
+}
+
 /**
  * CRUD de runtime settings da Admin REST API.
  * Todas as rotas ficam sob `/api/authkit/v1/settings`.
  * Retorna 404 (`capability_unsupported`) quando a tabela `auth_settings` não existe.
+ *
+ * Suporte a escopo por org via query param `?organizationId=`:
+ *   GET  /settings?organizationId={id}  → lista settings da org
+ *   PUT  /settings/:key?organizationId= → upsert no escopo da org
+ *   DEL  /settings/:key?organizationId= → remove no escopo da org
+ *
+ * Keys org-scopáveis: `organizations_policy`, `roles_catalog`.
  */
 export default class ApiSettingsController {
-  /** GET /settings — lista todas as settings presentes. */
+  /** GET /settings — lista settings (global por padrão, ou da org via ?organizationId=). */
   async index(ctx: HttpContext) {
     const svc = await getSettingsService(ctx)
     if (!svc) return notSupported(ctx)
     // Probe table presence before returning list.
     const tablePresent = await svc.isTablePresent()
     if (!tablePresent) return notSupported(ctx)
-    const rows = await svc.listSettings()
+    const orgId = resolveOrgId(ctx)
+    const rows = await svc.listSettings(orgId)
     return { data: rows.map(settingDto) }
   }
 
-  /** GET /settings/:key — obtém uma setting por key. */
+  /** GET /settings/:key — obtém uma setting por key (global ou org). */
   async show(ctx: HttpContext) {
     const key = ctx.request.param('key') as string
     const svc = await getSettingsService(ctx)
     if (!svc) return notSupported(ctx)
     const tablePresent = await svc.isTablePresent()
     if (!tablePresent) return notSupported(ctx)
-    const value = await svc.getSetting(key)
+    const orgId = resolveOrgId(ctx)
+    const value = await svc.getSetting(key, orgId)
     if (value === null) {
       return ctx.response.notFound(apiError('not_found', 'Setting não encontrada.'))
     }
-    return settingDto({ key, value, updatedAt: null, updatedBy: null })
+    return settingDto({ key, organizationId: orgId, value, updatedAt: null, updatedBy: null })
   }
 
   /** PUT /settings/:key — cria ou atualiza uma setting. Body: { value: any } */
@@ -66,20 +85,22 @@ export default class ApiSettingsController {
     const tablePresent = await svc.isTablePresent()
     if (!tablePresent) return notSupported(ctx)
 
+    const orgId = resolveOrgId(ctx)
+
     const service = await ctx.containerResolver.make('authkit.server')
     const cfg = service.config
 
-    await svc.setSetting(key, body.value, null)
+    await svc.setSetting(key, body.value, null, orgId)
 
     await cfg.audit?.record({
       type: 'settings.updated',
       actorId: null,
       ip: ctx.request.ip?.() ?? null,
-      metadata: { key, value: body.value },
+      metadata: { key, value: body.value, organizationId: orgId },
     })
 
-    const saved = await svc.getSetting(key)
-    return settingDto({ key, value: saved, updatedAt: new Date(), updatedBy: null })
+    const saved = await svc.getSetting(key, orgId)
+    return settingDto({ key, organizationId: orgId, value: saved, updatedAt: new Date(), updatedBy: null })
   }
 
   /** DELETE /settings/:key */
@@ -90,18 +111,20 @@ export default class ApiSettingsController {
     const tablePresent = await svc.isTablePresent()
     if (!tablePresent) return notSupported(ctx)
 
+    const orgId = resolveOrgId(ctx)
+
     const service = await ctx.containerResolver.make('authkit.server')
     const cfg = service.config
 
-    await svc.deleteSetting(key)
+    await svc.deleteSetting(key, orgId)
 
     await cfg.audit?.record({
       type: 'settings.updated',
       actorId: null,
       ip: ctx.request.ip?.() ?? null,
-      metadata: { key, action: 'deleted' },
+      metadata: { key, action: 'deleted', organizationId: orgId },
     })
 
-    return { key, deleted: true }
+    return { key, organizationId: orgId, deleted: true }
   }
 }

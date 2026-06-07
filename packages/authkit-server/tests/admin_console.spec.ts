@@ -192,6 +192,7 @@ function fakeCtx(opts: {
       protocol: () => 'http',
       host: () => 'localhost',
       body: () => opts.inputs ?? {},
+      qs: () => ({} as Record<string, string>),
     },
     response: {
       status: (s: number) => {

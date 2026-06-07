@@ -379,14 +379,32 @@ class AuthkitClient {
     },
 
     settings: {
-      /** GET {base}/settings */
-      list: () => this.get<SettingListResult>(this.b('/settings')),
-      /** PUT {base}/settings/:key */
-      set: (key: string, value: unknown) =>
-        this.put<SettingEntry>(this.b(`/settings/${encodeURIComponent(key)}`), { value }),
-      /** DELETE {base}/settings/:key */
-      remove: (key: string) =>
-        this.delete<{ key: string; deleted: boolean }>(this.b(`/settings/${encodeURIComponent(key)}`)),
+      /**
+       * GET {base}/settings
+       * @param orgId - quando fornecido, lista settings da org; omitido = global
+       */
+      list: (orgId?: string | null) => {
+        const qs = orgId ? `?organizationId=${encodeURIComponent(orgId)}` : ''
+        return this.get<SettingListResult>(this.b(`/settings${qs}`))
+      },
+      /**
+       * PUT {base}/settings/:key
+       * @param orgId - quando fornecido, grava no escopo da org; omitido = global
+       */
+      set: (key: string, value: unknown, orgId?: string | null) => {
+        const qs = orgId ? `?organizationId=${encodeURIComponent(orgId)}` : ''
+        return this.put<SettingEntry>(this.b(`/settings/${encodeURIComponent(key)}${qs}`), { value })
+      },
+      /**
+       * DELETE {base}/settings/:key
+       * @param orgId - quando fornecido, remove no escopo da org; omitido = global
+       */
+      remove: (key: string, orgId?: string | null) => {
+        const qs = orgId ? `?organizationId=${encodeURIComponent(orgId)}` : ''
+        return this.delete<{ key: string; organizationId: string | null; deleted: boolean }>(
+          this.b(`/settings/${encodeURIComponent(key)}${qs}`)
+        )
+      },
     },
 
     impersonation: {

@@ -50,6 +50,9 @@ export interface InertiaRendererOptions {
    * independentemente de `views`. O console admin é o chrome da lib; tematização
    * futura é via branding/CSS injetado — não via componentes React do host.
    *
+   * A ordem do array é irrelevante — `views` é tratado como um *conjunto*
+   * (allowlist). Os nomes têm autocomplete via {@link AuthkitScreen}.
+   *
    * @example
    * // Gera `inertia/pages/authkit/<view>.tsx` para cada nome listado.
    * render: inertiaRenderer({
@@ -61,8 +64,33 @@ export interface InertiaRendererOptions {
    *   ],
    * })
    */
-  views?: string[]
+  views?: AuthkitScreen[]
 }
+
+/**
+ * Nomes das telas conhecidas da lib — dá autocomplete no array `views`.
+ * O `(string & {})` mantém o tipo aberto: telas custom (ou de versões mais
+ * novas da lib) continuam aceitas sem erro de compilação.
+ */
+export type AuthkitScreen =
+  | 'login'
+  | 'signup'
+  | 'consent'
+  | 'forgot'
+  | 'reset'
+  | 'verify-email'
+  | 'mfa-challenge'
+  | 'otp-unlock'
+  | 'maintenance'
+  | 'account/login'
+  | 'account/tokens'
+  | 'account/mfa'
+  | 'account/security'
+  | 'account/apps'
+  | 'account/orgs'
+  | 'account/confirm'
+  | 'account/email-confirmed'
+  | (string & {})
 
 /**
  * Renderer do seam para hosts Inertia/React.

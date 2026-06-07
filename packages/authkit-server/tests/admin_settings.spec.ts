@@ -6,10 +6,40 @@ import { RuntimeSettings } from '../src/host/runtime_settings.js'
 // ---------- in-memory settings DB for tests ----------
 
 function makeSettingsDb(initialRows: Record<string, any> = {}) {
-  const store = new Map<string, { value: string; updated_at: Date; updated_by: string | null }>(
-    Object.entries(initialRows).map(([k, v]) => [k, { value: JSON.stringify(v), updated_at: new Date(), updated_by: null }])
+  const storeKey = (key: string, orgId: string | null) => `${key}|${orgId ?? ''}`
+  const store = new Map<string, { key: string; org_id: string | null; value: string; updated_at: Date; updated_by: string | null }>(
+    Object.entries(initialRows).map(([k, v]) => [storeKey(k, null), { key: k, org_id: null, value: JSON.stringify(v), updated_at: new Date(), updated_by: null }])
   )
   let _hasTable = true
+
+  function makeChain(filters: Array<{ col: string; val: string | null; isNull: boolean }>) {
+    return {
+      where(col: string, val: string) {
+        return makeChain([...filters, { col, val, isNull: false }])
+      },
+      whereNull(col: string) {
+        return makeChain([...filters, { col, val: null, isNull: true }])
+      },
+      async first() {
+        const keyFilter = filters.find(f => f.col === 'key')
+        const orgFilter = filters.find(f => f.col === 'organization_id')
+        if (!keyFilter) return null
+        const keyVal = keyFilter.val!
+        const orgId: string | null = orgFilter ? (orgFilter.isNull ? null : orgFilter.val) : null
+        const sk = storeKey(keyVal, orgId)
+        const v = store.get(sk)
+        if (!v) return null
+        return { key: v.key, organization_id: v.org_id, ...v }
+      },
+      async delete() {
+        const keyFilter = filters.find(f => f.col === 'key')
+        const orgFilter = filters.find(f => f.col === 'organization_id')
+        if (!keyFilter) return
+        const orgId: string | null = orgFilter ? (orgFilter.isNull ? null : orgFilter.val) : null
+        store.delete(storeKey(keyFilter.val!, orgId))
+      },
+    }
+  }
 
   const db = {
     _store: store,
@@ -19,24 +49,37 @@ function makeSettingsDb(initialRows: Record<string, any> = {}) {
       if (name !== 'auth_settings') throw new Error(`unexpected table: ${name}`)
       // Probe: select().limit() — se _hasTable for false, lança para simular tabela ausente.
       if (!_hasTable) throw new Error('table does not exist')
-      const allRows = () => [...store.entries()].map(([key, v]) => ({ key, ...v }))
+      const allRows = () => [...store.values()].map(v => ({ key: v.key, organization_id: v.org_id, value: v.value, updated_at: v.updated_at, updated_by: v.updated_by }))
       return {
-        where(_col: string, key: string) {
-          return {
-            async first() {
-              const v = store.get(key)
-              return v ? { key, ...v } : null
-            },
-            async delete() { store.delete(key) },
-          }
+        where(col: string, val: string) {
+          return makeChain([{ col, val, isNull: false }])
+        },
+        whereNull(col: string) {
+          return makeChain([{ col, val: null, isNull: true }])
         },
         async insert(row: any) {
-          store.set(row.key, { value: row.value, updated_at: row.updated_at ?? new Date(), updated_by: row.updated_by ?? null })
+          const orgId: string | null = row.organization_id ?? null
+          const sk = storeKey(row.key, orgId)
+          store.set(sk, { key: row.key, org_id: orgId, value: row.value, updated_at: row.updated_at ?? new Date(), updated_by: row.updated_by ?? null })
         },
-        // select() retorna chainable com .limit() para o probe funcionar.
+        // select() retorna chainable com .limit() para o probe funcionar e .whereNull()/.where() para listSettings.
         select(_cols?: string) {
           const rows = allRows()
           return {
+            where(col: string, val: string) {
+              const filtered = rows.filter(r => (r as any)[col] === val)
+              return {
+                limit(_n: number) { return Promise.resolve(filtered.slice(0, _n)) },
+                then(resolve: any, reject: any) { return Promise.resolve(filtered).then(resolve, reject) },
+              }
+            },
+            whereNull(col: string) {
+              const filtered = rows.filter(r => (r as any)[col] === null || (r as any)[col] === undefined)
+              return {
+                limit(_n: number) { return Promise.resolve(filtered.slice(0, _n)) },
+                then(resolve: any, reject: any) { return Promise.resolve(filtered).then(resolve, reject) },
+              }
+            },
             limit(_n: number) { return Promise.resolve(rows.slice(0, _n)) },
             then(resolve: any, reject: any) { return Promise.resolve(rows).then(resolve, reject) },
           }
@@ -86,14 +129,15 @@ function fakeCtx(opts: { service: any; db: any; inputs?: Record<string, any>; se
   return { ctx, captured, session }
 }
 
-function fakeApiCtx(opts: { service: any; db: any; params?: Record<string, string>; body?: Record<string, any> }) {
-  const { service, db, params = {}, body = {} } = opts
+function fakeApiCtx(opts: { service: any; db: any; params?: Record<string, string>; body?: Record<string, any>; query?: Record<string, string> }) {
+  const { service, db, params = {}, body = {}, query = {} } = opts
   const captured = { _status: 200 }
   const ctx = {
     request: {
       param: (k: string) => params[k],
       body: () => body,
       ip: () => '127.0.0.1',
+      qs: () => query,
     },
     response: {
       notFound: (data: any) => { captured._status = 404; return data },

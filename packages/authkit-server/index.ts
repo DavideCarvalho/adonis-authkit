@@ -1,3 +1,5 @@
+export { ensureAuthkitSchema } from './src/schema/ensure.js'
+export type { EnsureSchemaOptions, EnsureSchemaReport } from './src/schema/ensure.js'
 export { defineConfig, adapters, toSeconds } from './src/define_config.js'
 export { generatePatToken, hashPatToken } from './src/pat/pat_tokens.js'
 export { withAuthUser } from './src/mixins/with_auth_user.js'
@@ -143,6 +145,7 @@ export {
 } from './src/events/dispatcher.js'
 export type { EventsConfigInput, ResolvedEventsConfig } from './src/events/dispatcher.js'
 export { inertiaRenderer } from './src/host/renderers/inertia_renderer.js'
+export type { AuthkitScreen } from './src/host/renderers/inertia_renderer.js'
 export type { InertiaRendererOptions } from './src/host/renderers/inertia_renderer.js'
 export { edgeRenderer } from './src/host/renderers/edge_renderer.js'
 export { brandFor, isFirstParty } from './src/host/branding.js'

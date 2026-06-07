@@ -4,35 +4,84 @@ import { RuntimeSettings, supportsSettings } from '../src/host/runtime_settings.
 // ---------- helpers ----------
 
 /** Minimal DB-like object simulating auth_settings table present. */
+/**
+ * fakeDb — simula auth_settings com escopo (key, organization_id).
+ * rows é populado como settings GLOBAIS (organization_id = null).
+ */
 function fakeDb(rows: Record<string, string> = {}) {
-  const store = new Map<string, { value: string; updatedAt: Date; updatedBy: string | null }>(
-    Object.entries(rows).map(([k, v]) => [k, { value: v, updatedAt: new Date(), updatedBy: null }])
+  const storeKey = (key: string, orgId: string | null) => `${key}|${orgId ?? ''}`
+  const store = new Map<string, { key: string; org_id: string | null; value: string; updatedAt: Date; updatedBy: string | null }>(
+    Object.entries(rows).map(([k, v]) => [storeKey(k, null), { key: k, org_id: null, value: v, updatedAt: new Date(), updatedBy: null }])
   )
+
+  function makeChain(filters: Array<{ col: string; val: string | null; isNull: boolean }>) {
+    return {
+      where(col: string, val: string) {
+        return makeChain([...filters, { col, val, isNull: false }])
+      },
+      whereNull(col: string) {
+        return makeChain([...filters, { col, val: null, isNull: true }])
+      },
+      async first() {
+        const keyFilter = filters.find(f => f.col === 'key')
+        const orgFilter = filters.find(f => f.col === 'organization_id')
+        if (!keyFilter) return null
+        const keyVal = keyFilter.val!
+        const orgId: string | null = orgFilter ? (orgFilter.isNull ? null : orgFilter.val) : null
+        const sk = storeKey(keyVal, orgId)
+        const v = store.get(sk)
+        if (!v) return null
+        return { key: v.key, organization_id: v.org_id, value: v.value, updated_at: v.updatedAt, updated_by: v.updatedBy }
+      },
+      async delete() {
+        const keyFilter = filters.find(f => f.col === 'key')
+        const orgFilter = filters.find(f => f.col === 'organization_id')
+        if (!keyFilter) return
+        const keyVal = keyFilter.val!
+        const orgId: string | null = orgFilter ? (orgFilter.isNull ? null : orgFilter.val) : null
+        store.delete(storeKey(keyVal, orgId))
+      },
+    }
+  }
+
   return {
     _hasTable: true,
     from(name: string) { return this.table(name) },
     table(_name: string) {
-      const allRows = () => [...store.entries()].map(([key, v]) => ({ key, value: v.value, updated_at: v.updatedAt, updated_by: v.updatedBy }))
+      const allRows = () => [...store.values()].map(v => ({ key: v.key, organization_id: v.org_id, value: v.value, updated_at: v.updatedAt, updated_by: v.updatedBy }))
       return {
-        where(_col: string, key: string) {
-          return {
-            async first() {
-              const v = store.get(key)
-              return v ? { key, value: v.value, updated_at: v.updatedAt, updated_by: v.updatedBy } : null
-            },
-            async delete() { store.delete(key) },
-          }
+        where(col: string, val: string) {
+          return makeChain([{ col, val, isNull: false }])
         },
-        // select() returns a chainable object (supports .limit()) for the probe.
+        whereNull(col: string) {
+          return makeChain([{ col, val: null, isNull: true }])
+        },
+        // select() returns chainable with .limit() and .then() for probe + listSettings.
         select(_cols?: string) {
           const rows = allRows()
           return {
+            where(col: string, val: string) {
+              const filtered = rows.filter(r => (r as any)[col] === val)
+              return {
+                limit(_n: number) { return Promise.resolve(filtered.slice(0, _n)) },
+                then(resolve: any, reject: any) { return Promise.resolve(filtered).then(resolve, reject) },
+              }
+            },
+            whereNull(col: string) {
+              const filtered = rows.filter(r => (r as any)[col] === null || (r as any)[col] === undefined)
+              return {
+                limit(_n: number) { return Promise.resolve(filtered.slice(0, _n)) },
+                then(resolve: any, reject: any) { return Promise.resolve(filtered).then(resolve, reject) },
+              }
+            },
             limit(_n: number) { return Promise.resolve(rows.slice(0, _n)) },
             then(resolve: any, reject: any) { return Promise.resolve(rows).then(resolve, reject) },
           }
         },
         async insert(row: any) {
-          store.set(row.key, { value: row.value, updatedAt: row.updated_at ?? new Date(), updatedBy: row.updated_by ?? null })
+          const orgId: string | null = row.organization_id ?? null
+          const sk = storeKey(row.key, orgId)
+          store.set(sk, { key: row.key, org_id: orgId, value: row.value, updatedAt: row.updated_at ?? new Date(), updatedBy: row.updated_by ?? null })
         },
       }
     },
@@ -97,6 +146,17 @@ test.group('RuntimeSettings', () => {
 
   test('cache: second call within TTL does not re-query DB', async ({ assert }) => {
     let queryCalls = 0
+    function makeChain() {
+      return {
+        where(_col: string, _val: string) { return makeChain() },
+        whereNull(_col: string) { return makeChain() },
+        async first() {
+          queryCalls++
+          return { key: 'bot_protection', organization_id: null, value: JSON.stringify({ enabled: false }), updated_at: new Date(), updated_by: null }
+        },
+        async delete() {},
+      }
+    }
     const db = {
       from(name: string) { return this.table(name) },
       table(_name: string) {
@@ -105,14 +165,8 @@ test.group('RuntimeSettings', () => {
           select(_cols?: string) {
             return { limit(_n: number) { return Promise.resolve([]) } }
           },
-          where(_col: string, _key: string) {
-            return {
-              async first() {
-                queryCalls++
-                return { key: 'bot_protection', value: JSON.stringify({ enabled: false }), updated_at: new Date(), updated_by: null }
-              },
-            }
-          },
+          where(_col: string, _val: string) { return makeChain() },
+          whereNull(_col: string) { return makeChain() },
         }
       },
     }
@@ -124,6 +178,17 @@ test.group('RuntimeSettings', () => {
 
   test('cache: invalidate() clears cache, next call re-queries', async ({ assert }) => {
     let queryCalls = 0
+    function makeChain() {
+      return {
+        where(_col: string, _val: string) { return makeChain() },
+        whereNull(_col: string) { return makeChain() },
+        async first() {
+          queryCalls++
+          return { key: 'bot_protection', organization_id: null, value: JSON.stringify({ enabled: false }), updated_at: new Date(), updated_by: null }
+        },
+        async delete() {},
+      }
+    }
     const db = {
       from(name: string) { return this.table(name) },
       table(_name: string) {
@@ -132,14 +197,8 @@ test.group('RuntimeSettings', () => {
           select(_cols?: string) {
             return { limit(_n: number) { return Promise.resolve([]) } }
           },
-          where(_col: string, _key: string) {
-            return {
-              async first() {
-                queryCalls++
-                return { key: 'bot_protection', value: JSON.stringify({ enabled: false }), updated_at: new Date(), updated_by: null }
-              },
-            }
-          },
+          where(_col: string, _val: string) { return makeChain() },
+          whereNull(_col: string) { return makeChain() },
         }
       },
     }
@@ -188,15 +247,19 @@ test.group('RuntimeSettings — searchPath-aware probe', () => {
       from(name: string) { return this.table(name) },
       table(_name: string) {
         tableCallCount++
+        function makeChain() {
+          return {
+            where(_c: string, _v: string) { return makeChain() },
+            whereNull(_c: string) { return makeChain() },
+            async first() { return null },
+          }
+        }
         return {
           select(_cols?: string) {
             return { limit(_n: number) { return Promise.resolve([]) } }
           },
-          where(_col: string, key: string) {
-            return {
-              async first() { return null },
-            }
-          },
+          where(_c: string, _v: string) { return makeChain() },
+          whereNull(_c: string) { return makeChain() },
         }
       },
     }
@@ -216,13 +279,19 @@ test.group('RuntimeSettings — searchPath-aware probe', () => {
       from(name: string) { return this.table(name) },
       table(_name: string) {
         tableCallCount++
+        function makeChain() {
+          return {
+            where(_c: string, _v: string) { return makeChain() },
+            whereNull(_c: string) { return makeChain() },
+            async first() { return null },
+          }
+        }
         return {
           select(_cols?: string) {
             return { limit(_n: number) { return Promise.resolve([]) } }
           },
-          where(_col: string, key: string) {
-            return { async first() { return null } }
-          },
+          where(_c: string, _v: string) { return makeChain() },
+          whereNull(_c: string) { return makeChain() },
         }
       },
     }
@@ -242,6 +311,13 @@ test.group('RuntimeSettings — named connection option', () => {
     const db = {
       connection(name: string) {
         namedConns.push(name)
+        function makeChain() {
+          return {
+            where(_c: string, _v: string) { return makeChain() },
+            whereNull(_c: string) { return makeChain() },
+            async first() { return null },
+          }
+        }
         return {
           from(...args: any[]) { return (this as any).table(...args) },
           table(_tableName: string) {
@@ -249,9 +325,8 @@ test.group('RuntimeSettings — named connection option', () => {
               select(_cols?: string) {
                 return { limit(_n: number) { return Promise.resolve([]) } }
               },
-              where(_col: string, key: string) {
-                return { async first() { return null } }
-              },
+              where(_c: string, _v: string) { return makeChain() },
+              whereNull(_c: string) { return makeChain() },
             }
           },
         }
@@ -269,13 +344,19 @@ test.group('RuntimeSettings — named connection option', () => {
       from(name: string) { return this.table(name) },
       table(_name: string) {
         directTableCalled = true
+        function makeChain() {
+          return {
+            where(_c: string, _v: string) { return makeChain() },
+            whereNull(_c: string) { return makeChain() },
+            async first() { return null },
+          }
+        }
         return {
           select(_cols?: string) {
             return { limit(_n: number) { return Promise.resolve([]) } }
           },
-          where(_col: string, key: string) {
-            return { async first() { return null } }
-          },
+          where(_c: string, _v: string) { return makeChain() },
+          whereNull(_c: string) { return makeChain() },
         }
       },
       connection(_name: string) {
@@ -291,23 +372,28 @@ test.group('RuntimeSettings — named connection option', () => {
     const settingValue = { enabled: true, on: ['login'] }
     const db = {
       connection(_name: string) {
+        function makeChain(filters: Array<{ col: string; val: string | null; isNull: boolean }>) {
+          return {
+            where(col: string, val: string) { return makeChain([...filters, { col, val, isNull: false }]) },
+            whereNull(col: string) { return makeChain([...filters, { col, val: null, isNull: true }]) },
+            async first() {
+              const keyFilter = filters.find(f => f.col === 'key')
+              if (keyFilter?.val === 'bot_protection') {
+                return { key: 'bot_protection', organization_id: null, value: JSON.stringify(settingValue), updated_at: new Date(), updated_by: null }
+              }
+              return null
+            },
+          }
+        }
         return {
           from(...args: any[]) { return (this as any).table(...args) },
           table(_tableName: string) {
             return {
               select(_cols?: string) {
-                return { limit(_n: number) { return Promise.resolve([{ key: 'bot_protection', value: JSON.stringify(settingValue) }]) } }
+                return { limit(_n: number) { return Promise.resolve([{ key: 'bot_protection', organization_id: null, value: JSON.stringify(settingValue) }]) } }
               },
-              where(_col: string, key: string) {
-                return {
-                  async first() {
-                    if (key === 'bot_protection') {
-                      return { key, value: JSON.stringify(settingValue), updated_at: new Date(), updated_by: null }
-                    }
-                    return null
-                  },
-                }
-              },
+              where(col: string, val: string) { return makeChain([{ col, val, isNull: false }]) },
+              whereNull(col: string) { return makeChain([{ col, val: null, isNull: true }]) },
             }
           },
         }

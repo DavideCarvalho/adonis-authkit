@@ -1,5 +1,20 @@
 # @dudousxd/adonis-authkit-react
 
+## 0.7.0
+
+### Minor Changes
+
+- feat(settings): org-scoped runtime settings (org → global → default resolution)
+  - `auth_settings` table gains `organization_id` column (nullable; NULL = global). Unique constraint on (key, organization_id).
+  - `RuntimeSettings` methods gain optional `orgId` param: `getSetting(key, orgId?)`, `setSetting(key, value, updatedBy?, orgId?)`, `deleteSetting(key, orgId?)`, `listSettings(orgId?)`. New `getEffective(key, orgId?)` helper resolves org → global → null.
+  - Cache is org-scope-aware (cache key includes orgId).
+  - `resolveEffectiveOrganizationsPolicy` and `resolveEffectiveRolesCatalog` accept optional `orgId` and resolve org → global → default. All other resolvers remain global-only.
+  - Console JSON API (`/api/settings`) and Admin REST API accept `?organizationId=` query param for scoped reads/writes/deletes.
+  - Org detail drawer in console admin shows "Organization Settings" section for org-scopable keys (`organizations_policy`, `roles_catalog`) with source badges (from org / from global / default) and inline JSON editor.
+  - `@dudousxd/adonis-authkit-react` client: `settings.list(orgId?)`, `settings.set(key, value, orgId?)`, `settings.remove(key, orgId?)`. `authkitKeys.admin.settings(orgId?)`. `useSettingsQueryOptions(orgId?)`, `useSetSettingMutationOptions(orgId?)`, `useRemoveSettingMutationOptions(orgId?)`.
+  - `SettingEntry` type gains `organizationId: string | null` field.
+  - Existing rows default to `organization_id = NULL` (global) — no data migration needed.
+
 ## 0.6.0
 
 ### Minor Changes

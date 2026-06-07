@@ -35,7 +35,14 @@ export const authkitKeys = {
     audit: (params?: { type?: string; page?: number; limit?: number; subject?: string }) =>
       ['authkit', 'admin', 'audit', params ?? {}] as const,
 
-    settings: () => ['authkit', 'admin', 'settings'] as const,
+    /**
+     * Query key de settings. orgId undefined/null = global.
+     * Passar orgId para invalidar apenas settings de uma org específica.
+     */
+    settings: (orgId?: string | null) =>
+      orgId
+        ? (['authkit', 'admin', 'settings', orgId] as const)
+        : (['authkit', 'admin', 'settings'] as const),
 
     impersonation: (userId: string) => ['authkit', 'admin', 'impersonation', userId] as const,
   },

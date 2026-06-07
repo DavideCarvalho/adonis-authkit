@@ -3,7 +3,6 @@ import {
   ArrowRight,
   Fingerprint,
   KeyRound,
-  LayoutDashboard,
   Lock,
   Monitor,
   ScrollText,
@@ -13,6 +12,7 @@ import {
   Users,
   Workflow,
 } from 'lucide-react'
+import { AdminConsoleDemo } from './admin-console-demo'
 
 const GITHUB_URL = 'https://github.com/DavideCarvalho/adonis-authkit'
 
@@ -128,51 +128,27 @@ function Hero() {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Admin Console mock — faithful SPA mock: sidebar + overview cards + users   */
+/*  Admin Console — interactive mock right under the hero (peeks above the     */
+/*  fold), with the section copy below it                                      */
 /* -------------------------------------------------------------------------- */
-
-interface MetricCard {
-  label: string
-  value: string
-  delta: string
-  positive: boolean
-}
-
-const METRIC_CARDS: readonly MetricCard[] = [
-  { label: 'Total users', value: '4 821', delta: '+12% this week', positive: true },
-  { label: 'Active sessions', value: '318', delta: '+3% today', positive: true },
-  { label: 'OAuth clients', value: '14', delta: '2 new', positive: true },
-  { label: 'Lockouts (24 h)', value: '7', delta: '-40% vs yesterday', positive: true },
-]
-
-interface UserRow {
-  name: string
-  email: string
-  role: string
-  status: 'active' | 'locked'
-  joined: string
-}
-
-const USER_ROWS: readonly UserRow[] = [
-  { name: 'Jane Smith', email: 'jane@acme.dev', role: 'Admin', status: 'active', joined: '2 d ago' },
-  { name: 'Tom Hanks', email: 'tom@acme.dev', role: 'Member', status: 'active', joined: '5 d ago' },
-  { name: 'Sara Lee', email: 'sara@acme.dev', role: 'Member', status: 'locked', joined: '12 d ago' },
-  { name: 'Alex Kim', email: 'alex@acme.dev', role: 'Viewer', status: 'active', joined: '1 mo ago' },
-]
-
-const SIDEBAR_ITEMS = [
-  { icon: LayoutDashboard, label: 'Overview', active: false },
-  { icon: Users, label: 'Users', active: true },
-  { icon: Monitor, label: 'Sessions', active: false },
-  { icon: KeyRound, label: 'Clients', active: false },
-  { icon: ScrollText, label: 'Audit', active: false },
-]
 
 function AdminConsoleMockSection() {
   return (
     <section className="mx-auto w-full max-w-5xl px-4 pb-24">
-      {/* section header */}
-      <div className="mb-10 text-center">
+      <div className="relative">
+        <div
+          aria-hidden
+          className="absolute -inset-x-10 -bottom-8 top-10 -z-10 rounded-[2rem] bg-[#625fff]/10 blur-3xl"
+        />
+        <AdminConsoleDemo />
+        <p className="mt-5 text-center font-mono text-xs text-fd-muted-foreground">
+          This is a live mock — click the sidebar. The real console ships inside the npm
+          package: React SPA, zero extra build step.
+        </p>
+      </div>
+
+      {/* section copy — below the visual, not before it */}
+      <div className="mt-14 text-center">
         <span className="inline-block rounded-full border border-[#625fff]/40 bg-[#625fff]/10 px-3 py-1 font-mono text-xs text-[#9a8bff]">
           batteries included
         </span>
@@ -193,154 +169,6 @@ function AdminConsoleMockSection() {
           Admin Console docs
           <ArrowRight className="size-3.5" />
         </Link>
-      </div>
-
-      {/* console mock */}
-      <div className="relative">
-        <div
-          aria-hidden
-          className="absolute -inset-x-10 -bottom-8 top-10 -z-10 rounded-[2rem] bg-[#625fff]/10 blur-3xl"
-        />
-
-        {/* outer chrome */}
-        <div className="overflow-hidden rounded-xl border border-zinc-800 bg-[#0d0d10] shadow-2xl shadow-black/50 ring-1 ring-white/5">
-          {/* window bar */}
-          <div className="flex items-center gap-2 border-b border-zinc-800 bg-[#16161b]/90 px-4 py-2.5">
-            <span className="size-3 rounded-full bg-zinc-700" />
-            <span className="size-3 rounded-full bg-zinc-700" />
-            <span className="size-3 rounded-full bg-zinc-700" />
-            <span className="ml-4 truncate font-mono text-xs text-zinc-500">
-              auth.acme.dev · /admin
-            </span>
-            <span className="ml-auto inline-flex items-center gap-1.5 font-mono text-[11px] text-[#9a8bff]">
-              <span className="animate-ak-blink size-1.5 rounded-full bg-[#9a8bff]" />
-              AuthKit Admin
-            </span>
-          </div>
-
-          {/* app shell */}
-          <div className="flex min-h-[420px]">
-            {/* sidebar */}
-            <aside className="hidden w-48 shrink-0 border-r border-zinc-800 bg-[#0f0f13] sm:block">
-              <div className="border-b border-zinc-800 px-4 py-4">
-                <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500">
-                  Acme
-                </p>
-                <p className="mt-0.5 text-sm font-semibold text-zinc-100">Auth Console</p>
-              </div>
-              <nav className="p-2">
-                {SIDEBAR_ITEMS.map((item) => {
-                  const Icon = item.icon
-                  return (
-                    <div
-                      key={item.label}
-                      className={`mb-0.5 flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm ${
-                        item.active
-                          ? 'bg-[#625fff]/20 font-medium text-[#9a8bff]'
-                          : 'text-zinc-500'
-                      }`}
-                    >
-                      <Icon className="size-4 shrink-0" />
-                      {item.label}
-                    </div>
-                  )
-                })}
-              </nav>
-            </aside>
-
-            {/* main content */}
-            <div className="flex-1 overflow-hidden p-5">
-              {/* page title */}
-              <div className="mb-5 flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500">
-                    Identity
-                  </p>
-                  <h3 className="text-lg font-semibold text-zinc-100">Users</h3>
-                </div>
-                <div className="rounded-lg bg-[#625fff] px-4 py-1.5 text-sm font-semibold text-white">
-                  Invite user
-                </div>
-              </div>
-
-              {/* metric cards */}
-              <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-                {METRIC_CARDS.map((card) => (
-                  <div
-                    key={card.label}
-                    className="rounded-xl border border-zinc-800 bg-[#16161b]/60 p-3"
-                  >
-                    <p className="text-xs text-zinc-500">{card.label}</p>
-                    <p className="mt-1 text-lg font-semibold text-zinc-100">{card.value}</p>
-                    <p
-                      className={`mt-0.5 text-[11px] font-mono ${card.positive ? 'text-emerald-400' : 'text-rose-400'}`}
-                    >
-                      {card.delta}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              {/* search bar */}
-              <div className="mb-3 flex gap-2">
-                <div className="flex-1 rounded-lg border border-zinc-700 bg-[#16161b]/60 px-3 py-2 text-sm text-zinc-600">
-                  Search by name or email…
-                </div>
-                <div className="rounded-lg border border-zinc-700 bg-[#16161b]/60 px-3 py-2 text-sm text-zinc-500">
-                  Role ▾
-                </div>
-              </div>
-
-              {/* users table */}
-              <div className="overflow-hidden rounded-xl border border-zinc-800 bg-[#16161b]/40">
-                <div className="grid grid-cols-4 border-b border-zinc-800 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-600">
-                  <span>Name</span>
-                  <span className="hidden sm:block">Email</span>
-                  <span>Role</span>
-                  <span>Status</span>
-                </div>
-                {USER_ROWS.map((row) => (
-                  <div
-                    key={row.email}
-                    className="grid grid-cols-4 border-b border-zinc-800/60 px-4 py-3 text-sm last:border-0"
-                  >
-                    <span className="font-medium text-zinc-200">{row.name}</span>
-                    <span className="hidden font-mono text-xs text-zinc-500 sm:block self-center">
-                      {row.email}
-                    </span>
-                    <span className="text-zinc-400 self-center">{row.role}</span>
-                    <span className="self-center">
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                          row.status === 'active'
-                            ? 'bg-emerald-500/10 text-emerald-400'
-                            : 'bg-rose-500/10 text-rose-400'
-                        }`}
-                      >
-                        <span
-                          className={`size-1.5 rounded-full ${row.status === 'active' ? 'bg-emerald-400' : 'bg-rose-400'}`}
-                        />
-                        {row.status}
-                      </span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-3 flex items-center justify-between text-xs text-zinc-600">
-                <span>4 821 users · page 1 of 49</span>
-                <div className="flex gap-2">
-                  <span className="rounded border border-zinc-800 px-2 py-1">←</span>
-                  <span className="rounded border border-zinc-800 px-2 py-1">→</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <p className="mt-5 text-center font-mono text-xs text-fd-muted-foreground">
-          Shipped inside the npm package — React SPA, zero extra build step
-        </p>
       </div>
     </section>
   )

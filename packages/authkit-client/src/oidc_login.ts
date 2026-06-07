@@ -23,10 +23,15 @@ export interface AuthorizeParams {
   scopes: string[]
   state: string
   codeChallenge: string
+  /**
+   * Endpoint de autorização do IdP — obtenha via `discoverEndpoints(issuer)`
+   * para IdPs de terceiros. Default: `${issuer}/auth` (convenção oidc-provider).
+   */
+  authorizationEndpoint?: string
 }
 
 export function buildAuthorizeUrl(p: AuthorizeParams): string {
-  const url = new URL(`${p.issuer}/auth`)
+  const url = new URL(p.authorizationEndpoint ?? `${p.issuer}/auth`)
   url.searchParams.set('client_id', p.clientId)
   url.searchParams.set('response_type', 'code')
   url.searchParams.set('redirect_uri', p.redirectUri)
@@ -48,6 +53,11 @@ export interface EndSessionParams {
   clientId?: string
   /** Opcional; ecoado de volta no post_logout_redirect_uri. */
   state?: string
+  /**
+   * Endpoint de end-session do IdP (via `discoverEndpoints`). Default:
+   * `${issuer}/session/end` (convenção oidc-provider).
+   */
+  endSessionEndpoint?: string
 }
 
 /**
@@ -58,7 +68,7 @@ export interface EndSessionParams {
  * o `id_token_hint`, o oidc-provider (v9) renderiza uma página de confirmação.
  */
 export function buildEndSessionUrl(p: EndSessionParams): string {
-  const url = new URL(`${p.issuer}/session/end`)
+  const url = new URL(p.endSessionEndpoint ?? `${p.issuer}/session/end`)
   if (p.idToken) url.searchParams.set('id_token_hint', p.idToken)
   if (p.postLogoutRedirectUri) {
     url.searchParams.set('post_logout_redirect_uri', p.postLogoutRedirectUri)
@@ -84,9 +94,10 @@ interface TokenEndpointResponse {
 async function tokenEndpoint(
   issuer: string,
   body: URLSearchParams,
-  fetchImpl: typeof fetch = fetch
+  fetchImpl: typeof fetch = fetch,
+  endpoint?: string
 ): Promise<TokenSet> {
-  const res = await fetchImpl(`${issuer}/token`, {
+  const res = await fetchImpl(endpoint ?? `${issuer}/token`, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
@@ -110,6 +121,8 @@ export interface ExchangeParams {
   code: string
   codeVerifier: string
   fetchImpl?: typeof fetch
+  /** Token endpoint do IdP (via `discoverEndpoints`). Default: `${issuer}/token`. */
+  tokenEndpoint?: string
 }
 
 export async function exchangeCode(p: ExchangeParams): Promise<TokenSet> {
@@ -122,7 +135,7 @@ export async function exchangeCode(p: ExchangeParams): Promise<TokenSet> {
   })
   if (p.clientSecret) body.set('client_secret', p.clientSecret)
 
-  return tokenEndpoint(p.issuer, body, p.fetchImpl)
+  return tokenEndpoint(p.issuer, body, p.fetchImpl, p.tokenEndpoint)
 }
 
 export interface RefreshParams {
@@ -133,6 +146,8 @@ export interface RefreshParams {
   /** Escopo opcional para reduzir o escopo do novo token. */
   scope?: string
   fetchImpl?: typeof fetch
+  /** Token endpoint do IdP (via `discoverEndpoints`). Default: `${issuer}/token`. */
+  tokenEndpoint?: string
 }
 
 /**
@@ -152,7 +167,7 @@ export async function refreshTokens(p: RefreshParams): Promise<TokenSet> {
   if (p.scope) body.set('scope', p.scope)
   if (p.clientSecret) body.set('client_secret', p.clientSecret)
 
-  return tokenEndpoint(p.issuer, body, p.fetchImpl)
+  return tokenEndpoint(p.issuer, body, p.fetchImpl, p.tokenEndpoint)
 }
 
 export interface ExchangeTokenParams {
@@ -165,6 +180,8 @@ export interface ExchangeTokenParams {
   requestedSubject: string
   scope?: string
   fetchImpl?: typeof fetch
+  /** Token endpoint do IdP (via `discoverEndpoints`). Default: `${issuer}/token`. */
+  tokenEndpoint?: string
 }
 
 /** Troca o token do ator por um token do usuário-alvo (RFC 8693), p/ impersonation. */
@@ -179,5 +196,5 @@ export async function exchangeToken(p: ExchangeTokenParams): Promise<TokenSet> {
   if (p.scope) body.set('scope', p.scope)
   if (p.clientSecret) body.set('client_secret', p.clientSecret)
 
-  return tokenEndpoint(p.issuer, body, p.fetchImpl)
+  return tokenEndpoint(p.issuer, body, p.fetchImpl, p.tokenEndpoint)
 }

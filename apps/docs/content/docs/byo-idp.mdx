@@ -1,0 +1,111 @@
+---
+title: Bring your own IdP
+description: Use AuthKit's client toolkit and React SDK against any OIDC-compliant identity provider — Keycloak, Auth0, Okta, Entra — without running authkit-server.
+---
+
+Your company already runs an OIDC identity provider? You can skip `authkit-server`
+entirely and still get the AuthKit developer experience: the **client toolkit**
+authenticates your AdonisJS app against any compliant IdP, and the **React SDK**
+keeps working — hiding only the pieces that genuinely need the AuthKit server.
+
+```
+┌────────────┐   OIDC code + PKCE   ┌──────────────────────┐
+│ Your IdP   │ ◄──────────────────► │ AdonisJS app          │
+│ (Keycloak, │                      │ @…/adonis-authkit-    │
+│  Auth0…)   │                      │ client (sessions,     │
+└────────────┘                      │ JWT/JWKS, logout)     │
+                                    │ + authkit-react (UI)  │
+                                    └──────────────────────┘
+```
+
+## 1. Server side — `@dudousxd/adonis-authkit-client`
+
+The client toolkit is a full OIDC relying party: authorization-code + PKCE login,
+session management, stateless JWT verification via remote JWKS, RP-initiated and
+back-channel logout. Point `issuer` at your IdP.
+
+### Endpoint discovery
+
+Third-party IdPs publish their endpoints at `{issuer}/.well-known/openid-configuration` —
+paths differ per vendor (Keycloak uses `/protocol/openid-connect/auth`, Auth0 uses
+`/authorize`…). Use `discoverEndpoints` and pass the resolved endpoints to the flow
+helpers:
+
+```ts
+import {
+  discoverEndpoints,
+  generatePkce,
+  buildAuthorizeUrl,
+  exchangeCode,
+  buildEndSessionUrl,
+} from '@dudousxd/adonis-authkit-client'
+
+const endpoints = await discoverEndpoints(issuer) // cached per issuer (15 min)
+
+// 1. Login
+const { verifier, challenge } = await generatePkce()
+const url = buildAuthorizeUrl({
+  issuer, clientId, redirectUri, state,
+  scopes: ['openid', 'profile', 'email'],
+  codeChallenge: challenge,
+  authorizationEndpoint: endpoints.authorizationEndpoint,
+})
+
+// 2. Callback
+const tokens = await exchangeCode({
+  issuer, clientId, clientSecret, redirectUri,
+  code, codeVerifier: verifier,
+  tokenEndpoint: endpoints.tokenEndpoint,
+})
+
+// 3. Logout
+buildEndSessionUrl({
+  issuer,
+  idToken: tokens.idToken,
+  postLogoutRedirectUri: 'https://app.example.com/',
+  endSessionEndpoint: endpoints.endSessionEndpoint,
+})
+```
+
+Notes:
+
+- **Fail-safe**: if the discovery document is unreachable, `discoverEndpoints` silently
+  falls back to the oidc-provider conventions (`/auth`, `/token`, `/jwks`…) — so against
+  `authkit-server` everything keeps working even offline.
+- **Manual override**: `discoverEndpoints(issuer, { overrides: { tokenEndpoint: '…' } })`
+  wins field-by-field — useful behind proxies.
+- The JWT resolvers already accept `jwksUri`/`introspectionUrl` directly — feed them
+  `endpoints.jwksUri` / `endpoints.introspectionEndpoint`.
+
+See **[Client toolkit](/docs/client)** for sessions, middleware, resolvers and
+back-channel logout.
+
+## 2. React SDK — `idp: 'external'`
+
+The React package talks to two very different surfaces:
+
+| Works with any IdP | Needs authkit-server |
+| --- | --- |
+| `SignInButton`, `SignOutButton` (redirect to your app's login/logout routes) | `UserProfile` (profile/MFA/sessions panel) |
+| `useAuth`, `Authenticated`, `Can`, `Avatar` | `OrganizationSwitcher`, `OrganizationProfile` |
+| `PasswordStrengthMeter`, `usePasswordStrength` | `AuthorizedApps` |
+
+Tell the provider your IdP is external and the right-column components degrade to
+`null` instead of calling endpoints that don't exist:
+
+```tsx
+<AuthkitProvider config={{ idp: 'external', loginUrl: '/auth/login' }}>
+  <App />
+</AuthkitProvider>
+```
+
+Everything else — auth state, sign-in/out buttons, role gates — keeps working exactly
+the same, because those only depend on your app's session (provided by the client
+toolkit above).
+
+## What you give up without authkit-server
+
+Profile/MFA self-service, organizations, authorized-apps management, the admin console
+and the Admin API are features **of the server** — your external IdP brings its own
+equivalents (Keycloak account console, Auth0 dashboard…). If you later migrate to
+authkit-server, flip `idp` back to `'authkit'` and they all light up.

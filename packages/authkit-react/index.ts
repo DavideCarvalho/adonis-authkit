@@ -17,6 +17,7 @@ export type {
   AuthkitConfig,
   ResolvedAuthkitConfig,
   AuthkitEndpoints,
+  AuthkitIdpMode,
 } from './src/config.js'
 
 export { useSignIn } from './src/hooks/use_sign_in.js'

@@ -1,4 +1,5 @@
 import { createElement, useState } from 'react'
+import { useAuthkitConfig } from '../config.js'
 import { useOrganizations, type OrgEntry } from '../hooks/use_organizations.js'
 import { useSwitchOrganization } from '../hooks/use_switch_organization.js'
 import { useAuth } from '../use_auth.js'
@@ -13,7 +14,7 @@ export interface OrganizationSwitcherProps {
  * Dropdown estilo Clerk: mostra a org ativa (ou conta pessoal), lista as orgs
  * do usuário e permite trocar. SSR-safe.
  */
-export function OrganizationSwitcher({
+function OrganizationSwitcherInner({
   personalAccountLabel = 'Conta pessoal',
   className,
 }: OrganizationSwitcherProps) {
@@ -102,4 +103,15 @@ export function OrganizationSwitcher({
     trigger,
     menu
   )
+}
+
+/**
+ * Depende da REST surface do authkit-server — com `idp: 'external'`
+ * (IdP de terceiros) degrada para `null` em vez de chamar endpoints
+ * inexistentes.
+ */
+export function OrganizationSwitcher(props: Parameters<typeof OrganizationSwitcherInner>[0]) {
+  const { idp } = useAuthkitConfig()
+  if (idp === 'external') return null
+  return <OrganizationSwitcherInner {...props} />
 }

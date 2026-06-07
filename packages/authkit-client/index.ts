@@ -15,6 +15,8 @@ export {
   generatePkce,
 } from './src/oidc_login.js'
 export type { EndSessionParams, RefreshParams } from './src/oidc_login.js'
+export { discoverEndpoints, conventionEndpoints } from './src/discovery.js'
+export type { OidcEndpoints, DiscoverOptions } from './src/discovery.js'
 export { AuthkitClientManager } from './providers/authkit_client_provider.js'
 export type {
   ResolvedClientConfig,

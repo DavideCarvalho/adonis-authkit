@@ -28,6 +28,21 @@ export interface AuthkitEndpoints {
  * Configuração do `<AuthkitProvider>`. Todos os campos são opcionais; defaults
  * apontam para as rotas reais do host-kit.
  */
+/**
+ * Que IdP está atrás do app:
+ *
+ * - `'authkit'` (default) — o backend roda o authkit-server: TODOS os
+ *   componentes funcionam (perfil, orgs, apps autorizados, passkeys…).
+ * - `'external'` — o backend autentica contra um IdP de terceiros
+ *   (Keycloak, Auth0, Okta… tipicamente via `@dudousxd/adonis-authkit-client`).
+ *   Os componentes que dependem da REST surface do authkit-server
+ *   (`UserProfile`, `OrganizationSwitcher`, `OrganizationProfile`,
+ *   `AuthorizedApps`) degradam para `null` em vez de chamar endpoints que
+ *   não existem; `SignInButton`/`SignOutButton`/`useAuth`/`Avatar`/`Can`
+ *   continuam funcionando normalmente.
+ */
+export type AuthkitIdpMode = 'authkit' | 'external'
+
 export interface AuthkitConfig {
   /** URL de início de login (OIDC é redirect-based). Default: `/auth/login` */
   loginUrl?: string
@@ -42,6 +57,8 @@ export interface AuthkitConfig {
    * Em apps Inertia/AdonisJS, passe `usePage().props.csrfToken` (ou similar).
    */
   csrfToken?: string
+  /** IdP atrás do app. Default: `'authkit'`. Veja {@link AuthkitIdpMode}. */
+  idp?: AuthkitIdpMode
 }
 
 /** Configuração já resolvida (sem campos opcionais). */
@@ -51,9 +68,11 @@ export interface ResolvedAuthkitConfig {
   profileUrl: string
   endpoints: AuthkitEndpoints
   csrfToken?: string
+  idp: AuthkitIdpMode
 }
 
 export const DEFAULT_CONFIG: ResolvedAuthkitConfig = {
+  idp: 'authkit',
   loginUrl: '/auth/login',
   logoutUrl: '/account/logout',
   profileUrl: '/account/security',
@@ -85,6 +104,7 @@ export function resolveConfig(config?: AuthkitConfig): ResolvedAuthkitConfig {
       orgInvitations: config?.endpoints?.orgInvitations ?? DEFAULT_CONFIG.endpoints.orgInvitations,
     },
     csrfToken: config?.csrfToken,
+    idp: config?.idp ?? 'authkit',
   }
 }
 

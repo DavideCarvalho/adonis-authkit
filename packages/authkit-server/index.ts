@@ -300,3 +300,17 @@ export {
   consoleLoginUrl,
 } from './src/host/console_session.js'
 export { ACCOUNT_SESSION_KEY } from './src/host/middleware/account_auth.js'
+
+// Sudo mode — helpers for host controllers that require step-up authentication.
+export {
+  SUDO_SESSION_KEY,
+  SUDO_MODE_DEFAULTS,
+  requireSudo,
+  isSudoActive,
+  markSudo,
+  resolveEffectiveSudoMode,
+} from './src/host/sudo_mode.js'
+export type {
+  SudoModeSetting,
+  ResolvedSudoModeSetting,
+} from './src/host/sudo_mode.js'

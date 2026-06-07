@@ -155,6 +155,7 @@ All methods under `admin.*` hit `{adminBase}/api/*` — the prefix is derived fr
 | `account.sessions.list()` | `GET /account/api/sessions` | — |
 | `account.sessions.revoke(id)` | `DELETE /account/api/sessions/:id` | — |
 | `account.sessions.revokeOthers()` | `POST /account/api/sessions/revoke-others` | — |
+| `account.sessions.revokeAll()` | `POST /account/api/sessions/revoke-all` | Sign out of all devices, including the current one |
 | `account.apps.list()` | `GET /account/api/apps` | Authorized OAuth grants |
 | `account.apps.revoke(clientId)` | `DELETE /account/api/apps/:clientId` | — |
 | `account.mfa()` | `GET /account/api/mfa` | TOTP + passkeys + recovery status |
@@ -288,6 +289,7 @@ full control.
 | `useCancelEmailChangeMutationOptions()` | `void` | — |
 | `useRevokeSessionMutationOptions()` | `string` (session id) | — |
 | `useRevokeOtherSessionsMutationOptions()` | `void` | — |
+| `useAccountRevokeAllSessionsMutationOptions()` | `void` | Sign out of all devices, including the current session |
 | `useRevokeAppMutationOptions()` | `string` (clientId) | — |
 | `useRemovePasskeyMutationOptions()` | `string` (passkey id) | Requires sudo |
 | `useCreateTokenMutationOptions()` | `CreateTokenInput?` | Requires sudo; secret returned once |
@@ -468,6 +470,7 @@ Routes registered by `registerAuthHost` (always on when the account console is m
 | `GET` | `/account/api/sessions` | List active OIDC sessions |
 | `DELETE` | `/account/api/sessions/:id` | Revoke one session |
 | `POST` | `/account/api/sessions/revoke-others` | Revoke all other sessions |
+| `POST` | `/account/api/sessions/revoke-all` | Sign out of all devices (including current) |
 | `GET` | `/account/api/apps` | List authorized OAuth grants |
 | `DELETE` | `/account/api/apps/:clientId` | Revoke an app's access |
 | `GET` | `/account/api/mfa` | MFA status (TOTP + passkeys + recovery) |

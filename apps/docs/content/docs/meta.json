@@ -31,6 +31,7 @@
     "---Reference---",
     "host-kit",
     "client",
+    "byo-idp",
     "account-store",
     "resolvers",
     "admin-console",

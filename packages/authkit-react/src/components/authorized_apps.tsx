@@ -1,4 +1,5 @@
 import { createElement } from 'react'
+import { useAuthkitConfig } from '../config.js'
 import { useAuthorizedApps, type AuthorizedApp } from '../hooks/use_authorized_apps.js'
 
 export interface AuthorizedAppsProps {
@@ -10,7 +11,7 @@ export interface AuthorizedAppsProps {
 /**
  * Lista os apps autorizados pelo usuário com botão de revogar por item.
  */
-export function AuthorizedApps({
+function AuthorizedAppsInner({
   className,
   revokeLabel = 'Revogar',
   emptyLabel = 'Nenhum app autorizado.',
@@ -59,4 +60,15 @@ export function AuthorizedApps({
       )
     )
   )
+}
+
+/**
+ * Depende da REST surface do authkit-server — com `idp: 'external'`
+ * (IdP de terceiros) degrada para `null` em vez de chamar endpoints
+ * inexistentes.
+ */
+export function AuthorizedApps(props: Parameters<typeof AuthorizedAppsInner>[0]) {
+  const { idp } = useAuthkitConfig()
+  if (idp === 'external') return null
+  return <AuthorizedAppsInner {...props} />
 }

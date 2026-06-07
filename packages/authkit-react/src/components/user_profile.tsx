@@ -1,4 +1,5 @@
 import { createElement, useState, type FormEvent } from 'react'
+import { useAuthkitConfig } from '../config.js'
 import { useAuth } from '../use_auth.js'
 import { useProfile } from '../hooks/use_profile.js'
 import { Avatar } from './avatar.js'
@@ -11,7 +12,7 @@ export interface UserProfileProps {
  * Card de perfil (avatar + nome + email) com formulário de edição que faz
  * POST no endpoint `profile` configurado. Renderiza nada quando não autenticado.
  */
-export function UserProfile({ className }: UserProfileProps) {
+function UserProfileInner({ className }: UserProfileProps) {
   const { user, isAuthenticated } = useAuth()
   const { actions, loading, error } = useProfile()
   const [name, setName] = useState(user?.name ?? '')
@@ -65,4 +66,15 @@ export function UserProfile({ className }: UserProfileProps) {
       )
     )
   )
+}
+
+/**
+ * Depende da REST surface do authkit-server — com `idp: 'external'`
+ * (IdP de terceiros) degrada para `null` em vez de chamar endpoints
+ * inexistentes.
+ */
+export function UserProfile(props: Parameters<typeof UserProfileInner>[0]) {
+  const { idp } = useAuthkitConfig()
+  if (idp === 'external') return null
+  return <UserProfileInner {...props} />
 }

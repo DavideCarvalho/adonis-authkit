@@ -17,7 +17,7 @@ export interface OrganizationProfileProps {
  * Card de perfil da organização ativa: lista de membros + formulário de convite
  * (visível para owner/admin) + botão de sair. SSR-safe.
  */
-export function OrganizationProfile({
+function OrganizationProfileInner({
   inviteLabel = 'Convidar membro',
   leaveLabel = 'Sair da organização',
   className,
@@ -146,4 +146,15 @@ export function OrganizationProfile({
     inviteForm,
     leaveButton
   )
+}
+
+/**
+ * Depende da REST surface do authkit-server — com `idp: 'external'`
+ * (IdP de terceiros) degrada para `null` em vez de chamar endpoints
+ * inexistentes.
+ */
+export function OrganizationProfile(props: Parameters<typeof OrganizationProfileInner>[0]) {
+  const { idp } = useAuthkitConfig()
+  if (idp === 'external') return null
+  return <OrganizationProfileInner {...props} />
 }

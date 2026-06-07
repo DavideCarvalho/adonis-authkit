@@ -128,6 +128,41 @@ buttons are disabled.
 Every save emits a `settings.updated` audit event. Every reset (delete) returns the key to
 the lib default and also emits `settings.updated`.
 
+## Org-scoped settings
+
+Two keys support **per-organization overrides**: `organizations_policy` and `roles_catalog`.
+When a scoped row exists for an org, it takes precedence over the global row, which in turn
+takes precedence over the lib default (`org → global → default`).
+
+The admin console surfaces this in the **organization drawer** (Edit org → Settings tab):
+only these two keys appear there. All other keys are global-only.
+
+### Setting an org-scoped value via SDK
+
+```ts
+await sdk.settings.set('organizations_policy', { allowSelfCreate: true }, { orgId: 'org_abc' })
+await sdk.settings.set('roles_catalog', { roles: ['owner', 'admin', 'contributor', 'viewer'] }, { orgId: 'org_abc' })
+```
+
+### Setting via Admin REST API
+
+Append `?org_id=<id>` to scope the write:
+
+```bash
+PUT /api/authkit/v1/settings/organizations_policy?org_id=org_abc
+{ "value": { "allowSelfCreate": true } }
+```
+
+### Reading the effective value in backend code
+
+```ts
+import { RuntimeSettings } from '@dudousxd/adonis-authkit-server'
+
+const settings = new RuntimeSettings(db)
+const effective = await settings.getEffective('organizations_policy', orgId)
+// resolves: org-row → global-row → lib-default
+```
+
 ## Admin REST API
 
 All 21 keys are managed via the same CRUD endpoints:

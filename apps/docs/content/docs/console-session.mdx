@@ -1,6 +1,6 @@
 ---
-title: Console session on other routes
-description: Use the AuthKit console account session to protect any route or integrate third-party packages — like the adonis-telescope dashboard.
+title: Console session & sudo mode
+description: Use the AuthKit console account session to protect any route, integrate third-party packages, and enforce step-up (sudo) authentication on sensitive operations.
 ---
 
 The AuthKit console (`/account/*`, `/auth/admin`) keeps its own account
@@ -78,4 +78,64 @@ authorize: async (ctx) => {
   const account = await store.findById(accountId)
   return account?.role === 'ADMIN'
 }
+```
+
+## Sudo mode (step-up authentication)
+
+Some operations should require recent re-authentication even when the user already has a
+valid session. AuthKit ships a **sudo mode** — after the user confirms their identity (password
+or passkey), a timestamp is stored in the session and remains valid for a configurable grace
+period (default 15 minutes). The `sudo_mode` runtime setting controls both `enabled` and
+`graceMinutes`.
+
+`@dudousxd/adonis-authkit-server` exports the helpers you need in your own controllers:
+
+```ts
+import {
+  requireSudo,        // redirects/401s when sudo grace has expired
+  isSudoActive,       // boolean check (no side-effects)
+  markSudo,           // stamp the session after a successful confirmation
+  SUDO_SESSION_KEY,   // raw session key ('authkit_sudo_at')
+} from '@dudousxd/adonis-authkit-server'
+```
+
+### Protecting a sensitive route
+
+```ts
+// app/settings/controllers/delete_account_controller.ts
+import type { HttpContext } from '@adonisjs/core/http'
+import { requireSudo } from '@dudousxd/adonis-authkit-server'
+
+export default class DeleteAccountController {
+  async handle(ctx: HttpContext) {
+    // Redirects to /account/confirm when sudo grace has expired.
+    // Respects the `sudo_mode` runtime setting (enabled + graceMinutes).
+    await requireSudo(ctx)
+
+    // ... proceed with deletion
+  }
+}
+```
+
+### Checking without redirecting
+
+```ts
+import { isSudoActive } from '@dudousxd/adonis-authkit-server'
+
+const active = isSudoActive(ctx, graceMinutes)
+if (!active) {
+  return ctx.response.unauthorized({ error: 'sudo_required' })
+}
+```
+
+### Marking sudo after a confirmation step
+
+If you add a custom confirmation screen, call `markSudo` after verifying the user's
+credentials:
+
+```ts
+import { markSudo } from '@dudousxd/adonis-authkit-server'
+
+// After verifying password / passkey:
+markSudo(ctx) // stamps authkit_sudo_at = Date.now()
 ```

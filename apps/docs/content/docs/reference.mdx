@@ -293,6 +293,32 @@ For confidential clients a `clientSecret` is generated and printed **exactly onc
 it immediately. The admin console and Admin API are alternatives when you prefer a browser
 or HTTP interface.
 
+## Server backend helpers — `@dudousxd/adonis-authkit-server`
+
+Helpers for use inside AdonisJS controllers, middleware, and route callbacks.
+
+### Console session
+
+| Export | Purpose |
+| --- | --- |
+| `getAccountId(ctx)` | Returns `string \| null` — the signed-in account ID from the console session. |
+| `hasAccountSession(ctx)` | Returns `boolean` — `true` when the console session is present. |
+| `consoleLoginUrl(returnTo?)` | Returns the login URL with an optional `return_to` parameter. |
+| `ACCOUNT_SESSION_KEY` | Raw session key (`account_user_id`). Prefer `getAccountId`/`hasAccountSession`. |
+
+See [Console session & sudo mode](/docs/console-session) for recipes.
+
+### Sudo mode (step-up authentication)
+
+| Export | Purpose |
+| --- | --- |
+| `requireSudo(ctx)` | Redirects to `/account/confirm` (or returns `403`) when the sudo grace period has expired. Respects the `sudo_mode` runtime setting. |
+| `isSudoActive(ctx, graceMinutes)` | Pure boolean check — `true` when the step-up timestamp is within the grace window. |
+| `markSudo(ctx)` | Stamps `authkit_sudo_at = Date.now()` in the session (call after a successful credential confirmation). |
+| `SUDO_SESSION_KEY` | Raw session key (`authkit_sudo_at`). |
+| `SUDO_MODE_DEFAULTS` | `{ enabled: true, graceMinutes: 15 }` |
+| `resolveEffectiveSudoMode(settings)` | Reads the `sudo_mode` setting from a `SettingsCapability` instance, with fail-safe fallback. |
+
 ## Client helpers — `@dudousxd/adonis-authkit-client`
 
 Additional exports beyond the resolver factories:
@@ -321,6 +347,7 @@ grace period has expired.
 | `GET` | `/account/api/sessions` | `{ supported, sessions[] }` |
 | `DELETE` | `/account/api/sessions/:id` | Revoke one session |
 | `POST` | `/account/api/sessions/revoke-others` | Revoke all other OIDC sessions |
+| `POST` | `/account/api/sessions/revoke-all` | Sign out of all devices (including current session) |
 | `GET` | `/account/api/apps` | `{ supported, apps[] }` — OAuth grants |
 | `DELETE` | `/account/api/apps/:clientId` | Revoke an app's grants |
 | `GET` | `/account/api/mfa` | `{ enabled, totp, passkeys, recovery }` |
@@ -404,8 +431,10 @@ Full export list. For usage and examples see
 `useCreateClientMutationOptions`, `useUpdateClientMutationOptions`, `useDeleteClientMutationOptions`,
 `useRegenerateClientSecretMutationOptions`, `useCreateRoleMutationOptions`,
 `useUpdateRoleMutationOptions`, `useDeleteRoleMutationOptions`, `useCreateOrgMutationOptions`,
-`useUpdateOrgMutationOptions`, `useDeleteOrgMutationOptions`, `useSetSettingMutationOptions`,
-`useRemoveSettingMutationOptions`.
+`useUpdateOrgMutationOptions`, `useDeleteOrgMutationOptions`,
+`useAddOrgMemberMutationOptions`, `useRemoveOrgMemberMutationOptions`, `useUpdateOrgMemberRoleMutationOptions`,
+`useCreateOrgInvitationMutationOptions`, `useRevokeOrgInvitationMutationOptions`,
+`useSetSettingMutationOptions`, `useRemoveSettingMutationOptions`.
 
 ### Account query hooks
 
@@ -418,5 +447,6 @@ Full export list. For usage and examples see
 `useUpdateProfileMutationOptions`, `useChangePasswordMutationOptions`,
 `useEmailChangeMutationOptions`, `useCancelEmailChangeMutationOptions`,
 `useRevokeSessionMutationOptions`, `useRevokeOtherSessionsMutationOptions`,
+`useAccountRevokeAllSessionsMutationOptions`,
 `useRevokeAppMutationOptions`, `useRemovePasskeyMutationOptions`,
 `useCreateTokenMutationOptions`, `useRevokeTokenMutationOptions`.

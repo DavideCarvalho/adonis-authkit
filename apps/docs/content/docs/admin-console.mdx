@@ -301,6 +301,30 @@ When the three organization tables are present, an **Organizations** tab appears
 `/admin/orgs`. See [Organizations](/docs/organizations#admin-console----adminorgs) for
 the full route table and behaviour.
 
+### Organization management
+
+The Organizations tab supports the full CRUD lifecycle:
+
+- **Create** — form with display name, slug, and optional logo URL.
+- **Edit** — rename and update slug/logo. The slug must be unique and URL-safe.
+- **Members** — list current members, change roles, and remove members.
+- **Invitations** — create email invitations and revoke pending ones.
+- **Danger zone** — delete the organization (cascades membership rows; does not delete member accounts).
+
+### Org-scoped settings (Settings tab in the org drawer)
+
+Opening an org and selecting the **Settings** tab shows two cards that can be overridden
+per-organization:
+
+| Card | Setting key | What it controls |
+| --- | --- | --- |
+| Organization Policy | `organizations_policy` | `allowSelfCreate`, `invitationTtlHours`, `roles` list |
+| Roles Catalog | `roles_catalog` | Custom role definitions available within this org |
+
+Saving an org-scoped value creates a row in `auth_settings` with `organization_id` set to
+the org's ID. The resolution chain is `org → global → lib default`. See
+[Runtime Settings — Org-scoped settings](/docs/settings#org-scoped-settings) for details.
+
 ## Settings page
 
 `{prefix}#/settings` shows a **Runtime

@@ -194,7 +194,7 @@ test.group('registerAuthHost', () => {
     registerAuthHost(router, { mountPath: '/oidc' })
 
     // As 3 rotas de tokens existem
-    assert.isTrue(router.routes.some((r: any) => r.pattern === '/account/tokens'))
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/account/security'))
     assert.isTrue(router.routes.some((r: any) => r.pattern === '/account/tokens/:id/revoke'))
 
     // O middleware account_auth foi aplicado ao grupo

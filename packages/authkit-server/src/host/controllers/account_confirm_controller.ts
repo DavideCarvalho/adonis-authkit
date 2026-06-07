@@ -17,6 +17,7 @@ import { translate } from '../i18n.js'
 import { supportsPasskeys } from '../../accounts/account_store.js'
 import { markSudo } from '../sudo_mode.js'
 import { validateReturnTo } from './account_session_controller.js'
+import { accountHome } from '../account_home.js'
 
 /** Chave de sessão para o challenge de passkey no confirm. */
 const CONFIRM_PASSKEY_CHALLENGE_KEY = 'authkit_confirm_passkey_challenge'
@@ -84,7 +85,7 @@ export default class AccountConfirmController {
       metadata: { method: 'password' },
     })
 
-    return ctx.response.redirect(returnTo ?? '/account/tokens')
+    return ctx.response.redirect(returnTo ?? accountHome(cfg))
   }
 
   async passkeyOptions(ctx: HttpContext) {
@@ -146,7 +147,7 @@ export default class AccountConfirmController {
       metadata: { method: 'passkey' },
     })
 
-    return ctx.response.redirect(returnTo ?? '/account/tokens')
+    return ctx.response.redirect(returnTo ?? accountHome(cfg))
   }
 
   /**

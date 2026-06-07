@@ -123,7 +123,7 @@ The `adminGuard` (also exported) protects the group. It requires:
    Not Found** (the routes simply don't exist as far as a caller can tell);
 2. an active **account session** (otherwise redirect to `/account/login`);
 3. the signed-in account having at least one of `admin.roles` in its global roles
-   (otherwise redirect to `/account/tokens`, so the existence of `/admin` isn't leaked).
+   (otherwise redirect to the configured `accountHome` — default `/account/security` — so the existence of `/admin` is not leaked).
 
 The allowed roles are resolved at runtime from the `authkit.server` config. See
 [Security](/docs/security) for how the disabled-console 404 fits the broader hardening.

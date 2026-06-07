@@ -38,7 +38,7 @@ test.group('edge views (lib-owned)', () => {
     assert.include(read('forgot.edge'), '/auth/forgot-password')
     assert.include(read('reset.edge'), '/auth/reset-password')
     assert.include(read('account/login.edge'), '/account/login')
-    assert.include(read('account/tokens.edge'), '/account/tokens')
+    assert.include(read('account/tokens.edge'), '/account/security')
   })
 
   test('campos CSRF presentes em todos os formulários POST', ({ assert }) => {

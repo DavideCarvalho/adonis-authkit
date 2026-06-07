@@ -147,7 +147,7 @@ test.group('requireSudo', () => {
 
   test('timestamp expirado (fora da graça): redireciona para confirm', async ({ assert }) => {
     const now = Date.now()
-    const ctx = fakeCtx({ sudoAt: now - 30 * 60 * 1000, returnUrl: '/account/tokens' }) // 30 min
+    const ctx = fakeCtx({ sudoAt: now - 30 * 60 * 1000, returnUrl: '/account/security' }) // 30 min
     const settings = fakeSettings({ enabled: true, graceMinutes: 15 })
     const result = await requireSudo(ctx as any, settings as any)
     assert.notStrictEqual(result, true)

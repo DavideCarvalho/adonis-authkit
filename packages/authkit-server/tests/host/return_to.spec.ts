@@ -298,41 +298,41 @@ test.group('GET /account/login — return_to', () => {
 
 test.group('POST /account/login — return_to (validação server-side)', () => {
   test('return_to válido no hidden input → destino correto após login bem-sucedido', ({ assert }) => {
-    // A lógica do controller: após sucesso, ctx.response.redirect(returnTo ?? '/account/tokens')
+    // A lógica do controller: após sucesso, ctx.response.redirect(returnTo ?? '/account/security')
     const returnTo = validateReturnTo('/account/security')
     assert.equal(returnTo, '/account/security')
     // Simulação: loginOk → redirect(returnTo) = '/account/security'
-    const dest = returnTo ?? '/account/tokens'
+    const dest = returnTo ?? '/account/security'
     assert.equal(dest, '/account/security')
   })
 
   test('return_to ausente no POST → default /account/tokens', ({ assert }) => {
     const returnTo = validateReturnTo(undefined)
-    const dest = returnTo ?? '/account/tokens'
-    assert.equal(dest, '/account/tokens')
+    const dest = returnTo ?? '/account/security'
+    assert.equal(dest, '/account/security')
   })
 
   test('return_to //evil no hidden input → descartado → default', ({ assert }) => {
     const returnTo = validateReturnTo('//evil.com')
-    const dest = returnTo ?? '/account/tokens'
-    assert.equal(dest, '/account/tokens')
+    const dest = returnTo ?? '/account/security'
+    assert.equal(dest, '/account/security')
   })
 
   test('return_to https:// no hidden input → descartado → default', ({ assert }) => {
     const returnTo = validateReturnTo('https://attacker.com')
-    const dest = returnTo ?? '/account/tokens'
-    assert.equal(dest, '/account/tokens')
+    const dest = returnTo ?? '/account/security'
+    assert.equal(dest, '/account/security')
   })
 
   test('return_to /admin/settings válido → redireciona pro admin', ({ assert }) => {
     const returnTo = validateReturnTo('/admin/settings')
-    const dest = returnTo ?? '/account/tokens'
+    const dest = returnTo ?? '/account/security'
     assert.equal(dest, '/admin/settings')
   })
 
   test('open-redirect bloqueado: javascript:// → default', ({ assert }) => {
     const returnTo = validateReturnTo('javascript://xss')
-    const dest = returnTo ?? '/account/tokens'
-    assert.equal(dest, '/account/tokens')
+    const dest = returnTo ?? '/account/security'
+    assert.equal(dest, '/account/security')
   })
 })

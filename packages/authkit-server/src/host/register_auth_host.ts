@@ -3,6 +3,7 @@ import type { AuthSocialConfig, RateLimitConfigInput } from '../define_config.js
 import { resolveRateLimit } from '../define_config.js'
 import { createAuthThrottles } from './rate_limit.js'
 import { ACCOUNT_SESSION_KEY } from './middleware/account_auth.js'
+import { accountHome } from './account_home.js'
 import { adminApiGuard } from './admin_api/admin_api_guard.js'
 import {
   setAdminPrefix,
@@ -125,9 +126,9 @@ export const adminGuard = async (ctx: any, next: () => Promise<void>) => {
   const roles = account?.globalRoles ?? []
   const isAdmin = roles.some((r: string) => allowed.includes(r))
   if (!isAdmin) {
-    // Evita vazar a existência do console admin: redireciona para a página de
-    // tokens da conta (sem mostrar a URL do admin).
-    return ctx.response.redirect('/account/tokens')
+    // Evita vazar a existência do console admin: redireciona para o accountHome
+    // (sem mostrar a URL do admin).
+    return ctx.response.redirect(accountHome(cfg))
   }
   return next()
 }

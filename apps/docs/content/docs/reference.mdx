@@ -20,6 +20,7 @@ description: The full defineConfig option tables for server and client.
 | `accountStore` | `AccountStore` | — | Primary identity contract; derives `findAccount`/`verifyCredentials`. `AccountStore = CoreAccountStore & Partial<Mfa/Webauthn/ProviderIdentity capabilities>`; narrow with `supportsMfa`/`supportsPasskeys`/`supportsProviderIdentity`. See [Account Store](/docs/account-store). |
 | `patStore` | `PatStore` | — | Optional; required only for PAT flows. |
 | `mountPath` | `string` | `'/oidc'` | Where the host kit mounts the OIDC routes. |
+| `accountHome` | `string` | `'/account/security'` | Default destination for the account area: post-login at `/account/login` (without `return_to`), e-mail confirmations, and non-admin redirects away from the console. Point it at your app's home to land users straight in the product. |
 | `render` | `AuthHostRenderer` | — | `inertiaRenderer` / `edgeRenderer`, or omit for headless. |
 | `branding` | `BrandingConfig` | — | Per-client theming + first-party list. |
 | `social` | `AuthSocialConfig` | — | `{ providers: string[] }`; opt-in social login. |

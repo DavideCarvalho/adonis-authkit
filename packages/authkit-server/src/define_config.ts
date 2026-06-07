@@ -702,6 +702,12 @@ export interface AuthServerConfigInput {
   patStore?: PatStore
   /** Caminho base onde o host-kit monta as rotas OIDC. Default: '/oidc'. */
   mountPath?: string
+  /**
+   * Destino default da área da conta: pós-login do console (sem `return_to`),
+   * confirmações de e-mail e fallback de redirects. Default: '/account/security'.
+   * Hosts que preferem mandar o usuário direto pro app podem apontar pra rota deles.
+   */
+  accountHome?: string
   /** Renderer de páginas do host (Inertia ou Edge). */
   render?: AuthHostRenderer
   /** Configuração de branding por cliente. */

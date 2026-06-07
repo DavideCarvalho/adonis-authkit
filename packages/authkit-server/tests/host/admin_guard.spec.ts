@@ -84,7 +84,7 @@ test.group('adminGuard', () => {
       nextCalled = true
     })
     assert.isFalse(nextCalled)
-    assert.deepEqual(redirects, ['/account/tokens'])
+    assert.deepEqual(redirects, ['/account/security'])
   })
 
   test('respeita roles customizadas do config', async ({ assert }) => {
@@ -128,6 +128,6 @@ test.group('adminGuard', () => {
       nextCalled = true
     })
     assert.isFalse(nextCalled)
-    assert.deepEqual(redirects, ['/account/tokens'])
+    assert.deepEqual(redirects, ['/account/security'])
   })
 })

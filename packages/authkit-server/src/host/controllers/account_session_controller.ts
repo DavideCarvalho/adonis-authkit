@@ -5,6 +5,7 @@ import { translate } from '../i18n.js'
 import { attemptPasswordLogin } from '../login_attempt.js'
 import { notifyLoginSuccess } from '../login_notify.js'
 import { markSudo } from '../sudo_mode.js'
+import { accountHome } from '../account_home.js'
 
 /**
  * Valida um valor de `return_to` recebido da query-string ou de um campo hidden.
@@ -32,7 +33,7 @@ export default class AccountSessionController {
     const render = cfg.render!
 
     if (ctx.session.get(ACCOUNT_SESSION_KEY)) {
-      return ctx.response.redirect('/account/tokens')
+      return ctx.response.redirect(accountHome(cfg))
     }
 
     // Lê e valida o return_to da query-string — descarta valores inválidos (open-redirect).
@@ -75,8 +76,8 @@ export default class AccountSessionController {
     // Login com senha = confirmação de identidade → marca sudo (graça a partir do login).
     markSudo(ctx)
     await notifyLoginSuccess(ctx, cfg, { accountId: acc.id, email, ip })
-    // Redireciona pro destino original (validado), ou cai no default /account/tokens.
-    return ctx.response.redirect(returnTo ?? '/account/tokens')
+    // Redireciona pro destino original (validado), ou cai no accountHome configurado.
+    return ctx.response.redirect(returnTo ?? accountHome(cfg))
   }
 
   async logout(ctx: HttpContext) {

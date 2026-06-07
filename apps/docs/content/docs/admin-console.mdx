@@ -8,14 +8,6 @@ session context, organization management, the OAuth client list, the audit log, 
 impersonation panel, and a full runtime settings editor. It is **off by default** —
 existing hosts don't change behaviour.
 
-<Callout type="info">
-  **The console is now a React SPA by default.** Starting in the current release the admin
-  console is a self-contained, Vite-built React application (hash-routing, dark/light theme,
-  violet accent `#625fff`) bundled **inside** the npm package — zero extra build step for the
-  host. The classic Edge server-rendered console is still available as an opt-in alternative
-  (`ui: 'edge'`).
-</Callout>
-
 ## Enabling it
 
 The console must be turned on in **both** places — `defineConfig` (the guard) and
@@ -34,7 +26,7 @@ defineConfig({
 ```ts title="start/routes.ts"
 registerAuthHost(router, {
   mountPath: '/oidc',
-  admin: true, // console under /admin, React SPA (default)
+  admin: true, // console under /admin
 })
 ```
 
@@ -86,38 +78,11 @@ The dashboard is then at `https://auth.acme.com/auth/admin`. The SPA uses hash-r
   used — identical to `admin: true`.
 </Callout>
 
-### UI mode: React SPA (default) vs Edge (legacy)
+### The SPA under the hood
 
-`registerAuthHost` accepts an optional `ui` field alongside `prefix`:
-
-```ts title="start/routes.ts"
-// React SPA — default; zero extra setup
-registerAuthHost(router, {
-  mountPath: '/oidc',
-  admin: true,              // equivalent to { ui: 'react' }
-})
-
-// Classic Edge server-rendered console (back-compat)
-registerAuthHost(router, {
-  mountPath: '/oidc',
-  admin: { ui: 'edge' },
-})
-
-// React SPA with a custom prefix
-registerAuthHost(router, {
-  mountPath: '/oidc',
-  admin: { prefix: '/auth/admin', ui: 'react' },
-})
-```
-
-| `ui` value | Behaviour |
-| --- | --- |
-| `'react'` (default) | Vite-built SPA shipped inside the package — no build step needed. Hash-routing. JSON API under `{prefix}/api/*`. Static assets under `{prefix}/assets/*` (aggressive cache). |
-| `'edge'` | Classic server-rendered Edge views. Same feature set; all form actions are traditional `POST` submissions. Full back-compat with previous releases. |
-
-#### React SPA internals
-
-The SPA (`ui: 'react'`) is:
+The console is a self-contained, Vite-built React application (hash-routing, dark/light
+theme, violet accent `#625fff`) bundled **inside** the npm package — zero extra build step
+for the host. It is:
 
 - **Pre-built and bundled inside `@dudousxd/adonis-authkit-server`** — the Vite output lands
   in `build/host/ui-dist/` at publish time and is served directly by `AdminShellController`.
@@ -159,7 +124,6 @@ The allowed roles are resolved at runtime from the `authkit.server` config. See
 
 ## Routes
 
-### React SPA mode (`ui: 'react'`, default)
 
 The SPA shell is served for every page route; actual data is fetched from JSON API endpoints
 under `{prefix}/api/*`. All endpoints are protected by the `adminGuard`.
@@ -196,42 +160,6 @@ under `{prefix}/api/*`. All endpoints are protected by the `adminGuard`.
 | `PUT {prefix}/api/settings/:key` | Upsert a setting |
 | `DELETE {prefix}/api/settings/:key` | Delete a setting (reset to lib default) |
 | `GET {prefix}/api/impersonation/:userId` | Get impersonation panel data |
-
-### Edge mode (`ui: 'edge'`)
-
-All routes below are relative to the configured admin prefix (default `/admin`; denoted
-`{prefix}` here). Actions are traditional `POST` form submissions.
-
-| Route | Action |
-| --- | --- |
-| `GET {prefix}` | Dashboard — MAU, daily sign-ins, daily sign-ups (SVG charts), total users |
-| `GET {prefix}/users` | List/search users |
-| `POST {prefix}/users` | Create a user (with a password, or invite via password-reset email) |
-| `POST {prefix}/users/:id/roles` | Replace a user's global roles (`AccountStore.setGlobalRoles`) |
-| `POST {prefix}/users/:id/reset-password` | Issue a reset token and email it to the user |
-| `POST {prefix}/users/:id/disable` | Disable the account (blocks login) — needs `AccountStatusCapability` |
-| `POST {prefix}/users/:id/enable` | Re-enable a disabled account |
-| `POST {prefix}/users/:id/delete` | Delete a user and cascade (LGPD/GDPR) |
-| `GET {prefix}/users/:id/sessions` | List the account's active sessions + grants (with browser/OS/IP/location) |
-| `POST {prefix}/users/:id/revoke-sessions` | Revoke all of the account's sessions + grants |
-| `GET {prefix}/clients` | List OAuth clients (static config + adapter-stored) |
-| `POST {prefix}/clients` | Create a dynamic client |
-| `POST {prefix}/clients/:id/edit` | Edit a dynamic client |
-| `POST {prefix}/clients/:id/regenerate-secret` | Regenerate a confidential client's secret |
-| `POST {prefix}/clients/:id/delete` | Delete a dynamic client |
-| `GET {prefix}/audit` | Browse the audit log (when the sink supports `list`) |
-| `GET {prefix}/orgs` | List organizations (when tables exist) |
-| `POST {prefix}/orgs` | Create an organization |
-| `GET {prefix}/orgs/:id` | View org detail: members + pending invitations |
-| `POST {prefix}/orgs/:id/delete` | Delete an organization and cascade |
-| `POST {prefix}/orgs/:id/members` | Add a member |
-| `POST {prefix}/orgs/:id/members/:accountId/remove` | Remove a member |
-| `POST {prefix}/orgs/:id/invitations/:invId/revoke` | Revoke an invitation |
-
-The console reads through the same contracts as the rest of the host kit:
-`AccountStore.listAccounts` / `setGlobalRoles` for users, the OIDC adapter + static
-`clients` for the client list, and `AuditSink.list` for audit. A write-only audit sink
-degrades gracefully — the audit page shows "query not supported".
 
 ## Dashboard
 
@@ -375,7 +303,7 @@ the full route table and behaviour.
 
 ## Settings page
 
-`GET {prefix}/settings` (Edge mode) or `{prefix}#/settings` (React SPA) shows a **Runtime
+`{prefix}#/settings` shows a **Runtime
 Settings** panel with multiple sections covering all 21 known setting keys. The page is the
 primary interface for operational configuration that does not require a redeploy. See
 [Runtime Settings](/docs/settings) for the full setting catalog, precedence rules, and

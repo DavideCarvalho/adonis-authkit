@@ -44,12 +44,6 @@ export interface InertiaRendererOptions {
    * página React correspondente. **Recomenda-se sempre fornecer `views`** com
    * exatamente as páginas que o scaffold (`node ace configure`) gerou.
    *
-   * ### Admin sempre usa Edge
-   *
-   * Views cujo nome começa com `admin/` **nunca** passam pelo Inertia,
-   * independentemente de `views`. O console admin é o chrome da lib; tematização
-   * futura é via branding/CSS injetado — não via componentes React do host.
-   *
    * A ordem do array é irrelevante — `views` é tratado como um *conjunto*
    * (allowlist). Os nomes têm autocomplete via {@link AuthkitScreen}.
    *
@@ -96,9 +90,8 @@ export type AuthkitScreen =
  * Renderer do seam para hosts Inertia/React.
  *
  * As páginas React vivem no host em `inertia/pages/<prefix>/<view>`.
- * Views `admin/*` são **sempre** renderizadas pelas Edge views built-in da lib
- * (o console admin é chrome da lib; tematização futura é via branding/CSS — não
- * via componentes React do host).
+ * (O console admin não passa por aqui: é a SPA self-contained da lib,
+ * servida pelo shell controller.)
  *
  * Quando `views` é fornecido (allowlist), apenas as views listadas vão ao Inertia;
  * qualquer outra view recai no Edge renderer built-in sem erro.
@@ -118,13 +111,7 @@ export function inertiaRenderer(opts: InertiaRendererOptions) {
   const allowed = opts.views ? new Set(opts.views) : null
 
   return async (ctx: HttpContext, view: string, props: Record<string, unknown>) => {
-    // Regra 1 — Admin sempre Edge: o console admin é chrome da lib.
-    // Tematização futura é via branding/CSS injetado, não via componentes React do host.
-    if (view.startsWith('admin/')) {
-      return renderEdgeView(ctx, view, props)
-    }
-
-    // Regra 2 — Allowlist: se `views` foi fornecido e a view não está na lista,
+    // Allowlist: se `views` foi fornecido e a view não está na lista,
     // usa o fallback Edge silenciosamente (evita SSR crash por página inexistente no host).
     if (allowed !== null && !allowed.has(view)) {
       return renderEdgeView(ctx, view, props)

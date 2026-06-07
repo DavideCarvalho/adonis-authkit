@@ -2,14 +2,13 @@
  * Admin Console (React SPA) — tests
  *
  * Covers:
- *   - Toggle: ui='react' registers shell + JSON routes; ui='edge' registers Edge routes.
+ *   - Console routes: shell + JSON API registration.
  *   - Shell serving: injects window.__AUTHKIT__ with adminBase, csrfToken, locale, messages, currentUser, endpoints.
  *   - JSON endpoints shape (overview, users CRUD, sessions, clients, roles, orgs, audit, settings, impersonation).
  *   - adminGuard barrier: endpoints return non-ok when guard rejects (exercised via controller unit tests).
  *   - Capability-absent 404s (orgs, audit, settings when not supported).
- *   - Config: resolveAdmin() defaults ui='react', accepts 'edge'.
- *   - Admin prefix singleton: setAdminUiMode / getAdminUiMode.
- *   - Doctor checkAdmin reports ui mode.
+ *   - Config: resolveAdmin() defaults.
+ *   - Doctor checkAdmin.
  */
 import { test } from '@japa/runner'
 import { createServer, type Server } from 'node:http'
@@ -26,8 +25,6 @@ import type { AccountStore, AuthAccount } from '../src/accounts/account_store.js
 import type { AuditSink, StoredAuditEvent } from '../src/audit/audit_sink.js'
 import { createTestDatabase } from './bootstrap.js'
 import {
-  setAdminUiMode,
-  getAdminUiMode,
   setAdminPrefix,
   getAdminPrefix,
 } from '../src/host/admin_prefix.js'
@@ -245,43 +242,20 @@ async function startService(port: number, db: any, extra: Partial<AuthServerConf
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
-test.group('resolveAdmin() — ui mode', () => {
-  test('default ui é react quando ui omitido', ({ assert }) => {
+test.group('resolveAdmin()', () => {
+  test('resolve enabled/roles com defaults', ({ assert }) => {
     const resolved = resolveAdmin({ enabled: true })
-    assert.equal(resolved.ui, 'react')
+    assert.isTrue(resolved.enabled)
+    assert.deepEqual(resolved.roles, ['ADMIN'])
   })
 
-  test('ui edge é preservado', ({ assert }) => {
-    const resolved = resolveAdmin({ enabled: true, ui: 'edge' })
-    assert.equal(resolved.ui, 'edge')
-  })
-
-  test('ui react explícito', ({ assert }) => {
-    const resolved = resolveAdmin({ enabled: true, ui: 'react' })
-    assert.equal(resolved.ui, 'react')
-  })
-
-  test('admin desabilitado ainda resolve ui', ({ assert }) => {
-    const resolved = resolveAdmin({ enabled: false, ui: 'edge' })
-    assert.equal(resolved.ui, 'edge')
+  test('admin desabilitado resolve', ({ assert }) => {
+    const resolved = resolveAdmin({ enabled: false })
     assert.isFalse(resolved.enabled)
   })
 })
 
-test.group('setAdminUiMode / getAdminUiMode singleton', () => {
-  test('default é react', ({ assert }) => {
-    setAdminUiMode('react') // reset
-    assert.equal(getAdminUiMode(), 'react')
-  })
-
-  test('setAdminUiMode persiste', ({ assert }) => {
-    setAdminUiMode('edge')
-    assert.equal(getAdminUiMode(), 'edge')
-    setAdminUiMode('react') // cleanup
-  })
-})
-
-test.group('registerAuthHost — toggle ui mode', () => {
+test.group('registerAuthHost — console routes', () => {
   const routes: Array<{ method: string; pattern: string }> = []
 
   function fakeRouter() {
@@ -320,27 +294,12 @@ test.group('registerAuthHost — toggle ui mode', () => {
     assert.isOk(overview, 'deve registrar GET /admin/api/overview')
     // NÃO deve ter rotas Edge (/admin/users sem api prefix).
     const edgeUsers = routes.find((r) => r.pattern === '/admin/users' && r.method === 'GET')
-    assert.isNotOk(edgeUsers, 'modo react não registra rota Edge /admin/users')
-    assert.equal(getAdminUiMode(), 'react')
-  })
-
-  test('admin:{ui:edge} registra rotas Edge (sem shell/JSON)', ({ assert }) => {
-    routes.length = 0
-    registerAuthHost(fakeRouter(), { mountPath: '/oidc', admin: { ui: 'edge' } })
-    // Edge users route.
-    const edgeUsers = routes.find((r) => r.pattern === '/admin/users' && r.method === 'GET')
-    assert.isOk(edgeUsers, 'modo edge deve registrar /admin/users')
-    // NÃO deve ter shell nem JSON.
-    const shellRoute = routes.find((r) => r.pattern === '/admin/*' && r.method === 'GET')
-    assert.isNotOk(shellRoute, 'modo edge não registra rota shell')
-    const overview = routes.find((r) => r.pattern === '/admin/api/overview')
-    assert.isNotOk(overview, 'modo edge não registra JSON API')
-    assert.equal(getAdminUiMode(), 'edge')
+    assert.isNotOk(edgeUsers, 'console não registra rota Edge /admin/users')
   })
 
   test('admin:true com prefix customizado registra rotas no prefixo correto', ({ assert }) => {
     routes.length = 0
-    registerAuthHost(fakeRouter(), { mountPath: '/oidc', admin: { prefix: '/auth/admin', ui: 'react' } })
+    registerAuthHost(fakeRouter(), { mountPath: '/oidc', admin: { prefix: '/auth/admin' } })
     const overview = routes.find((r) => r.pattern === '/auth/admin/api/overview')
     assert.isOk(overview, 'deve registrar /auth/admin/api/overview')
     assert.equal(getAdminPrefix(), '/auth/admin')
@@ -349,23 +308,13 @@ test.group('registerAuthHost — toggle ui mode', () => {
   })
 })
 
-test.group('checkAdmin — doctor ui mode', () => {
-  test('admin ligado com ui react → mensagem menciona react', ({ assert }) => {
+test.group('checkAdmin — doctor', () => {
+  test('admin ligado → mensagem menciona a SPA', ({ assert }) => {
     const f = checkAdmin({
-      authkitConfig: { admin: { enabled: true, roles: ['ADMIN'], ui: 'react' } } as any,
+      authkitConfig: { admin: { enabled: true, roles: ['ADMIN'] } } as any,
     } as any)
     assert.equal(f!.level, 'ok')
-    assert.include(f!.message, 'react')
     assert.include(f!.message, 'SPA')
-  })
-
-  test('admin ligado com ui edge → mensagem menciona edge', ({ assert }) => {
-    const f = checkAdmin({
-      authkitConfig: { admin: { enabled: true, roles: ['ADMIN'], ui: 'edge' } } as any,
-    } as any)
-    assert.equal(f!.level, 'ok')
-    assert.include(f!.message, 'edge')
-    assert.include(f!.message, 'Edge')
   })
 
   test('admin desligado → null (não reporta)', ({ assert }) => {

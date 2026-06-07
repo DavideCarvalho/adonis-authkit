@@ -30,9 +30,16 @@ const PACKAGES = [
 // só verificamos que o entrypoint resolve.
 const ENTRYPOINT_ONLY = new Set(['packages/authkit-react/build'])
 
+/**
+ * Diretórios de assets de browser dentro do build — bundles Vite da SPA do
+ * console referenciam `document`/`window` e não devem ser importados em Node.
+ */
+const BROWSER_DIRS = new Set(['ui-dist'])
+
 async function walk(dir) {
   const out = []
   for (const entry of await readdir(dir)) {
+    if (BROWSER_DIRS.has(entry)) continue
     const full = join(dir, entry)
     const s = await stat(full)
     if (s.isDirectory()) out.push(...(await walk(full)))

@@ -40,53 +40,6 @@ test.group('renderers', () => {
   })
 
   // ───────────────────────────────────────────────────────────────────────────
-  // Admin sempre Edge (decisão de produto: o console admin é chrome da lib;
-  // tematização futura é via branding/CSS — não via componentes React do host).
-  // ───────────────────────────────────────────────────────────────────────────
-
-  test('inertiaRenderer: view admin/* vai para Edge mesmo sem allowlist', async ({ assert }) => {
-    const { ctx, inertiaCalls, edgeCalls } = makeCtx()
-    await inertiaRenderer({ prefix: 'authkit' })(ctx, 'admin/dashboard', { stats: 1 })
-    // NÃO chama Inertia.
-    assert.lengthOf(inertiaCalls, 0)
-    // Chama Edge built-in da lib.
-    assert.equal(edgeCalls[0][0], 'authkit::admin/dashboard')
-    assert.equal(edgeCalls[0][1].stats, 1)
-  })
-
-  test('inertiaRenderer: view admin/* vai para Edge mesmo com allowlist que lista admin/', async ({ assert }) => {
-    // Mesmo que o host (erroneamente) liste 'admin/dashboard' no allowlist,
-    // a regra de precedência garante que admin/* sempre vai ao Edge.
-    const { ctx, inertiaCalls, edgeCalls } = makeCtx()
-    await inertiaRenderer({ prefix: 'authkit', views: ['admin/dashboard', 'login'] })(
-      ctx,
-      'admin/dashboard',
-      {}
-    )
-    assert.lengthOf(inertiaCalls, 0)
-    assert.equal(edgeCalls[0][0], 'authkit::admin/dashboard')
-  })
-
-  test('inertiaRenderer: todos os subpaths admin/* vão ao Edge (users, sessions, clients, etc.)', async ({ assert }) => {
-    const adminViews = [
-      'admin/users',
-      'admin/sessions',
-      'admin/clients',
-      'admin/client_form',
-      'admin/audit',
-      'admin/orgs',
-      'admin/org_detail',
-      'admin/settings',
-    ]
-    for (const view of adminViews) {
-      const { ctx, inertiaCalls, edgeCalls } = makeCtx()
-      await inertiaRenderer({ prefix: 'authkit' })(ctx, view, {})
-      assert.lengthOf(inertiaCalls, 0, `${view} não deveria ir ao Inertia`)
-      assert.equal(edgeCalls[0][0], `authkit::${view}`, `${view} deveria ir ao Edge`)
-    }
-  })
-
-  // ───────────────────────────────────────────────────────────────────────────
   // Allowlist: `views` fornecido → view listada vai ao Inertia, não listada vai ao Edge.
   // ───────────────────────────────────────────────────────────────────────────
 

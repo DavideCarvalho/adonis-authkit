@@ -11,8 +11,10 @@ needed unless you want to tune the defaults.
 
 ## Database schema
 
-Create three migrations in your app. The column names are the canonical ones the Lucid store
-expects:
+**Created automatically.** With schema auto-management on (the default), AuthKit creates the
+three organization tables on boot — nothing to do. If you disabled it
+(`schema: { autoManage: false }`), call `ensureAuthkitSchema(this.db)` in a migration, or
+create the tables yourself. For reference, the column names the Lucid store expects:
 
 ```ts
 // auth_organizations

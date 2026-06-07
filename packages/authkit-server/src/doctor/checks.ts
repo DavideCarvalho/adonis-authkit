@@ -270,12 +270,9 @@ export function checkAdmin(input: DoctorInput): Finding | null {
       message: 'admin console on, but no `admin.roles` — nobody will have access (the default ["ADMIN"] was not resolved here).',
     }
   }
-  const uiMode = (admin as any).ui ?? 'react'
   return {
     level: 'ok',
-    message: `admin console on for roles: ${roles.join(', ')}. UI mode: ${uiMode} (${
-      uiMode === 'react' ? 'SPA self-contained — JSON API under {prefix}/api/*' : 'Edge server-rendered views'
-    }).`,
+    message: `admin console on for roles: ${roles.join(', ')} (React SPA self-contained — JSON API under {prefix}/api/*).`,
   }
 }
 

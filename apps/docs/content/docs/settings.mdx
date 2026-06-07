@@ -28,20 +28,48 @@ takes over — the fail-safe is total.
 
 ## Setting up the table
 
-Create the `auth_settings` table with a migration of your own. AuthKit never creates it
-automatically — it is opt-in:
+**You don't have to do anything.** AuthKit manages its own tables automatically: on boot it
+creates any of its tables that are missing — including `auth_settings` — and adds new
+columns introduced by library updates (additive only; it never drops or changes existing
+columns). Runtime settings are therefore active out of the box.
+
+Prefer to own your schema? Disable auto-management and run the same logic inside a
+migration you control:
+
+```ts title="config/authkit.ts"
+export default defineConfig({
+  // ...
+  schema: { autoManage: false },
+})
+```
+
+```ts title="database/migrations/xxxx_authkit_schema.ts"
+import { BaseSchema } from '@adonisjs/lucid/schema'
+import { ensureAuthkitSchema } from '@dudousxd/adonis-authkit-server'
+
+export default class extends BaseSchema {
+  async up() {
+    await ensureAuthkitSchema(this.db)
+  }
+}
+```
+
+`ensureAuthkitSchema` is idempotent and additive — safe to keep in a migration that runs on
+every deploy. For reference, the table it creates is:
 
 ```sql
 CREATE TABLE auth_settings (
-  key        TEXT PRIMARY KEY,
-  value      TEXT NOT NULL,        -- JSON
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_by TEXT                  -- nullable account id of the admin who wrote it
+  key             TEXT NOT NULL,
+  organization_id TEXT,                -- NULL = global setting
+  value           TEXT NOT NULL,       -- JSON
+  updated_at      TIMESTAMP,
+  updated_by      TEXT,                -- nullable account id of the admin who wrote it
+  UNIQUE (key, organization_id)
 );
 ```
 
-Once the table is present, AuthKit detects it on first access (the result is memoised per
-`RuntimeSettings` instance) and all runtime features activate.
+AuthKit detects the table on first access (memoised per `RuntimeSettings` instance) and all
+runtime features activate.
 
 ## Complete setting catalog
 

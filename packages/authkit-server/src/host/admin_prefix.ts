@@ -86,25 +86,3 @@ export function getAdminApiPrefix(): string {
 }
 
 // ─── Admin UI mode ────────────────────────────────────────────────────────────
-
-type AdminUiMode = 'react' | 'edge'
-
-let _uiMode: AdminUiMode = 'react'
-
-/**
- * Define o modo de UI do console admin para este processo.
- * Chamado UMA VEZ por `registerAuthHost` no boot da aplicação.
- *
- * @param mode  `'react'` (SPA self-contained) ou `'edge'` (server-rendered Edge views).
- */
-export function setAdminUiMode(mode: AdminUiMode): void {
-  _uiMode = mode
-}
-
-/**
- * Retorna o modo de UI do console admin (default `'react'`).
- * Usado pelos controllers para decidir entre servir o shell React ou renderizar a view Edge.
- */
-export function getAdminUiMode(): AdminUiMode {
-  return _uiMode
-}

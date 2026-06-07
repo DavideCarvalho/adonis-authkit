@@ -1,6 +1,7 @@
 import * as oidc from 'oidc-provider'
 import type { ResolvedServerConfig } from '../define_config.js'
 import { createDeviceSources } from './device_sources.js'
+import { createLogoutSources } from './logout_sources.js'
 
 export interface BuildProviderOptions {
   /** APP_KEY do consumidor; usado p/ derivar cookies.keys se não houver. */
@@ -200,7 +201,9 @@ export function buildProvider(
     rotateRefreshToken: true,
     features: {
       devInteractions: { enabled: false },
-      rpInitiatedLogout: { enabled: true },
+      // RP-initiated logout com splash de marca que auto-confirma (sem a tela
+      // default em inglês "Do you want to sign-out from…?").
+      rpInitiatedLogout: { enabled: true, ...createLogoutSources(config.messages) },
       // OIDC Back-Channel Logout: o oidc-provider POSTa um logout_token para o
       // `backchannel_logout_uri` de cada RP quando a sessão/grant é encerrada.
       backchannelLogout: { enabled: true },

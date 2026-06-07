@@ -560,6 +560,13 @@ export const DEFAULT_MESSAGES = {
   'device.success.title': 'Login complete',
   'device.success.body': 'You are signed in. You can return to your device.',
 
+  // RP-initiated logout (end_session) — splash de saída e tela de sucesso.
+  'logout.title': 'Signing out',
+  'logout.body': 'Ending your session…',
+  'logout.fallback': 'Sign out',
+  'logout.success.title': 'Signed out',
+  'logout.success.body': 'You have been signed out. See you soon.',
+
   // Step-up auth (acr_values): cliente exige MFA mas a conta não tem MFA enrolado.
   'mfa_challenge.required_no_enrollment':
     'This client requires two-factor verification. Set up MFA in your account console to continue.',
@@ -1456,6 +1463,13 @@ export const PT_BR_MESSAGES = {
   'device.confirm.abort': 'Cancelar',
   'device.success.title': 'Login concluído',
   'device.success.body': 'Login realizado com sucesso. Você já pode voltar ao dispositivo.',
+
+  // RP-initiated logout (end_session) — splash de saída e tela de sucesso.
+  'logout.title': 'Saindo',
+  'logout.body': 'Encerrando sua sessão…',
+  'logout.fallback': 'Sair',
+  'logout.success.title': 'Sessão encerrada',
+  'logout.success.body': 'Você saiu da sua conta. Até breve.',
 
   // Step-up auth (acr_values): cliente exige MFA mas a conta não tem MFA enrolado.
   'mfa_challenge.required_no_enrollment':

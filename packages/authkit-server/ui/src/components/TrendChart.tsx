@@ -1,5 +1,6 @@
 import React from 'react'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import type { TooltipContentProps } from 'recharts'
 
 interface TrendChartProps {
   data: Array<{ date: string; count: number }>
@@ -45,7 +46,7 @@ export function TrendChart({ data, color = 'var(--accent)', height = 150, label 
         <YAxis hide domain={[0, 'auto']} allowDecimals={false} />
         <Tooltip
           cursor={{ stroke: 'var(--line)', strokeDasharray: '3 3' }}
-          content={({ active, payload, label: tipLabel }: any) =>
+          content={({ active, payload, label: tipLabel }: TooltipContentProps) =>
             active && payload?.length ? (
               <div className="chart-tip">
                 <div className="chart-tip-label">{fmtDay(String(tipLabel))}</div>

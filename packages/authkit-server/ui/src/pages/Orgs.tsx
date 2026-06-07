@@ -1,15 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useQueryState, parseAsInteger, parseAsString } from 'nuqs'
+import { useDebounce } from '../lib/use_debounce'
 import { OrgsTableContainer, OrgDetailDrawer, CreateOrgModal, useOrgsTotal } from '../containers/orgs.containers'
-
-function useDebounce<T>(value: T, ms: number): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), ms)
-    return () => clearTimeout(t)
-  }, [value, ms])
-  return debounced
-}
 
 export function Orgs() {
   // Estado de rota (URL): paginação, busca e drawer de detalhe via nuqs.

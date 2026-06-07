@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useQueryState, parseAsInteger, parseAsString } from 'nuqs'
 import {
@@ -7,16 +7,8 @@ import {
 } from '@dudousxd/adonis-authkit-react'
 import { Modal } from '../components/Modal'
 import { useToast } from '../lib/toast'
+import { useDebounce } from '../lib/use_debounce'
 import { UsersTableContainer, UserDetailDrawer } from '../containers/users.containers'
-
-function useDebounce<T>(value: T, ms: number): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), ms)
-    return () => clearTimeout(t)
-  }, [value, ms])
-  return debounced
-}
 
 export function Users() {
   const toast = useToast()

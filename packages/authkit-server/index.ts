@@ -285,6 +285,10 @@ export { stubsRoot } from './stubs/main.js'
 // Runtime settings (capability-probed, optional table `auth_settings`).
 export { RuntimeSettings, supportsSettings } from './src/host/runtime_settings.js'
 export type { SettingsCapability, SettingRow, RuntimeSettingsOptions } from './src/host/runtime_settings.js'
+
+// Key rotation actions — shared between the Admin REST API controller and the SDK embedded driver.
+export { buildKeysStatus, rotateNow } from './src/host/key_rotation_actions.js'
+export type { KeysStatus as ServerKeysStatus } from './src/host/key_rotation_actions.js'
 export {
   resolveEffectiveBotProtection,
 } from './src/host/bot_protection.js'

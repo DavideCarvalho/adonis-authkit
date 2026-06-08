@@ -6,6 +6,10 @@ import type { ApplicationService } from '@adonisjs/core/types'
 import type { MetricsRecorder } from '@dudousxd/adonis-authkit-core'
 import { OidcService } from '../src/provider/oidc_service.js'
 import { KeystoreReloadPoller } from '../src/provider/keystore_reload.js'
+import { KeyRotationScheduler } from '../src/provider/key_rotation_scheduler.js'
+import { makeSingleFlightLock } from '../src/provider/single_flight_lock.js'
+import { resolveEffectiveKeyRotation } from '../src/host/key_rotation.js'
+import { RuntimeSettings } from '../src/host/runtime_settings.js'
 import { defaultEncryptForStore, type ResolvedServerConfig } from '../src/define_config.js'
 import { resolveKeystoreVault, KeystoreManager } from '../src/keys/keystore_manager.js'
 import { KeystoreCodec } from '../src/keys/keystore_codec.js'
@@ -111,6 +115,7 @@ export default class AuthkitServerProvider {
       const jwksInput = config.jwksConfig
       let jwksLoader: (() => Promise<{ keys: Record<string, any>[] }>) | undefined
       let keystoreHead: (() => Promise<string | null>) | undefined
+      let keystoreManager: (() => Promise<KeystoreManager>) | undefined
       if (jwksInput?.source === 'managed' && jwksInput?.store) {
         const appRef = this.app
         const buildManager = async () => {
@@ -130,9 +135,10 @@ export default class AuthkitServerProvider {
           const m = await buildManager()
           return m.head()
         }
+        keystoreManager = async () => buildManager()
       }
 
-      return new OidcService(config, appKey, metrics, { jwksLoader, keystoreHead })
+      return new OidcService(config, appKey, metrics, { jwksLoader, keystoreHead, keystoreManager })
     })
 
     this.app.container.singleton('authkit.metrics', async () => {
@@ -201,6 +207,7 @@ export default class AuthkitServerProvider {
     }
 
     await this.#startKeystoreReloadPoll()
+    await this.#startKeyRotationScheduler()
   }
 
   /**
@@ -226,5 +233,46 @@ export default class AuthkitServerProvider {
       onError: (err) => logger?.warn({ err }, 'authkit: keystore reload poll falhou (fail-safe)'),
     })
     poller.start()
+  }
+
+  /**
+   * Inicia o scheduler de rotação age-based (housekeeping). Só no ambiente `web` e
+   * só quando o OidcService tem keystore gerenciável (rotateKeys disponível). Lê a
+   * política via RuntimeSettings (construída a partir do lucid.db, sem request);
+   * single-flight via @adonisjs/lock (opt-in). Fail-safe.
+   */
+  async #startKeyRotationScheduler() {
+    if (this.app.getEnvironment() !== 'web') return
+    const svc: any = await this.app.container.make('authkit.server').catch(() => null)
+    if (!svc || typeof svc.rotateKeys !== 'function' || typeof svc.keystoreAgeDays !== 'function') return
+    // só faz sentido com keystore gerenciável:
+    if ((await svc.keystoreAgeDays().catch(() => null)) === null) return
+
+    const db = await this.app.container.make('lucid.db' as any).catch(() => null)
+    if (!db) return // sem Lucid → sem settings → política seria defaults(disabled); nada a agendar
+
+    const logger = await this.app.container.make('logger').catch(() => null)
+
+    // Resolve a connection do schema config para que RuntimeSettings use a mesma
+    // conexão que o resto do authkit (mesmo padrão do expire_scan_command).
+    const value = this.app.config.get('authkit')
+    const config = value
+      ? ((await configProvider.resolve(this.app, value).catch(() => null)) as ResolvedServerConfig | null)
+      : null
+    const connection = config?.schema?.connection
+
+    // RuntimeSettings sem request (mesmo padrão de expire_scan_command / security_notice_service).
+    const settings = new RuntimeSettings(db, connection ? { connection } : {})
+
+    const withLock = makeSingleFlightLock({ key: 'authkit:keys:rotate', ttlMs: 5 * 60_000 })
+    const scheduler = new KeyRotationScheduler({
+      policy: () => resolveEffectiveKeyRotation(settings),
+      ageDays: () => svc.keystoreAgeDays(),
+      rotateKeys: (keep: number) => svc.rotateKeys(keep),
+      withLock,
+      intervalMs: 60 * 60_000, // 1h
+      onError: (err) => logger?.warn({ err }, 'authkit: key rotation scheduler falhou (fail-safe)'),
+    })
+    scheduler.start()
   }
 }

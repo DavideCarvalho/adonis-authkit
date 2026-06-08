@@ -18,7 +18,12 @@ function notSupported(ctx: HttpContext) {
   )
 }
 
-async function getSettingsService(ctx: HttpContext): Promise<RuntimeSettings | null> {
+/**
+ * Constrói um `RuntimeSettings` a partir do DB do container (searchPath-aware via
+ * a conexão do accountStore). Exportado para reuso por outros controllers da Admin
+ * REST API (e.g. api_keys_controller). Retorna null quando o DB não está disponível.
+ */
+export async function getSettingsService(ctx: HttpContext): Promise<RuntimeSettings | null> {
   try {
     const db = await ctx.containerResolver.make('lucid.db')
     // Passa a conexão do accountStore para que o probe seja searchPath-aware.

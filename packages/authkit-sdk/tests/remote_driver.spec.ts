@@ -517,3 +517,87 @@ test.group('remote driver — apiPrefix option', () => {
     )
   })
 })
+
+test.group('remote driver — keys', () => {
+  const fakeStatus = {
+    ageDays: 10,
+    policy: { enabled: true, maxAgeDays: 90, keep: 2 },
+    nextRotationInDays: 80,
+  }
+  const fakeRotateResult = {
+    rotated: true,
+    newKid: 'kid-new',
+    retiredKids: ['kid-old'],
+    keptKids: ['kid-kept'],
+  }
+
+  test('keys.status() hits GET /keys with Bearer header and parses response', async ({ assert }) => {
+    await withApi(
+      () => ({ status: 200, body: fakeStatus }),
+      async (sdk, api) => {
+        const res = await sdk.keys.status()
+        assert.equal(res.ageDays, 10)
+        assert.deepEqual(res.policy, { enabled: true, maxAgeDays: 90, keep: 2 })
+        assert.equal(res.nextRotationInDays, 80)
+        assert.equal(api.last!.method, 'GET')
+        assert.equal(api.last!.url, '/api/authkit/v1/keys')
+        assert.equal(api.last!.authorization, 'Bearer key-123')
+      }
+    )
+  })
+
+  test('keys.rotate() without input hits POST /keys/rotate with empty body', async ({ assert }) => {
+    await withApi(
+      () => ({ status: 200, body: fakeRotateResult }),
+      async (sdk, api) => {
+        const res = await sdk.keys.rotate()
+        assert.isTrue(res.rotated)
+        assert.equal(res.newKid, 'kid-new')
+        assert.deepEqual(res.retiredKids, ['kid-old'])
+        assert.deepEqual(res.keptKids, ['kid-kept'])
+        assert.equal(api.last!.method, 'POST')
+        assert.equal(api.last!.url, '/api/authkit/v1/keys/rotate')
+        assert.equal(api.last!.authorization, 'Bearer key-123')
+        assert.deepEqual(api.last!.body, {})
+      }
+    )
+  })
+
+  test('keys.rotate({ retire: true }) sends retire flag in body', async ({ assert }) => {
+    await withApi(
+      () => ({ status: 200, body: { ...fakeRotateResult, retiredKids: ['kid-old-1', 'kid-old-2'] } }),
+      async (sdk, api) => {
+        const res = await sdk.keys.rotate({ retire: true })
+        assert.isTrue(res.rotated)
+        assert.deepEqual(api.last!.body, { retire: true })
+        assert.equal(api.last!.url, '/api/authkit/v1/keys/rotate')
+      }
+    )
+  })
+
+  test('keys.rotate({ keep: 3 }) sends keep in body', async ({ assert }) => {
+    await withApi(
+      () => ({ status: 200, body: fakeRotateResult }),
+      async (sdk, api) => {
+        await sdk.keys.rotate({ keep: 3 })
+        assert.deepEqual(api.last!.body, { keep: 3 })
+      }
+    )
+  })
+
+  test('keys.status() 501 maps to AuthkitApiError with not_implemented code', async ({ assert }) => {
+    await withApi(
+      () => ({ status: 501, body: { error: { code: 'not_implemented', message: 'jwks não é managed+store.' } } }),
+      async (sdk) => {
+        try {
+          await sdk.keys.status()
+          assert.fail('should have thrown')
+        } catch (e) {
+          assert.instanceOf(e, AuthkitApiError)
+          assert.equal((e as AuthkitApiError).status, 501)
+          assert.equal((e as AuthkitApiError).code, 'not_implemented')
+        }
+      }
+    )
+  })
+})

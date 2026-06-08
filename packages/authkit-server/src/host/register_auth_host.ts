@@ -232,12 +232,14 @@ const C = {
   consoleOrgs: () => import('./admin_console/console_orgs_controller.js'),
   consoleAudit: () => import('./admin_console/console_audit_controller.js'),
   consoleSettings: () => import('./admin_console/console_settings_controller.js'),
+  consoleKeys: () => import('./admin_console/console_keys_controller.js'),
   consoleImpersonation: () => import('./admin_console/console_impersonation_controller.js'),
   apiUsers: () => import('./admin_api/api_users_controller.js'),
   apiClients: () => import('./admin_api/api_clients_controller.js'),
   apiMisc: () => import('./admin_api/api_misc_controller.js'),
   apiOrgs: () => import('./admin_api/api_orgs_controller.js'),
   apiSettings: () => import('./admin_api/api_settings_controller.js'),
+  apiKeys: () => import('./admin_api/api_keys_controller.js'),
   // Account self-service JSON API (session-authed, under /account/api/*).
   accountApi: () => import('./account_api/account_api_controller.js'),
 }
@@ -492,6 +494,9 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
         router.get(`${ap}/api/settings`, [C.consoleSettings, 'index'])
         router.put(`${ap}/api/settings/:key`, [C.consoleSettings, 'upsert'])
         router.delete(`${ap}/api/settings/:key`, [C.consoleSettings, 'destroy'])
+        // Chave de assinatura managed (status + rotação ao vivo).
+        router.get(`${ap}/api/keys`, [C.consoleKeys, 'status'])
+        router.post(`${ap}/api/keys/rotate`, [C.consoleKeys, 'rotate'])
         // Impersonation (capability-gated: 404 quando desabilitado ou sem client).
         router.get(`${ap}/api/impersonation/:userId`, [C.consoleImpersonation, 'handle'])
 
@@ -564,6 +569,9 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
         withApiThrottle(router.get('/settings/:key', [C.apiSettings, 'show']))
         withApiThrottle(router.put('/settings/:key', [C.apiSettings, 'upsert']))
         withApiThrottle(router.delete('/settings/:key', [C.apiSettings, 'destroy']))
+        // Chave de assinatura managed (status + rotação ao vivo).
+        withApiThrottle(router.get('/keys', [C.apiKeys, 'status']))
+        withApiThrottle(router.post('/keys/rotate', [C.apiKeys, 'rotate']))
       })
       .prefix(aap)
       .use([adminApiGuard])

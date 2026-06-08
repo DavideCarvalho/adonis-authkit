@@ -292,3 +292,12 @@
 .authkit-org-profile__member-role { font-size: 0.75rem; color: var(--authkit-muted); }
 .authkit-org-profile__invite-form { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.75rem; }
 .authkit-org-profile__empty { font-size: 0.875rem; color: var(--authkit-muted); }
+
+/* ─── KeyRotation ──────────────────────────────────────────────────────────── */
+.authkit-keys { display: flex; flex-direction: column; gap: var(--authkit-gap); }
+.authkit-keys__title { font-size: 1rem; font-weight: 600; color: var(--authkit-fg); margin: 0 0 0.5rem; }
+.authkit-keys__stats { display: grid; grid-template-columns: max-content 1fr; gap: 0.2rem 0.75rem; margin: 0 0 0.5rem; font-size: 0.875rem; }
+.authkit-keys__stats dt { color: var(--authkit-muted); }
+.authkit-keys__stats dd { margin: 0; color: var(--authkit-fg); }
+.authkit-keys__retire { display: flex; align-items: center; gap: 0.4rem; font-size: 0.875rem; color: var(--authkit-fg); cursor: pointer; }
+.authkit-keys__loading { color: var(--authkit-muted); font-size: 0.9rem; }

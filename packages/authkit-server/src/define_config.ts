@@ -943,6 +943,19 @@ export function toSeconds(value: string | number | undefined, fallback: number):
   return Number(m[1]) * UNITS[m[2]]
 }
 
+/**
+ * Mensagem de aviso quando `jwks: 'auto'` cai no fallback de disco (sem
+ * AUTHKIT_JWKS): a chave privada será persistida em arquivo. `null` = sem aviso.
+ */
+export function jwksAutoFallbackWarning(storePath: string | null): string | null {
+  if (!storePath) return null
+  return (
+    `AuthKit: jwks 'auto' caiu no fallback de disco (${storePath}) — a chave privada de ` +
+    `assinatura será persistida em arquivo. Para produção, defina AUTHKIT_JWKS ` +
+    `(secret manager) ou configure jwks.store explicitamente.`
+  )
+}
+
 export function defineConfig(config: AuthServerConfigInput) {
   return configProvider.create(async (app: ApplicationService): Promise<ResolvedServerConfig> => {
     const AdapterClass = await config.adapter.resolver(app)
@@ -954,6 +967,16 @@ export function defineConfig(config: AuthServerConfigInput) {
           ? { source: 'jwks', keys: JSON.parse(process.env.AUTHKIT_JWKS).keys }
           : { source: 'managed', algorithm: 'RS256', store: 'tmp/authkit_jwks.json' }
         : config.jwks
+
+    if (config.jwks === 'auto' && !process.env.AUTHKIT_JWKS) {
+      const warning = jwksAutoFallbackWarning((jwksConfig as { store?: string }).store ?? null)
+      if (warning) {
+        await app.container
+          .make('logger')
+          .then((l: any) => l?.warn(warning))
+          .catch(() => {})
+      }
+    }
 
     let jwks: { keys: Record<string, any>[] }
     if (jwksConfig.source === 'managed') {

@@ -1122,6 +1122,8 @@ Em `commands/doctor.ts`, dentro de `run()` (após resolver `authkitConfig`), lei
 ```ts
 import { KeystoreManager, resolveKeystoreVault } from '../src/keys/keystore_manager.js'
 import { KeystoreCodec } from '../src/keys/keystore_codec.js'
+import { loadEncryptionService } from '../src/keys/keystore_crypto.js'
+import { defaultEncryptForStore } from '../src/define_config.js'
 import { signingKeyAgeDays } from '../src/keys/keystore.js'
 import { signingKeyAgeFinding } from '../src/doctor/checks.js'
 
@@ -1130,8 +1132,11 @@ const jwksInput = (authkitConfig?.jwksConfig ?? authkitConfig?.jwks) as any
 if (jwksInput?.source === 'managed' && jwksInput?.store) {
   try {
     const vault = resolveKeystoreVault(jwksInput.store, (p) => this.app.makePath(p))
-    const mgr = new KeystoreManager(vault, new KeystoreCodec({ encrypt: false }), jwksInput.algorithm ?? 'RS256')
-    // read sem encryption: se o store estiver encriptado, decode lança → tratamos como "indisponível".
+    // Resolve enc IGUAL ao boot/rotate — senão o doctor nunca lê o keystore default
+    // (que é encriptado) e a idade vira sempre "não aplicável". best-effort.
+    const encrypt = jwksInput.encrypt ?? defaultEncryptForStore(jwksInput.store)
+    const enc = encrypt ? await loadEncryptionService().catch(() => undefined) : undefined
+    const mgr = new KeystoreManager(vault, new KeystoreCodec({ encrypt, enc }), jwksInput.algorithm ?? 'RS256')
     const store = await mgr.read().catch(() => null)
     const maxAge = jwksInput.rotationDays ?? 90
     findings.push(signingKeyAgeFinding(signingKeyAgeDays(store), maxAge))
@@ -1141,7 +1146,7 @@ if (jwksInput?.source === 'managed' && jwksInput?.store) {
 }
 ```
 
-> Nota: para keystore encriptado, o doctor não decifra (não força APP_KEY aqui) — cai no `catch`/`null` e reporta "não aplicável". A idade exata aparece pós-rotação ou no painel do dashboard (Fatia D).
+> Nota: o doctor resolve `encrypt`/`enc` como boot/rotate (best-effort). Só se o serviço de encryption estiver mesmo indisponível (`.catch(() => undefined)`) o read degrada para "não aplicável".
 
 - [ ] **Step 5: Run tests + typecheck + commit**
 

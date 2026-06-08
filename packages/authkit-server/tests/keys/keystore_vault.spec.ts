@@ -2,7 +2,9 @@ import { test } from '@japa/runner'
 import { mkdtempSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { FileKeystoreVault, DriveKeystoreVault, __setKeystoreDriveLoaderForTests } from '../../src/keys/keystore_vault.js'
+import { FileKeystoreVault, DriveKeystoreVault, LucidKeystoreVault, RedisKeystoreVault, __setKeystoreDriveLoaderForTests } from '../../src/keys/keystore_vault.js'
+import { createTestDatabase } from '../bootstrap.js'
+import RedisMock from 'ioredis-mock'
 
 test.group('FileKeystoreVault', (group) => {
   let dir: string
@@ -55,5 +57,33 @@ test.group('DriveKeystoreVault', (group) => {
     __setKeystoreDriveLoaderForTests(async () => null)
     const v = new DriveKeystoreVault('keys/jwks.json')
     await assert.rejects(() => v.read(), /@adonisjs\/drive não está instalado/)
+  })
+})
+
+test.group('LucidKeystoreVault', (group) => {
+  let db: any
+  group.each.setup(() => { db = createTestDatabase(); return async () => db.manager.closeAll() })
+
+  test('read ausente → null; write auto-cria a tabela; round-trip; head muda', async ({ assert }) => {
+    const v = new LucidKeystoreVault(async () => db.connection())
+    assert.isNull(await v.read())
+    await v.write('blob-1')
+    assert.equal(await v.read(), 'blob-1')
+    assert.isString(await v.head())
+    await v.write('blob-2')
+    assert.equal(await v.read(), 'blob-2')
+  })
+})
+
+test.group('RedisKeystoreVault', () => {
+  test('read ausente → null; round-trip; head reflete mudança', async ({ assert }) => {
+    const client = new RedisMock()
+    const v = new RedisKeystoreVault(async () => client)
+    assert.isNull(await v.read())
+    await v.write('blob-1')
+    assert.equal(await v.read(), 'blob-1')
+    assert.equal(await v.head(), 'blob-1')
+    await v.write('blob-2')
+    assert.equal(await v.read(), 'blob-2')
   })
 })

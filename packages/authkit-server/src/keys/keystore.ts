@@ -1,20 +1,17 @@
 import { generateKeyPair, exportJWK } from 'jose'
 import { randomUUID } from 'node:crypto'
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { dirname } from 'node:path'
 import type { SigningAlg } from './jwks_manager.js'
 
 /**
- * Keystore JSON em arquivo para o modo `jwks: { source: 'managed', store }`.
+ * Helpers PUROS do keystore managed (sem I/O). A persistência/rotação com I/O vive
+ * no {@link KeystoreManager} (compõe um cofre + codec); estas funções geram a chave,
+ * computam idade, planejam rotação (dry-run) e derivam o JWKS público.
  *
- * O modo `managed` "puro" gera UMA chave efêmera por boot (em
- * {@link generateJwks}) — não persiste, então rotacionar não faz sentido: a cada
- * restart o kid muda e tokens antigos param de validar. Para suportar rotação de
- * verdade, este keystore persiste o JWKS PRIVADO em um arquivo. A rotação gera
- * um novo par (novo kid) e mantém as N chaves mais recentes; o JWKS público
- * servido inclui todas (as antigas continuam validando), e a PRIMEIRA chave do
- * array é a de assinatura corrente (o oidc-provider assina com a primeira chave
- * compatível).
+ * O modo `managed` "puro" gera UMA chave efêmera por boot (em {@link generateJwks})
+ * — não persiste, então rotacionar não faz sentido. Para rotação de verdade, o
+ * keystore persiste o JWKS PRIVADO (via cofre): a rotação gera um novo par (novo
+ * kid) e mantém as N chaves mais recentes; o JWKS público servido inclui todas (as
+ * antigas continuam validando), e a PRIMEIRA chave é a de assinatura corrente.
  */
 
 /** Estrutura persistida: JWKS privado (chaves com `d`). */
@@ -41,36 +38,6 @@ export function signingKeyAgeDays(store: PersistedKeystore | null): number | nul
   const iat = store?.keys?.[0]?.iat
   if (typeof iat !== 'number') return null
   return Math.max(0, Math.floor((Date.now() / 1000 - iat) / 86400))
-}
-
-/** Lê o keystore do arquivo, ou null se não existir/for inválido. */
-export function readKeystore(path: string): PersistedKeystore | null {
-  if (!existsSync(path)) return null
-  try {
-    const parsed = JSON.parse(readFileSync(path, 'utf-8'))
-    if (parsed && Array.isArray(parsed.keys)) return parsed
-    return null
-  } catch {
-    return null
-  }
-}
-
-/** Escreve o keystore no arquivo (cria o diretório se preciso). */
-export function writeKeystore(path: string, store: PersistedKeystore): void {
-  mkdirSync(dirname(path), { recursive: true })
-  writeFileSync(path, JSON.stringify(store, null, 2) + '\n', { mode: 0o600 })
-}
-
-/**
- * Garante que o keystore exista: se ausente, cria com uma chave nova e persiste.
- * Retorna o keystore (privado).
- */
-export async function ensureKeystore(path: string, alg: SigningAlg): Promise<PersistedKeystore> {
-  const existing = readKeystore(path)
-  if (existing && existing.keys.length > 0) return existing
-  const store: PersistedKeystore = { keys: [await generateSigningJwk(alg)] }
-  writeKeystore(path, store)
-  return store
 }
 
 /** Plano de uma rotação — o que SERIA feito (dry-run) sem tocar disco. */
@@ -107,30 +74,6 @@ export function planRotation(
     retiredKids,
     keep: effectiveKeep,
   }
-}
-
-/**
- * Rotaciona o keystore: gera uma chave nova, coloca-a NA FRENTE (vira a chave de
- * assinatura corrente) e mantém apenas as `keep` mais recentes (default 2) para
- * que tokens assinados com a chave anterior continuem validando (período de graça).
- * Com `retire: true`, mantém SÓ a nova chave (aposenta todas as antigas de imediato).
- * Persiste e retorna o keystore atualizado.
- */
-export async function rotateKeystore(
-  path: string,
-  alg: SigningAlg,
-  keep = 2,
-  retire = false
-): Promise<{ store: PersistedKeystore; newKid: string; retiredKids: string[] }> {
-  const current = readKeystore(path) ?? { keys: [] }
-  const fresh = await generateSigningJwk(alg)
-  const next = [fresh, ...current.keys]
-  const effectiveKeep = retire ? 1 : Math.max(1, keep)
-  const kept = next.slice(0, effectiveKeep)
-  const retiredKids = next.slice(effectiveKeep).map((k) => k.kid)
-  const store: PersistedKeystore = { keys: kept }
-  writeKeystore(path, store)
-  return { store, newKid: fresh.kid, retiredKids }
 }
 
 /** Deriva o JWKS PÚBLICO (sem `d` e demais campos privados) a partir do privado. */

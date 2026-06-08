@@ -130,14 +130,35 @@ export class AdminClientsService {
    * Atualiza metadata editável (redirect/post-logout URIs, grants, auth method)
    * PRESERVANDO o client_secret existente. Lança se o client não existe.
    */
-  async update(clientId: string, input: ClientInput): Promise<void> {
+  async update(clientId: string, input: Partial<ClientInput>): Promise<void> {
     const existing = await this.#adapter.find(clientId)
     if (!existing) throw new Error(`client ${clientId} não encontrado`)
     const previousSecret = existing.client_secret as string | undefined
-    const confidential = !PUBLIC_AUTH_METHODS.has(input.tokenEndpointAuthMethod)
+
+    // MERGE (PATCH de verdade): campos não enviados (undefined) preservam o valor
+    // atual do client. Sem isto, um update parcial reseta tudo que não veio no body
+    // (ex.: não mandar tokenEndpointAuthMethod virava confidential; não mandar
+    // grantTypes derrubava token-exchange).
+    const merged: ClientInput = {
+      clientId,
+      redirectUris: input.redirectUris ?? ((existing.redirect_uris as string[]) ?? []),
+      postLogoutRedirectUris:
+        input.postLogoutRedirectUris ?? ((existing.post_logout_redirect_uris as string[]) ?? []),
+      grantTypes: input.grantTypes ?? ((existing.grant_types as string[]) ?? []),
+      tokenEndpointAuthMethod:
+        input.tokenEndpointAuthMethod ??
+        ((existing.token_endpoint_auth_method as TokenEndpointAuthMethod) ?? 'client_secret_basic'),
+      backchannelLogoutUri:
+        input.backchannelLogoutUri ?? (existing.backchannel_logout_uri as string | undefined),
+      backchannelLogoutSessionRequired:
+        input.backchannelLogoutSessionRequired ??
+        (existing.backchannel_logout_session_required as boolean | undefined),
+    }
+
+    const confidential = !PUBLIC_AUTH_METHODS.has(merged.tokenEndpointAuthMethod)
     // Mantém o secret atual se continua confidencial; se virou public, remove-o.
     const clientSecret = confidential ? (previousSecret ?? randomId()) : undefined
-    const payload = this.#buildPayload(clientId, input, clientSecret)
+    const payload = this.#buildPayload(clientId, merged, clientSecret)
     await this.#adapter.upsert(clientId, payload, 0)
     await this.oidc.evictDynamicClientCache()
   }

@@ -23,7 +23,7 @@ npx tsc --noEmit                                                          # type
 
 **Criar:**
 - `src/keys/keystore_vault.ts` — interface `KeystoreVault` + `FileKeystoreVault` + `DriveKeystoreVault` + `loadDrive` local.
-- `src/keys/keystore_codec.ts` — `KeystoreCodec` (envelope `{v,enc,data}`, encrypt/decrypt, legado), `isLegacyBlob`, `EncryptionLike`.
+- `src/keys/keystore_codec.ts` — `KeystoreCodec` (envelope `{v,enc,data}`, encrypt/decrypt), `EncryptionLike`. (0.x: sem camada de legado/migração.)
 - `src/keys/keystore_crypto.ts` — `loadEncryptionService()` (await + throw) + reset p/ testes.
 - `src/keys/keystore_manager.ts` — `KeystoreManager` (ensure/read/rotate/plan/head) + `resolveKeystoreVault`.
 - `tests/keys/keystore_codec.spec.ts`, `tests/keys/keystore_vault.spec.ts`, `tests/keys/keystore_manager.spec.ts`.
@@ -636,12 +636,14 @@ test.group('KeystoreManager', () => {
     assert.isNotNull(vault.blob) // persistiu
   })
 
-  test('ensure faz upgrade de legado (JSON cru → envelope)', async ({ assert }) => {
-    const vault = memVault(JSON.stringify({ keys: [{ kid: 'old', kty: 'RSA', d: 'x', alg: 'RS256' }] }))
-    const mgr = new KeystoreManager(vault, new KeystoreCodec({ encrypt: false }), 'RS256')
+  test('ensure existente decodifica e retorna sem reescrever', async ({ assert }) => {
+    const codec = new KeystoreCodec({ encrypt: false })
+    const existing = await codec.encode({ keys: [{ kid: 'old', kty: 'RSA', d: 'x', alg: 'RS256' }] } as any)
+    const vault = memVault(existing)
+    const mgr = new KeystoreManager(vault, codec, 'RS256')
     const store = await mgr.ensure()
-    assert.equal(store.keys[0].kid, 'old')          // preserva a chave
-    assert.equal(JSON.parse(vault.blob!).v, 2)       // reescreveu como envelope
+    assert.equal(store.keys[0].kid, 'old')          // preserva a chave existente
+    assert.equal(vault.blob, existing)              // não reescreveu
   })
 
   test('rotate gera kid novo na frente e mantém keep', async ({ assert }) => {
@@ -676,7 +678,7 @@ Expected: FAIL — módulo não existe.
 ```ts
 // src/keys/keystore_manager.ts
 import { generateSigningJwk, planRotation, type PersistedKeystore, type RotationPlan } from './keystore.js'
-import { KeystoreCodec, isLegacyBlob } from './keystore_codec.js'
+import type { KeystoreCodec } from './keystore_codec.js'
 import type { KeystoreVault } from './keystore_vault.js'
 import type { SigningAlg } from './jwks_manager.js'
 
@@ -699,10 +701,7 @@ export class KeystoreManager {
     return this.codec.decode(blob)
   }
 
-  /**
-   * Garante que exista: gera+persiste se ausente. Se presente em formato legado
-   * (JSON cru), faz upgrade in-place para o envelope desejado (auto-encrypt).
-   */
+  /** Garante que exista: gera+persiste se ausente; senão decodifica e retorna. */
   async ensure(): Promise<PersistedKeystore> {
     const blob = await this.vault.read()
     if (blob == null) {
@@ -710,11 +709,7 @@ export class KeystoreManager {
       await this.vault.write(await this.codec.encode(store))
       return store
     }
-    const store = await this.codec.decode(blob)
-    if (isLegacyBlob(blob)) {
-      await this.vault.write(await this.codec.encode(store)) // upgrade
-    }
-    return store
+    return this.codec.decode(blob)
   }
 
   /** Rotaciona: chave nova na frente, mantém as `keep` mais recentes. Persiste. */
@@ -772,7 +767,7 @@ git commit -m "feat(keys): KeystoreManager (ensure/read/rotate/head + upgrade de
 Em `packages/authkit-core/src/types/server_config.ts`, substitua `store?: string` (e adicione `encrypt`) no `JwksConfig`:
 
 ```ts
-/** Config de onde o keystore managed mora. String = path de arquivo (legado). */
+/** Config de onde o keystore managed mora. String = atalho p/ { driver:'file', path }. */
 export type KeystoreStoreConfig =
   | string
   | { driver: 'file'; path: string }
@@ -787,9 +782,9 @@ export interface JwksConfig {
   rotationDays?: number
   algorithm?: 'RS256' | 'ES256' | 'PS256' | 'EdDSA'
   /**
-   * Onde o keystore PRIVADO managed é persistido. String = path de arquivo (legado,
-   * back-compat). Objeto `{ driver }` = cofre (file/drive/vault). Ausente = chave
-   * efêmera por boot (sem rotação real).
+   * Onde o keystore PRIVADO managed é persistido. String = atalho p/ arquivo
+   * (`{driver:'file', path}`). Objeto `{ driver }` = cofre (file/drive/vault).
+   * Ausente = chave efêmera por boot (sem rotação real).
    */
   store?: KeystoreStoreConfig
   /** Encripta o keystore em repouso (APP_KEY). Default backend-aware: file/drive ON, vault real OFF. */

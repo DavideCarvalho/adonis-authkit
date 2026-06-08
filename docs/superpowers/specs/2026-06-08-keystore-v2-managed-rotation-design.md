@@ -43,7 +43,7 @@ O AuthKit assina tokens OIDC (ID token, access token JWT) com uma chave privada 
 
 **Objetivos**
 1. Storage do keystore **pluggável** via providers de cofre: file (default), drive/bucket, e secrets vaults de verdade (HashiCorp, AWS, GCP, Azure), + contrato para custom.
-2. **Encryption at-rest** via APP_KEY, backend-aware (default ON p/ file/drive, OFF p/ vault real), lê plaintext legado.
+2. **Encryption at-rest** via APP_KEY, backend-aware (default ON p/ file/drive, OFF p/ vault real). _(0.x: sem migração de legado.)_
 3. **Boot warning** no fallback `auto→disco`; idade da chave no `doctor`.
 4. **Rotação agendada** age-based, housekeeping próprio da lib.
 5. **Hot-reload**: a chave nova passa a assinar **sem restart** (inclusive na rotação manual).
@@ -116,7 +116,7 @@ export interface KeystoreCodec {
 - **Envelope versionado:** `{ v: 2, enc: 'aes' | 'none', data: string }`.
 - `PlaintextCodec` → `enc:'none'`, `data` = JSON do keystore.
 - `EncryptedCodec(encrypter)` → `enc:'aes'`, `data` = `encrypter.encrypt(JSON)` (padrão `appKeyEncrypter`, lazy `@adonisjs/core/services/encryption`).
-- **Detecção de formato / migração legado:** um blob que é JSON cru `{ "keys": [...] }` **sem envelope** = v1 plaintext legado → lê normal, e **no próximo write faz upgrade** para envelope (encriptado se `encrypt` ON). Zero migração manual.
+- **0.x — sem migração de legado:** não há keystore antigo para ler. `decode` aceita **só** o envelope `{v:2}`; qualquer outro formato → erro. (Um `tmp/authkit_jwks.json` plaintext pré-existente é efêmero: apagar uma vez → regenera encriptado.)
 
 **Serviço que compõe tudo — `KeystoreManager`** (`src/keys/keystore_manager.ts`):
 - Recebe `{ vault: KeystoreVault, codec: KeystoreCodec, alg }`.
@@ -126,7 +126,7 @@ export interface KeystoreCodec {
 **Evolução do config (`JwksConfig` managed):**
 ```ts
 store?:
-  | string                                                  // legado: path de arquivo
+  | string                                                  // atalho p/ { driver:'file', path }
   | { driver: 'file'; path: string }
   | { driver: 'drive'; disk?: string; key: string }
   | { driver: 'hashicorp-vault'; endpoint: string; path: string; token?: string /* | auth */ }
@@ -203,14 +203,14 @@ Back-compat: `store: 'tmp/x.json'` → `{ driver:'file', path:'tmp/x.json' }`. O
 ---
 
 ## 7. Testes
-- **B:** round-trip do codec (plaintext + encriptado); leitura de plaintext legado → re-encripta no próximo write; versionamento do envelope; `FileVault` e `DriveVault` (drive fakeado como nos testes de avatar); vaults reais com SDK fakeado/injetado; decrypt-failure dá throw; back-compat do shape (string path).
+- **B:** round-trip do codec (plaintext + encriptado); formato irreconhecível dá throw; `FileVault` e `DriveVault` (drive fakeado como nos testes de avatar); vaults reais com SDK fakeado/injetado; decrypt-failure dá throw; atalho `store: string` resolve p/ FileVault.
 - **C:** `reloadKeys` troca o provider, kid novo assina, kid antigo ainda no JWKS público; segurança de request em voo (indireção do callback); rebuild falho mantém o provider antigo.
 - **D:** defaults/validação do resolver; scheduler dispara no limiar de idade (clock + keystore injetados); lock single-flight (dois schedulers, um rotaciona); poll detecta mudança de kid → reload; authz + ações dos endpoints admin; render do painel de status.
 
 ---
 
 ## 8. Decisões-chave
-1. **Encryption default ON** para file/drive, **OFF** para vault real (ligável p/ envelope). Leitura transparente de plaintext legado + auto-encrypt no próximo write. _(Alt: tudo OFF — menos seguro, mais simples.)_
+1. **Encryption default ON** para file/drive, **OFF** para vault real (ligável p/ envelope). _(0.x: sem migração de legado.)_ _(Alt: tudo OFF — menos seguro, mais simples.)_
 2. **Decrypt fail / mudança de APP_KEY → throw alto, nunca auto-regenerar** (regenerar invalidaria todos os tokens vivos). Recuperação: restaurar APP_KEY ou `--force-new` explícito.
 3. **Multi-instância:** vault/bucket compartilhado + **poll de reload por instância** + **lock single-flight via `@adonisjs/lock`** (peer opt-in, store db/redis do host) para o scheduler; sem o package → assume single-instance e rotaciona sem lock. _(Confirmado — `@adonisjs/lock.acquireImmediately()`.)_
 4. **Scheduler é housekeeping da lib** (setInterval mínimo, callback com imports estáticos), **default OFF**, opt-in via dashboard. _(Alt: depender do scheduler do host + comando ace — contraria a preferência housekeeping-na-lib.)_

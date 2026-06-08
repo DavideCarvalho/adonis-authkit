@@ -111,6 +111,7 @@ export default class AuthkitServerProvider {
       const jwksInput = config.jwksConfig
       let jwksLoader: (() => Promise<{ keys: Record<string, any>[] }>) | undefined
       let keystoreHead: (() => Promise<string | null>) | undefined
+      let keystoreManager: (() => Promise<KeystoreManager>) | undefined
       if (jwksInput?.source === 'managed' && jwksInput?.store) {
         const appRef = this.app
         const buildManager = async () => {
@@ -130,9 +131,10 @@ export default class AuthkitServerProvider {
           const m = await buildManager()
           return m.head()
         }
+        keystoreManager = async () => buildManager()
       }
 
-      return new OidcService(config, appKey, metrics, { jwksLoader, keystoreHead })
+      return new OidcService(config, appKey, metrics, { jwksLoader, keystoreHead, keystoreManager })
     })
 
     this.app.container.singleton('authkit.metrics', async () => {

@@ -3,6 +3,7 @@ export type {
   ClientConfig,
   TtlConfig,
   JwksConfig,
+  KeystoreStoreConfig,
   ObservabilityConfig,
   ResolvedAuthServerConfig,
   AccessTokenFormat,

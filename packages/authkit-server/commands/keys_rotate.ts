@@ -1,11 +1,10 @@
 import { BaseCommand, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
-import {
-  rotateKeystore,
-  readKeystore,
-  planRotation,
-  signingKeyAgeDays,
-} from '../src/keys/keystore.js'
+import { signingKeyAgeDays } from '../src/keys/keystore.js'
+import { KeystoreManager, resolveKeystoreVault } from '../src/keys/keystore_manager.js'
+import { KeystoreCodec } from '../src/keys/keystore_codec.js'
+import { loadEncryptionService } from '../src/keys/keystore_crypto.js'
+import { defaultEncryptForStore } from '../src/define_config.js'
 import type { SigningAlg } from '../src/keys/jwks_manager.js'
 import type { AuditSink } from '../src/audit/audit_sink.js'
 import { resolveAuthkitConfig } from '../src/commands/resolve_config.js'
@@ -81,12 +80,16 @@ export default class AuthkitKeysRotate extends BaseCommand {
       return
     }
 
-    const storePath = this.app.makePath(store)
     const alg: SigningAlg = algorithm ?? 'RS256'
     const keep = this.keep ?? 2
     const retire = this.retire ?? false
 
-    const current = readKeystore(storePath)
+    const vault = resolveKeystoreVault(store as any, (p) => this.app.makePath(p))
+    const encrypt = (jwksInput as any).encrypt ?? defaultEncryptForStore(store as any)
+    const enc = encrypt ? await loadEncryptionService() : undefined
+    const manager = new KeystoreManager(vault, new KeystoreCodec({ encrypt, enc }), alg)
+
+    const current = await manager.read()
     const ageDays = signingKeyAgeDays(current)
     if (ageDays !== null) {
       this.logger.info(`Chave de assinatura corrente tem ~${ageDays} dia(s) de idade.`)
@@ -94,7 +97,7 @@ export default class AuthkitKeysRotate extends BaseCommand {
 
     // --dry-run: imprime o plano (puro, sem gerar chave nem tocar disco) e sai.
     if (this.dryRun) {
-      const plan = planRotation(current, keep, retire)
+      const plan = await manager.plan(keep, retire)
       this.logger.info('Plano de rotação (dry-run — nada foi alterado):')
       this.logger.info(`  • chave corrente: ${plan.currentKid ?? '(nenhuma — keystore vazio)'}`)
       this.logger.info(`  • após rotação o JWKS manteria ${plan.keep} chave(s)`)
@@ -107,12 +110,7 @@ export default class AuthkitKeysRotate extends BaseCommand {
       return
     }
 
-    const { newKid, retiredKids, store: result } = await rotateKeystore(
-      storePath,
-      alg,
-      keep,
-      retire
-    )
+    const { newKid, retiredKids, store: result } = await manager.rotate(keep, retire)
 
     this.logger.success(`✅ Nova chave de assinatura gerada: kid=${newKid} (alg=${alg}).`)
     this.logger.info(

@@ -29,6 +29,16 @@ export interface TtlConfig {
   session?: string | number
 }
 
+/** Config de onde o keystore managed mora. String = atalho p/ { driver:'file', path }. */
+export type KeystoreStoreConfig =
+  | string
+  | { driver: 'file'; path: string }
+  | { driver: 'drive'; disk?: string; key: string }
+  | { driver: 'hashicorp-vault'; endpoint: string; path: string; token?: string }
+  | { driver: 'aws-secrets-manager'; secretId: string; region?: string }
+  | { driver: 'gcp-secret-manager'; name: string }
+  | { driver: 'azure-key-vault'; vaultUrl: string; secretName: string }
+
 export interface JwksConfig {
   /** 'managed' = lib gera/rotaciona/persiste; 'jwks' = fornecido inline */
   source: 'managed' | 'jwks'
@@ -36,12 +46,13 @@ export interface JwksConfig {
   rotationDays?: number
   algorithm?: 'RS256' | 'ES256' | 'PS256' | 'EdDSA'
   /**
-   * Caminho de um arquivo JSON onde o JWKS PRIVADO managed é persistido. Quando
-   * presente, as chaves sobrevivem a restarts e podem ser rotacionadas com
-   * `node ace authkit:rotate-keys`. Quando ausente, o modo managed gera uma
-   * chave efêmera por boot (sem rotação real).
+   * Onde o keystore PRIVADO managed é persistido. String = atalho p/ arquivo
+   * (`{driver:'file', path}`). Objeto `{ driver }` = cofre (file/drive/vault).
+   * Ausente = chave efêmera por boot (sem rotação real).
    */
-  store?: string
+  store?: KeystoreStoreConfig
+  /** Encripta o keystore em repouso (APP_KEY). Default backend-aware: file/drive ON, vault real OFF. */
+  encrypt?: boolean
   /** usado quando source='jwks' */
   keys?: Record<string, unknown>[]
 }

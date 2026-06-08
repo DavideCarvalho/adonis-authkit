@@ -16,6 +16,7 @@ import {
   checkBotProtection,
   checkSettings,
   checkAuthMethodsSetting,
+  signingKeyAgeFinding,
   type DoctorInput,
 } from '../src/doctor/checks.js'
 import { DatabaseAdapter } from '../src/adapters/database_adapter.js'
@@ -400,5 +401,11 @@ test.group('doctor checks', () => {
       authMethodsSetting: { password: true, magicLink: false, passkey: false, social: [] },
     } as any)
     assert.equal(f!.level, 'ok')
+  })
+
+  test('signingKeyAgeFinding: warn quando idade > maxAgeDays', ({ assert }) => {
+    assert.equal(signingKeyAgeFinding(120, 90).level, 'warn')
+    assert.equal(signingKeyAgeFinding(30, 90).level, 'ok')
+    assert.equal(signingKeyAgeFinding(null, 90).level, 'ok') // sem keystore managed → no-op ok
   })
 })

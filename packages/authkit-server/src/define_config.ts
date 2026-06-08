@@ -6,11 +6,14 @@ import type {
   AccessTokensConfig,
   ClientConfig,
   JwksConfig,
+  KeystoreStoreConfig,
   ObservabilityConfig,
   TtlConfig,
 } from '@dudousxd/adonis-authkit-core'
 import { generateJwks } from './keys/jwks_manager.js'
-import { ensureKeystore } from './keys/keystore.js'
+import { KeystoreManager, resolveKeystoreVault } from './keys/keystore_manager.js'
+import { KeystoreCodec } from './keys/keystore_codec.js'
+import { loadEncryptionService } from './keys/keystore_crypto.js'
 import { adapters, type AdapterFactory, type OidcAdapterClass } from './adapters/factory.js'
 import type { AccountStore, AuthAccount } from './accounts/account_store.js'
 import type { PatStore } from './pat/pat_store.js'
@@ -943,6 +946,28 @@ export function toSeconds(value: string | number | undefined, fallback: number):
   return Number(m[1]) * UNITS[m[2]]
 }
 
+/**
+ * Default backend-aware de encryption: file/drive ON; vaults reais OFF.
+ * Evita gravar chaves privadas em texto claro em disco sem configuração extra.
+ */
+export function defaultEncryptForStore(store: KeystoreStoreConfig): boolean {
+  if (typeof store === 'string') return true
+  return store.driver === 'file' || store.driver === 'drive'
+}
+
+/**
+ * Mensagem de aviso quando `jwks: 'auto'` cai no fallback de disco (sem
+ * AUTHKIT_JWKS): a chave privada será persistida em arquivo. `null` = sem aviso.
+ */
+export function jwksAutoFallbackWarning(storePath: string | null): string | null {
+  if (!storePath) return null
+  return (
+    `AuthKit: jwks 'auto' caiu no fallback de disco (${storePath}) — a chave privada de ` +
+    `assinatura será persistida em arquivo. Para produção, defina AUTHKIT_JWKS ` +
+    `(secret manager) ou configure jwks.store explicitamente.`
+  )
+}
+
 export function defineConfig(config: AuthServerConfigInput) {
   return configProvider.create(async (app: ApplicationService): Promise<ResolvedServerConfig> => {
     const AdapterClass = await config.adapter.resolver(app)
@@ -955,18 +980,28 @@ export function defineConfig(config: AuthServerConfigInput) {
           : { source: 'managed', algorithm: 'RS256', store: 'tmp/authkit_jwks.json' }
         : config.jwks
 
+    if (config.jwks === 'auto' && !process.env.AUTHKIT_JWKS) {
+      const warning = jwksAutoFallbackWarning((jwksConfig as { store?: string }).store ?? null)
+      if (warning) {
+        await app.container
+          .make('logger')
+          .then((l: any) => l?.warn(warning))
+          .catch(() => {})
+      }
+    }
+
     let jwks: { keys: Record<string, any>[] }
     if (jwksConfig.source === 'managed') {
       const alg = jwksConfig.algorithm ?? 'RS256'
       if (jwksConfig.store) {
-        // keystore persistido em arquivo: chaves sobrevivem a restarts + rotacionáveis.
-        const storePath = app.makePath(jwksConfig.store)
-        const store = await ensureKeystore(storePath, alg)
-        // Remove o metadado interno `iat` (idade da chave) antes de entregar ao
-        // oidc-provider — não é membro JWK, fica só no arquivo do keystore.
+        const vault = resolveKeystoreVault(jwksConfig.store as any, (p) => app.makePath(p))
+        const encrypt = jwksConfig.encrypt ?? defaultEncryptForStore(jwksConfig.store as any)
+        const enc = encrypt ? await loadEncryptionService() : undefined
+        const manager = new KeystoreManager(vault, new KeystoreCodec({ encrypt, enc }), alg)
+        const store = await manager.ensure()
+        // Remove o metadado interno `iat` antes de entregar ao oidc-provider.
         jwks = { keys: store.keys.map(({ iat: _iat, ...jwk }) => jwk) }
       } else {
-        // managed efêmero: uma chave nova por boot.
         jwks = await generateJwks(alg)
       }
     } else {

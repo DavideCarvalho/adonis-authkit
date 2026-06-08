@@ -867,6 +867,21 @@ export function checkPasskeyAutofill(input: DoctorInput): Finding | null {
   }
 }
 
+/**
+ * Finding da idade da chave de assinatura managed. `ageDays === null` (sem
+ * keystore em arquivo/cofre) → no-op `ok`. Acima de `maxAgeDays` → `warn`.
+ */
+export function signingKeyAgeFinding(ageDays: number | null, maxAgeDays: number): Finding {
+  if (ageDays === null) return { level: 'ok', message: 'jwks: idade da chave não aplicável (sem keystore persistido).' }
+  if (ageDays > maxAgeDays) {
+    return {
+      level: 'warn',
+      message: `jwks: chave de assinatura tem ~${ageDays}d (> ${maxAgeDays}d) — considere rotacionar (authkit:keys:rotate).`,
+    }
+  }
+  return { level: 'ok', message: `jwks: chave de assinatura tem ~${ageDays}d.` }
+}
+
 /** Roda todos os checks e devolve a lista plana de findings. */
 export function runAllChecks(input: DoctorInput): Finding[] {
   const findings: Finding[] = []

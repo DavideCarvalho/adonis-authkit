@@ -10,27 +10,62 @@ import { registerTokenExchange } from './token_exchange.js'
 import { readActiveOrgFromKoaCtx } from '../host/active_org_cookie.js'
 
 export class OidcService {
-  readonly provider: ReturnType<typeof buildProvider>
-  readonly callback: (req: any, res: any) => void
+  #provider!: ReturnType<typeof buildProvider>
+  #callback!: (req: any, res: any) => void
+  #interactions!: InteractionActions
+  #appKey: string
+
+  get provider(): ReturnType<typeof buildProvider> { return this.#provider }
+  get callback(): (req: any, res: any) => void { return this.#callback }
+  get interactions(): InteractionActions { return this.#interactions }
+
   /** Pathname do issuer sem barra final (ex.: `/oidc`). Vazio quando montado na raiz. */
   readonly mountPath: string
   readonly recorder: MetricsRecorder
-  readonly interactions: InteractionActions
   /** Holder mutável dos TTLs de sessão OIDC (lido sincronamente pelo oidc-provider). */
   readonly sessionTtlHolder: SessionTtlHolder
   /** Holder mutável dos TTLs de access/id/refresh tokens (lido sincronamente pelo oidc-provider). */
   readonly tokenTtlHolder: TokenTtlHolder
   #clients: ClientConfig[]
   #config: ResolvedServerConfig
+  /** Closures de acesso ao cofre de chaves (injetadas pelo provider para hot-reload). */
+  #deps: {
+    /** Relê o keystore do cofre e devolve o JWKS (sem `iat`). Ausente → reloadKeys é no-op. */
+    jwksLoader?: () => Promise<{ keys: Record<string, any>[] }>
+    /** Token barato de mudança do cofre (kid/etag/mtime) p/ o poll. */
+    keystoreHead?: () => Promise<string | null>
+  }
 
   get config(): ResolvedServerConfig {
     return this.#config
   }
 
-  constructor(config: ResolvedServerConfig, appKey: string, recorder: MetricsRecorder = new NoopRecorder()) {
+  /** @internal Loader de JWKS do cofre (usado por reloadKeys). */
+  get jwksLoader(): (() => Promise<{ keys: Record<string, any>[] }>) | undefined {
+    return this.#deps.jwksLoader
+  }
+
+  /** @internal Token barato de mudança do cofre (usado pelo poll de reload). */
+  get keystoreHead(): (() => Promise<string | null>) | undefined {
+    return this.#deps.keystoreHead
+  }
+
+  constructor(
+    config: ResolvedServerConfig,
+    appKey: string,
+    recorder: MetricsRecorder = new NoopRecorder(),
+    deps: {
+      /** Relê o keystore do cofre e devolve o JWKS (sem `iat`). Ausente → reloadKeys é no-op. */
+      jwksLoader?: () => Promise<{ keys: Record<string, any>[] }>
+      /** Token barato de mudança do cofre (kid/etag/mtime) p/ o poll. */
+      keystoreHead?: () => Promise<string | null>
+    } = {}
+  ) {
     this.#config = config
     this.#clients = config.clients ?? []
+    this.#appKey = appKey
     this.recorder = recorder
+    this.#deps = deps
     // Inicializa o holder de TTL com os valores do config estático.
     // Será atualizado em runtime quando a setting `session_policy` for salva/apagada.
     const configSessionSec = config.ttl.session
@@ -45,40 +80,53 @@ export class OidcService {
       idTokenSec: Math.max(1, config.ttl.idToken),
       refreshTokenSec: Math.max(1, config.ttl.refreshToken),
     }
-    this.provider = buildProvider(config, {
-      appKey,
-      findAccount: async (ctx, sub) => {
-        const user = await config.findAccount(sub)
-        if (!user) return undefined
+    // mountPath é estável (o issuer nunca muda): deriva diretamente de config.issuer
+    // para que #buildAndWire possa ser chamado sem precisar reconstituir o mountPath.
+    this.mountPath = new URL(config.issuer).pathname.replace(/\/+$/, '')
+    this.#buildAndWire(config.jwks)
+  }
 
-        // Lê a org ativa do cookie de sessão (se organizations estiver disponível).
-        const activeOrg = readActiveOrgFromKoaCtx(ctx)
+  #buildAndWire(jwks: { keys: Record<string, any>[] }): void {
+    const config = this.#config
+    const provider = buildProvider(
+      { ...config, jwks },
+      {
+        appKey: this.#appKey,
+        findAccount: async (ctx, sub) => {
+          const user = await config.findAccount(sub)
+          if (!user) return undefined
 
-        return {
-          accountId: user.id,
-          claims: async (_use: string, _scope: string) => {
-            const base: Record<string, unknown> = {
-              sub: user.id,
-              email: user.email,
-              email_verified: true,
-              name: user.name,
-              picture: user.avatarUrl,
-              [config.globalRolesClaim]: user.globalRoles ?? [],
-            }
-            // Emite claims de org somente quando há uma org ativa na sessão.
-            if (activeOrg) {
-              base['org_id'] = activeOrg.orgId
-              base['org_slug'] = activeOrg.orgSlug
-              base['org_role'] = activeOrg.orgRole
-            }
-            return base
-          },
-        }
+          // Lê a org ativa do cookie de sessão (se organizations estiver disponível).
+          const activeOrg = readActiveOrgFromKoaCtx(ctx)
+
+          return {
+            accountId: user.id,
+            claims: async (_use: string, _scope: string) => {
+              const base: Record<string, unknown> = {
+                sub: user.id,
+                email: user.email,
+                email_verified: true,
+                name: user.name,
+                picture: user.avatarUrl,
+                [config.globalRolesClaim]: user.globalRoles ?? [],
+              }
+              // Emite claims de org somente quando há uma org ativa na sessão.
+              if (activeOrg) {
+                base['org_id'] = activeOrg.orgId
+                base['org_slug'] = activeOrg.orgSlug
+                base['org_role'] = activeOrg.orgRole
+              }
+              return base
+            },
+          }
+        },
       },
-    }, this.sessionTtlHolder, this.tokenTtlHolder)
-    wireProviderEvents(this.provider, recorder)
+      this.sessionTtlHolder,
+      this.tokenTtlHolder
+    )
+    wireProviderEvents(provider, this.recorder)
 
-    registerTokenExchange(this.provider, {
+    registerTokenExchange(provider, {
       findAccount: config.findAccount,
       globalRolesClaim: config.globalRolesClaim,
       audit: config.audit,
@@ -90,7 +138,7 @@ export class OidcService {
     // /oidc/auth, /oidc/jwks). Apenas remover o prefixo de req.url (abordagem antiga)
     // fazia o provider se enxergar na raiz e anunciar URLs sem o /oidc.
     // Para issuer na raiz, o mountPath é vazio e usamos o callback Node direto.
-    this.mountPath = new URL(this.provider.issuer).pathname.replace(/\/+$/, '')
+    let callback: (req: any, res: any) => void
     if (this.mountPath && this.mountPath !== '/') {
       const koa = new Koa()
       // O app externo PRECISA herdar as Keygrip keys do provider. Sob koa-mount as
@@ -99,15 +147,33 @@ export class OidcService {
       // assinados/lidos de forma inconsistente entre o fluxo via mount (authorize) e as
       // chamadas diretas `interactionDetails`/`interactionFinished` (que usam o contexto
       // do provider), quebrando o "interaction session id cookie not found".
-      koa.keys = (this.provider as any).keys
-      koa.proxy = (this.provider as any).proxy
-      koa.use(mount(this.mountPath, this.provider as any))
-      this.callback = koa.callback()
+      koa.keys = (provider as any).keys
+      koa.proxy = (provider as any).proxy
+      koa.use(mount(this.mountPath, provider as any))
+      callback = koa.callback()
     } else {
-      this.callback = this.provider.callback()
+      callback = provider.callback()
     }
 
-    this.interactions = createInteractionActions(this.provider, { verifyCredentials: config.verifyCredentials })
+    const interactions = createInteractionActions(provider, { verifyCredentials: config.verifyCredentials })
+
+    // Atribuição atômica no final: um throw antes deste ponto não corrompe o estado.
+    this.#provider = provider
+    this.#callback = callback
+    this.#interactions = interactions
+  }
+
+  /**
+   * Recarrega as chaves de assinatura AO VIVO: relê o keystore do cofre e reconstrói
+   * o provider com o JWKS novo, trocando a instância atomicamente (#buildAndWire faz
+   * build-em-locais → assign no fim). No-op quando não há `jwksLoader` (source:'jwks'
+   * inline ou managed sem store).
+   */
+  async reloadKeys(): Promise<void> {
+    const loader = this.#deps.jwksLoader
+    if (!loader) return
+    const jwks = await loader()
+    this.#buildAndWire(jwks)
   }
 
   /**

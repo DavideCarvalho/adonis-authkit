@@ -5,7 +5,10 @@ import { RuntimeException } from '@adonisjs/core/exceptions'
 import type { ApplicationService } from '@adonisjs/core/types'
 import type { MetricsRecorder } from '@dudousxd/adonis-authkit-core'
 import { OidcService } from '../src/provider/oidc_service.js'
-import type { ResolvedServerConfig } from '../src/define_config.js'
+import { defaultEncryptForStore, type ResolvedServerConfig } from '../src/define_config.js'
+import { resolveKeystoreVault, KeystoreManager } from '../src/keys/keystore_manager.js'
+import { KeystoreCodec } from '../src/keys/keystore_codec.js'
+import { loadEncryptionService } from '../src/keys/keystore_crypto.js'
 import type { AccountStore } from '../src/accounts/account_store.js'
 import type { PatStore } from '../src/pat/pat_store.js'
 
@@ -103,7 +106,30 @@ export default class AuthkitServerProvider {
         )
       }
       const metrics = await this.app.container.make('authkit.metrics')
-      return new OidcService(config, appKey, metrics)
+
+      const jwksInput = config.jwksConfig
+      let jwksLoader: (() => Promise<{ keys: Record<string, any>[] }>) | undefined
+      let keystoreHead: (() => Promise<string | null>) | undefined
+      if (jwksInput?.source === 'managed' && jwksInput?.store) {
+        const appRef = this.app
+        const buildManager = async () => {
+          const vault = resolveKeystoreVault(jwksInput.store as any, (p) => appRef.makePath(p))
+          const encrypt = (jwksInput as any).encrypt ?? defaultEncryptForStore(jwksInput.store as any)
+          const enc = encrypt ? await loadEncryptionService().catch(() => undefined) : undefined
+          return new KeystoreManager(vault, new KeystoreCodec({ encrypt, enc }), jwksInput.algorithm ?? 'RS256')
+        }
+        jwksLoader = async () => {
+          const m = await buildManager()
+          const store = (await m.read()) ?? (await m.ensure())
+          return { keys: store.keys.map(({ iat: _iat, ...jwk }) => jwk) }
+        }
+        keystoreHead = async () => {
+          const m = await buildManager()
+          return m.head()
+        }
+      }
+
+      return new OidcService(config, appKey, metrics, { jwksLoader, keystoreHead })
     })
 
     this.app.container.singleton('authkit.metrics', async () => {

@@ -28,16 +28,44 @@ export class OidcService {
   readonly tokenTtlHolder: TokenTtlHolder
   #clients: ClientConfig[]
   #config: ResolvedServerConfig
+  /** Closures de acesso ao cofre de chaves (injetadas pelo provider para hot-reload). */
+  #deps: {
+    /** Relê o keystore do cofre e devolve o JWKS (sem `iat`). Ausente → reloadKeys é no-op. */
+    jwksLoader?: () => Promise<{ keys: Record<string, any>[] }>
+    /** Token barato de mudança do cofre (kid/etag/mtime) p/ o poll. */
+    keystoreHead?: () => Promise<string | null>
+  }
 
   get config(): ResolvedServerConfig {
     return this.#config
   }
 
-  constructor(config: ResolvedServerConfig, appKey: string, recorder: MetricsRecorder = new NoopRecorder()) {
+  /** @internal Loader de JWKS do cofre (usado por reloadKeys). */
+  get jwksLoader(): (() => Promise<{ keys: Record<string, any>[] }>) | undefined {
+    return this.#deps.jwksLoader
+  }
+
+  /** @internal Token barato de mudança do cofre (usado pelo poll de reload). */
+  get keystoreHead(): (() => Promise<string | null>) | undefined {
+    return this.#deps.keystoreHead
+  }
+
+  constructor(
+    config: ResolvedServerConfig,
+    appKey: string,
+    recorder: MetricsRecorder = new NoopRecorder(),
+    deps: {
+      /** Relê o keystore do cofre e devolve o JWKS (sem `iat`). Ausente → reloadKeys é no-op. */
+      jwksLoader?: () => Promise<{ keys: Record<string, any>[] }>
+      /** Token barato de mudança do cofre (kid/etag/mtime) p/ o poll. */
+      keystoreHead?: () => Promise<string | null>
+    } = {}
+  ) {
     this.#config = config
     this.#clients = config.clients ?? []
     this.#appKey = appKey
     this.recorder = recorder
+    this.#deps = deps
     // Inicializa o holder de TTL com os valores do config estático.
     // Será atualizado em runtime quando a setting `session_policy` for salva/apagada.
     const configSessionSec = config.ttl.session

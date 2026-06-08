@@ -97,6 +97,16 @@ const navItems = [
     section: 'Config',
     items: [
       {
+        id: 'keys',
+        label: 'Signing Keys',
+        icon: (
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+            <circle cx="5" cy="8" r="3" />
+            <path d="M8 8h6.5M12.5 8v2.5M10.5 8v2" strokeLinecap="round" />
+          </svg>
+        ),
+      },
+      {
         id: 'settings',
         label: 'Settings',
         icon: (

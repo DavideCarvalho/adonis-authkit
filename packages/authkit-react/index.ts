@@ -185,6 +185,7 @@ export type {
   ApiErrorBody,
   // Admin – Keys
   KeysStatus,
+  ManagedKeyInfo,
   KeysRotateInput,
   KeysRotateResult,
 } from './src/client/types.js'

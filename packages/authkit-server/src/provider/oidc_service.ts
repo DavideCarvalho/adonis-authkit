@@ -8,7 +8,7 @@ import { buildProvider, type SessionTtlHolder, type TokenTtlHolder } from './bui
 import { createInteractionActions, type InteractionActions } from './interaction_actions.js'
 import { registerTokenExchange } from './token_exchange.js'
 import { readActiveOrgFromKoaCtx } from '../host/active_org_cookie.js'
-import { signingKeyAgeDays } from '../keys/keystore.js'
+import { signingKeyAgeDays, listKeyInfos, type ManagedKeyInfo } from '../keys/keystore.js'
 import type { KeystoreManager } from '../keys/keystore_manager.js'
 
 export class OidcService {
@@ -199,6 +199,14 @@ export class OidcService {
     if (!build) return null
     const m = await build()
     return signingKeyAgeDays(await m.read())
+  }
+
+  /** Lista as chaves managed (kid/alg/idade/ativa), ou [] se não há keystore gerenciável. */
+  async listManagedKeys(): Promise<ManagedKeyInfo[]> {
+    const build = this.#deps.keystoreManager
+    if (!build) return []
+    const m = await build()
+    return listKeyInfos(await m.read())
   }
 
   /**

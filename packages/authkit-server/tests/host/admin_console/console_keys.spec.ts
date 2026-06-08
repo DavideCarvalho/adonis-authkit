@@ -112,13 +112,31 @@ test.group('Console API /keys (session-authed)', (group) => {
   // ─── status ────────────────────────────────────────────────────────────────
 
   test('GET {ap}/api/keys → 200 com ageDays numérico e policy.enabled false', async ({ assert }) => {
-    const { service } = await makeService(path, 9980)
+    const { service, m } = await makeService(path, 9980)
     const ctrl = new ConsoleKeysController()
     const res: any = await ctrl.status(fakeCtx({ service }).ctx)
     assert.isNumber(res.ageDays)
     assert.equal(res.policy.enabled, false)
     // Sem política habilitada → sem ETA.
     assert.equal(res.nextRotationInDays, null)
+    // Lista de chaves: 1 chave após ensure(), ativa, com o kid corrente do keystore.
+    const store = (await m.read())!
+    assert.isArray(res.keys)
+    assert.lengthOf(res.keys, 1)
+    assert.isTrue(res.keys[0].active)
+    assert.equal(res.keys[0].kid, store.keys[0].kid)
+  })
+
+  test('GET {ap}/api/keys → após rotação keep:2, lista 2 chaves só a primeira ativa', async ({ assert }) => {
+    const { service, m } = await makeService(path, 9985)
+    const ctrl = new ConsoleKeysController()
+    await service.rotateKeys(2)
+    const res: any = await ctrl.status(fakeCtx({ service }).ctx)
+    const store = (await m.read())!
+    assert.lengthOf(res.keys, 2)
+    assert.equal(res.keys[0].kid, store.keys[0].kid)
+    assert.isTrue(res.keys[0].active)
+    assert.isFalse(res.keys[1].active)
   })
 
   test('GET {ap}/api/keys → 501 quando jwks não é managed+store', async ({ assert }) => {

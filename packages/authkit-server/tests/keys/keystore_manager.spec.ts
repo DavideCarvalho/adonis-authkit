@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { test } from '@japa/runner'
 import { KeystoreManager } from '../../src/keys/keystore_manager.js'
 import { KeystoreCodec } from '../../src/keys/keystore_codec.js'
@@ -76,5 +79,22 @@ test.group('resolveKeystoreVault', () => {
       () => resolveKeystoreVault({ driver: 'aws-secrets-manager', secretId: 's' } as any, makePath),
       /aws-secrets-manager|vault-aws/
     )
+  })
+})
+
+test.group('KeystoreManager em arquivo (paridade com o comando)', (group) => {
+  let dir: string
+  group.each.setup(() => { dir = mkdtempSync(join(tmpdir(), 'authkit-mgr-')) })
+  group.each.teardown(() => rmSync(dir, { recursive: true, force: true }))
+
+  test('rotate --retire mantém só a nova', async ({ assert }) => {
+    const vault = new FileKeystoreVault(join(dir, 'jwks.json'))
+    const mgr = new KeystoreManager(vault, new KeystoreCodec({ encrypt: false }), 'RS256')
+    await mgr.ensure()
+    const res = await mgr.rotate(2, true)
+    const store = (await mgr.read())!
+    assert.lengthOf(store.keys, 1)
+    assert.equal(store.keys[0].kid, res.newKid)
+    assert.isAbove(res.retiredKids.length, 0)
   })
 })

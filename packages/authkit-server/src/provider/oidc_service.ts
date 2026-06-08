@@ -41,6 +41,8 @@ export class OidcService {
   }
   /** Mutex de serialização de reloadKeys: encadeia execuções para nunca sobrepor builds. */
   #reloadChain: Promise<void> = Promise.resolve()
+  /** Mutex de serialização de rotateKeys: evita que duas rotações concorrentes se sobreponham. */
+  #rotateChain: Promise<unknown> = Promise.resolve()
 
   get config(): ResolvedServerConfig {
     return this.#config
@@ -203,16 +205,26 @@ export class OidcService {
    * Rotaciona a chave de assinatura e aplica ao vivo (rotate → reloadKeys → audit
    * keys.rotated). Lança quando não há keystore gerenciável. Usado pelo scheduler e
    * pelo endpoint admin "rotacionar agora".
+   *
+   * Serializado por mutex (#rotateChain): chamadas concorrentes são enfileiradas para
+   * que duas rotações nunca se sobreponham em processo (evita perda silenciosa de escrita).
+   * Cada caller recebe o resultado da SUA própria rotação.
    */
   async rotateKeys(keep: number, retire = false): Promise<{ newKid: string; retiredKids: string[]; keptKids: string[] }> {
-    const build = this.#deps.keystoreManager
-    if (!build) throw new Error('AuthKit: rotação indisponível (jwks não é managed+store).')
-    const m = await build()
-    const { newKid, retiredKids, store } = await m.rotate(keep, retire)
-    await this.reloadKeys()
-    const keptKids = store.keys.map((k) => k.kid as string)
-    await this.#config.audit?.record({ type: 'keys.rotated', metadata: { newKid, retiredKids, keptKids, retire } }).catch(() => {})
-    return { newKid, retiredKids, keptKids }
+    const run = async () => {
+      const build = this.#deps.keystoreManager
+      if (!build) throw new Error('AuthKit: rotação indisponível (jwks não é managed+store).')
+      const m = await build()
+      const { newKid, retiredKids, store } = await m.rotate(keep, retire)
+      await this.reloadKeys()
+      const keptKids = store.keys.map((k) => k.kid as string)
+      await this.#config.audit?.record({ type: 'keys.rotated', metadata: { newKid, retiredKids, keptKids, retire } }).catch(() => {})
+      return { newKid, retiredKids, keptKids }
+    }
+    // serializa: encadeia após a rotação em voo; cada caller recebe o resultado da SUA rotação
+    const result = this.#rotateChain.then(run, run) as Promise<{ newKid: string; retiredKids: string[]; keptKids: string[] }>
+    this.#rotateChain = result.catch(() => {}) // a cadeia segue mesmo se uma rotação falhar
+    return result
   }
 
   /**

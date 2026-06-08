@@ -200,6 +200,30 @@ test.group('OidcService reload serialization + age', () => {
     } finally { rmSync(dirY, { recursive: true, force: true }) }
   })
 
+  test('rotateKeys concorrentes não perdem rotação (serializado)', async ({ assert }) => {
+    const dirR = mkdtempSync(join(tmpdir(), 'authkit-rr-')); const pathR = join(dirR, 'jwks.json')
+    try {
+      const m = mgr(pathR); await m.ensure()
+      const fakeApp = { container: { make: async () => ({ connection: () => new RedisMock() }) }, makePath: (p: string) => p } as any
+      const cfg = await configProvider.resolve(fakeApp, defineConfig({
+        issuer: 'http://localhost:9796', adapter: adapters.redis({ connection: 'main' }),
+        jwks: { source: 'managed', algorithm: 'RS256', store: pathR, encrypt: false }, clients: [], accountStore: fakeAccountStore(),
+      }))
+      const svc = new OidcService(cfg!, 'a'.repeat(32), undefined, {
+        jwksLoader: async () => { const s = (await m.read())!; return { keys: s.keys.map(({ iat, ...j }) => j) } },
+        keystoreHead: () => m.head(),
+        keystoreManager: async () => m,
+      })
+      const [r1, r2] = await Promise.all([svc.rotateKeys(5), svc.rotateKeys(5)])
+      const after = (await m.read())!
+      const kids = after.keys.map((k: any) => k.kid)
+      // ambas as rotações persistiram (nenhuma perdida): os dois newKids estão no keystore
+      assert.include(kids, r1.newKid)
+      assert.include(kids, r2.newKid)
+      assert.notEqual(r1.newKid, r2.newKid)
+    } finally { rmSync(dirR, { recursive: true, force: true }) }
+  })
+
   test('rotateKeys rotaciona, aplica ao vivo e audita', async ({ assert }) => {
     const dirZ = mkdtempSync(join(tmpdir(), 'authkit-rot-')); const pathZ = join(dirZ, 'jwks.json')
     try {

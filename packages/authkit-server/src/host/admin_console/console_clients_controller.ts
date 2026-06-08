@@ -20,13 +20,33 @@ function readInput(ctx: HttpContext): ClientInput {
     clientId: (ctx.request.input('clientId') as string | undefined)?.trim() || undefined,
     redirectUris: asArray(ctx.request.input('redirectUris')),
     postLogoutRedirectUris: asArray(ctx.request.input('postLogoutRedirectUris')),
-    grantTypes: asArray(ctx.request.input('grantTypes')),
+    grantTypes: asArray(ctx.request.input('grantTypes') ?? ctx.request.input('grants')),
     tokenEndpointAuthMethod: authMethod,
     backchannelLogoutUri: backchannelUri || undefined,
     backchannelLogoutSessionRequired:
       ctx.request.input('backchannelLogoutSessionRequired') === true ||
       ctx.request.input('backchannelLogoutSessionRequired') === 'true',
   }
+}
+
+/** Input PARCIAL (PATCH) — só inclui o que veio no body; o service preserva o resto. */
+function readPartialInput(ctx: HttpContext): Partial<ClientInput> {
+  const r = ctx.request
+  const out: Partial<ClientInput> = {}
+  if (r.input('redirectUris') !== undefined) out.redirectUris = asArray(r.input('redirectUris'))
+  if (r.input('postLogoutRedirectUris') !== undefined)
+    out.postLogoutRedirectUris = asArray(r.input('postLogoutRedirectUris'))
+  const grants = r.input('grantTypes') ?? r.input('grants')
+  if (grants !== undefined) out.grantTypes = asArray(grants)
+  if (r.input('tokenEndpointAuthMethod') !== undefined)
+    out.tokenEndpointAuthMethod = r.input('tokenEndpointAuthMethod') as TokenEndpointAuthMethod
+  if (r.input('backchannelLogoutUri') !== undefined)
+    out.backchannelLogoutUri = (r.input('backchannelLogoutUri') as string | undefined)?.trim() || undefined
+  if (r.input('backchannelLogoutSessionRequired') !== undefined)
+    out.backchannelLogoutSessionRequired =
+      r.input('backchannelLogoutSessionRequired') === true ||
+      r.input('backchannelLogoutSessionRequired') === 'true'
+  return out
 }
 
 /**
@@ -79,7 +99,7 @@ export default class ConsoleClientsController {
     const existing = await svc.find(id)
     if (!existing) return ctx.response.notFound(apiError('not_found', 'Client não encontrado.'))
 
-    await svc.update(id, readInput(ctx))
+    await svc.update(id, readPartialInput(ctx))
 
     await cfg.audit?.record({
       type: 'client.updated',

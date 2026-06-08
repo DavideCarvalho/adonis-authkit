@@ -16,13 +16,19 @@ function asArray(value: unknown): string[] {
   return []
 }
 
+/** Aceita `grants` (== nome do dto de saída) como alias de `grantTypes` (entrada). */
+function grantsInput(ctx: HttpContext): unknown {
+  return ctx.request.input('grantTypes') ?? ctx.request.input('grants')
+}
+
+/** Input COMPLETO (create) — campos ausentes caem no default. */
 function readInput(ctx: HttpContext): ClientInput {
   const backchannelUri = (ctx.request.input('backchannelLogoutUri') as string | undefined)?.trim()
   return {
     clientId: (ctx.request.input('clientId') as string | undefined)?.trim() || undefined,
     redirectUris: asArray(ctx.request.input('redirectUris')),
     postLogoutRedirectUris: asArray(ctx.request.input('postLogoutRedirectUris')),
-    grantTypes: asArray(ctx.request.input('grantTypes')),
+    grantTypes: asArray(grantsInput(ctx)),
     tokenEndpointAuthMethod:
       (ctx.request.input('tokenEndpointAuthMethod', 'client_secret_basic') as TokenEndpointAuthMethod),
     backchannelLogoutUri: backchannelUri || undefined,
@@ -30,6 +36,25 @@ function readInput(ctx: HttpContext): ClientInput {
       ctx.request.input('backchannelLogoutSessionRequired') === true ||
       ctx.request.input('backchannelLogoutSessionRequired') === 'true',
   }
+}
+
+/** Input PARCIAL (update/PATCH) — só inclui o que veio no body; o resto o service preserva. */
+function readPartialInput(ctx: HttpContext): Partial<ClientInput> {
+  const r = ctx.request
+  const out: Partial<ClientInput> = {}
+  if (r.input('redirectUris') !== undefined) out.redirectUris = asArray(r.input('redirectUris'))
+  if (r.input('postLogoutRedirectUris') !== undefined)
+    out.postLogoutRedirectUris = asArray(r.input('postLogoutRedirectUris'))
+  if (grantsInput(ctx) !== undefined) out.grantTypes = asArray(grantsInput(ctx))
+  if (r.input('tokenEndpointAuthMethod') !== undefined)
+    out.tokenEndpointAuthMethod = r.input('tokenEndpointAuthMethod') as TokenEndpointAuthMethod
+  if (r.input('backchannelLogoutUri') !== undefined)
+    out.backchannelLogoutUri = (r.input('backchannelLogoutUri') as string | undefined)?.trim() || undefined
+  if (r.input('backchannelLogoutSessionRequired') !== undefined)
+    out.backchannelLogoutSessionRequired =
+      r.input('backchannelLogoutSessionRequired') === true ||
+      r.input('backchannelLogoutSessionRequired') === 'true'
+  return out
 }
 
 /**
@@ -73,7 +98,7 @@ export default class ApiClientsController {
     const id = ctx.request.param('id')
     const existing = await svc.find(id)
     if (!existing) return ctx.response.notFound(apiError('not_found', 'Client não encontrado.'))
-    await svc.update(id, readInput(ctx))
+    await svc.update(id, readPartialInput(ctx))
     await service.config.audit?.record({
       type: 'client.updated',
       clientId: id,

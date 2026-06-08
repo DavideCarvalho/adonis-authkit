@@ -545,3 +545,28 @@ export interface AccountOrgInvitationsResult {
     createdAt: string
   }>
 }
+
+// ---------------------------------------------------------------------------
+// Admin — Key rotation (JWKS signing keys)
+// ---------------------------------------------------------------------------
+
+/** Status da chave de assinatura managed (GET {base}/keys). */
+export interface KeysStatus {
+  ageDays: number
+  policy: { enabled: boolean; maxAgeDays: number; keep: number }
+  nextRotationInDays: number | null
+}
+
+/** Body de POST {base}/keys/rotate. */
+export interface KeysRotateInput {
+  retire?: boolean
+  keep?: number
+}
+
+/** Resultado de uma rotação. */
+export interface KeysRotateResult {
+  rotated: true
+  newKid: string
+  retiredKids: string[]
+  keptKids: string[]
+}

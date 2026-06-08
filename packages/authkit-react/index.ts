@@ -83,6 +83,8 @@ export { OrganizationSwitcher } from './src/components/organization_switcher.js'
 export type { OrganizationSwitcherProps } from './src/components/organization_switcher.js'
 export { OrganizationProfile } from './src/components/organization_profile.js'
 export type { OrganizationProfileProps } from './src/components/organization_profile.js'
+export { KeyRotation } from './src/components/key_rotation.js'
+export type { KeyRotationProps } from './src/components/key_rotation.js'
 
 // helpers de papéis (puros)
 export {
@@ -181,6 +183,10 @@ export type {
   AccountOrgDetail,
   AccountOrgInvitationsResult,
   ApiErrorBody,
+  // Admin – Keys
+  KeysStatus,
+  KeysRotateInput,
+  KeysRotateResult,
 } from './src/client/types.js'
 
 // ─── Provider do client ───────────────────────────────────────────────────────
@@ -243,6 +249,9 @@ export {
   useRemoveSettingMutationOptions,
   // Impersonation
   useImpersonationQueryOptions,
+  // Keys
+  useKeysQueryOptions,
+  useRotateKeysMutationOptions,
 } from './src/queries/admin/index.js'
 
 // ─── Hooks TanStack Query — Account ──────────────────────────────────────────

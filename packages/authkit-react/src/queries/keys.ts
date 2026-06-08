@@ -45,6 +45,8 @@ export const authkitKeys = {
         : (['authkit', 'admin', 'settings'] as const),
 
     impersonation: (userId: string) => ['authkit', 'admin', 'impersonation', userId] as const,
+
+    keys: () => ['authkit', 'admin', 'keys'] as const,
   },
 
   account: {

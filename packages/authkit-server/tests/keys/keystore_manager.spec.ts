@@ -6,7 +6,7 @@ import { KeystoreManager } from '../../src/keys/keystore_manager.js'
 import { KeystoreCodec } from '../../src/keys/keystore_codec.js'
 import type { KeystoreVault } from '../../src/keys/keystore_vault.js'
 import { resolveKeystoreVault } from '../../src/keys/keystore_manager.js'
-import { FileKeystoreVault, DriveKeystoreVault, LucidKeystoreVault, RedisKeystoreVault } from '../../src/keys/keystore_vault.js'
+import { FileKeystoreVault, DriveKeystoreVault, LucidKeystoreVault, RedisKeystoreVault, HashicorpVaultKeystoreVault } from '../../src/keys/keystore_vault.js'
 import { __setEncryptionServiceForTests } from '../../src/keys/keystore_crypto.js'
 import { signingKeyAgeDays } from '../../src/keys/keystore.js'
 
@@ -84,6 +84,9 @@ test.group('resolveKeystoreVault', () => {
   })
   test('{driver:redis} → RedisKeystoreVault', ({ assert }) => {
     assert.instanceOf(resolveKeystoreVault({ driver: 'redis' }, ctx), RedisKeystoreVault)
+  })
+  test('{driver:hashicorp-vault} → HashicorpVaultKeystoreVault', ({ assert }) => {
+    assert.instanceOf(resolveKeystoreVault({ driver: 'hashicorp-vault', endpoint: 'http://v', path: 'p' } as any, ctx), HashicorpVaultKeystoreVault)
   })
   test('driver de cloud → erro "ainda não disponível"', ({ assert }) => {
     assert.throws(

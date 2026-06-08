@@ -243,7 +243,7 @@ export default class AuthInteractionController {
     // ligado precisamos exigir o 2º fator e NÃO podemos chamar interactionFinished
     // ainda. A sequência verificação + lockout + auditoria de falha é centralizada
     // em attemptPasswordLogin; a renderização (lookup p/ personalização) fica aqui.
-    const result = await attemptPasswordLogin(cfg, { email, password, ip, clientId, settings: runtimeSettings })
+    const result = await attemptPasswordLogin(cfg, { email, password, ip, clientId, settings: runtimeSettings, logger: ctx.logger })
 
     if (!result.ok) {
       // Senha expirada: redireciona para o step de troca obrigatória.
@@ -440,7 +440,7 @@ export default class AuthInteractionController {
     // Resolve OTP lockout settings (fail-safe).
     const runtimeForOtp = await getRuntimeSettings(ctx)
     const otpLockoutCfg = await resolveEffectiveOtpLockout(runtimeForOtp)
-    const otpLockout = createOtpLockout(otpLockoutCfg)
+    const otpLockout = createOtpLockout(otpLockoutCfg, ctx.logger)
 
     // Verifica se o fator OTP está travado ANTES de tentar verificar.
     if (otpLockoutCfg.enabled && await otpLockout.isLocked(accountId)) {
@@ -1106,7 +1106,7 @@ export default class AuthInteractionController {
       // Token válido: zera o lock OTP + limpa o token do DB.
       const runtimeForOtp = await getRuntimeSettings(ctx)
       const otpLockoutCfg = await resolveEffectiveOtpLockout(runtimeForOtp)
-      const otpLockout = createOtpLockout(otpLockoutCfg)
+      const otpLockout = createOtpLockout(otpLockoutCfg, ctx.logger)
       await otpLockout.unlock(row.id)
 
       row.passwordResetToken = null

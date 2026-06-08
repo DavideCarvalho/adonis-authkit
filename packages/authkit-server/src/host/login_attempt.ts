@@ -111,12 +111,15 @@ export async function isPasswordExpired(
  * @param audit - AuditSink. Quando ausente ou sem `list`, retorna false.
  * @param accountId - ID da conta a verificar.
  * @param settings - SettingsCapability para ler a setting `account_expiration`.
+ * @param logger - logger mínimo opcional. Quando presente, registra falhas de DB
+ *   no caminho fail-safe (sem ele, o erro continua silencioso por compat).
  * @returns true se a conta está expirada e o login deve ser bloqueado.
  */
 export async function isAccountExpired(
   audit: AuditSink | null | undefined,
   accountId: string,
-  settings: SettingsCapability
+  settings: SettingsCapability,
+  logger?: LoginAttemptLogger
 ): Promise<boolean> {
   const expiration = await resolveEffectiveAccountExpiration(settings)
   if (!expiration.enabled) return false
@@ -137,10 +140,20 @@ export async function isAccountExpired(
     if (!Number.isFinite(lastMs)) return false
     const cutoffMs = Date.now() - expiration.inactiveDays * 24 * 60 * 60 * 1000
     return lastMs < cutoffMs
-  } catch {
-    // Fail-safe: erro de DB → não bloqueia.
+  } catch (err) {
+    // Fail-safe: erro de DB → não bloqueia. Loga: enquanto a query de audit estiver
+    // quebrada, a expiração por inatividade não é aplicada (admin precisa saber).
+    logger?.warn(
+      { err, accountId },
+      'authkit: account-expiration check failed (audit query error) — not blocking login (fail-safe); inactivity enforcement is disabled until the audit store recovers.'
+    )
     return false
   }
+}
+
+/** Logger mínimo (subconjunto do logger do AdonisJS) para o caminho fail-safe. */
+export interface LoginAttemptLogger {
+  warn(obj: unknown, msg?: string): void
 }
 
 /** Entrada de uma tentativa de login por senha (keyed por email). */
@@ -159,6 +172,11 @@ export interface PasswordLoginInput {
    * Quando ausente, faz fallback ao valor de `cfg.login.requireVerifiedEmail`.
    */
   settings?: SettingsCapability
+  /**
+   * Logger mínimo opcional. Repassado aos caminhos fail-safe (ex.: checagem de
+   * expiração por inatividade) para que falhas de infra não fiquem silenciosas.
+   */
+  logger?: LoginAttemptLogger
 }
 
 /** Resultado de {@link attemptPasswordLogin}. */
@@ -254,7 +272,7 @@ export async function attemptPasswordLogin(
   // Capability-probed: sem audit.list ou sem setting → no-op.
   // Reativação: fluxo de reset de senha (link exibido pelo controller na mensagem).
   if (input.settings) {
-    const expired = await isAccountExpired(cfg.audit, account.id, input.settings)
+    const expired = await isAccountExpired(cfg.audit, account.id, input.settings, input.logger)
     if (expired) {
       await lockout.clearFailures(email)
       await cfg.audit?.record(

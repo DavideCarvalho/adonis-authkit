@@ -550,11 +550,21 @@ export interface AccountOrgInvitationsResult {
 // Admin — Key rotation (JWKS signing keys)
 // ---------------------------------------------------------------------------
 
+/** Info pública de uma chave de assinatura managed (sem material privado). */
+export interface ManagedKeyInfo {
+  kid: string
+  alg: string
+  ageDays: number
+  /** true para a chave de assinatura corrente. */
+  active: boolean
+}
+
 /** Status da chave de assinatura managed (GET {base}/keys). */
 export interface KeysStatus {
   ageDays: number
   policy: { enabled: boolean; maxAgeDays: number; keep: number }
   nextRotationInDays: number | null
+  keys: ManagedKeyInfo[]
 }
 
 /** Body de POST {base}/keys/rotate. */

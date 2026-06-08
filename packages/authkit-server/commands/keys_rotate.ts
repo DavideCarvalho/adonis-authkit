@@ -84,7 +84,7 @@ export default class AuthkitKeysRotate extends BaseCommand {
     const keep = this.keep ?? 2
     const retire = this.retire ?? false
 
-    const vault = resolveKeystoreVault(store as any, (p) => this.app.makePath(p))
+    const vault = resolveKeystoreVault(store as any, { makePath: (p) => this.app.makePath(p), container: this.app.container })
     const encrypt = (jwksInput as any).encrypt ?? defaultEncryptForStore(store as any)
     const enc = encrypt ? await loadEncryptionService() : undefined
     const manager = new KeystoreManager(vault, new KeystoreCodec({ encrypt, enc }), alg)

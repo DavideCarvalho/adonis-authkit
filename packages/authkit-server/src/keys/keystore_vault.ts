@@ -50,6 +50,88 @@ export function __setKeystoreDriveLoaderForTests(fn: (() => Promise<DriveService
 }
 
 /**
+ * Cofre numa tabela Lucid dedicada (`authkit_keystore`, KV de uma linha). Compartilhado
+ * entre instâncias (multi-instância nativo). Auto-cria a tabela no primeiro write — o
+ * keystore carrega na resolução do config, ANTES do `start()` (onde o schema auto-manage
+ * roda), então o vault não pode depender dela existir. `getConn` é lazy. `head()` = updated_at.
+ */
+export class LucidKeystoreVault implements KeystoreVault {
+  constructor(
+    private getConn: () => Promise<any>,
+    private table = 'authkit_keystore',
+    private key = 'jwks'
+  ) {}
+
+  private async ensureTable(conn: any): Promise<void> {
+    if (await conn.schema.hasTable(this.table)) return
+    try {
+      await conn.schema.createTable(this.table, (t: any) => {
+        t.string('key').notNullable().primary()
+        t.text('blob').notNullable()
+        t.bigInteger('updated_at').notNullable()
+      })
+    } catch (err) {
+      // Outra instância criou a tabela entre o hasTable e o createTable (race no boot
+      // multi-instância). Se já existe agora, OK; senão propaga.
+      if (!(await conn.schema.hasTable(this.table))) throw err
+    }
+  }
+
+  async read(): Promise<string | null> {
+    const conn = await this.getConn()
+    if (!(await conn.schema.hasTable(this.table))) return null
+    const row = await conn.from(this.table).where('key', this.key).first()
+    return row ? (row.blob as string) : null
+  }
+
+  async write(blob: string): Promise<void> {
+    const conn = await this.getConn()
+    await this.ensureTable(conn)
+    await conn
+      .table(this.table)
+      .insert({ key: this.key, blob, updated_at: Date.now() })
+      .onConflict('key')
+      .merge()
+  }
+
+  async head(): Promise<string | null> {
+    const conn = await this.getConn()
+    if (!(await conn.schema.hasTable(this.table))) return null
+    const row = await conn.from(this.table).where('key', this.key).first()
+    return row ? String(row.updated_at) : null
+  }
+}
+
+/**
+ * Cofre numa key do Redis. Compartilhado entre instâncias (multi-instância nativo).
+ * `getClient` é lazy. `head()` devolve o próprio blob (redis get é barato).
+ *
+ * ⚠️ Requer Redis com PERSISTÊNCIA (RDB/AOF): num Redis cache-only, um flush apaga o
+ * keystore → todos os tokens invalidam. (Há um warning no boot quando o driver é redis.)
+ */
+export class RedisKeystoreVault implements KeystoreVault {
+  constructor(
+    private getClient: () => Promise<any>,
+    private key = 'authkit:jwks'
+  ) {}
+
+  async read(): Promise<string | null> {
+    const client = await this.getClient()
+    return (await client.get(this.key)) ?? null
+  }
+
+  async write(blob: string): Promise<void> {
+    const client = await this.getClient()
+    await client.set(this.key, blob)
+  }
+
+  async head(): Promise<string | null> {
+    const client = await this.getClient()
+    return (await client.get(this.key)) ?? null
+  }
+}
+
+/**
  * Cofre num disk do `@adonisjs/drive` (S3/GCS/local). Diferente do avatar, chave é
  * crítica: se o drive não está instalado mas foi selecionado → ERRO (não degrada).
  */

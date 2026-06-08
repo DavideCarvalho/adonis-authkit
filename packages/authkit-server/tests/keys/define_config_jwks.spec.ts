@@ -22,3 +22,10 @@ test.group('default de encrypt backend-aware', () => {
     assert.isFalse(defaultEncryptForStore({ driver: 'aws-secrets-manager', secretId: 's' } as any))
   })
 })
+
+test.group('default de encrypt — lucid/redis', () => {
+  test('lucid/redis → ON (blobs burros)', ({ assert }) => {
+    assert.isTrue(defaultEncryptForStore({ driver: 'lucid' } as any))
+    assert.isTrue(defaultEncryptForStore({ driver: 'redis' } as any))
+  })
+})

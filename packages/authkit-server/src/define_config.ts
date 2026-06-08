@@ -947,12 +947,14 @@ export function toSeconds(value: string | number | undefined, fallback: number):
 }
 
 /**
- * Default backend-aware de encryption: file/drive ON; vaults reais OFF.
- * Evita gravar chaves privadas em texto claro em disco sem configuração extra.
+ * Default backend-aware de encryption: file/drive/lucid/redis ON; vaults reais OFF.
+ * Evita gravar chaves privadas em texto claro em stores que não gerenciam segredos
+ * (blobs burros). Vaults reais (aws-secrets-manager, etc.) cuidam da criptografia
+ * internamente — encrypt OFF para não duplo-encriptar.
  */
 export function defaultEncryptForStore(store: KeystoreStoreConfig): boolean {
   if (typeof store === 'string') return true
-  return store.driver === 'file' || store.driver === 'drive'
+  return ['file', 'drive', 'lucid', 'redis'].includes((store as any).driver)
 }
 
 /**
@@ -990,11 +992,23 @@ export function defineConfig(config: AuthServerConfigInput) {
       }
     }
 
+    const storeCfg = (jwksConfig as { store?: any }).store
+    if (jwksConfig.source === 'managed' && storeCfg && typeof storeCfg === 'object' && storeCfg.driver === 'redis') {
+      await app.container
+        .make('logger')
+        .then((l: any) =>
+          l?.warn(
+            'AuthKit: keystore no driver "redis" — garanta PERSISTÊNCIA (RDB/AOF). Num Redis cache-only, um flush apaga o keystore e invalida todos os tokens.'
+          )
+        )
+        .catch(() => {})
+    }
+
     let jwks: { keys: Record<string, any>[] }
     if (jwksConfig.source === 'managed') {
       const alg = jwksConfig.algorithm ?? 'RS256'
       if (jwksConfig.store) {
-        const vault = resolveKeystoreVault(jwksConfig.store as any, (p) => app.makePath(p))
+        const vault = resolveKeystoreVault(jwksConfig.store as any, { makePath: (p) => app.makePath(p), container: app.container })
         const encrypt = jwksConfig.encrypt ?? defaultEncryptForStore(jwksConfig.store as any)
         const enc = encrypt ? await loadEncryptionService() : undefined
         const manager = new KeystoreManager(vault, new KeystoreCodec({ encrypt, enc }), alg)

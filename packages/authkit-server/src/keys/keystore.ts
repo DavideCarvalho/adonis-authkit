@@ -40,6 +40,27 @@ export function signingKeyAgeDays(store: PersistedKeystore | null): number | nul
   return Math.max(0, Math.floor((Date.now() / 1000 - iat) / 86400))
 }
 
+/** Info pública de uma chave managed para o painel admin (sem material privado). */
+export interface ManagedKeyInfo {
+  kid: string
+  alg: string
+  ageDays: number
+  /** true para a chave de assinatura corrente (a primeira do keystore). */
+  active: boolean
+}
+
+/** Mapeia o keystore privado para infos públicas (kid/alg/idade/ativa). Vazio se null. */
+export function listKeyInfos(store: PersistedKeystore | null): ManagedKeyInfo[] {
+  const keys = store?.keys ?? []
+  const now = Date.now() / 1000
+  return keys.map((k, i) => ({
+    kid: k.kid as string,
+    alg: (k.alg as string) ?? 'RS256',
+    ageDays: typeof k.iat === 'number' ? Math.max(0, Math.floor((now - k.iat) / 86400)) : 0,
+    active: i === 0,
+  }))
+}
+
 /** Plano de uma rotação — o que SERIA feito (dry-run) sem tocar disco. */
 export interface RotationPlan {
   /** kid da chave de assinatura corrente (será deslocada para verificação), ou null. */

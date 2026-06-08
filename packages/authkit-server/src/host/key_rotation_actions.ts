@@ -1,5 +1,6 @@
 import { resolveEffectiveKeyRotation, type ResolvedKeyRotationSetting } from './key_rotation.js'
 import type { SettingsCapability } from './runtime_settings.js'
+import type { ManagedKeyInfo } from '../keys/keystore.js'
 
 /**
  * Ações compartilhadas de rotação de chave. Funções puras-ish que tanto a Admin
@@ -11,6 +12,7 @@ export interface KeysStatus {
   ageDays: number
   policy: ResolvedKeyRotationSetting
   nextRotationInDays: number | null
+  keys: ManagedKeyInfo[]
 }
 
 /**
@@ -19,7 +21,10 @@ export interface KeysStatus {
  * A política vem do runtime settings; sem settings, usa defaults (rotação off).
  */
 export async function buildKeysStatus(
-  svc: { keystoreAgeDays(): Promise<number | null> },
+  svc: {
+    keystoreAgeDays(): Promise<number | null>
+    listManagedKeys(): Promise<ManagedKeyInfo[]>
+  },
   settings: SettingsCapability | null
 ): Promise<KeysStatus | null> {
   const ageDays = await svc.keystoreAgeDays()
@@ -28,7 +33,8 @@ export async function buildKeysStatus(
     ? await resolveEffectiveKeyRotation(settings)
     : { enabled: false, maxAgeDays: 90, keep: 2 }
   const nextRotationInDays = policy.enabled ? Math.max(0, policy.maxAgeDays - ageDays) : null
-  return { ageDays, policy, nextRotationInDays }
+  const keys = await svc.listManagedKeys()
+  return { ageDays, policy, nextRotationInDays, keys }
 }
 
 /**

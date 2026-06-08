@@ -1,7 +1,8 @@
 import { generateSigningJwk, planRotation, type PersistedKeystore, type RotationPlan } from './keystore.js'
 import type { KeystoreCodec } from './keystore_codec.js'
-import type { KeystoreVault } from './keystore_vault.js'
+import { FileKeystoreVault, DriveKeystoreVault, type KeystoreVault } from './keystore_vault.js'
 import type { SigningAlg } from './jwks_manager.js'
+import type { KeystoreStoreConfig } from '@dudousxd/adonis-authkit-core'
 
 /**
  * Único caminho de I/O do keystore managed: compõe um {@link KeystoreVault} (onde
@@ -58,5 +59,40 @@ export class KeystoreManager {
   async head(): Promise<string | null> {
     if (this.vault.head) return this.vault.head()
     return this.vault.read()
+  }
+}
+
+/** Packages-irmãos que entregam os cofres de cloud (planos futuros). */
+const CLOUD_DRIVER_PACKAGE: Record<string, string> = {
+  'hashicorp-vault': '@dudousxd/adonis-authkit-vault-hashicorp',
+  'aws-secrets-manager': '@dudousxd/adonis-authkit-vault-aws',
+  'gcp-secret-manager': '@dudousxd/adonis-authkit-vault-gcp',
+  'azure-key-vault': '@dudousxd/adonis-authkit-vault-azure',
+}
+
+/**
+ * Resolve a config `store` num {@link KeystoreVault}. `makePath` = `app.makePath`
+ * (resolve paths relativos à raiz do app). Instância custom (com `read`/`write`)
+ * passa direto. Drivers de cloud lançam nesta fatia (chegam nos packages-irmãos).
+ */
+export function resolveKeystoreVault(
+  store: KeystoreStoreConfig | KeystoreVault,
+  makePath: (p: string) => string
+): KeystoreVault {
+  if (typeof store === 'string') return new FileKeystoreVault(makePath(store))
+  if (typeof (store as KeystoreVault).read === 'function') return store as KeystoreVault
+  const cfg = store as Exclude<KeystoreStoreConfig, string>
+  switch (cfg.driver) {
+    case 'file':
+      return new FileKeystoreVault(makePath(cfg.path))
+    case 'drive':
+      return new DriveKeystoreVault(cfg.key, cfg.disk)
+    default: {
+      const pkg = CLOUD_DRIVER_PACKAGE[(cfg as any).driver]
+      throw new Error(
+        `AuthKit keystore: driver "${(cfg as any).driver}" requer o package ${pkg ?? '(desconhecido)'} ` +
+          `(ainda não disponível nesta versão).`
+      )
+    }
   }
 }

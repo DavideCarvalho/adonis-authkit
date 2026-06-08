@@ -981,8 +981,9 @@ export function defineConfig(config: AuthServerConfigInput) {
     let jwks: { keys: Record<string, any>[] }
     if (jwksConfig.source === 'managed') {
       const alg = jwksConfig.algorithm ?? 'RS256'
-      if (jwksConfig.store) {
+      if (typeof jwksConfig.store === 'string') {
         // keystore persistido em arquivo: chaves sobrevivem a restarts + rotacionáveis.
+        // TODO(T9): substituir por resolveKeystoreVault para suportar todos os drivers.
         const storePath = app.makePath(jwksConfig.store)
         const store = await ensureKeystore(storePath, alg)
         // Remove o metadado interno `iat` (idade da chave) antes de entregar ao

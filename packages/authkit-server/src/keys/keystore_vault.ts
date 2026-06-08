@@ -200,6 +200,50 @@ export class HashicorpVaultKeystoreVault implements KeystoreVault {
   }
 }
 
+type ExternalImport = (spec: string) => Promise<any>
+
+/**
+ * Proxy que lazy-importa um package de cofre externo (aws/gcp/azure secrets managers)
+ * no PRIMEIRO I/O e delega. Mantém `resolveKeystoreVault` síncrono. O package precisa
+ * exportar `createKeystoreVault(cfg): KeystoreVault`. Se não estiver instalado → erro
+ * claro pedindo pra instalar (chave é crítica, não degrada).
+ */
+export class LazyExternalVault implements KeystoreVault {
+  #inner?: KeystoreVault
+  constructor(
+    private pkg: string,
+    private cfg: any,
+    private importFn: ExternalImport = (spec) => import(spec)
+  ) {}
+
+  async #resolve(): Promise<KeystoreVault> {
+    if (this.#inner) return this.#inner
+    let mod: any
+    try {
+      mod = await this.importFn(this.pkg)
+    } catch {
+      throw new Error(`AuthKit keystore: instale o package ${this.pkg} para usar este driver.`)
+    }
+    const factory = mod?.createKeystoreVault ?? mod?.default?.createKeystoreVault
+    if (typeof factory !== 'function') {
+      throw new Error(`AuthKit keystore: ${this.pkg} não exporta createKeystoreVault.`)
+    }
+    this.#inner = factory(this.cfg) as KeystoreVault
+    return this.#inner!
+  }
+
+  async read(): Promise<string | null> {
+    return (await this.#resolve()).read()
+  }
+  async write(blob: string): Promise<void> {
+    return (await this.#resolve()).write(blob)
+  }
+  async head(): Promise<string | null> {
+    const v = await this.#resolve()
+    return v.head ? v.head() : null
+  }
+}
+
 /**
  * Cofre num disk do `@adonisjs/drive` (S3/GCS/local). Diferente do avatar, chave é
  * crítica: se o drive não está instalado mas foi selecionado → ERRO (não degrada).

@@ -6,7 +6,7 @@ import { KeystoreManager } from '../../src/keys/keystore_manager.js'
 import { KeystoreCodec } from '../../src/keys/keystore_codec.js'
 import type { KeystoreVault } from '../../src/keys/keystore_vault.js'
 import { resolveKeystoreVault } from '../../src/keys/keystore_manager.js'
-import { FileKeystoreVault, DriveKeystoreVault, LucidKeystoreVault, RedisKeystoreVault, HashicorpVaultKeystoreVault } from '../../src/keys/keystore_vault.js'
+import { FileKeystoreVault, DriveKeystoreVault, LucidKeystoreVault, RedisKeystoreVault, HashicorpVaultKeystoreVault, LazyExternalVault } from '../../src/keys/keystore_vault.js'
 import { __setEncryptionServiceForTests } from '../../src/keys/keystore_crypto.js'
 import { signingKeyAgeDays } from '../../src/keys/keystore.js'
 
@@ -88,11 +88,8 @@ test.group('resolveKeystoreVault', () => {
   test('{driver:hashicorp-vault} → HashicorpVaultKeystoreVault', ({ assert }) => {
     assert.instanceOf(resolveKeystoreVault({ driver: 'hashicorp-vault', endpoint: 'http://v', path: 'p' } as any, ctx), HashicorpVaultKeystoreVault)
   })
-  test('driver de cloud → erro "ainda não disponível"', ({ assert }) => {
-    assert.throws(
-      () => resolveKeystoreVault({ driver: 'aws-secrets-manager', secretId: 's' } as any, ctx),
-      /aws-secrets-manager|vault-aws/
-    )
+  test('{driver:aws-secrets-manager} → LazyExternalVault (lazy-load do package)', ({ assert }) => {
+    assert.instanceOf(resolveKeystoreVault({ driver: 'aws-secrets-manager', secretId: 's' } as any, ctx), LazyExternalVault)
   })
 })
 

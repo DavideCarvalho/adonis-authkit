@@ -5,6 +5,7 @@ import { RuntimeException } from '@adonisjs/core/exceptions'
 import type { ApplicationService } from '@adonisjs/core/types'
 import type { MetricsRecorder } from '@dudousxd/adonis-authkit-core'
 import { OidcService } from '../src/provider/oidc_service.js'
+import { KeystoreReloadPoller } from '../src/provider/keystore_reload.js'
 import { defaultEncryptForStore, type ResolvedServerConfig } from '../src/define_config.js'
 import { resolveKeystoreVault, KeystoreManager } from '../src/keys/keystore_manager.js'
 import { KeystoreCodec } from '../src/keys/keystore_codec.js'
@@ -196,5 +197,32 @@ export default class AuthkitServerProvider {
           'run ensureAuthkitSchema() in a migration or fix DB connectivity'
       )
     }
+
+    await this.#startKeystoreReloadPoll()
+  }
+
+  /**
+   * Inicia o poll de reload do keystore: a cada intervalo lê um `head` barato do
+   * cofre e dispara `reloadKeys()` quando ele muda, propagando rotações feitas
+   * por outro processo (`authkit:keys:rotate`) ou instância sem restart. Só roda
+   * no ambiente `web` (evita pollers em comandos ace/testes) e só quando o
+   * OidcService de fato tem um `keystoreHead` (managed + store). Fail-safe:
+   * qualquer erro vira no-op (logado como warning); `unref()` impede o timer de
+   * manter o processo vivo.
+   */
+  async #startKeystoreReloadPoll() {
+    if (this.app.getEnvironment() !== 'web') return
+    const svc = await this.app.container.make('authkit.server').catch(() => null)
+    const headFn = svc?.keystoreHead
+    if (!svc || !headFn) return
+
+    const logger = await this.app.container.make('logger').catch(() => null)
+    const poller = new KeystoreReloadPoller({
+      head: () => headFn(),
+      reload: () => svc.reloadKeys(),
+      intervalMs: 60_000,
+      onError: (err) => logger?.warn({ err }, 'authkit: keystore reload poll falhou (fail-safe)'),
+    })
+    poller.start()
   }
 }

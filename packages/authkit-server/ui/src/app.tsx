@@ -9,6 +9,7 @@ import { Clients } from './pages/Clients'
 import { Roles } from './pages/Roles'
 import { Orgs } from './pages/Orgs'
 import { Audit } from './pages/Audit'
+import { Keys } from './pages/Keys'
 import { Settings } from './pages/Settings'
 
 const PAGE_TITLES: Record<string, string> = {
@@ -19,6 +20,7 @@ const PAGE_TITLES: Record<string, string> = {
   roles: 'Roles',
   orgs: 'Organizations',
   audit: 'Audit Log',
+  keys: 'Signing Keys',
   settings: 'Settings',
 }
 
@@ -33,6 +35,7 @@ function PageContent() {
     case 'roles': return <Roles />
     case 'orgs': return <Orgs />
     case 'audit': return <Audit />
+    case 'keys': return <Keys />
     case 'settings': return <Settings />
     default: return <Overview />
   }

@@ -152,11 +152,9 @@ in `config/authkit.ts`. There are three modes, and the right one depends on how 
 want to customise.
 
 <Callout type="info">
-  **Flow screens vs. admin console.** The `render` hook only affects the authentication
-  flow screens (login, signup, consent, account, MFA, etc.). The **admin console** is a
-  separate React SPA that ships pre-built inside the package — it does not use the render
-  hook and does not need any pages in your project. See [Admin Console](/docs/admin-console)
-  for those options.
+  The robust key is the `clientId`, exposed on `brand.clientId` (the host's
+  `brandFor()` includes it). Switch on `REGISTRY[brand.clientId]` directly and
+  keep an `appName` match only as a fallback.
 </Callout>
 
 ### Default (zero setup): Edge views

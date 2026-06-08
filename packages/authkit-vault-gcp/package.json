@@ -1,0 +1,58 @@
+{
+  "name": "@dudousxd/adonis-authkit-vault-gcp",
+  "version": "0.1.0",
+  "description": "GCP Secret Manager keystore vault for the AuthKit JWKS keystore (createKeystoreVault).",
+  "license": "MIT",
+  "author": "dudousxd",
+  "homepage": "https://github.com/DavideCarvalho/adonis-authkit/tree/main/packages/authkit-vault-gcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DavideCarvalho/adonis-authkit.git",
+    "directory": "packages/authkit-vault-gcp"
+  },
+  "bugs": {
+    "url": "https://github.com/DavideCarvalho/adonis-authkit/issues"
+  },
+  "keywords": [
+    "adonisjs",
+    "authkit",
+    "keystore",
+    "jwks",
+    "gcp",
+    "secret-manager"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "./build/index.js",
+  "types": "./build/index.d.ts",
+  "files": [
+    "build"
+  ],
+  "exports": {
+    ".": "./build/index.js",
+    "./types": "./build/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import=@poppinss/ts-exec bin/test.ts"
+  },
+  "peerDependencies": {
+    "@google-cloud/secret-manager": ">=5"
+  },
+  "peerDependenciesMeta": {
+    "@google-cloud/secret-manager": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@adonisjs/tsconfig": "catalog:adonis",
+    "@japa/assert": "catalog:",
+    "@japa/runner": "catalog:",
+    "@poppinss/ts-exec": "catalog:",
+    "@types/node": "catalog:adonis",
+    "typescript": "catalog:frontend"
+  }
+}

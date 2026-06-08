@@ -45,6 +45,7 @@ export const SETTING_KEYS = {
   OTP_LOCKOUT: 'otp_lockout',
   SUDO_MODE: 'sudo_mode',
   ACCOUNT_EXPIRATION: 'account_expiration',
+  KEY_ROTATION: 'key_rotation',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]

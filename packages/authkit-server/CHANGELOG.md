@@ -1,5 +1,48 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.29.0
+
+### Minor Changes
+
+- a39352e: feat: drivers de cofre cloud do keystore JWKS via packages externos. O driver
+  `{ driver: 'aws-secrets-manager' | 'gcp-secret-manager' | 'azure-key-vault' }` agora
+  resolve para um `LazyExternalVault` que carrega o package dedicado no primeiro I/O
+  (erro claro pedindo pra instalar se ausente). HashiCorp já está em core.
+- 6fe2aa7: feat: rotação automática de chaves JWKS (age-based) + política + endpoints + SDK.
+
+  Nova setting `key_rotation` (`{enabled,maxAgeDays,keep}`, default OFF). Um scheduler
+  de housekeeping (web-only, fail-safe) rotaciona a chave quando ela passa de
+  `maxAgeDays` e aplica AO VIVO (sem restart, via `reloadKeys` da Fatia C), com
+  single-flight via `@adonisjs/lock` (peer opcional; sem ele assume single-instance).
+  `OidcService` ganha `rotateKeys()`/`keystoreAgeDays()` (rotate+reload serializados).
+
+  Dois tiers de endpoint admin para status + "rotacionar agora":
+  - **REST API** `GET/POST /api/authkit/v1/keys` (Bearer key) — para backend/automação;
+  - **Console API** `GET/POST {adminPrefix}/api/keys` (sessão + role admin) — para o browser.
+
+  `@dudousxd/adonis-authkit-sdk` expõe `authkit.keys.status()` / `authkit.keys.rotate()`
+  (drivers remote + embedded). `@adonisjs/lock` é peer OPCIONAL.
+
+  Default OFF: nada rotaciona automaticamente até um admin habilitar `key_rotation`.
+
+- 93eaf69: feat: cofre do keystore JWKS no HashiCorp Vault (KV v2). Novo driver
+  `{ driver: 'hashicorp-vault', endpoint, path, token?, mount?, field? }` — usa a API
+  HTTP do Vault (sem SDK), então mora em core como file/drive/lucid/redis. Encryption
+  at-rest fica OFF por default (o Vault tem cifra/ACL próprios; ligável p/ envelope).
+- e2582b8: feat: cofres do keystore JWKS em Lucid e Redis. Novos drivers `jwks.store`:
+  `{ driver: 'lucid' }` (tabela dedicada `authkit_keystore`, auto-criada) e
+  `{ driver: 'redis' }` (uma key). Diferente de `file`, ambos são COMPARTILHADOS entre
+  instâncias — o melhor default para multi-instância + hot-reload (o poll lê um `head`
+  barato). Encryption at-rest (APP_KEY) ON por default nos dois. Warning no boot quando
+  `redis` é usado (exige persistência RDB/AOF). `resolveKeystoreVault` agora recebe um
+  contexto com acesso ao container (mudança de assinatura interna).
+
+### Patch Changes
+
+- Updated dependencies [93eaf69]
+- Updated dependencies [e2582b8]
+  - @dudousxd/adonis-authkit-core@0.6.0
+
 ## 0.28.0
 
 ### Minor Changes

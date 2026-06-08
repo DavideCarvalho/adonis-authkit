@@ -1,5 +1,21 @@
 # @dudousxd/adonis-authkit-core
 
+## 0.6.0
+
+### Minor Changes
+
+- 93eaf69: feat: cofre do keystore JWKS no HashiCorp Vault (KV v2). Novo driver
+  `{ driver: 'hashicorp-vault', endpoint, path, token?, mount?, field? }` — usa a API
+  HTTP do Vault (sem SDK), então mora em core como file/drive/lucid/redis. Encryption
+  at-rest fica OFF por default (o Vault tem cifra/ACL próprios; ligável p/ envelope).
+- e2582b8: feat: cofres do keystore JWKS em Lucid e Redis. Novos drivers `jwks.store`:
+  `{ driver: 'lucid' }` (tabela dedicada `authkit_keystore`, auto-criada) e
+  `{ driver: 'redis' }` (uma key). Diferente de `file`, ambos são COMPARTILHADOS entre
+  instâncias — o melhor default para multi-instância + hot-reload (o poll lê um `head`
+  barato). Encryption at-rest (APP_KEY) ON por default nos dois. Warning no boot quando
+  `redis` é usado (exige persistência RDB/AOF). `resolveKeystoreVault` agora recebe um
+  contexto com acesso ao container (mudança de assinatura interna).
+
 ## 0.5.0
 
 ### Minor Changes

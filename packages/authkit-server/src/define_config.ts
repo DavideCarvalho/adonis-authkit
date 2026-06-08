@@ -29,6 +29,7 @@ import {
   type ResolvedBotProtectionConfig,
 } from './host/bot_protection.js'
 import type { ResolveGeo } from './host/geo.js'
+import { deriveLockedSettingKeys } from './host/config_locks.js'
 
 export { adapters }
 export type { AuthAccount }
@@ -576,10 +577,17 @@ export function resolveAdmin(input?: AdminConfigInput): ResolvedAdminConfig {
  * ligar uma sem a outra.
  */
 export interface AdminApiConfigInput {
-  /** Liga a Admin REST API (`/api/authkit/v1`). Default: false. */
-  enabled: boolean
-  /** API keys aceitas no header `Authorization: Bearer <key>`. */
-  apiKeys?: string[]
+  /**
+   * Liga a Admin REST API (`/api/authkit/v1`). Default: auto — ligada quando há
+   * ao menos uma apiKey resolvida (incl. via `'env'`). Passe `false` p/ forçar off.
+   */
+  enabled?: boolean
+  /**
+   * API keys aceitas em `Authorization: Bearer <key>`, OU `'env'` para ler de
+   * `AUTHKIT_ADMIN_API_KEY` (uma ou várias, separadas por vírgula). Elimina o
+   * spread condicional `...(env.get('AUTHKIT_ADMIN_API_KEY') ? {...} : {})`.
+   */
+  apiKeys?: string[] | 'env'
 }
 
 export interface ResolvedAdminApiConfig {
@@ -587,10 +595,20 @@ export interface ResolvedAdminApiConfig {
   apiKeys: string[]
 }
 
+/** Lê API keys de `AUTHKIT_ADMIN_API_KEY` (uma ou várias, separadas por vírgula). */
+function adminApiKeysFromEnv(): string[] {
+  return (process.env.AUTHKIT_ADMIN_API_KEY ?? '')
+    .split(',')
+    .map((key) => key.trim())
+    .filter(Boolean)
+}
+
 export function resolveAdminApi(input?: AdminApiConfigInput): ResolvedAdminApiConfig {
+  const apiKeys = input?.apiKeys === 'env' ? adminApiKeysFromEnv() : (input?.apiKeys ?? [])
   return {
-    enabled: input?.enabled ?? false,
-    apiKeys: input?.apiKeys ?? [],
+    // Default inteligente: liga quando há key resolvida (a menos que enabled:false explícito).
+    enabled: input?.enabled ?? apiKeys.length > 0,
+    apiKeys,
   }
 }
 
@@ -690,7 +708,14 @@ export interface AuthServerConfigInput {
    * @internal
    */
   clients?: ClientConfig[]
-  jwks: JwksConfig
+  /**
+   * Config de JWKS, ou `'auto'` (recomendado p/ deploys efêmeros): se a env
+   * `AUTHKIT_JWKS` (JSON `{"keys":[...]}`) estiver presente, usa-a inline
+   * (`source: 'jwks'`) — sobrevive a restarts/deploys; senão cai no managed
+   * persistido em arquivo (`tmp/authkit_jwks.json`) p/ dev. Elimina o ternário
+   * env-aware que todo app escrevia.
+   */
+  jwks: JwksConfig | 'auto'
   ttl?: TtlConfig
   /** Nome da CLAIM (não do scope) onde os papéis globais são emitidos. Default: 'roles'. */
   globalRolesClaim?: string
@@ -904,6 +929,8 @@ export interface ResolvedServerConfig {
   locale: string
   /** Gestão automática de schema resolvida (default ligada). */
   schema: { autoManage: boolean; connection?: string }
+  /** Keys de `auth_settings` travadas por terem sido definidas no defineConfig. */
+  lockedSettingKeys: string[]
 }
 
 const UNITS: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 }
@@ -920,12 +947,20 @@ export function defineConfig(config: AuthServerConfigInput) {
   return configProvider.create(async (app: ApplicationService): Promise<ResolvedServerConfig> => {
     const AdapterClass = await config.adapter.resolver(app)
 
+    // `jwks: 'auto'` → resolve env-aware: AUTHKIT_JWKS inline, senão managed em arquivo.
+    const jwksConfig: JwksConfig =
+      config.jwks === 'auto'
+        ? process.env.AUTHKIT_JWKS
+          ? { source: 'jwks', keys: JSON.parse(process.env.AUTHKIT_JWKS).keys }
+          : { source: 'managed', algorithm: 'RS256', store: 'tmp/authkit_jwks.json' }
+        : config.jwks
+
     let jwks: { keys: Record<string, any>[] }
-    if (config.jwks.source === 'managed') {
-      const alg = config.jwks.algorithm ?? 'RS256'
-      if (config.jwks.store) {
+    if (jwksConfig.source === 'managed') {
+      const alg = jwksConfig.algorithm ?? 'RS256'
+      if (jwksConfig.store) {
         // keystore persistido em arquivo: chaves sobrevivem a restarts + rotacionáveis.
-        const storePath = app.makePath(config.jwks.store)
+        const storePath = app.makePath(jwksConfig.store)
         const store = await ensureKeystore(storePath, alg)
         // Remove o metadado interno `iat` (idade da chave) antes de entregar ao
         // oidc-provider — não é membro JWK, fica só no arquivo do keystore.
@@ -935,15 +970,19 @@ export function defineConfig(config: AuthServerConfigInput) {
         jwks = await generateJwks(alg)
       }
     } else {
-      jwks = { keys: config.jwks.keys ?? [] }
+      jwks = { keys: jwksConfig.keys ?? [] }
     }
+
+    // #9: mfaIssuer efetivo — top-level do defineConfig vence; senão o do lucidAccountStore; senão default.
+    const effectiveMfaIssuer =
+      config.mfaIssuer ?? ((config.accountStore as any)?.__mfaIssuer as string | undefined) ?? 'AuthKit'
 
     return {
       issuer: config.issuer,
       AdapterClass,
       clients: config.clients ?? [],
       jwks: jwks as { keys: Record<string, any>[] },
-      jwksConfig: config.jwks,
+      jwksConfig,
       ttl: {
         accessToken: toSeconds(config.ttl?.accessToken, 900),
         refreshToken: toSeconds(config.ttl?.refreshToken, 2592000),
@@ -973,8 +1012,14 @@ export function defineConfig(config: AuthServerConfigInput) {
         const events = resolveEvents(config.events)
         return events ? composeAuditSink(config.audit, events) : config.audit
       })(),
-      mfaIssuer: config.mfaIssuer ?? 'AuthKit',
-      webauthn: resolveWebauthn(config.issuer, config.mfaIssuer ?? 'AuthKit', config.webauthn),
+      // #9: reusa mfaIssuer/webauthn declarados no lucidAccountStore quando o
+      // top-level não os fornece — consumidor declara UMA vez. Top-level ainda vence.
+      mfaIssuer: effectiveMfaIssuer,
+      webauthn: resolveWebauthn(
+        config.issuer,
+        effectiveMfaIssuer,
+        config.webauthn ?? ((config.accountStore as any)?.__webauthn as typeof config.webauthn)
+      ),
       dynamicRegistration: resolveDynamicRegistration(config.dynamicRegistration),
       deviceFlow: resolveDeviceFlow(config.deviceFlow),
       uploads: resolveUploads(config.uploads),
@@ -997,6 +1042,9 @@ export function defineConfig(config: AuthServerConfigInput) {
         autoManage: config.schema?.autoManage !== false,
         connection: config.schema?.connection,
       },
+      // Keys de auth_settings travadas porque foram definidas no defineConfig:
+      // config vence e a UI/Admin API não pode alterá-las (ver host/config_locks.ts).
+      lockedSettingKeys: deriveLockedSettingKeys(config as Record<string, any>),
     }
   })
 }

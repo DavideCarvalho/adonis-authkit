@@ -51,6 +51,8 @@
  * ```
  */
 
+import { isSettingLocked, SettingLockedError } from './config_locks.js'
+
 /** Uma entrada da tabela `auth_settings`. */
 export interface SettingRow {
   key: string
@@ -164,6 +166,10 @@ export class RuntimeSettings implements SettingsCapability {
   }
 
   async getSetting(key: string, orgId?: string | null): Promise<unknown | null> {
+    // Travada por defineConfig → comporta-se como ausente, então os resolvers caem
+    // no configDefault (= o valor do config). Config vence; a UI não pode sobrescrever.
+    if (isSettingLocked(key)) return null
+
     const ck = cacheKey(key, orgId ?? null)
     // Cache hit?
     const cached = this.cache.get(ck)
@@ -205,6 +211,8 @@ export class RuntimeSettings implements SettingsCapability {
   }
 
   async setSetting(key: string, value: unknown, updatedBy: string | null = null, orgId?: string | null): Promise<void> {
+    // Travada por defineConfig → recusa a escrita (write path da Admin API/console mapeia p/ 423).
+    if (isSettingLocked(key)) throw new SettingLockedError(key)
     if (!(await this.hasTable())) return
     const json = JSON.stringify(value)
     const resolvedOrgId = orgId ?? null
@@ -231,6 +239,7 @@ export class RuntimeSettings implements SettingsCapability {
   }
 
   async deleteSetting(key: string, orgId?: string | null): Promise<void> {
+    if (isSettingLocked(key)) throw new SettingLockedError(key)
     if (!(await this.hasTable())) return
     const resolvedOrgId = orgId ?? null
     try {

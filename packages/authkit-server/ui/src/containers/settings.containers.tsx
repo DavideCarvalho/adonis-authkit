@@ -86,6 +86,8 @@ export function SettingsSectionContainer({ section, onUnavailable }: SettingsSec
     },
   })
   const settings = data?.data ?? []
+  // Keys travadas via defineConfig — config vence e a edição pela UI fica bloqueada.
+  const lockedKeys: string[] = (data as { locked?: string[] } | undefined)?.locked ?? []
 
   // Sync local values when settings load
   useEffect(() => {
@@ -170,20 +172,42 @@ export function SettingsSectionContainer({ section, onUnavailable }: SettingsSec
               const fromDefault = isDefault(meta.key)
               const isDirty = dirtyKeys.has(meta.key)
               const isSaving = saving[meta.key]
+              // Travada via defineConfig: config manda, UI só leitura.
+              const locked = lockedKeys.includes(meta.key)
+              const lockedTitle = 'Definido via defineConfig() — gerenciado no código, não editável aqui'
 
               return (
-                <div key={meta.key} className="settings-row">
+                <div key={meta.key} className="settings-row" style={locked ? { opacity: 0.85 } : undefined}>
                   <div className="settings-info">
                     <div className="settings-key">
                       {meta.label}
-                      <span className="settings-badge">{fromDefault ? 'default' : 'custom'}</span>
-                      {isDirty && (
+                      {locked ? (
+                        <span
+                          className="settings-badge"
+                          title={lockedTitle}
+                          style={{ background: 'var(--accent-soft, rgba(99,102,241,0.12))', color: 'var(--accent, #6366f1)', borderColor: 'rgba(99,102,241,0.3)', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                        >
+                          <svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+                            <rect x="3" y="7" width="10" height="7" rx="1.5" />
+                            <path d="M5 7V5a3 3 0 016 0v2" strokeLinecap="round" />
+                          </svg>
+                          definido via config
+                        </span>
+                      ) : (
+                        <span className="settings-badge">{fromDefault ? 'default' : 'custom'}</span>
+                      )}
+                      {isDirty && !locked && (
                         <span className="settings-badge" style={{ background: 'var(--amber-soft)', color: 'var(--amber)', borderColor: 'rgba(255,180,84,0.3)' }}>
                           unsaved
                         </span>
                       )}
                     </div>
                     <div className="settings-desc">{meta.description}</div>
+                    {locked && (
+                      <div className="settings-desc" style={{ color: 'var(--accent, #6366f1)', marginTop: 2 }}>
+                        Travado no <code>defineConfig()</code>. Remova de lá para editar pela UI.
+                      </div>
+                    )}
                     <div style={{ fontSize: 10.5, color: 'var(--faint)', fontFamily: 'var(--mono)', marginTop: 2 }}>{meta.key}</div>
                   </div>
 
@@ -193,6 +217,7 @@ export function SettingsSectionContainer({ section, onUnavailable }: SettingsSec
                         <input
                           type="checkbox"
                           checked={Boolean(val)}
+                          disabled={locked}
                           onChange={(e) => setValue(meta.key, e.target.checked)}
                         />
                         <div className="toggle-track" />
@@ -204,6 +229,7 @@ export function SettingsSectionContainer({ section, onUnavailable }: SettingsSec
                         type="number"
                         style={{ width: 90, textAlign: 'right' }}
                         value={String(val ?? meta.defaultValue ?? 0)}
+                        disabled={locked}
                         onChange={(e) => setValue(meta.key, Number(e.target.value))}
                       />
                     ) : (
@@ -211,11 +237,12 @@ export function SettingsSectionContainer({ section, onUnavailable }: SettingsSec
                         className="input"
                         style={{ width: 200 }}
                         value={String(val ?? meta.defaultValue ?? '')}
+                        disabled={locked}
                         onChange={(e) => setValue(meta.key, e.target.value)}
                       />
                     )}
 
-                    {isDirty && (
+                    {isDirty && !locked && (
                       <button
                         className="btn btn-primary btn-sm"
                         disabled={isSaving}
@@ -225,7 +252,7 @@ export function SettingsSectionContainer({ section, onUnavailable }: SettingsSec
                       </button>
                     )}
 
-                    {!fromDefault && !isDirty && (
+                    {!fromDefault && !isDirty && !locked && (
                       <button
                         className="btn btn-ghost btn-sm"
                         disabled={isSaving}

@@ -85,4 +85,32 @@ export class Authenticator {
     this.#userResolved = true
     return this.#user
   }
+
+  /** Resolve (e cacheia) os app roles da identidade corrente. [] sem identidade/resolver. */
+  async getAppRoles(): Promise<string[]> {
+    const identity = await this.getIdentity()
+    if (!identity || !this.deps.resolveAppRoles) return []
+    if (this.#appRoles === null) this.#appRoles = await this.deps.resolveAppRoles(identity)
+    return this.#appRoles
+  }
+
+  /**
+   * Monta o objeto pronto para compartilhar com o frontend (ex.: Inertia share),
+   * casando com o `AuthSharedProps` que o `@dudousxd/adonis-authkit-react` consome.
+   * `abilities` é a união de app roles + global roles (conveniente p/ policies/CASL).
+   * Retorna `null` quando não há sessão.
+   */
+  async toSharedProps(): Promise<{
+    user: unknown
+    globalRoles: string[]
+    appRoles: string[]
+    abilities: string[]
+  } | null> {
+    const identity = await this.getIdentity()
+    if (!identity) return null
+    const user = await this.getUser()
+    const globalRoles = identity.globalRoles ?? []
+    const appRoles = await this.getAppRoles()
+    return { user, globalRoles, appRoles, abilities: [...appRoles, ...globalRoles] }
+  }
 }

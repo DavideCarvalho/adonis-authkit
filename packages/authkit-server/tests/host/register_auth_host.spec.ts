@@ -1,5 +1,7 @@
 import { test } from '@japa/runner'
 import { registerAuthHost } from '../../src/host/register_auth_host.js'
+import { setAuthHostConfig, resetAuthHostConfig } from '../../src/host/auth_host_config.js'
+import { resolveRateLimit } from '../../src/define_config.js'
 import {
   getAdminPrefix,
   normalizeAdminPrefix,
@@ -411,5 +413,68 @@ test.group('registerAuthHost — Admin REST API prefix', () => {
     // Singletons refletem ambos.
     assert.equal(getAdminPrefix(), '/auth/admin')
     assert.equal(getAdminApiPrefix(), '/authkit/api')
+  })
+})
+
+test.group('registerAuthHost / dedup do config (Option C)', (group) => {
+  group.each.teardown(() => resetAuthHostConfig())
+
+  test('sem opts: lê mountPath/social/admin/adminApi do config stashado no boot', ({ assert }) => {
+    setAuthHostConfig({
+      mountPath: '/oidc',
+      social: { providers: ['google'] },
+      rateLimit: resolveRateLimit(undefined),
+      adminEnabled: true,
+      adminApiEnabled: true,
+    })
+
+    const router = fakeRouter()
+    // Chamada mínima — tudo vem do config (zero duplicação no routes.ts).
+    registerAuthHost(router)
+
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/oidc/*'), 'mountPath do config')
+    assert.isTrue(
+      router.routes.some((r: any) => r.pattern === '/auth/:provider/redirect/:uid'),
+      'social montado pelo config'
+    )
+    assert.isTrue(
+      router.routes.some((r: any) => r.pattern === '/admin/*'),
+      'console admin montado pq config.admin.enabled'
+    )
+    // adminApi usa .group().prefix() — o prefixo fica em groupPrefixes, não no pattern.
+    assert.include(router.groupPrefixes, '/api/authkit/v1', 'admin API montada pq config.adminApi.enabled')
+  })
+
+  test('config desligado: admin/adminApi/social NÃO são montados', ({ assert }) => {
+    setAuthHostConfig({
+      mountPath: '/oidc',
+      social: undefined,
+      rateLimit: resolveRateLimit(undefined),
+      adminEnabled: false,
+      adminApiEnabled: false,
+    })
+    const router = fakeRouter()
+    registerAuthHost(router)
+    assert.isFalse(router.routes.some((r: any) => r.pattern === '/admin/*'))
+    assert.isFalse(router.routes.some((r: any) => r.pattern === '/auth/:provider/callback'))
+  })
+
+  test('opts fazem override do config (prefix custom do admin)', ({ assert }) => {
+    setAuthHostConfig({
+      mountPath: '/oidc',
+      rateLimit: resolveRateLimit(undefined),
+      adminEnabled: true,
+      adminApiEnabled: false,
+    })
+    const router = fakeRouter()
+    registerAuthHost(router, { admin: { prefix: '/auth/admin' } })
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/auth/admin/*'), 'prefix do opts vence')
+    assert.isFalse(router.routes.some((r: any) => r.pattern === '/admin/*'))
+  })
+
+  test('sem stash e sem opts: cai no default /oidc (fallback seguro)', ({ assert }) => {
+    const router = fakeRouter()
+    registerAuthHost(router)
+    assert.isTrue(router.routes.some((r: any) => r.pattern === '/oidc/*'), 'default /oidc')
   })
 })

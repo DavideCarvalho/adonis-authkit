@@ -30,6 +30,66 @@ import type { PwnedLogger, FetchLike } from '../password/pwned.js'
 
 export type { AccountSecretEncrypter, WebauthnCeremonies }
 
+/**
+ * Serviço de encryption do app (APP_KEY), carregado LAZY via import dinâmico.
+ *
+ * Não importamos `@adonisjs/core/services/encryption` no topo do módulo de
+ * propósito: esse módulo faz `await app.booted()` na carga, o que quebra em
+ * contextos sem app (harness de teste). O import dinâmico é disparado na
+ * construção do encrypter (boot) e resolve antes da primeira request; até lá (e
+ * em testes sem app, onde o import rejeita) o encrypter degrada p/ plaintext.
+ */
+interface EncryptionService {
+  encrypt(value: string): string
+  decrypt<T = string>(value: string): T | null
+}
+let encSvc: EncryptionService | undefined
+let encLoading: Promise<void> | undefined
+function loadEncryption(): void {
+  if (encSvc || encLoading) return
+  encLoading = import('@adonisjs/core/services/encryption')
+    .then((m) => {
+      encSvc = (m as { default: EncryptionService }).default
+    })
+    .catch(() => {
+      /* sem app booted (ex.: testes) → encSvc fica undefined → plaintext */
+    })
+}
+
+/** Reset do cache de encryption — uso em testes. */
+export function __resetAppKeyEncryption(): void {
+  encSvc = undefined
+  encLoading = undefined
+}
+
+/**
+ * Encrypter default do AuthKit, baseado no `APP_KEY` (`@adonisjs/core/services/encryption`).
+ * É o default do {@link lucidAccountStore} — o segredo TOTP é encriptado em repouso
+ * sem nenhum wiring no app. Passe `encrypter: false` p/ desligar (plaintext).
+ *
+ * Resiliente: enquanto o serviço de encryption não está disponível (boot inicial /
+ * testes sem app), opera em plaintext; uma vez carregado, encripta de verdade.
+ */
+export function appKeyEncrypter(): AccountSecretEncrypter {
+  loadEncryption()
+  return {
+    encrypt: (value) => {
+      try {
+        return encSvc ? encSvc.encrypt(value) : value
+      } catch {
+        return value
+      }
+    },
+    decrypt: (value) => {
+      try {
+        return encSvc ? (encSvc.decrypt<string>(value) ?? null) : value
+      } catch {
+        return value
+      }
+    },
+  }
+}
+
 /** Opções do {@link lucidAccountStore}. */
 export interface LucidAccountStoreOptions {
   /** Label de issuer mostrado no app autenticador (keyuri). Default: 'AuthKit'. */
@@ -37,10 +97,14 @@ export interface LucidAccountStoreOptions {
   /** Quantidade de recovery codes gerados no enrollment. Default: 8. */
   recoveryCodeCount?: number
   /**
-   * Quando fornecido, o segredo TOTP é encriptado antes de persistir e
-   * decriptado na leitura. Ausente (ex.: testes) → segredo em claro.
+   * Encripta o segredo TOTP em repouso. **Default: {@link appKeyEncrypter} (APP_KEY)** —
+   * seguro por padrão, sem wiring. Passe um encrypter custom para usar outro KMS, ou
+   * `false` para desligar (segredo em claro; ex.: testes / migração).
+   *
+   * ⚠️ Breaking (0.x): segredos TOTP gravados em CLARO por versões anteriores deixam de
+   * decriptar sob o default. Migre (re-encriptar) ou passe `encrypter: false`.
    */
-  encrypter?: AccountSecretEncrypter
+  encrypter?: AccountSecretEncrypter | false
   /**
    * Model Lucid das identidades de provider (composto de `withProviderIdentity()`),
    * usado por `findByProviderIdentity`/`linkProviderIdentity` (account linking
@@ -133,7 +197,8 @@ export function lucidAccountStore(
 ): AccountStore {
   const mfaIssuer = options.mfaIssuer ?? 'AuthKit'
   const recoveryCodeCount = options.recoveryCodeCount ?? 8
-  const encrypter = options.encrypter
+  // Default seguro: encripta o TOTP com APP_KEY. `false` desliga (plaintext).
+  const encrypter = options.encrypter === false ? undefined : (options.encrypter ?? appKeyEncrypter())
   const ProviderIdentityModel = options.providerIdentityModel
   const WebauthnCredentialModel = options.webauthnCredentialModel
   const OrgModels = options.organizationModels
@@ -248,6 +313,13 @@ export function lucidAccountStore(
      * NÃO faz parte do contrato AccountStore.
      */
     connectionName: (Model.connection as string | undefined) ?? undefined,
+    /**
+     * mfaIssuer/webauthn deste store — expostos para o `defineConfig` REUSAR e o
+     * consumidor declarar UMA vez (evita repetir mfaIssuer/webauthn no top-level do
+     * defineConfig E aqui). NÃO fazem parte do contrato AccountStore.
+     */
+    __mfaIssuer: mfaIssuer,
+    __webauthn: options.webauthn,
   } as AccountStore
 
   // Histórico de senhas: capability-probed via tabela `auth_password_history`.

@@ -20,6 +20,7 @@ test.group('ensureAuthkitSchema', (group) => {
       'auth_organizations',
       'auth_organization_members',
       'auth_organization_invitations',
+      'auth_session_revocations',
     ])
     assert.deepEqual(report.altered, {})
 

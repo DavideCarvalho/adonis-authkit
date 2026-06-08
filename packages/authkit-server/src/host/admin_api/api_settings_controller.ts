@@ -2,6 +2,14 @@ import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import { RuntimeSettings } from '../runtime_settings.js'
 import { settingDto, apiError } from './dto.js'
+import { isSettingLocked, lockedSettingKeys, SettingLockedError } from '../config_locks.js'
+
+/** 423 Locked: a setting foi travada via defineConfig (não editável em runtime). */
+function lockedResponse(ctx: HttpContext, err: SettingLockedError) {
+  return ctx.response
+    .status(423)
+    .send(apiError('setting_locked', err.message, { key: err.key, lockedBy: 'config' }))
+}
 
 /** Helper: 404 JSON when settings capability is not available (table absent). */
 function notSupported(ctx: HttpContext) {
@@ -54,7 +62,9 @@ export default class ApiSettingsController {
     if (!tablePresent) return notSupported(ctx)
     const orgId = resolveOrgId(ctx)
     const rows = await svc.listSettings(orgId)
-    return { data: rows.map(settingDto) }
+    // `locked` lista TODAS as keys travadas por config (mesmo as sem row em auth_settings,
+    // pois config-only não persiste row). A UI usa isto p/ desabilitar + avisar.
+    return { data: rows.map(settingDto), locked: lockedSettingKeys() }
   }
 
   /** GET /settings/:key — obtém uma setting por key (global ou org). */
@@ -85,12 +95,20 @@ export default class ApiSettingsController {
     const tablePresent = await svc.isTablePresent()
     if (!tablePresent) return notSupported(ctx)
 
+    // Travada via defineConfig → 423 antes de qualquer escrita.
+    if (isSettingLocked(key)) return lockedResponse(ctx, new SettingLockedError(key))
+
     const orgId = resolveOrgId(ctx)
 
     const service = await ctx.containerResolver.make('authkit.server')
     const cfg = service.config
 
-    await svc.setSetting(key, body.value, null, orgId)
+    try {
+      await svc.setSetting(key, body.value, null, orgId)
+    } catch (err) {
+      if (err instanceof SettingLockedError) return lockedResponse(ctx, err)
+      throw err
+    }
 
     await cfg.audit?.record({
       type: 'settings.updated',
@@ -111,12 +129,19 @@ export default class ApiSettingsController {
     const tablePresent = await svc.isTablePresent()
     if (!tablePresent) return notSupported(ctx)
 
+    if (isSettingLocked(key)) return lockedResponse(ctx, new SettingLockedError(key))
+
     const orgId = resolveOrgId(ctx)
 
     const service = await ctx.containerResolver.make('authkit.server')
     const cfg = service.config
 
-    await svc.deleteSetting(key, orgId)
+    try {
+      await svc.deleteSetting(key, orgId)
+    } catch (err) {
+      if (err instanceof SettingLockedError) return lockedResponse(ctx, err)
+      throw err
+    }
 
     await cfg.audit?.record({
       type: 'settings.updated',

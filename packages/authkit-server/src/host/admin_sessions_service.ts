@@ -71,14 +71,41 @@ const GLOBAL_SESSION_LIMIT = 500
 export class AdminSessionsService {
   #AdapterClass: any
   #accountStore: AccountStore
+  /** Conexão Lucid das tabelas authkit (schema `auth`) — onde vive auth_session_revocations. */
+  #schemaConnection?: string
 
   constructor(oidc: OidcService) {
     this.#AdapterClass = oidc.config.AdapterClass
     this.#accountStore = oidc.config.accountStore
+    this.#schemaConnection = oidc.config.schema?.connection
   }
 
   #adapter(model: string): OidcAdapter {
     return new (this.#AdapterClass as any)(model) as OidcAdapter
+  }
+
+  /**
+   * Grava uma revogação por `sub` na tabela compartilhada `auth_session_revocations`,
+   * para que clients COOKIE-BASED (que não têm store de sessão server-side) derrubem
+   * a sessão na próxima request — INSTANTÂNEO, sem esperar o refresh token falhar.
+   *
+   * Best-effort: a destruição de grants/tokens acima já é a fonte da verdade; esta
+   * linha só acelera o efeito nos clients. Falha (tabela ausente) é silenciosa.
+   */
+  async #recordSubRevocation(accountId: string): Promise<void> {
+    try {
+      const db = (await import('@adonisjs/lucid/services/db')).default
+      const conn = this.#schemaConnection
+        ? (db as any).connection(this.#schemaConnection)
+        : (db as any).connection()
+      await conn.insertQuery().table('auth_session_revocations').insert({
+        sid: null,
+        sub: accountId,
+        revoked_at: new Date(),
+      })
+    } catch {
+      /* tabela ausente / lucid indisponível — a invalidação server-side ainda vale */
+    }
   }
 
   /** Indica se o adapter suporta enumeração (capacidade opcional). */
@@ -260,6 +287,9 @@ export class AdminSessionsService {
       await grantAdapter.revokeByGrantId(g.id)
       await grantAdapter.destroy(g.id)
     }
+
+    // Revogação total → propaga p/ clients cookie-based via tabela compartilhada (instantâneo).
+    await this.#recordSubRevocation(accountId)
 
     return {
       sessions: sessions.length,

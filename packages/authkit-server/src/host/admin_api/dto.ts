@@ -120,18 +120,23 @@ export function orgDetailDto(detail: OrgDetail) {
 }
 
 /** Envelope de erro padrão da Admin REST API. */
-export function apiError(code: string, message: string) {
-  return { error: { code, message } }
+export function apiError(code: string, message: string, details?: Record<string, unknown>) {
+  return { error: { code, message, ...(details ? { details } : {}) } }
 }
 
 import type { SettingRow } from '../runtime_settings.js'
+import { isSettingLocked } from '../config_locks.js'
 
 export function settingDto(row: SettingRow) {
+  const locked = isSettingLocked(row.key)
   return {
     key: row.key,
     organizationId: row.organizationId ?? null,
     value: row.value,
     updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : (row.updatedAt ?? null),
     updatedBy: row.updatedBy ?? null,
+    /** Travada via defineConfig → UI deve desabilitar a edição e mostrar aviso. */
+    locked,
+    ...(locked ? { lockedBy: 'config' as const } : {}),
   }
 }

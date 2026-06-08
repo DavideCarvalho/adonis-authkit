@@ -1,0 +1,42 @@
+/**
+ * Helper de exceções de CSRF para as rotas machine-to-machine do AuthKit.
+ *
+ * Os endpoints do IdP (token/introspection/PAT) e o back-channel logout são
+ * server-to-server (sem browser/token XSRF). Em vez de cada app reescrever a
+ * checagem de URL no `config/shield.ts`, use este helper:
+ *
+ * ```ts
+ * // config/shield.ts
+ * import { authkitCsrfExceptions } from '@dudousxd/adonis-authkit-server'
+ * csrf: {
+ *   enabled: true,
+ *   exceptRoutes: (ctx) => authkitCsrfExceptions(ctx.request.url(), { mountPath: '/oidc' })
+ *     || ctx.request.url().includes('/api'),
+ * }
+ * ```
+ */
+export interface AuthkitCsrfOptions {
+  /** mountPath do IdP (mesmo de defineConfig/registerAuthHost). Default: `/oidc`. */
+  mountPath?: string
+  /** Inclui a rota de back-channel logout do CLIENT (default: `/auth/backchannel-logout`). */
+  backchannelLogoutPath?: string | false
+}
+
+/**
+ * Retorna `true` quando `url` é uma rota AuthKit que deve ser ISENTA de CSRF
+ * (machine-to-machine). Cobre o mountPath do IdP, a introspecção de PAT e a
+ * rota de back-channel logout do client.
+ */
+export function authkitCsrfExceptions(url: string, options: AuthkitCsrfOptions = {}): boolean {
+  const mountPath = options.mountPath ?? '/oidc'
+  const backchannel =
+    options.backchannelLogoutPath === false
+      ? null
+      : (options.backchannelLogoutPath ?? '/auth/backchannel-logout')
+
+  return (
+    url.includes(mountPath) ||
+    url.includes('/authkit/pat') ||
+    (backchannel !== null && url === backchannel)
+  )
+}

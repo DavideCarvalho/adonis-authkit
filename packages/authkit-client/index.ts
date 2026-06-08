@@ -22,7 +22,24 @@ export type {
   ResolvedClientConfig,
   ClientConfigInput,
   BackchannelLogoutCallback,
+  BackchannelLogoutInput,
 } from './src/define_config.js'
+export {
+  lucidRevocationStore,
+  DEFAULT_REVOCATION_TABLE,
+} from './src/revocation/revocation_store.js'
+export type {
+  RevocationStore,
+  LucidRevocationStoreOptions,
+} from './src/revocation/revocation_store.js'
+export { default as BackchannelRevocationMiddleware } from './src/middleware/backchannel_revocation_middleware.js'
+export { lucidMirror } from './src/lucid_mirror.js'
+export type { LucidMirrorOptions } from './src/lucid_mirror.js'
+export { registerOidcClient } from './src/register_oidc_client.js'
+export type {
+  RegisterOidcClientOptions,
+  PostLoginRedirects,
+} from './src/register_oidc_client.js'
 export {
   validateLogoutToken,
   InvalidLogoutTokenError,

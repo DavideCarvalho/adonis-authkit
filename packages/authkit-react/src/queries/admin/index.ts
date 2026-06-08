@@ -43,6 +43,9 @@ import type {
   AdminOrgEntry,
   CreateOrgInput,
   UpdateOrgInput,
+  KeysStatus,
+  KeysRotateInput,
+  KeysRotateResult,
 } from '../../client/types.js'
 import { AuthkitClientError } from '../../client/client.js'
 
@@ -408,4 +411,24 @@ export function useImpersonationQueryOptions(userId: string) {
     queryFn: () => client.admin.impersonation.get(userId),
     enabled: !!userId,
   } satisfies UseQueryOptions<ImpersonationPanel, AuthkitClientError>
+}
+
+// ---------------------------------------------------------------------------
+// Keys – Query + Mutation
+// ---------------------------------------------------------------------------
+
+export function useKeysQueryOptions() {
+  const client = useAuthkitClient()
+  return {
+    queryKey: authkitKeys.admin.keys(),
+    queryFn: () => client.admin.keys.status(),
+  } satisfies UseQueryOptions<KeysStatus, AuthkitClientError>
+}
+
+export function useRotateKeysMutationOptions() {
+  const client = useAuthkitClient()
+  return {
+    mutationKey: ['authkit', 'admin', 'keys', 'rotate'],
+    mutationFn: (input?: KeysRotateInput) => client.admin.keys.rotate(input),
+  } satisfies UseMutationOptions<KeysRotateResult, AuthkitClientError, KeysRotateInput | undefined>
 }

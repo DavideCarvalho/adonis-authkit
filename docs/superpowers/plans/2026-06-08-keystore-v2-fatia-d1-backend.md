@@ -8,7 +8,9 @@
 
 **Tech Stack:** TypeScript (ESM/NodeNext), `@adonisjs/lock` v2.1.0 (peer opt-in, lazy), runtime settings, Japa.
 
-**Escopo (D1 = backend só):** setting + scheduler + lock + `rotateKeys`/`keystoreAgeDays` + reload mutex + endpoints admin (status/rotate). **NÃO** inclui o painel do dashboard (admin console UI) — isso é a Fatia D2, que consumirá `GET /keys` e `POST /keys/rotate`.
+**Escopo (D1 = backend só):** setting + scheduler + lock + `rotateKeys`/`keystoreAgeDays` + reload mutex + **DOIS tiers de endpoints** (Admin REST API Bearer-key p/ o `authkit-sdk` backend; Console JSON API session-authed p/ o browser/React) + métodos `keys.*` no `authkit-sdk`. **NÃO** inclui o React (client tipado + hooks TanStack + componente) — isso é a Fatia D2.
+
+> **Segurança (dois tiers — o repo já faz isso):** a chave de assinatura é a chave-mestra do IdP; **NUNCA** expor a admin API key no browser. Por isso há dois caminhos: a **Admin REST API** (`/api/authkit/v1/keys`, guard `adminApiGuard` = Bearer key) p/ backend/SDK; e a **Console JSON API** (`{adminPrefix}/api/keys`, guard `adminGuard` = sessão + role admin) que o React SPA do console consome no browser. O React (D2) fala SÓ com a console API session-authed.
 
 **Pré-requisitos (em `main`):** Fatia A+B (KeystoreManager etc.) e Fatia C (`OidcService.reloadKeys()`, `#deps.{jwksLoader,keystoreHead}`, `KeystoreReloadPoller`, `#startKeystoreReloadPoll`).
 
@@ -27,15 +29,18 @@ npx tsc --noEmit
 - `src/host/key_rotation.ts` — `KEY_ROTATION_DEFAULTS`, `KeyRotationSetting`/`ResolvedKeyRotationSetting`, `resolveEffectiveKeyRotation(settings)`.
 - `src/provider/key_rotation_scheduler.ts` — `KeyRotationScheduler` (tick + start/stop).
 - `src/provider/single_flight_lock.ts` — `makeSingleFlightLock()` (lazy `@adonisjs/lock`, degrade p/ no-lock).
-- `src/host/admin_api/api_keys_controller.ts` — `status` + `rotate`.
-- Testes: `tests/host/key_rotation.spec.ts`, `tests/provider/key_rotation_scheduler.spec.ts`, `tests/provider/single_flight_lock.spec.ts`, `tests/host/admin_api/api_keys.spec.ts` (ou onde os specs de admin_api vivem).
+- `src/host/admin_api/api_keys_controller.ts` — `status` + `rotate` (Admin REST API, Bearer).
+- `src/host/admin_console/console_keys_controller.ts` — `status` + `rotate` (Console JSON API, sessão+role; espelha o controller de settings do console).
+- `src/keys_resource.ts` (no `authkit-sdk`) — recurso `keys` (`status()`, `rotate()`) p/ os drivers remote+embedded.
+- Testes: `tests/host/key_rotation.spec.ts`, `tests/provider/key_rotation_scheduler.spec.ts`, `tests/provider/single_flight_lock.spec.ts`, `tests/host/admin_api/api_keys.spec.ts`, `tests/host/admin_console/console_keys.spec.ts`, + teste no `authkit-sdk`.
 
 **Modificar:**
 - `src/host/runtime_toggles.ts` — adicionar `KEY_ROTATION: 'key_rotation'` em `SETTING_KEYS`.
-- `src/provider/oidc_service.ts` — `#deps.keystoreManager`; `rotateKeys()`, `keystoreAgeDays()`; serializar `reloadKeys()` (mutex).
-- `providers/authkit_server_provider.ts` — injetar `keystoreManager` closure; `#startKeyRotationScheduler()` no `start()`.
-- `packages/authkit-server/package.json` — adicionar `@adonisjs/lock` em `peerDependencies` (+ `peerDependenciesMeta` opcional) usando `catalog:adonis`.
-- `src/host/admin_api/*` registration (`register_auth_host.ts`) — rotas `GET /keys`, `POST /keys/rotate`.
+- `src/provider/oidc_service.ts` — `#deps.keystoreManager`; `rotateKeys()`, `keystoreAgeDays()`; serializar `reloadKeys()` (mutex); um getter `runtimeSettings()` (SettingsCapability sem request) p/ o scheduler/endpoints.
+- `providers/authkit_server_provider.ts` — injetar `keystoreManager` closure + a `SettingsCapability`; `#startKeyRotationScheduler()` no `start()`.
+- `packages/authkit-server/package.json` — `@adonisjs/lock` em `peerDependencies` (+ `peerDependenciesMeta` opcional) via `catalog:adonis`.
+- `src/host/register_auth_host.ts` — rotas REST `GET/POST /keys` (grupo `adminApiGuard`) **e** rotas console `GET/POST {ap}/api/keys` (grupo `adminGuard`); registrar os controllers no objeto `C`.
+- `packages/authkit-sdk/src/index.ts` (+ remote/embedded drivers) — expor `authkit.keys`.
 
 ---
 
@@ -626,6 +631,54 @@ git commit -m "feat(admin): GET /keys (status) + POST /keys/rotate (rotaciona ao
 
 ---
 
+## Task 7b: Console JSON API `GET {ap}/api/keys` + `POST {ap}/api/keys/rotate` (sessão+role)
+
+O browser/React (Fatia D2) NÃO pode usar a API key. Espelha a Task 7 num controller de console autenticado por sessão+role admin (`adminGuard`) — exatamente como `console_settings_controller` espelha `api_settings_controller`.
+
+**Files:** Create `src/host/admin_console/console_keys_controller.ts`; Modify `src/host/register_auth_host.ts`; Test `tests/host/admin_console/console_keys.spec.ts`
+
+- [ ] **Step 1: READ** `src/host/admin_console/console_settings_controller.ts` (o padrão de controller de console: `getSettingsService(ctx)`, `notSupported`, `resolveOrgId`, retorno DTO) e o grupo de rotas do console em `register_auth_host.ts` (`.group(() => { ... router.get(\`${ap}/api/settings\`, ...) }).use([adminGuard])`).
+
+- [ ] **Step 2: Write the controller** `src/host/admin_console/console_keys_controller.ts` — MESMA lógica do `api_keys_controller` (status/rotate via `svc.keystoreAgeDays()`/`svc.rotateKeys()` + `resolveEffectiveKeyRotation` p/ a política), mas no estilo dos controllers de console (erros via os helpers do console, `resolveOrgId` se aplicável — política de rotação é global, então provavelmente sem org scope). Reutilize a lógica: considere extrair um helper compartilhado `buildKeysStatus(svc, settings)` e `rotateNow(svc, body)` em um módulo (`src/host/key_rotation_actions.ts`) que AMBOS os controllers (REST da Task 7 + console) chamam, p/ não duplicar. (Se extrair, ajuste a Task 7 p/ usar o helper também — faça no review/refactor.)
+  - `status(ctx)`: 200 `{ ageDays, policy, nextRotationInDays }` ou 501 se não-managed.
+  - `rotate(ctx)`: body `{ retire?, keep? }` → `svc.rotateKeys(keep, retire)` → 200 `{ rotated:true, ...result }`. Audit `keys.rotated` já é feito dentro de `rotateKeys`.
+
+- [ ] **Step 3: Register console routes** no grupo `adminGuard` de `register_auth_host.ts` (junto de `${ap}/api/settings`):
+```ts
+router.get(`${ap}/api/keys`, [C.consoleKeys, 'status'])
+router.post(`${ap}/api/keys/rotate`, [C.consoleKeys, 'rotate'])
+```
+Registrar `consoleKeys` no objeto `C`.
+
+- [ ] **Step 4: Test + commit** — `tests/host/admin_console/console_keys.spec.ts`: subir o host com admin console + uma sessão admin (reuse o helper de bootstrap dos specs `admin_console.spec.ts`/`admin_settings.spec.ts`), `GET {ap}/api/keys` → 200 com `ageDays`; `POST {ap}/api/keys/rotate` → `rotated:true`. Verifique que SEM sessão admin → redirect/403 (o `adminGuard` já cobre).
+```bash
+node --import=@poppinss/ts-exec bin/test.ts --files="console_keys.spec.ts"
+npx tsc --noEmit && node --import=@poppinss/ts-exec bin/test.ts
+git add src/host/admin_console/console_keys_controller.ts src/host/register_auth_host.ts tests/host/admin_console/console_keys.spec.ts src/host/key_rotation_actions.ts
+git commit -m "feat(console): GET/POST {ap}/api/keys (session-authed) p/ o admin console"
+```
+
+---
+
+## Task 7c: Métodos `keys.*` no `authkit-sdk` (backend SDK, Admin REST API)
+
+O `authkit-sdk` (remote + embedded drivers) ganha `authkit.keys.status()` / `authkit.keys.rotate({retire?,keep?})`, batendo na Admin REST API (`/api/authkit/v1/keys`) com Bearer key. Para backends/automação (≠ browser).
+
+**Files:** Modify `packages/authkit-sdk/src/*` (drivers + index); Test no `authkit-sdk`
+
+- [ ] **Step 1: READ** como o `authkit-sdk` expõe um recurso admin existente (ex.: `settings` ou `clients`) — o `remote_driver.ts` (request com Bearer) e o `embedded_driver.ts` (in-process), e como `index.ts`/o tipo do client agrega os recursos. Mirror um recurso simples (ex.: `audit()`/`stats()`).
+
+- [ ] **Step 2: Add `keys` resource** — `status(): Promise<KeysStatus>` → `GET /keys`; `rotate(input?: { retire?: boolean; keep?: number }): Promise<KeysRotateResult>` → `POST /keys/rotate`. No remote driver via `request('GET','/keys')`/`request('POST','/keys/rotate', input)`; no embedded driver chamando o mesmo serviço in-process (ou o controller). Tipar `KeysStatus`/`KeysRotateResult` (em `authkit-core` se compartilhado, ou no sdk).
+
+- [ ] **Step 3: Test + commit** — espelhe um teste de recurso existente do sdk (remote com fetch fake; embedded se aplicável).
+```bash
+# rodar a suíte do authkit-sdk (cheque o package.json do sdk p/ o comando de teste)
+git add packages/authkit-sdk
+git commit -m "feat(sdk): recurso keys (status + rotate) na Admin REST API"
+```
+
+---
+
 ## Task 8: Verificação final + changeset + review
 
 - [ ] **Step 1: Suíte + tsc (server + core)**
@@ -657,6 +710,19 @@ git commit -m "chore: changeset p/ Keystore v2 Fatia D1 (rotação agendada + en
 ---
 
 ## Notas / follow-up
-- **Dashboard (Fatia D2):** painel no admin console consumindo `GET /keys` + `POST /keys/rotate` + salvando `key_rotation` via o `PUT /settings/:key` genérico. Plano separado (UI).
-- **SettingsCapability sem request:** a Task 6/7 dependem de obter o `SettingsCapability` fora de uma request — resolver isso (getter no OidcService construído no provider registration) é o ponto de integração mais delicado desta fatia; validar no review.
-- **Cache do manager:** `keystoreManager()` reconstrói o manager a cada chamada (status/age/rotate). Cheap p/ file/drive; ao adicionar cofres de cloud, considerar cache (já anotado na Fatia C).
+
+### Fatia D2 — React SDK + admin console UI (plano separado, depende de D1)
+Aterrado no que já existe em `authkit-react` (TanStack Query JÁ é peer; padrão estabelecido):
+- **`AuthkitClient` tipado** (`packages/authkit-react/src/client/client.ts`): adicionar `client.admin.keys.status()` e `client.admin.keys.rotate(input?)` — batem na **console JSON API** (`{adminBase}/api/keys`, session-authed via `credentials:'include'` + CSRF), mirror de `client.admin.users.*`. **Nunca** a Bearer key.
+- **Query keys** (`packages/authkit-react/src/queries/keys.ts`): adicionar `authkitKeys.admin.keys()`.
+- **Headless (TanStack), padrão options-object** (`src/queries/admin/index.ts`):
+  - `useKeysQueryOptions()` → `{ queryKey: authkitKeys.admin.keys(), queryFn: () => client.admin.keys.status() } satisfies UseQueryOptions<...>`.
+  - `useRotateKeysMutationOptions()` → `{ mutationKey, mutationFn: (input) => client.admin.keys.rotate(input) } satisfies UseMutationOptions<...>`. (Consumidor faz `useQuery`/`useMutation` + `invalidateQueries(authkitKeys.admin.keys())` no sucesso.)
+- **Componente** (`src/components/`, estilo `createElement` + classes BEM `authkit-*`, gating por `idp`): `<KeyRotation>` — mostra idade da chave, política (next ETA), botão "Rotacionar agora" (+ confirmação), opção "Aposentar antigas". Usa os hooks headless acima.
+- **Política via settings genérico:** salvar `key_rotation` (enabled/maxAgeDays/keep) usa o `PUT {ap}/api/settings/:key` que já existe — um form no painel, sem endpoint novo.
+- **Auth:** tudo session-authed (`adminGuard`); zero API key no browser.
+
+### Integração delicada (validar no review da D1)
+- **SettingsCapability sem request:** o scheduler (Task 6) e os endpoints (7/7b) precisam do `SettingsCapability` fora de uma request — resolver via um getter no `OidcService` construído no provider registration (onde DB/config existem). Ponto mais delicado da fatia.
+- **Cache do manager:** `keystoreManager()` reconstrói o manager a cada chamada. Cheap p/ file/drive; com cofres de cloud, cachear (anotado na Fatia C).
+- **DRY REST vs console:** extrair `key_rotation_actions.ts` (status/rotate) compartilhado entre o controller REST (Task 7) e o de console (Task 7b).

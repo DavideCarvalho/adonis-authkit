@@ -42,6 +42,9 @@ import type {
   SettingListResult,
   SettingEntry,
   ImpersonationPanel,
+  KeysStatus,
+  KeysRotateInput,
+  KeysRotateResult,
   // Account
   AccountMe,
   AccountSecurityOverview,
@@ -412,6 +415,14 @@ class AuthkitClient {
       /** GET {base}/impersonation/:userId */
       get: (userId: string) =>
         this.get<ImpersonationPanel>(this.b(`/impersonation/${encodeURIComponent(userId)}`)),
+    },
+
+    /** Rotação de chave de assinatura JWKS (console API, session-authed). */
+    keys: {
+      /** GET {base}/keys — idade, política e ETA da próxima rotação. */
+      status: () => this.get<KeysStatus>(this.b('/keys')),
+      /** POST {base}/keys/rotate — rotaciona agora (opcionalmente aposenta as antigas). */
+      rotate: (input?: KeysRotateInput) => this.post<KeysRotateResult>(this.b('/keys/rotate'), input ?? {}),
     },
   } as const
 

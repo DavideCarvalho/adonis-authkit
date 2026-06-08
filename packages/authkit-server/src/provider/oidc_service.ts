@@ -164,6 +164,19 @@ export class OidcService {
   }
 
   /**
+   * Recarrega as chaves de assinatura AO VIVO: relê o keystore do cofre e reconstrói
+   * o provider com o JWKS novo, trocando a instância atomicamente (#buildAndWire faz
+   * build-em-locais → assign no fim). No-op quando não há `jwksLoader` (source:'jwks'
+   * inline ou managed sem store).
+   */
+  async reloadKeys(): Promise<void> {
+    const loader = this.#deps.jwksLoader
+    if (!loader) return
+    const jwks = await loader()
+    this.#buildAndWire(jwks)
+  }
+
+  /**
    * Invalida o cache de clients DINÂMICOS do oidc-provider (a `dynamicClients`
    * QuickLRU em `instance(provider)`). DEVE ser chamado após qualquer escrita
    * (create/update/delete) no model `Client` via adapter, pelo console admin.

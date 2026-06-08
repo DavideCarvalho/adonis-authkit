@@ -1,5 +1,12 @@
 # @dudousxd/adonis-authkit-client
 
+## 0.7.1
+
+### Patch Changes
+
+- Updated dependencies [df4b41f]
+  - @dudousxd/adonis-authkit-core@0.5.0
+
 ## 0.7.0
 
 ### Minor Changes

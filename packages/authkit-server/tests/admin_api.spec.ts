@@ -175,6 +175,10 @@ function fakeCtx(opts: {
       protocol: () => 'http',
       host: () => 'localhost',
       header: (h: string) => (h.toLowerCase() === 'authorization' ? opts.authHeader : undefined),
+      // Vine compiled validators expõem `.validate(data)`; valida o body (inputs).
+      validateUsing: async (
+        validator: { validate: (data: unknown, options: { meta: object }) => Promise<unknown> }
+      ) => validator.validate(opts.inputs ?? {}, { meta: {} }),
     },
     response: {
       status: (s: number) => {
@@ -490,11 +494,9 @@ test.group('Admin REST API (controllers)', (group) => {
     const bad: any = await misc.verify(fakeCtx({ service, inputs: { token: 'pat_unknown' } }).ctx)
     assert.isFalse(bad.active)
 
-    // sem token → 400
+    // sem token → rejeitado pela validação (Vine, → 422 pelo handler do AdonisJS)
     const empty = fakeCtx({ service, inputs: {} })
-    const e: any = await misc.verify(empty.ctx)
-    assert.equal(empty.captured.status(), 400)
-    assert.equal(e.error.code, 'invalid_request')
+    await assert.rejects(() => misc.verify(empty.ctx))
   })
 
   test('GET /stats → shape completo (totais + MAU + séries 30d)', async ({ assert }) => {

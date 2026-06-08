@@ -197,6 +197,10 @@ function fakeCtx(opts: { inputs?: Record<string, unknown>; params?: Record<strin
       ip: () => '127.0.0.1',
       protocol: () => 'http',
       host: () => 'localhost',
+      // Vine compiled validators expõem `.validate(data)`; valida o body (inputs).
+      validateUsing: async (
+        validator: { validate: (data: unknown, options: { meta: object }) => Promise<unknown> }
+      ) => validator.validate(opts.inputs ?? {}, { meta: {} }),
     },
     response: {
       status: (s: number) => { status = s; return { send: setBody } },

@@ -190,6 +190,10 @@ function fakeCtx(opts: {
       host: () => 'localhost',
       body: () => opts.inputs ?? {},
       qs: () => ({} as Record<string, string>),
+      // Vine compiled validators expõem `.validate(data)`; valida o body (inputs).
+      validateUsing: async (
+        validator: { validate: (data: unknown, options: { meta: object }) => Promise<unknown> }
+      ) => validator.validate(opts.inputs ?? {}, { meta: {} }),
     },
     response: {
       status: (s: number) => {
@@ -405,11 +409,11 @@ test.group('Console JSON API — controller unit tests', (group) => {
     assert.isString(result.id)
   })
 
-  test('POST /api/users sem email → 400', async ({ assert }) => {
+  test('POST /api/users sem email → rejeitado pela validação (Vine, 422)', async ({ assert }) => {
     const ctrl = new ConsoleUsersController()
-    const { ctx, captured } = fakeCtx({ service, inputs: { email: '' } })
-    await ctrl.store(ctx)
-    assert.equal(captured.status(), 400)
+    const { ctx } = fakeCtx({ service, inputs: { email: '' } })
+    // Vine lança E_VALIDATION_ERROR (→ 422 pelo handler do AdonisJS em produção).
+    await assert.rejects(() => ctrl.store(ctx))
   })
 
   test('POST /api/users email duplicado → 409', async ({ assert }) => {
@@ -564,11 +568,10 @@ test.group('Console JSON API — controller unit tests', (group) => {
     assert.isArray(result.grants)
   })
 
-  test('POST /api/sessions/revoke-all sem accountId → 400', async ({ assert }) => {
+  test('POST /api/sessions/revoke-all sem accountId → rejeitado pela validação (Vine, 422)', async ({ assert }) => {
     const ctrl = new ConsoleSessionsController()
-    const { ctx, captured } = fakeCtx({ service, inputs: { accountId: '' } })
-    await ctrl.revokeAll(ctx)
-    assert.equal(captured.status(), 400)
+    const { ctx } = fakeCtx({ service, inputs: { accountId: '' } })
+    await assert.rejects(() => ctrl.revokeAll(ctx))
   })
 
   test('POST /api/sessions/revoke-all com accountId válido → shape correta', async ({ assert }) => {

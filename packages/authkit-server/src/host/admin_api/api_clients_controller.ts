@@ -1,60 +1,13 @@
 import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import { AdminClientsService } from '../admin_clients_service.js'
-import type { ClientInput, TokenEndpointAuthMethod } from '../admin_clients_service.js'
 import { clientDto, createdClientDto, apiError } from './dto.js'
+import { clientInputValidator, clientCreateInput, clientPartialInput } from '../admin_validators.js'
 
 /** Resolve o serviço (== OidcService) + o AdminClientsService. */
 async function clientsService(ctx: HttpContext) {
   const service = await ctx.containerResolver.make('authkit.server')
   return { service, svc: new AdminClientsService(service) }
-}
-
-function asArray(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map((v) => String(v)).filter(Boolean)
-  if (typeof value === 'string' && value.trim()) return [value.trim()]
-  return []
-}
-
-/** Aceita `grants` (== nome do dto de saída) como alias de `grantTypes` (entrada). */
-function grantsInput(ctx: HttpContext): unknown {
-  return ctx.request.input('grantTypes') ?? ctx.request.input('grants')
-}
-
-/** Input COMPLETO (create) — campos ausentes caem no default. */
-function readInput(ctx: HttpContext): ClientInput {
-  const backchannelUri = (ctx.request.input('backchannelLogoutUri') as string | undefined)?.trim()
-  return {
-    clientId: (ctx.request.input('clientId') as string | undefined)?.trim() || undefined,
-    redirectUris: asArray(ctx.request.input('redirectUris')),
-    postLogoutRedirectUris: asArray(ctx.request.input('postLogoutRedirectUris')),
-    grantTypes: asArray(grantsInput(ctx)),
-    tokenEndpointAuthMethod:
-      (ctx.request.input('tokenEndpointAuthMethod', 'client_secret_basic') as TokenEndpointAuthMethod),
-    backchannelLogoutUri: backchannelUri || undefined,
-    backchannelLogoutSessionRequired:
-      ctx.request.input('backchannelLogoutSessionRequired') === true ||
-      ctx.request.input('backchannelLogoutSessionRequired') === 'true',
-  }
-}
-
-/** Input PARCIAL (update/PATCH) — só inclui o que veio no body; o resto o service preserva. */
-function readPartialInput(ctx: HttpContext): Partial<ClientInput> {
-  const r = ctx.request
-  const out: Partial<ClientInput> = {}
-  if (r.input('redirectUris') !== undefined) out.redirectUris = asArray(r.input('redirectUris'))
-  if (r.input('postLogoutRedirectUris') !== undefined)
-    out.postLogoutRedirectUris = asArray(r.input('postLogoutRedirectUris'))
-  if (grantsInput(ctx) !== undefined) out.grantTypes = asArray(grantsInput(ctx))
-  if (r.input('tokenEndpointAuthMethod') !== undefined)
-    out.tokenEndpointAuthMethod = r.input('tokenEndpointAuthMethod') as TokenEndpointAuthMethod
-  if (r.input('backchannelLogoutUri') !== undefined)
-    out.backchannelLogoutUri = (r.input('backchannelLogoutUri') as string | undefined)?.trim() || undefined
-  if (r.input('backchannelLogoutSessionRequired') !== undefined)
-    out.backchannelLogoutSessionRequired =
-      r.input('backchannelLogoutSessionRequired') === true ||
-      r.input('backchannelLogoutSessionRequired') === 'true'
-  return out
 }
 
 /**
@@ -81,7 +34,7 @@ export default class ApiClientsController {
 
   async store(ctx: HttpContext) {
     const { service, svc } = await clientsService(ctx)
-    const input = readInput(ctx)
+    const input = clientCreateInput(await ctx.request.validateUsing(clientInputValidator))
     const created = await svc.create(input)
     await service.config.audit?.record({
       type: 'client.created',
@@ -98,7 +51,7 @@ export default class ApiClientsController {
     const id = ctx.request.param('id')
     const existing = await svc.find(id)
     if (!existing) return ctx.response.notFound(apiError('not_found', 'Client não encontrado.'))
-    await svc.update(id, readPartialInput(ctx))
+    await svc.update(id, clientPartialInput(await ctx.request.validateUsing(clientInputValidator)))
     await service.config.audit?.record({
       type: 'client.updated',
       clientId: id,

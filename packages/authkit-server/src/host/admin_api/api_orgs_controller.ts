@@ -2,6 +2,13 @@ import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import { AdminOrgsService } from './admin_orgs_service.js'
 import { orgDto, orgDetailDto, orgInvitationDto, apiError } from './dto.js'
+import {
+  orgCreateValidator,
+  orgUpdateValidator,
+  orgAddMemberValidator,
+  orgMemberRoleValidator,
+  orgInvitationValidator,
+} from '../admin_validators.js'
 
 /** Lê a config + monta o actor `admin-api` para auditoria. */
 async function ctxBits(ctx: HttpContext) {
@@ -42,16 +49,9 @@ export default class ApiOrgsController {
     const { cfg, actor } = await ctxBits(ctx)
     const svc = new AdminOrgsService(cfg)
 
-    const name = (ctx.request.input('name', '') as string).trim()
-    const slug = (ctx.request.input('slug', '') as string).trim()
-    const ownerAccountId = (ctx.request.input('ownerAccountId', '') as string).trim()
-    const logoUrl = (ctx.request.input('logoUrl') as string | undefined) ?? null
+    const { name, slug, ownerAccountId, logoUrl } = await ctx.request.validateUsing(orgCreateValidator)
 
-    if (!name) return ctx.response.badRequest(apiError('invalid_request', 'O campo name é obrigatório.'))
-    if (!slug) return ctx.response.badRequest(apiError('invalid_request', 'O campo slug é obrigatório.'))
-    if (!ownerAccountId) return ctx.response.badRequest(apiError('invalid_request', 'O campo ownerAccountId é obrigatório.'))
-
-    const result = await svc.createOrg({ name, slug, logoUrl, ownerAccountId }, actor)
+    const result = await svc.createOrg({ name, slug, logoUrl: logoUrl ?? null, ownerAccountId }, actor)
 
     if ('ok' in result && result.ok === false) {
       if (result.reason === 'not_supported') return notSupported(ctx)
@@ -84,11 +84,10 @@ export default class ApiOrgsController {
     const svc = new AdminOrgsService(cfg)
     const id = ctx.request.param('id')
 
-    const name = ctx.request.input('name') as string | undefined
-    const logoUrl = ctx.request.input('logoUrl') as string | null | undefined
+    const { name, logoUrl } = await ctx.request.validateUsing(orgUpdateValidator)
 
     const patch: { name?: string; logoUrl?: string | null } = {}
-    if (name !== undefined) patch.name = (name as string).trim()
+    if (name !== undefined) patch.name = name
     if (logoUrl !== undefined) patch.logoUrl = logoUrl
 
     const result = await svc.updateOrg(id, patch, actor)
@@ -124,12 +123,9 @@ export default class ApiOrgsController {
     const svc = new AdminOrgsService(cfg)
     const orgId = ctx.request.param('id')
 
-    const accountId = (ctx.request.input('accountId', '') as string).trim()
-    const role = (ctx.request.input('role', 'member') as string).trim()
+    const { accountId, role } = await ctx.request.validateUsing(orgAddMemberValidator)
 
-    if (!accountId) return ctx.response.badRequest(apiError('invalid_request', 'O campo accountId é obrigatório.'))
-
-    const result = await svc.addMember(orgId, { accountId, role }, actor)
+    const result = await svc.addMember(orgId, { accountId, role: role ?? 'member' }, actor)
 
     if (!result.ok) {
       if (result.reason === 'not_supported') return notSupported(ctx)
@@ -166,9 +162,7 @@ export default class ApiOrgsController {
     const svc = new AdminOrgsService(cfg)
     const orgId = ctx.request.param('id')
     const accountId = ctx.request.param('accountId')
-    const role = (ctx.request.input('role', '') as string).trim()
-
-    if (!role) return ctx.response.badRequest(apiError('invalid_request', 'O campo role é obrigatório.'))
+    const { role } = await ctx.request.validateUsing(orgMemberRoleValidator)
 
     const result = await svc.updateMemberRole(orgId, accountId, role, actor)
 
@@ -188,13 +182,10 @@ export default class ApiOrgsController {
     const svc = new AdminOrgsService(cfg)
     const orgId = ctx.request.param('id')
 
-    const email = (ctx.request.input('email', '') as string).trim()
-    const role = (ctx.request.input('role', 'member') as string).trim()
-
-    if (!email) return ctx.response.badRequest(apiError('invalid_request', 'O campo email é obrigatório.'))
+    const { email, role } = await ctx.request.validateUsing(orgInvitationValidator)
 
     const origin = `${ctx.request.protocol()}://${ctx.request.host()}`
-    const result = await svc.createInvitation(orgId, { email, role }, actor, origin)
+    const result = await svc.createInvitation(orgId, { email, role: role ?? 'member' }, actor, origin)
 
     if (!result.ok) {
       if (result.reason === 'not_supported') return notSupported(ctx)

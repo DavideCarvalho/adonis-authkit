@@ -8,6 +8,7 @@ import { resolveEffectiveRolesCatalog } from '../runtime_toggles.js'
 import { userDto, sessionDto, grantDto, apiError } from '../admin_api/dto.js'
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
 import { supportsAccountDeletion, supportsAccountStatus } from '../../accounts/account_store.js'
+import { adminUserCreateValidator, adminUserRolesValidator } from '../admin_validators.js'
 
 const PAGE_SIZE = 20
 
@@ -100,19 +101,12 @@ export default class ConsoleUsersController {
     const actorId = (ctx.session?.get(ACCOUNT_SESSION_KEY) as string) ?? null
     const ip = ctx.request.ip?.() ?? null
 
-    const email = (ctx.request.input('email', '') as string).trim()
-    const name = (ctx.request.input('name') as string | undefined) ?? null
-    const password = (ctx.request.input('password') as string | undefined) ?? null
-    const invite = ctx.request.input('invite') === true || ctx.request.input('invite') === 'true'
-
-    if (!email) {
-      return ctx.response.badRequest(apiError('invalid_request', 'O campo email é obrigatório.'))
-    }
+    const { email, name, password, invite } = await ctx.request.validateUsing(adminUserCreateValidator)
 
     const users = new AdminUsersService(cfg)
     const result = await users.create(
       ctx,
-      { email, name, password, invite },
+      { email, name: name ?? null, password: password ?? null, invite: invite ?? false },
       { actorId, ip, source: 'admin' }
     )
 
@@ -140,10 +134,8 @@ export default class ConsoleUsersController {
     const account = await cfg.accountStore.findById(id)
     if (!account) return ctx.response.notFound(apiError('not_found', 'Usuário não encontrado.'))
 
-    const rolesInput = ctx.request.input('roles', []) as unknown
-    const roles = Array.isArray(rolesInput)
-      ? Array.from(new Set((rolesInput as unknown[]).map((r) => String(r).trim()).filter(Boolean)))
-      : []
+    const { roles: rolesInput } = await ctx.request.validateUsing(adminUserRolesValidator)
+    const roles = Array.from(new Set((rolesInput ?? []).map((r) => r.trim()).filter(Boolean)))
 
     // Resolve RuntimeSettings para validação contra catálogo (fail-safe).
     let runtimeSettings: RuntimeSettings | null = null

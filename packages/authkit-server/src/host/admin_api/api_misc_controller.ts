@@ -4,6 +4,7 @@ import { TokenVerifyService } from './token_verify_service.js'
 import { AdminSessionsService } from '../admin_sessions_service.js'
 import { computeAdminStats } from '../admin_stats_service.js'
 import { auditDto, apiError } from './dto.js'
+import { tokenVerifyValidator } from '../admin_validators.js'
 
 /**
  * Endpoints utilitários da Admin REST API: log de auditoria (`GET /audit`) e
@@ -41,10 +42,7 @@ export default class ApiMiscController {
   async verify(ctx: HttpContext) {
     const service = await ctx.containerResolver.make('authkit.server')
     const cfg = service.config
-    const token = ctx.request.input('token')
-    if (!token || typeof token !== 'string') {
-      return ctx.response.badRequest(apiError('invalid_request', 'O campo token é obrigatório.'))
-    }
+    const { token } = await ctx.request.validateUsing(tokenVerifyValidator)
     const verifier = new TokenVerifyService(cfg, service.provider)
     return verifier.verify(token)
   }

@@ -200,6 +200,10 @@ function fakeCtx(opts: {
       ip: () => '127.0.0.1',
       protocol: () => 'https',
       host: () => 'localhost:3333',
+      // Vine compiled validators expõem `.validate(data)`; valida o body.
+      validateUsing: async (
+        validator: { validate: (data: unknown, options: { meta: object }) => Promise<unknown> }
+      ) => validator.validate(opts.body ?? {}, { meta: {} }),
     },
     response: {
       created: (b: any) => { status = 201; return setBody(b) },
@@ -263,12 +267,11 @@ test.group('ConsoleOrgsController', (group) => {
     assert.equal(res.slug, 'acme')
   })
 
-  test('POST /api/orgs retorna 400 sem fields obrigatórios', async ({ assert }) => {
+  test('POST /api/orgs sem fields obrigatórios → rejeitado pela validação (Vine, 422)', async ({ assert }) => {
     const ctrl = new ConsoleOrgsController()
     const c = fakeCtx({ body: { name: 'No Slug' } })
-    await ctrl.store(c.ctx)
-    assert.equal(c.captured.status(), 400)
-    assert.equal(c.captured.body()?.error?.code, 'invalid_input')
+    // slug/ownerAccountId ausentes → Vine lança (→ 422 pelo handler do AdonisJS).
+    await assert.rejects(() => ctrl.store(c.ctx))
   })
 
   test('POST /api/orgs slug duplicado → 422 slug_taken', async ({ assert }) => {
@@ -354,13 +357,11 @@ test.group('ConsoleOrgsController', (group) => {
     assert.isTrue(res.ok)
   })
 
-  test('POST /api/orgs/:id/members sem accountId → 400', async ({ assert }) => {
+  test('POST /api/orgs/:id/members sem accountId → rejeitado pela validação (Vine, 422)', async ({ assert }) => {
     const org = await seedOrg()
     const ctrl = new ConsoleOrgsController()
     const c = fakeCtx({ params: { id: org.id }, body: { role: 'member' } })
-    await ctrl.addMember(c.ctx)
-    assert.equal(c.captured.status(), 400)
-    assert.equal(c.captured.body()?.error?.code, 'invalid_input')
+    await assert.rejects(() => ctrl.addMember(c.ctx))
   })
 
   test('POST /api/orgs/:id/members conta inexistente → 404 account_not_found', async ({ assert }) => {
@@ -425,13 +426,11 @@ test.group('ConsoleOrgsController', (group) => {
     assert.isTrue(res.ok)
   })
 
-  test('PATCH /api/orgs/:id/members/:accountId sem role → 400', async ({ assert }) => {
+  test('PATCH /api/orgs/:id/members/:accountId sem role → rejeitado pela validação (Vine, 422)', async ({ assert }) => {
     const org = await seedOrg()
     const ctrl = new ConsoleOrgsController()
     const c = fakeCtx({ params: { id: org.id, accountId: 'owner-1' }, body: {} })
-    await ctrl.updateMemberRole(c.ctx)
-    assert.equal(c.captured.status(), 400)
-    assert.equal(c.captured.body()?.error?.code, 'invalid_input')
+    await assert.rejects(() => ctrl.updateMemberRole(c.ctx))
   })
 
   test('PATCH /api/orgs/:id/members/:accountId 404 capability_unsupported', async ({ assert }) => {
@@ -455,13 +454,11 @@ test.group('ConsoleOrgsController', (group) => {
     assert.equal(res.invitation.email, 'invited@x.com')
   })
 
-  test('POST /api/orgs/:id/invitations sem email → 400', async ({ assert }) => {
+  test('POST /api/orgs/:id/invitations sem email → rejeitado pela validação (Vine, 422)', async ({ assert }) => {
     const org = await seedOrg()
     const ctrl = new ConsoleOrgsController()
     const c = fakeCtx({ params: { id: org.id }, body: { role: 'member' } })
-    await ctrl.createInvitation(c.ctx)
-    assert.equal(c.captured.status(), 400)
-    assert.equal(c.captured.body()?.error?.code, 'invalid_input')
+    await assert.rejects(() => ctrl.createInvitation(c.ctx))
   })
 
   test('POST /api/orgs/:id/invitations org inexistente → 404', async ({ assert }) => {

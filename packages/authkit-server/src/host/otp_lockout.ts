@@ -136,11 +136,22 @@ export interface OtpLockoutAuditContext {
 }
 
 /**
+ * Logger mínimo (subconjunto do logger do AdonisJS) para observar as degradações
+ * fail-safe. Sem ele, os caminhos de erro continuam silenciosos (backward-compat).
+ */
+export interface OtpLockoutLogger {
+  warn(obj: unknown, msg?: string): void
+}
+
+/**
  * Gerencia o lockout do fator OTP (TOTP + recovery) por accountId.
  * No-op quando o limiter não está disponível.
  */
 export class OtpLockout {
-  constructor(private cfg: ResolvedOtpLockoutSetting) {}
+  constructor(
+    private cfg: ResolvedOtpLockoutSetting,
+    private logger?: OtpLockoutLogger
+  ) {}
 
   private failKey(accountId: string) {
     return `authkit_otp_fail:${accountId}`
@@ -175,7 +186,13 @@ export class OtpLockout {
     if (!l || !accountId) return false
     try {
       return await this.lockStore(l).isBlocked(this.lockKey(accountId))
-    } catch {
+    } catch (err) {
+      // Falha do limiter NUNCA derruba o login — degrada para "não travado". Mas
+      // loga: enquanto o limiter estiver quebrado, o lockout de OTP fica desligado.
+      this.logger?.warn(
+        { err, accountId },
+        'authkit: OTP lockout isLocked check failed (limiter error) — degrading to unlocked (fail-safe); OTP lockout is effectively disabled until the limiter recovers.'
+      )
       return false
     }
   }
@@ -208,7 +225,14 @@ export class OtpLockout {
         metadata: { maxAttempts: this.cfg.maxAttempts },
       })
       return true
-    } catch {
+    } catch (err) {
+      // Falha do limiter ao registrar a tentativa: a falha NÃO é contabilizada, o
+      // que enfraquece a proteção anti-brute-force do fator OTP. Nunca propaga (o
+      // login não pode quebrar por infra), mas loga para não ficar invisível.
+      this.logger?.warn(
+        { err, accountId },
+        'authkit: OTP lockout recordFailure failed (limiter error) — failure NOT counted; brute-force protection on the OTP factor is degraded until the limiter recovers.'
+      )
       return false
     }
   }
@@ -242,6 +266,9 @@ export class OtpLockout {
   }
 }
 
-export function createOtpLockout(cfg: ResolvedOtpLockoutSetting): OtpLockout {
-  return new OtpLockout(cfg)
+export function createOtpLockout(
+  cfg: ResolvedOtpLockoutSetting,
+  logger?: OtpLockoutLogger
+): OtpLockout {
+  return new OtpLockout(cfg, logger)
 }

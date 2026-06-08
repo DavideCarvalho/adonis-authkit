@@ -56,7 +56,7 @@ export default class AccountSessionController {
     const returnTo = validateReturnTo(rawReturnTo)
 
     // Verificação + lockout + auditoria de falha centralizados (sem clientId no console).
-    const result = await attemptPasswordLogin(cfg, { email, password, ip })
+    const result = await attemptPasswordLogin(cfg, { email, password, ip, logger: ctx.logger })
     if (!result.ok) {
       return render(ctx, 'account/login', {
         csrfToken: ctx.request.csrfToken,

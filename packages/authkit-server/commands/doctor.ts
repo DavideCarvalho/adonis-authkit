@@ -4,12 +4,32 @@ import { runAllChecks, hasErrors, type DoctorInput, type Finding } from '../src/
 import { DatabaseAdapter } from '../src/adapters/database_adapter.js'
 import { resolveAuthkitConfig } from '../src/commands/resolve_config.js'
 
-/** Tenta importar um peer; true se importável. */
-async function canImport(specifier: string): Promise<boolean> {
+/** Logger mínimo para reportar peers instalados-mas-quebrados. */
+interface CanImportLogger {
+  warning(msg: string): void
+}
+
+/**
+ * Tenta importar um peer; `true` se importável.
+ *
+ * Distingue "não instalado" de "instalado mas quebrado": só um erro de
+ * módulo-não-encontrado (`ERR_MODULE_NOT_FOUND`/`MODULE_NOT_FOUND`) é tratado como
+ * peer ausente (silencioso — é o caso esperado). Qualquer outro erro significa que
+ * o peer ESTÁ presente mas falhou ao carregar (import circular, erro de sintaxe,
+ * config inválida) — isso o doctor precisa gritar, senão um peer quebrado aparece
+ * como "ausente" e o diagnóstico mente.
+ */
+async function canImport(specifier: string, logger?: CanImportLogger): Promise<boolean> {
   try {
     await import(specifier)
     return true
-  } catch {
+  } catch (err) {
+    const code = (err as { code?: string } | null)?.code
+    if (code !== 'ERR_MODULE_NOT_FOUND' && code !== 'MODULE_NOT_FOUND') {
+      logger?.warning(
+        `⚠️  ${specifier} está instalado mas falhou ao carregar: ${(err as Error).message}`
+      )
+    }
     return false
   }
 }
@@ -48,10 +68,10 @@ export default class AuthkitDoctor extends BaseCommand {
       authkitConfig,
       sessionConfig,
       peers: {
-        session: await canImport('@adonisjs/session'),
-        shield: await canImport('@adonisjs/shield'),
-        ally: await canImport('@adonisjs/ally'),
-        limiter: await canImport('@adonisjs/limiter'),
+        session: await canImport('@adonisjs/session', this.logger),
+        shield: await canImport('@adonisjs/shield', this.logger),
+        ally: await canImport('@adonisjs/ally', this.logger),
+        limiter: await canImport('@adonisjs/limiter', this.logger),
       },
       __adapterClasses: { DatabaseAdapter },
     }

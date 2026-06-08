@@ -28,6 +28,12 @@ export interface AuthorizeParams {
    * para IdPs de terceiros. Default: `${issuer}/auth` (convenção oidc-provider).
    */
   authorizationEndpoint?: string
+  /**
+   * Parâmetros extras anexados à URL de autorização (ex.: `audience`, `prompt`,
+   * `login_hint`, `ui_locales`, `acr_values`). Evita manipulação manual de URL no
+   * controller. Valores `undefined`/`null` são ignorados.
+   */
+  extraParams?: Record<string, string | number | undefined | null>
 }
 
 export function buildAuthorizeUrl(p: AuthorizeParams): string {
@@ -39,6 +45,11 @@ export function buildAuthorizeUrl(p: AuthorizeParams): string {
   url.searchParams.set('state', p.state)
   url.searchParams.set('code_challenge', p.codeChallenge)
   url.searchParams.set('code_challenge_method', 'S256')
+  if (p.extraParams) {
+    for (const [key, value] of Object.entries(p.extraParams)) {
+      if (value !== undefined && value !== null) url.searchParams.set(key, String(value))
+    }
+  }
   return url.toString()
 }
 

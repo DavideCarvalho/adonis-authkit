@@ -2,6 +2,14 @@ import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import { RuntimeSettings } from '../runtime_settings.js'
 import { settingDto, apiError } from '../admin_api/dto.js'
+import { isSettingLocked, lockedSettingKeys, SettingLockedError } from '../config_locks.js'
+
+/** 423 Locked: setting travada via defineConfig. */
+function lockedResponse(ctx: HttpContext, err: SettingLockedError) {
+  return ctx.response
+    .status(423)
+    .send(apiError('setting_locked', err.message, { key: err.key, lockedBy: 'config' }))
+}
 
 async function getSettingsService(ctx: HttpContext): Promise<RuntimeSettings | null> {
   try {
@@ -56,7 +64,7 @@ export default class ConsoleSettingsController {
     if (!tablePresent) return notSupported(ctx)
     const orgId = resolveOrgId(ctx)
     const rows = await svc.listSettings(orgId)
-    return { data: rows.map(settingDto) }
+    return { data: rows.map(settingDto), locked: lockedSettingKeys() }
   }
 
   /** PUT {prefix}/api/settings/:key — body: { value: any } */
@@ -72,12 +80,19 @@ export default class ConsoleSettingsController {
     const tablePresent = await svc.isTablePresent()
     if (!tablePresent) return notSupported(ctx)
 
+    if (isSettingLocked(key)) return lockedResponse(ctx, new SettingLockedError(key))
+
     const orgId = resolveOrgId(ctx)
 
     const service = await ctx.containerResolver.make('authkit.server')
     const cfg = service.config
 
-    await svc.setSetting(key, body.value, null, orgId)
+    try {
+      await svc.setSetting(key, body.value, null, orgId)
+    } catch (err) {
+      if (err instanceof SettingLockedError) return lockedResponse(ctx, err)
+      throw err
+    }
     await cfg.audit?.record({
       type: 'settings.updated',
       actorId: null,
@@ -98,12 +113,19 @@ export default class ConsoleSettingsController {
     const tablePresent = await svc.isTablePresent()
     if (!tablePresent) return notSupported(ctx)
 
+    if (isSettingLocked(key)) return lockedResponse(ctx, new SettingLockedError(key))
+
     const orgId = resolveOrgId(ctx)
 
     const service = await ctx.containerResolver.make('authkit.server')
     const cfg = service.config
 
-    await svc.deleteSetting(key, orgId)
+    try {
+      await svc.deleteSetting(key, orgId)
+    } catch (err) {
+      if (err instanceof SettingLockedError) return lockedResponse(ctx, err)
+      throw err
+    }
     await cfg.audit?.record({
       type: 'settings.updated',
       actorId: null,

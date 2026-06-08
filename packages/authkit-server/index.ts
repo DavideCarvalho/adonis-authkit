@@ -1,4 +1,14 @@
 export { ensureAuthkitSchema } from './src/schema/ensure.js'
+export { authkitCsrfExceptions } from './src/host/csrf.js'
+export type { AuthkitCsrfOptions } from './src/host/csrf.js'
+export {
+  SettingLockedError,
+  isSettingLocked,
+  lockedSettingKeys,
+  setLockedSettingKeys,
+  resetLockedSettingKeys,
+  deriveLockedSettingKeys,
+} from './src/host/config_locks.js'
 export type { EnsureSchemaOptions, EnsureSchemaReport } from './src/schema/ensure.js'
 export { defineConfig, adapters, toSeconds } from './src/define_config.js'
 export { generatePatToken, hashPatToken } from './src/pat/pat_tokens.js'
@@ -52,7 +62,13 @@ export type {
   BotProtectionWidget,
   BotProtectionAction,
 } from './src/host/bot_protection.js'
-export { lucidAccountStore } from './src/accounts/lucid_account_store.js'
+export { lucidAccountStore, appKeyEncrypter } from './src/accounts/lucid_account_store.js'
+export { lucidStores } from './src/accounts/lucid_stores.js'
+export type {
+  LucidStoresModels,
+  LucidStoresOptions,
+  LucidStoresResult,
+} from './src/accounts/lucid_stores.js'
 export type {
   LucidAccountStoreOptions,
   AccountSecretEncrypter,

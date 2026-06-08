@@ -13,6 +13,7 @@ import {
 } from './admin_prefix.js'
 import { RuntimeSettings } from './runtime_settings.js'
 import { resolveEffectiveSessionPolicy } from './runtime_toggles.js'
+import { getAuthHostConfig } from './auth_host_config.js'
 
 /** Chave da sessão Adonis que registra o timestamp da última atividade (idle timeout). */
 export const ACCOUNT_LAST_SEEN_KEY = 'authkit_last_seen'
@@ -146,8 +147,11 @@ export const adminGuard = async (ctx: any, next: () => Promise<void>) => {
  * sincronia; os guards garantem que a divergência não vire um bypass.
  */
 export interface AuthHostOptions {
-  /** Onde o provider OIDC é montado (default '/oidc'). Deve casar com o final do issuer. */
-  mountPath: string
+  /**
+   * Onde o provider OIDC é montado. Deve casar com o final do issuer. OPCIONAL:
+   * quando omitido, vem do `config/authkit.ts` (lido no boot); default `/oidc`.
+   */
+  mountPath?: string
   /**
    * Login social opt-in; quando presente, monta as rotas sociais (usam ctx.ally).
    * Necessário aqui (e não só no config) porque a decisão de montar as rotas é
@@ -242,11 +246,26 @@ const C = {
  * Monta todas as rotas do host-kit do Authorization Server numa chamada.
  * Substitui registerOidcRoutes + o hand-wiring do start/routes.ts do host.
  */
-export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
-  const mount = opts.mountPath
+export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): void {
+  // Config resolvido (stashado no boot do provider) — fonte única; `opts` só faz
+  // OVERRIDE. Elimina o drift: o consumidor pode chamar `registerAuthHost(router)`
+  // e mountPath/social/rateLimit/admin/adminApi vêm do config/authkit.ts.
+  // Fallback p/ defaults quando o stash não está disponível (ex.: testes sem boot).
+  const hostCfg = getAuthHostConfig()
+
+  const mount = opts.mountPath ?? hostCfg?.mountPath ?? '/oidc'
+
+  // social: opt explícito > config. admin/adminApi: opt explícito > (config.enabled → monta).
+  const social = opts.social ?? hostCfg?.social
+  const adminOpt = opts.admin ?? (hostCfg?.adminEnabled ? true : undefined)
+  const adminApiOpt = opts.adminApi ?? (hostCfg?.adminApiEnabled ? true : undefined)
 
   // Throttles opt-in (anti-brute-force). `undefined` quando rate-limit desligado.
-  const throttles = createAuthThrottles(resolveRateLimit(opts.rateLimit))
+  const resolvedRateLimit =
+    opts.rateLimit !== undefined
+      ? resolveRateLimit(opts.rateLimit)
+      : (hostCfg?.rateLimit ?? resolveRateLimit(undefined))
+  const throttles = createAuthThrottles(resolvedRateLimit)
   // Helpers: aplicam o middleware de throttle quando presente; senão no-op.
   const withLogin = (route: any): void => {
     if (throttles) route.use([throttles.login])
@@ -288,8 +307,8 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
   // Verificação de e-mail (standalone, GET-only — consome o token do link).
   router.get('/auth/verify-email', [C.registration, 'verifyEmail'])
 
-  // Login social (opt-in).
-  if (opts.social) {
+  // Login social (opt-in — do config ou opts).
+  if (social) {
     router.get('/auth/:provider/redirect/:uid', [C.social, 'redirect'])
     router.get('/auth/:provider/callback', [C.social, 'callback'])
   }
@@ -402,11 +421,11 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
     })
     .use([accountGuard])
 
-  // Console admin (opt-in — B6). Protegido pelo adminGuard (sessão + role global).
-  if (opts.admin) {
+  // Console admin (do config.admin.enabled ou opts). Protegido pelo adminGuard (sessão + role global).
+  if (adminOpt) {
     // Resolve o prefixo: `true` → '/admin' (default); objeto → usa prefix fornecido.
     const rawPrefix =
-      typeof opts.admin === 'object' && opts.admin.prefix ? opts.admin.prefix : '/admin'
+      typeof adminOpt === 'object' && adminOpt.prefix ? adminOpt.prefix : '/admin'
     const ap = normalizeAdminPrefix(rawPrefix)
     // Persiste no singleton de processo para que controllers e views usem o mesmo prefixo.
     setAdminPrefix(ap)
@@ -489,11 +508,11 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions): void {
 
   // Admin REST API (opt-in — R6). Superfície machine-to-machine atrás do
   // adminApiGuard (API key). Todas as rotas levam o throttle de introspecção.
-  if (opts.adminApi) {
+  if (adminApiOpt) {
     // Resolve o prefixo: `true` → '/api/authkit/v1' (default); objeto → usa prefix fornecido.
     const rawApiPrefix =
-      typeof opts.adminApi === 'object' && opts.adminApi.prefix
-        ? opts.adminApi.prefix
+      typeof adminApiOpt === 'object' && adminApiOpt.prefix
+        ? adminApiOpt.prefix
         : '/api/authkit/v1'
     const aap = normalizeAdminApiPrefix(rawApiPrefix)
     // Persiste no singleton de processo para que o SDK remoto e outros consumidores

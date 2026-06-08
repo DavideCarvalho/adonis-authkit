@@ -3,7 +3,7 @@ import { RuntimeException } from '@adonisjs/core/exceptions'
 import type { ApplicationService } from '@adonisjs/core/types'
 import type { HttpContext } from '@adonisjs/core/http'
 import { Authenticator } from '../src/authenticator.js'
-import { refreshTokens } from '../src/oidc_login.js'
+import { refreshTokens, exchangeToken } from '../src/oidc_login.js'
 import { validateLogoutToken } from '../src/backchannel_logout.js'
 import type { ResolvedClientConfig } from '../src/define_config.js'
 import type { TokenSet } from '../src/types.js'
@@ -124,6 +124,49 @@ export class AuthkitClientManager {
     await this.config.onBackchannelLogout?.({ sid: validated.sid, sub: validated.sub })
 
     return {}
+  }
+
+  /** Chave de sessão onde o token set ORIGINAL fica guardado durante a impersonação. */
+  get #impersonatorKey(): string {
+    return `${this.config.sessionKey}_impersonator`
+  }
+
+  /**
+   * Impersona `requestedSubject` via token-exchange (RFC 8693): guarda o token set
+   * atual e o substitui pelo do alvo. Encapsula o malabarismo de session keys que o
+   * consumidor fazia à mão. A AUTORIZAÇÃO (quem pode impersonar quem) é responsabilidade
+   * do chamador (ex.: Bouncer) ANTES de chamar este método.
+   */
+  async impersonate(ctx: HttpContext, requestedSubject: string): Promise<void> {
+    const session = (ctx as any).session
+    const current = session?.get(this.config.sessionKey) as TokenSet | undefined
+    if (!current?.accessToken) {
+      throw new Error('Sem sessão ativa para impersonar a partir dela')
+    }
+    const impersonated = await exchangeToken({
+      issuer: this.config.issuer,
+      clientId: this.config.clientId,
+      clientSecret: this.config.clientSecret,
+      subjectToken: current.accessToken,
+      requestedSubject,
+    })
+    session.put(this.#impersonatorKey, current)
+    session.put(this.config.sessionKey, impersonated)
+  }
+
+  /** Encerra a impersonação restaurando o token set original. Retorna false se não havia impersonação. */
+  async stopImpersonating(ctx: HttpContext): Promise<boolean> {
+    const session = (ctx as any).session
+    const original = session?.get(this.#impersonatorKey) as TokenSet | undefined
+    if (!original) return false
+    session.put(this.config.sessionKey, original)
+    session.forget(this.#impersonatorKey)
+    return true
+  }
+
+  /** Indica se a request corrente está impersonando (p/ exibir banner na UI). */
+  isImpersonating(ctx: HttpContext): boolean {
+    return Boolean((ctx as any).session?.get(this.#impersonatorKey))
   }
 
   async createAuthenticator(ctx: HttpContext): Promise<Authenticator> {

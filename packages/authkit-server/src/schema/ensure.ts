@@ -139,6 +139,30 @@ const TABLES: TableDef[] = [
     },
   },
   {
+    name: 'auth_session_revocations',
+    /**
+     * Log de revogações de Back-Channel Logout para clients com sessão cookie-based.
+     * Escrito pelo handler de BCL de cada client (e pela revogação em massa do admin);
+     * lido pelo BackchannelRevocationMiddleware em toda request. Vive no schema `auth`
+     * para ser compartilhável entre todos os apps que apontam para o MESMO banco.
+     */
+    create: (t) => {
+      t.increments('id').primary()
+      // sid do logout_token → revoga UMA sessão SSO específica (nullable: pode vir só sub).
+      t.string('sid').nullable().index()
+      // sub do logout_token → revoga TODAS as sessões do usuário antes de revoked_at.
+      t.string('sub').nullable().index()
+      t.timestamp('revoked_at', { useTz: true }).notNullable()
+      // Prune por idade (revogações mais velhas que o TTL máximo de sessão viram lixo).
+      t.index(['revoked_at'])
+    },
+    columns: {
+      sid: (t) => t.string('sid').nullable().index(),
+      sub: (t) => t.string('sub').nullable().index(),
+      revoked_at: (t) => t.timestamp('revoked_at', { useTz: true }).nullable(),
+    },
+  },
+  {
     name: 'auth_organization_invitations',
     create: (t) => {
       t.string('id').primary()

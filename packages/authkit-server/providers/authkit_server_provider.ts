@@ -22,6 +22,34 @@ export default class AuthkitServerProvider {
   constructor(protected app: ApplicationService) {}
 
   async boot() {
+    // Config locks: trava as settings definidas explicitamente no defineConfig
+    // (config vence em runtime; a UI/Admin API não pode alterá-las). Fail-safe:
+    // qualquer erro → sem locks (comportamento legado).
+    try {
+      const value = this.app.config.get('authkit')
+      if (value) {
+        const config = (await configProvider.resolve(this.app, value)) as ResolvedServerConfig | null
+        if (config) {
+          if (config.lockedSettingKeys?.length) {
+            const { setLockedSettingKeys } = await import('../src/host/config_locks.js')
+            setLockedSettingKeys(config.lockedSettingKeys)
+          }
+          // Stash dos bits de routing p/ o registerAuthHost ler do config (dedup).
+          // boot() roda antes do preload start/routes.ts, então estará disponível lá.
+          const { setAuthHostConfig } = await import('../src/host/auth_host_config.js')
+          setAuthHostConfig({
+            mountPath: config.mountPath,
+            social: config.social,
+            rateLimit: config.rateLimit,
+            adminEnabled: config.admin.enabled,
+            adminApiEnabled: config.adminApi.enabled,
+          })
+        }
+      }
+    } catch {
+      /* sem locks / sem stash → registerAuthHost cai em opts/defaults */
+    }
+
     // Registra o disco "authkit" no edge.js para que os templates sejam referenciados
     // como `authkit::login`, `authkit::account/tokens`, etc.
     // Resolve o diretório das views tanto em produção (provider compilado em

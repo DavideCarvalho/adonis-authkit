@@ -6,6 +6,8 @@ import { resolveAuthkitConfig } from '../src/commands/resolve_config.js'
 import { KeystoreManager, resolveKeystoreVault } from '../src/keys/keystore_manager.js'
 import { KeystoreCodec } from '../src/keys/keystore_codec.js'
 import { signingKeyAgeDays } from '../src/keys/keystore.js'
+import { defaultEncryptForStore } from '../src/define_config.js'
+import { loadEncryptionService } from '../src/keys/keystore_crypto.js'
 
 /** Tenta importar um peer; true se importável. */
 async function canImport(specifier: string): Promise<boolean> {
@@ -66,7 +68,9 @@ export default class AuthkitDoctor extends BaseCommand {
     if (jwksInput?.source === 'managed' && jwksInput?.store) {
       try {
         const vault = resolveKeystoreVault(jwksInput.store, (p) => this.app.makePath(p))
-        const mgr = new KeystoreManager(vault, new KeystoreCodec({ encrypt: false }), jwksInput.algorithm ?? 'RS256')
+        const encrypt = jwksInput.encrypt ?? defaultEncryptForStore(jwksInput.store)
+        const enc = encrypt ? await loadEncryptionService().catch(() => undefined) : undefined
+        const mgr = new KeystoreManager(vault, new KeystoreCodec({ encrypt, enc }), jwksInput.algorithm ?? 'RS256')
         const store = await mgr.read().catch(() => null)
         const maxAge = jwksInput.rotationDays ?? 90
         findings.push(signingKeyAgeFinding(signingKeyAgeDays(store), maxAge))

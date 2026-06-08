@@ -7,6 +7,8 @@ import { KeystoreCodec } from '../../src/keys/keystore_codec.js'
 import type { KeystoreVault } from '../../src/keys/keystore_vault.js'
 import { resolveKeystoreVault } from '../../src/keys/keystore_manager.js'
 import { FileKeystoreVault, DriveKeystoreVault } from '../../src/keys/keystore_vault.js'
+import { __setEncryptionServiceForTests } from '../../src/keys/keystore_crypto.js'
+import { signingKeyAgeDays } from '../../src/keys/keystore.js'
 
 function memVault(initial: string | null = null): KeystoreVault & { blob: string | null } {
   return {
@@ -96,5 +98,36 @@ test.group('KeystoreManager em arquivo (paridade com o comando)', (group) => {
     assert.lengthOf(store.keys, 1)
     assert.equal(store.keys[0].kid, res.newKid)
     assert.isAbove(res.retiredKids.length, 0)
+  })
+})
+
+test.group('idade via keystore encriptado (regressão doctor)', (group) => {
+  const fakeEnc = {
+    encrypt: (v: string) => Buffer.from(v, 'utf8').toString('base64'),
+    decrypt: <T = string>(v: string) => Buffer.from(v, 'base64').toString('utf8') as unknown as T,
+  }
+  group.each.teardown(() => __setEncryptionServiceForTests(undefined))
+
+  test('keystore encriptado → idade legível com enc disponível', async ({ assert }) => {
+    __setEncryptionServiceForTests(fakeEnc)
+    const vault = { blob: null as string | null, async read() { return this.blob }, async write(b: string) { this.blob = b } }
+    const codec = new KeystoreCodec({ encrypt: true, enc: fakeEnc })
+    const mgr = new KeystoreManager(vault as any, codec, 'RS256')
+    await mgr.ensure()
+    // sanity: o blob persistido está mesmo encriptado (aes), não plaintext
+    assert.equal(JSON.parse(vault.blob!).enc, 'aes')
+    // lê de volta e computa idade (deve ser um número, não null)
+    const store = await mgr.read()
+    assert.isNotNull(store)
+    assert.isNumber(signingKeyAgeDays(store))
+  })
+
+  test('keystore encriptado SEM enc → read lança (doctor degrada p/ não-aplicável)', async ({ assert }) => {
+    const codec = new KeystoreCodec({ encrypt: true, enc: fakeEnc })
+    const vault = { blob: null as string | null, async read() { return this.blob }, async write(b: string) { this.blob = b } }
+    await new KeystoreManager(vault as any, codec, 'RS256').ensure()
+    // um manager SEM enc (como o doctor com encrypt:false) não consegue decodificar
+    const noEncMgr = new KeystoreManager(vault as any, new KeystoreCodec({ encrypt: false }), 'RS256')
+    await assert.rejects(() => noEncMgr.read())
   })
 })

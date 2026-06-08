@@ -3,6 +3,13 @@ import type { HttpContext } from '@adonisjs/core/http'
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
 import { AdminOrgsService } from '../admin_api/admin_orgs_service.js'
 import { orgDto, orgDetailDto, apiError } from '../admin_api/dto.js'
+import {
+  orgCreateValidator,
+  orgUpdateValidator,
+  orgAddMemberValidator,
+  orgMemberRoleValidator,
+  orgInvitationValidator,
+} from '../admin_validators.js'
 
 /**
  * Endpoints JSON de organizações do console admin React.
@@ -63,20 +70,10 @@ export default class ConsoleOrgsController {
       )
     }
 
-    const body = ctx.request.body() as Record<string, unknown>
-    const name = (body.name as string | undefined)?.trim() ?? ''
-    const slug = (body.slug as string | undefined)?.trim() ?? ''
-    const ownerAccountId = (body.ownerAccountId as string | undefined)?.trim() ?? ''
-    const logoUrl = (body.logoUrl as string | null | undefined) ?? null
-
-    if (!name || !slug || !ownerAccountId) {
-      return ctx.response.badRequest(
-        apiError('invalid_input', 'Os campos name, slug e ownerAccountId são obrigatórios.')
-      )
-    }
+    const { name, slug, ownerAccountId, logoUrl } = await ctx.request.validateUsing(orgCreateValidator)
 
     const result = await svc.createOrg(
-      { name, slug, ownerAccountId, logoUrl },
+      { name, slug, ownerAccountId, logoUrl: logoUrl ?? null },
       this.actor(ctx)
     )
 
@@ -130,10 +127,10 @@ export default class ConsoleOrgsController {
     }
 
     const id = ctx.request.param('id') as string
-    const body = ctx.request.body() as Record<string, unknown>
+    const { name, logoUrl } = await ctx.request.validateUsing(orgUpdateValidator)
     const patch: { name?: string; logoUrl?: string | null } = {}
-    if (body.name !== undefined) patch.name = (body.name as string).trim()
-    if (body.logoUrl !== undefined) patch.logoUrl = body.logoUrl as string | null
+    if (name !== undefined) patch.name = name
+    if (logoUrl !== undefined) patch.logoUrl = logoUrl
 
     const result = await svc.updateOrg(id, patch, this.actor(ctx))
 
@@ -190,15 +187,9 @@ export default class ConsoleOrgsController {
     }
 
     const orgId = ctx.request.param('id') as string
-    const body = ctx.request.body() as Record<string, unknown>
-    const accountId = (body.accountId as string | undefined)?.trim() ?? ''
-    const role = (body.role as string | undefined)?.trim() ?? 'member'
+    const { accountId, role } = await ctx.request.validateUsing(orgAddMemberValidator)
 
-    if (!accountId) {
-      return ctx.response.badRequest(apiError('invalid_input', 'O campo accountId é obrigatório.'))
-    }
-
-    const result = await svc.addMember(orgId, { accountId, role }, this.actor(ctx))
+    const result = await svc.addMember(orgId, { accountId, role: role ?? 'member' }, this.actor(ctx))
 
     if ('ok' in result && result.ok === false) {
       if (result.reason === 'not_found') {
@@ -262,12 +253,7 @@ export default class ConsoleOrgsController {
 
     const orgId = ctx.request.param('id') as string
     const accountId = ctx.request.param('accountId') as string
-    const body = ctx.request.body() as Record<string, unknown>
-    const role = (body.role as string | undefined)?.trim() ?? ''
-
-    if (!role) {
-      return ctx.response.badRequest(apiError('invalid_input', 'O campo role é obrigatório.'))
-    }
+    const { role } = await ctx.request.validateUsing(orgMemberRoleValidator)
 
     const result = await svc.updateMemberRole(orgId, accountId, role, this.actor(ctx))
 
@@ -302,16 +288,10 @@ export default class ConsoleOrgsController {
     }
 
     const orgId = ctx.request.param('id') as string
-    const body = ctx.request.body() as Record<string, unknown>
-    const email = (body.email as string | undefined)?.trim() ?? ''
-    const role = (body.role as string | undefined)?.trim() ?? 'member'
-
-    if (!email) {
-      return ctx.response.badRequest(apiError('invalid_input', 'O campo email é obrigatório.'))
-    }
+    const { email, role } = await ctx.request.validateUsing(orgInvitationValidator)
 
     const origin = `${ctx.request.protocol()}://${ctx.request.host()}`
-    const result = await svc.createInvitation(orgId, { email, role }, this.actor(ctx), origin)
+    const result = await svc.createInvitation(orgId, { email, role: role ?? 'member' }, this.actor(ctx), origin)
 
     if ('ok' in result && result.ok === false) {
       if (result.reason === 'not_found') {

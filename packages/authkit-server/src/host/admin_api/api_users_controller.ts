@@ -5,6 +5,7 @@ import { AdminUsersService } from './admin_users_service.js'
 import { AdminSessionsService } from '../admin_sessions_service.js'
 import { enrichSessionsWithContext } from '../session_context.js'
 import { userDto, sessionDto, grantDto, apiError } from './dto.js'
+import { adminUserCreateValidator, adminUserUpdateValidator } from '../admin_validators.js'
 
 const PAGE_SIZE = 20
 
@@ -49,15 +50,14 @@ export default class ApiUsersController {
   /** POST /users — { email, name?, password? | invite?:true }. */
   async store(ctx: HttpContext) {
     const { cfg, actor } = await ctxBits(ctx)
-    const email = (ctx.request.input('email', '') as string).trim()
-    const name = (ctx.request.input('name') as string | undefined) ?? null
-    const password = (ctx.request.input('password') as string | undefined) ?? null
-    const invite = ctx.request.input('invite') === true || ctx.request.input('invite') === 'true'
-
-    if (!email) return ctx.response.badRequest(apiError('invalid_request', 'O campo email é obrigatório.'))
+    const { email, name, password, invite } = await ctx.request.validateUsing(adminUserCreateValidator)
 
     const users = new AdminUsersService(cfg)
-    const result = await users.create(ctx, { email, name, password, invite }, actor)
+    const result = await users.create(
+      ctx,
+      { email, name: name ?? null, password: password ?? null, invite: invite ?? false },
+      actor
+    )
     if (!result.ok) {
       if (result.reason === 'password_policy') {
         return ctx.response.badRequest(
@@ -78,14 +78,14 @@ export default class ApiUsersController {
     if (!account) return ctx.response.notFound(apiError('not_found', 'Usuário não encontrado.'))
 
     const users = new AdminUsersService(cfg)
-    const roles = ctx.request.input('globalRoles') as string[] | undefined
+    const { globalRoles: roles, name, avatarUrl } = await ctx.request.validateUsing(
+      adminUserUpdateValidator
+    )
     if (Array.isArray(roles)) {
-      const normalized = Array.from(new Set(roles.map((r) => String(r).trim()).filter(Boolean)))
+      const normalized = Array.from(new Set(roles.map((r) => r.trim()).filter(Boolean)))
       await users.setGlobalRoles(id, normalized)
     }
 
-    const name = ctx.request.input('name') as string | null | undefined
-    const avatarUrl = ctx.request.input('avatarUrl') as string | null | undefined
     if (name !== undefined || avatarUrl !== undefined) {
       const patch: { name?: string | null; avatarUrl?: string | null } = {}
       if (name !== undefined) patch.name = name

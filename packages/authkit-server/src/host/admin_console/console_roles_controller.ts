@@ -8,6 +8,7 @@ import {
 } from '../runtime_toggles.js'
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
 import { apiError } from '../admin_api/dto.js'
+import { roleCreateValidator, roleUpdateValidator } from '../admin_validators.js'
 
 /** Regex de validação: nome de role — letras maiúsculas, dígitos e underscore. */
 const ROLE_NAME_RE = /^[A-Z][A-Z0-9_]*$/
@@ -52,10 +53,13 @@ export default class ConsoleRolesController {
     const actorId = (ctx.session?.get(ACCOUNT_SESSION_KEY) as string) ?? null
     const ip = ctx.request.ip?.() ?? null
 
-    const name = ((ctx.request.input('name', '') as string) ?? '').trim().toUpperCase()
-    const description = ((ctx.request.input('description', '') as string) ?? '').trim()
+    const validated = await ctx.request.validateUsing(roleCreateValidator)
+    const name = validated.name.toUpperCase()
+    const description = validated.description ?? ''
 
-    if (!name || !ROLE_NAME_RE.test(name)) {
+    // Formato (uppercase + regex) e mensagem custom continuam aqui — Vine só
+    // garante presença/tipo; a regra de domínio do nome é específica do catálogo.
+    if (!ROLE_NAME_RE.test(name)) {
       return ctx.response.badRequest(
         apiError('invalid_name', cfg.messages['admin.roles.name_invalid'] ?? 'Nome de role inválido.')
       )
@@ -89,7 +93,8 @@ export default class ConsoleRolesController {
     const ip = ctx.request.ip?.() ?? null
 
     const roleName = decodeURIComponent(ctx.request.param('name') as string)
-    const description = ((ctx.request.input('description', '') as string) ?? '').trim()
+    const { description: rawDescription } = await ctx.request.validateUsing(roleUpdateValidator)
+    const description = rawDescription ?? ''
 
     const rs = await getRuntimeSettings(ctx)
     if (!rs) return ctx.response.notFound(apiError('capability_unsupported', 'Tabela auth_settings não disponível.'))

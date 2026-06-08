@@ -4,6 +4,7 @@ import { AdminSessionsService } from '../admin_sessions_service.js'
 import { enrichSessionsWithContext } from '../session_context.js'
 import { sessionDto, grantDto, apiError } from '../admin_api/dto.js'
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
+import { sessionAccountValidator } from '../admin_validators.js'
 
 /**
  * Endpoints JSON de sessões/grants do console admin React.
@@ -114,15 +115,13 @@ export default class ConsoleSessionsController {
     const actorId = (ctx.session?.get(ACCOUNT_SESSION_KEY) as string) ?? null
     const ip = ctx.request.ip?.() ?? null
 
-    const accountId = (
-      (ctx.request.input('accountId', '') as string | undefined) ||
-      (ctx.request.param('accountId') as string | undefined) ||
-      ''
-    ).trim()
-
-    if (!accountId) {
-      return ctx.response.badRequest(apiError('invalid_request', 'O parâmetro accountId é obrigatório.'))
-    }
+    // accountId pode vir por query/body OU route param — Vine valida o valor já
+    // coalescido (validate() aceita qualquer dado, não só request.all()).
+    const { accountId } = await sessionAccountValidator.validate({
+      accountId:
+        (ctx.request.input('accountId') as string | undefined) ??
+        (ctx.request.param('accountId') as string | undefined),
+    })
 
     const sessions = new AdminSessionsService(service)
     const result = await sessions.revokeAll(accountId)

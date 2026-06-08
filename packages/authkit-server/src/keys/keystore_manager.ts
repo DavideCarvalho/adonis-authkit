@@ -1,6 +1,6 @@
 import { generateSigningJwk, planRotation, type PersistedKeystore, type RotationPlan } from './keystore.js'
 import type { KeystoreCodec } from './keystore_codec.js'
-import { FileKeystoreVault, DriveKeystoreVault, LucidKeystoreVault, RedisKeystoreVault, type KeystoreVault } from './keystore_vault.js'
+import { FileKeystoreVault, DriveKeystoreVault, LucidKeystoreVault, RedisKeystoreVault, HashicorpVaultKeystoreVault, type KeystoreVault } from './keystore_vault.js'
 import type { SigningAlg } from './jwks_manager.js'
 import type { KeystoreStoreConfig } from '@dudousxd/adonis-authkit-core'
 
@@ -64,7 +64,6 @@ export class KeystoreManager {
 
 /** Packages-irmãos que entregam os cofres de cloud (planos futuros). */
 const CLOUD_DRIVER_PACKAGE: Record<string, string> = {
-  'hashicorp-vault': '@dudousxd/adonis-authkit-vault-hashicorp',
   'aws-secrets-manager': '@dudousxd/adonis-authkit-vault-aws',
   'gcp-secret-manager': '@dudousxd/adonis-authkit-vault-gcp',
   'azure-key-vault': '@dudousxd/adonis-authkit-vault-azure',
@@ -110,6 +109,14 @@ export function resolveKeystoreVault(
         },
         cfg.key
       )
+    case 'hashicorp-vault':
+      return new HashicorpVaultKeystoreVault({
+        endpoint: cfg.endpoint,
+        path: cfg.path,
+        token: cfg.token,
+        mount: (cfg as any).mount,
+        field: (cfg as any).field,
+      })
     default: {
       const pkg = CLOUD_DRIVER_PACKAGE[(cfg as any).driver]
       throw new Error(

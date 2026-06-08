@@ -131,6 +131,75 @@ export class RedisKeystoreVault implements KeystoreVault {
   }
 }
 
+/** fetch mínimo que o vault HTTP usa (injetável p/ testes). */
+type VaultFetch = (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{ ok: boolean; status: number; json(): Promise<any> }>
+
+export interface HashicorpVaultConfig {
+  endpoint: string
+  path: string
+  token?: string
+  mount?: string
+  field?: string
+}
+
+/**
+ * Cofre no HashiCorp Vault (KV v2, via API HTTP — sem SDK). Compartilhado entre
+ * instâncias e com encryption/ACL próprios do Vault (por isso `encrypt` default OFF).
+ * Crítico: erro HTTP não-404 lança (não degrada). `head()` = versão atual (metadata).
+ */
+export class HashicorpVaultKeystoreVault implements KeystoreVault {
+  #endpoint: string
+  #mount: string
+  #path: string
+  #field: string
+  #token?: string
+  #fetch: VaultFetch
+
+  constructor(cfg: HashicorpVaultConfig, fetchImpl?: VaultFetch) {
+    this.#endpoint = cfg.endpoint.replace(/\/+$/, '')
+    this.#mount = (cfg.mount ?? 'secret').replace(/^\/+|\/+$/g, '')
+    this.#path = cfg.path.replace(/^\/+/, '')
+    this.#field = cfg.field ?? 'value'
+    this.#token = cfg.token
+    this.#fetch = fetchImpl ?? (globalThis.fetch as unknown as VaultFetch)
+  }
+
+  #headers(): Record<string, string> {
+    const h: Record<string, string> = { 'content-type': 'application/json' }
+    if (this.#token) h['x-vault-token'] = this.#token
+    return h
+  }
+  #dataUrl() { return `${this.#endpoint}/v1/${this.#mount}/data/${this.#path}` }
+  #metaUrl() { return `${this.#endpoint}/v1/${this.#mount}/metadata/${this.#path}` }
+
+  async read(): Promise<string | null> {
+    const res = await this.#fetch(this.#dataUrl(), { method: 'GET', headers: this.#headers() })
+    if (res.status === 404) return null
+    if (!res.ok) throw new Error(`AuthKit keystore (hashicorp-vault): read falhou (HTTP ${res.status}).`)
+    const body = await res.json()
+    const value = body?.data?.data?.[this.#field]
+    return typeof value === 'string' ? value : null
+  }
+
+  async write(blob: string): Promise<void> {
+    const res = await this.#fetch(this.#dataUrl(), {
+      method: 'POST',
+      headers: this.#headers(),
+      body: JSON.stringify({ data: { [this.#field]: blob } }),
+    })
+    if (!res.ok) throw new Error(`AuthKit keystore (hashicorp-vault): write falhou (HTTP ${res.status}).`)
+  }
+
+  async head(): Promise<string | null> {
+    const res = await this.#fetch(this.#metaUrl(), { method: 'GET', headers: this.#headers() })
+    if (res.status === 404) return null
+    if (!res.ok) return null // head é best-effort p/ o poll
+    const body = await res.json()
+    const v = body?.data?.current_version
+    return v === undefined || v === null ? null : String(v)
+  }
+}
+
 /**
  * Cofre num disk do `@adonisjs/drive` (S3/GCS/local). Diferente do avatar, chave é
  * crítica: se o drive não está instalado mas foi selecionado → ERRO (não degrada).

@@ -36,7 +36,7 @@ export type KeystoreStoreConfig =
   | { driver: 'drive'; disk?: string; key: string }
   | { driver: 'lucid'; table?: string; connection?: string; key?: string }
   | { driver: 'redis'; connection?: string; key?: string }
-  | { driver: 'hashicorp-vault'; endpoint: string; path: string; token?: string }
+  | { driver: 'hashicorp-vault'; endpoint: string; path: string; token?: string; mount?: string; field?: string }
   | { driver: 'aws-secrets-manager'; secretId: string; region?: string }
   | { driver: 'gcp-secret-manager'; name: string }
   | { driver: 'azure-key-vault'; vaultUrl: string; secretName: string }

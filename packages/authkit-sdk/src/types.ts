@@ -430,7 +430,7 @@ export interface Authkit {
     set(key: string, value: unknown): Promise<AuthkitSetting>
     delete(key: string): Promise<DeletedSetting>
   }
-  /** Managed signing-key status and rotation (Admin REST API only; returns 501 when jwks is not managed+store). */
+  /** Managed signing-key status and rotation (remote = Admin REST API, embedded = in-process; returns 501/throws when jwks is not managed+store). */
   keys: {
     /** GET /keys — age, policy and ETA to next rotation. */
     status(): Promise<KeysStatus>

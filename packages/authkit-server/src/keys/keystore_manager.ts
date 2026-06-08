@@ -1,6 +1,6 @@
 import { generateSigningJwk, planRotation, type PersistedKeystore, type RotationPlan } from './keystore.js'
 import type { KeystoreCodec } from './keystore_codec.js'
-import { FileKeystoreVault, DriveKeystoreVault, LucidKeystoreVault, RedisKeystoreVault, HashicorpVaultKeystoreVault, type KeystoreVault } from './keystore_vault.js'
+import { FileKeystoreVault, DriveKeystoreVault, LucidKeystoreVault, RedisKeystoreVault, HashicorpVaultKeystoreVault, LazyExternalVault, type KeystoreVault } from './keystore_vault.js'
 import type { SigningAlg } from './jwks_manager.js'
 import type { KeystoreStoreConfig } from '@dudousxd/adonis-authkit-core'
 
@@ -119,10 +119,8 @@ export function resolveKeystoreVault(
       })
     default: {
       const pkg = CLOUD_DRIVER_PACKAGE[(cfg as any).driver]
-      throw new Error(
-        `AuthKit keystore: driver "${(cfg as any).driver}" requer o package ${pkg ?? '(desconhecido)'} ` +
-          `(ainda não disponível nesta versão).`
-      )
+      if (!pkg) throw new Error(`AuthKit keystore: driver "${(cfg as any).driver}" desconhecido.`)
+      return new LazyExternalVault(pkg, cfg)
     }
   }
 }

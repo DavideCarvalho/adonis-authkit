@@ -13,20 +13,10 @@ interface Envelope {
   data: string
 }
 
-/** `true` se o blob é um keystore legado (JSON cru `{keys:[...]}` sem envelope). */
-export function isLegacyBlob(blob: string): boolean {
-  try {
-    const p = JSON.parse(blob)
-    return !!p && Array.isArray(p.keys) && p.v === undefined
-  } catch {
-    return false
-  }
-}
-
 /**
  * Serializa/desserializa o keystore com envelope versionado. `encrypt: true`
- * exige um `enc` (EncryptionLike). `decode` aceita: legado (JSON cru),
- * `enc:'none'` e `enc:'aes'`. Decrypt falho → THROW (decisão: nunca regenerar).
+ * exige um `enc` (EncryptionLike). `decode` aceita: `enc:'none'` e `enc:'aes'`.
+ * Decrypt falho → THROW (decisão: nunca regenerar).
  */
 export class KeystoreCodec {
   constructor(private opts: { encrypt: boolean; enc?: EncryptionLike }) {}
@@ -46,10 +36,6 @@ export class KeystoreCodec {
 
   async decode(blob: string): Promise<PersistedKeystore> {
     const parsed = JSON.parse(blob)
-    // Legado: JSON cru sem envelope.
-    if (parsed && Array.isArray(parsed.keys) && parsed.v === undefined) {
-      return parsed as PersistedKeystore
-    }
     if (parsed?.v === 2 && typeof parsed.data === 'string') {
       if (parsed.enc === 'none') return JSON.parse(parsed.data)
       if (parsed.enc === 'aes') {

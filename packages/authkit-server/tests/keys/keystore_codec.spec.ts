@@ -1,5 +1,5 @@
 import { test } from '@japa/runner'
-import { KeystoreCodec, isLegacyBlob } from '../../src/keys/keystore_codec.js'
+import { KeystoreCodec } from '../../src/keys/keystore_codec.js'
 
 const STORE = { keys: [{ kid: 'k1', kty: 'RSA', d: 'secret', use: 'sig' }] }
 
@@ -15,13 +15,6 @@ test.group('KeystoreCodec (plaintext)', () => {
     const blob = await codec.encode(STORE as any)
     assert.deepEqual(JSON.parse(blob).enc, 'none')
     assert.deepEqual(await codec.decode(blob), STORE)
-  })
-
-  test('decode lê keystore legado (JSON cru sem envelope)', async ({ assert }) => {
-    const codec = new KeystoreCodec({ encrypt: false })
-    const legacy = JSON.stringify(STORE)
-    assert.isTrue(isLegacyBlob(legacy))
-    assert.deepEqual(await codec.decode(legacy), STORE)
   })
 
   test('decode lança em formato irreconhecível', async ({ assert }) => {

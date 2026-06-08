@@ -64,11 +64,17 @@ export class LucidKeystoreVault implements KeystoreVault {
 
   private async ensureTable(conn: any): Promise<void> {
     if (await conn.schema.hasTable(this.table)) return
-    await conn.schema.createTable(this.table, (t: any) => {
-      t.string('key').notNullable().primary()
-      t.text('blob').notNullable()
-      t.bigInteger('updated_at').notNullable()
-    })
+    try {
+      await conn.schema.createTable(this.table, (t: any) => {
+        t.string('key').notNullable().primary()
+        t.text('blob').notNullable()
+        t.bigInteger('updated_at').notNullable()
+      })
+    } catch (err) {
+      // Outra instância criou a tabela entre o hasTable e o createTable (race no boot
+      // multi-instância). Se já existe agora, OK; senão propaga.
+      if (!(await conn.schema.hasTable(this.table))) throw err
+    }
   }
 
   async read(): Promise<string | null> {
@@ -81,12 +87,11 @@ export class LucidKeystoreVault implements KeystoreVault {
   async write(blob: string): Promise<void> {
     const conn = await this.getConn()
     await this.ensureTable(conn)
-    const exists = await conn.from(this.table).where('key', this.key).first()
-    if (exists) {
-      await conn.from(this.table).where('key', this.key).update({ blob, updated_at: Date.now() })
-    } else {
-      await conn.table(this.table).insert({ key: this.key, blob, updated_at: Date.now() })
-    }
+    await conn
+      .table(this.table)
+      .insert({ key: this.key, blob, updated_at: Date.now() })
+      .onConflict('key')
+      .merge()
   }
 
   async head(): Promise<string | null> {

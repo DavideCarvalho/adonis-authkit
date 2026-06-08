@@ -993,7 +993,7 @@ export function defineConfig(config: AuthServerConfigInput) {
     }
 
     const storeCfg = (jwksConfig as { store?: any }).store
-    if (storeCfg && typeof storeCfg === 'object' && storeCfg.driver === 'redis') {
+    if (jwksConfig.source === 'managed' && storeCfg && typeof storeCfg === 'object' && storeCfg.driver === 'redis') {
       await app.container
         .make('logger')
         .then((l: any) =>

@@ -64,6 +64,7 @@
     "@adonisjs/drive": "catalog:adonis",
     "@adonisjs/lock": "catalog:adonis",
     "@adonisjs/lucid": "catalog:adonis",
+    "@adonisjs/redis": "catalog:adonis",
     "@adonisjs/session": "catalog:adonis",
     "@adonisjs/shield": "catalog:adonis",
     "edge.js": "catalog:"
@@ -79,6 +80,9 @@
       "optional": true
     },
     "@adonisjs/lock": {
+      "optional": true
+    },
+    "@adonisjs/redis": {
       "optional": true
     }
   },

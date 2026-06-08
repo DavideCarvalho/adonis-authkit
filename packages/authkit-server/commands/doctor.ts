@@ -87,7 +87,7 @@ export default class AuthkitDoctor extends BaseCommand {
     const jwksInput = (authkitConfig?.jwksConfig ?? authkitConfig?.jwks) as any
     if (jwksInput?.source === 'managed' && jwksInput?.store) {
       try {
-        const vault = resolveKeystoreVault(jwksInput.store, (p) => this.app.makePath(p))
+        const vault = resolveKeystoreVault(jwksInput.store, { makePath: (p) => this.app.makePath(p), container: this.app.container })
         const encrypt = jwksInput.encrypt ?? defaultEncryptForStore(jwksInput.store)
         const enc = encrypt ? await loadEncryptionService().catch(() => undefined) : undefined
         const mgr = new KeystoreManager(vault, new KeystoreCodec({ encrypt, enc }), jwksInput.algorithm ?? 'RS256')

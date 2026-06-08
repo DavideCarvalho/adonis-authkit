@@ -994,7 +994,7 @@ export function defineConfig(config: AuthServerConfigInput) {
     if (jwksConfig.source === 'managed') {
       const alg = jwksConfig.algorithm ?? 'RS256'
       if (jwksConfig.store) {
-        const vault = resolveKeystoreVault(jwksConfig.store as any, (p) => app.makePath(p))
+        const vault = resolveKeystoreVault(jwksConfig.store as any, { makePath: (p) => app.makePath(p), container: app.container })
         const encrypt = jwksConfig.encrypt ?? defaultEncryptForStore(jwksConfig.store as any)
         const enc = encrypt ? await loadEncryptionService() : undefined
         const manager = new KeystoreManager(vault, new KeystoreCodec({ encrypt, enc }), alg)

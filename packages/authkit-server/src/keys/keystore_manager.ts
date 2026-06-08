@@ -1,6 +1,6 @@
 import { generateSigningJwk, planRotation, type PersistedKeystore, type RotationPlan } from './keystore.js'
 import type { KeystoreCodec } from './keystore_codec.js'
-import { FileKeystoreVault, DriveKeystoreVault, type KeystoreVault } from './keystore_vault.js'
+import { FileKeystoreVault, DriveKeystoreVault, LucidKeystoreVault, RedisKeystoreVault, type KeystoreVault } from './keystore_vault.js'
 import type { SigningAlg } from './jwks_manager.js'
 import type { KeystoreStoreConfig } from '@dudousxd/adonis-authkit-core'
 
@@ -70,23 +70,46 @@ const CLOUD_DRIVER_PACKAGE: Record<string, string> = {
   'azure-key-vault': '@dudousxd/adonis-authkit-vault-azure',
 }
 
+/** Acesso mínimo ao app que o resolver precisa (paths + container p/ lucid/redis). */
+export interface KeystoreVaultContext {
+  makePath: (p: string) => string
+  container: { make: (token: string) => Promise<any> }
+}
+
 /**
- * Resolve a config `store` num {@link KeystoreVault}. `makePath` = `app.makePath`
+ * Resolve a config `store` num {@link KeystoreVault}. `ctx.makePath` = `app.makePath`
  * (resolve paths relativos à raiz do app). Instância custom (com `read`/`write`)
  * passa direto. Drivers de cloud lançam nesta fatia (chegam nos packages-irmãos).
  */
 export function resolveKeystoreVault(
   store: KeystoreStoreConfig | KeystoreVault,
-  makePath: (p: string) => string
+  ctx: KeystoreVaultContext
 ): KeystoreVault {
-  if (typeof store === 'string') return new FileKeystoreVault(makePath(store))
+  if (typeof store === 'string') return new FileKeystoreVault(ctx.makePath(store))
   if (typeof (store as KeystoreVault).read === 'function') return store as KeystoreVault
   const cfg = store as Exclude<KeystoreStoreConfig, string>
   switch (cfg.driver) {
     case 'file':
-      return new FileKeystoreVault(makePath(cfg.path))
+      return new FileKeystoreVault(ctx.makePath(cfg.path))
     case 'drive':
       return new DriveKeystoreVault(cfg.key, cfg.disk)
+    case 'lucid':
+      return new LucidKeystoreVault(
+        async () => {
+          const db: any = await ctx.container.make('lucid.db')
+          return cfg.connection ? db.connection(cfg.connection) : db.connection()
+        },
+        cfg.table,
+        cfg.key
+      )
+    case 'redis':
+      return new RedisKeystoreVault(
+        async () => {
+          const rm: any = await ctx.container.make('redis')
+          return cfg.connection ? rm.connection(cfg.connection) : rm.connection()
+        },
+        cfg.key
+      )
     default: {
       const pkg = CLOUD_DRIVER_PACKAGE[(cfg as any).driver]
       throw new Error(

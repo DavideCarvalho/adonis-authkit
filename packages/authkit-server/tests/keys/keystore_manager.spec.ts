@@ -6,7 +6,7 @@ import { KeystoreManager } from '../../src/keys/keystore_manager.js'
 import { KeystoreCodec } from '../../src/keys/keystore_codec.js'
 import type { KeystoreVault } from '../../src/keys/keystore_vault.js'
 import { resolveKeystoreVault } from '../../src/keys/keystore_manager.js'
-import { FileKeystoreVault, DriveKeystoreVault } from '../../src/keys/keystore_vault.js'
+import { FileKeystoreVault, DriveKeystoreVault, LucidKeystoreVault, RedisKeystoreVault } from '../../src/keys/keystore_vault.js'
 import { __setEncryptionServiceForTests } from '../../src/keys/keystore_crypto.js'
 import { signingKeyAgeDays } from '../../src/keys/keystore.js'
 
@@ -61,24 +61,33 @@ test.group('KeystoreManager', () => {
 })
 
 test.group('resolveKeystoreVault', () => {
-  const makePath = (p: string) => '/abs/' + p
+  const ctx = {
+    makePath: (p: string) => '/abs/' + p,
+    container: { make: async (_t: string) => ({}) },
+  }
 
   test('string → FileKeystoreVault', ({ assert }) => {
-    assert.instanceOf(resolveKeystoreVault('tmp/jwks.json', makePath), FileKeystoreVault)
+    assert.instanceOf(resolveKeystoreVault('tmp/jwks.json', ctx), FileKeystoreVault)
   })
   test('{driver:file} → FileKeystoreVault', ({ assert }) => {
-    assert.instanceOf(resolveKeystoreVault({ driver: 'file', path: 'tmp/x.json' }, makePath), FileKeystoreVault)
+    assert.instanceOf(resolveKeystoreVault({ driver: 'file', path: 'tmp/x.json' }, ctx), FileKeystoreVault)
   })
   test('{driver:drive} → DriveKeystoreVault', ({ assert }) => {
-    assert.instanceOf(resolveKeystoreVault({ driver: 'drive', key: 'keys/jwks.json' }, makePath), DriveKeystoreVault)
+    assert.instanceOf(resolveKeystoreVault({ driver: 'drive', key: 'keys/jwks.json' }, ctx), DriveKeystoreVault)
   })
   test('instância custom passa direto', ({ assert }) => {
     const custom = { read: async () => null, write: async () => {} }
-    assert.strictEqual(resolveKeystoreVault(custom as any, makePath), custom)
+    assert.strictEqual(resolveKeystoreVault(custom as any, ctx), custom)
+  })
+  test('{driver:lucid} → LucidKeystoreVault', ({ assert }) => {
+    assert.instanceOf(resolveKeystoreVault({ driver: 'lucid' }, ctx), LucidKeystoreVault)
+  })
+  test('{driver:redis} → RedisKeystoreVault', ({ assert }) => {
+    assert.instanceOf(resolveKeystoreVault({ driver: 'redis' }, ctx), RedisKeystoreVault)
   })
   test('driver de cloud → erro "ainda não disponível"', ({ assert }) => {
     assert.throws(
-      () => resolveKeystoreVault({ driver: 'aws-secrets-manager', secretId: 's' } as any, makePath),
+      () => resolveKeystoreVault({ driver: 'aws-secrets-manager', secretId: 's' } as any, ctx),
       /aws-secrets-manager|vault-aws/
     )
   })

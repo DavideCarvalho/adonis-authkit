@@ -119,7 +119,7 @@ export default class AuthkitServerProvider {
       if (jwksInput?.source === 'managed' && jwksInput?.store) {
         const appRef = this.app
         const buildManager = async () => {
-          const vault = resolveKeystoreVault(jwksInput.store as any, (p) => appRef.makePath(p))
+          const vault = resolveKeystoreVault(jwksInput.store as any, { makePath: (p) => appRef.makePath(p), container: appRef.container })
           const encrypt = (jwksInput as any).encrypt ?? defaultEncryptForStore(jwksInput.store as any)
           // best-effort (≠ boot, que lança): se a encryption sumir em runtime, o reload
           // degrada para "sem hot-reload" (o onError do poller engole) em vez de derrubar o processo.

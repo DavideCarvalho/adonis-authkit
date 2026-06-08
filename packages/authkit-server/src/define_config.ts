@@ -6,11 +6,14 @@ import type {
   AccessTokensConfig,
   ClientConfig,
   JwksConfig,
+  KeystoreStoreConfig,
   ObservabilityConfig,
   TtlConfig,
 } from '@dudousxd/adonis-authkit-core'
 import { generateJwks } from './keys/jwks_manager.js'
-import { ensureKeystore } from './keys/keystore.js'
+import { KeystoreManager, resolveKeystoreVault } from './keys/keystore_manager.js'
+import { KeystoreCodec } from './keys/keystore_codec.js'
+import { loadEncryptionService } from './keys/keystore_crypto.js'
 import { adapters, type AdapterFactory, type OidcAdapterClass } from './adapters/factory.js'
 import type { AccountStore, AuthAccount } from './accounts/account_store.js'
 import type { PatStore } from './pat/pat_store.js'
@@ -944,6 +947,15 @@ export function toSeconds(value: string | number | undefined, fallback: number):
 }
 
 /**
+ * Default backend-aware de encryption: file/drive ON; vaults reais OFF.
+ * Evita gravar chaves privadas em texto claro em disco sem configuração extra.
+ */
+export function defaultEncryptForStore(store: KeystoreStoreConfig): boolean {
+  if (typeof store === 'string') return true
+  return store.driver === 'file' || store.driver === 'drive'
+}
+
+/**
  * Mensagem de aviso quando `jwks: 'auto'` cai no fallback de disco (sem
  * AUTHKIT_JWKS): a chave privada será persistida em arquivo. `null` = sem aviso.
  */
@@ -981,16 +993,15 @@ export function defineConfig(config: AuthServerConfigInput) {
     let jwks: { keys: Record<string, any>[] }
     if (jwksConfig.source === 'managed') {
       const alg = jwksConfig.algorithm ?? 'RS256'
-      if (typeof jwksConfig.store === 'string') {
-        // keystore persistido em arquivo: chaves sobrevivem a restarts + rotacionáveis.
-        // TODO(T9): substituir por resolveKeystoreVault para suportar todos os drivers.
-        const storePath = app.makePath(jwksConfig.store)
-        const store = await ensureKeystore(storePath, alg)
-        // Remove o metadado interno `iat` (idade da chave) antes de entregar ao
-        // oidc-provider — não é membro JWK, fica só no arquivo do keystore.
+      if (jwksConfig.store) {
+        const vault = resolveKeystoreVault(jwksConfig.store as any, (p) => app.makePath(p))
+        const encrypt = jwksConfig.encrypt ?? defaultEncryptForStore(jwksConfig.store as any)
+        const enc = encrypt ? await loadEncryptionService() : undefined
+        const manager = new KeystoreManager(vault, new KeystoreCodec({ encrypt, enc }), alg)
+        const store = await manager.ensure()
+        // Remove o metadado interno `iat` antes de entregar ao oidc-provider.
         jwks = { keys: store.keys.map(({ iat: _iat, ...jwk }) => jwk) }
       } else {
-        // managed efêmero: uma chave nova por boot.
         jwks = await generateJwks(alg)
       }
     } else {

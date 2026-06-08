@@ -62,6 +62,7 @@
     "@adonisjs/ally": "catalog:adonis",
     "@adonisjs/core": "catalog:adonis",
     "@adonisjs/drive": "catalog:adonis",
+    "@adonisjs/lock": "catalog:adonis",
     "@adonisjs/lucid": "catalog:adonis",
     "@adonisjs/session": "catalog:adonis",
     "@adonisjs/shield": "catalog:adonis",
@@ -75,6 +76,9 @@
       "optional": true
     },
     "@adonisjs/drive": {
+      "optional": true
+    },
+    "@adonisjs/lock": {
       "optional": true
     }
   },

@@ -1,5 +1,13 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.26.1
+
+### Patch Changes
+
+- db8879e: Expõe `clientId` no `brand` das telas de auth
+
+  O `brandFor()` agora inclui o `clientId` (OIDC) no objeto `brand` passado a cada tela renderizada. Hosts com IdP único e múltiplos produtos podem escolher tema/shell por client de forma robusta (`REGISTRY[brand.clientId]`) em vez de casar por `appName`. Ver recipe "Per-client auth UI".
+
 ## 0.26.0
 
 ### Minor Changes

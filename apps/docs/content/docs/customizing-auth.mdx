@@ -453,3 +453,49 @@ resolver: resolvers.opaque({ tokenSource: 'session', cacheTtlMs: 5000 })
 
 Whichever you pick, `resolveUser` / `resolveAppRoles` are unchanged. See
 [Resolvers](/docs/resolvers) for every option and the choosing matrix.
+
+## Recipe: per-client auth UI (one IdP, a face per product)
+
+**Problem.** You run a single IdP (true SSO) but multiple products redirect to it
+to log in (e.g. `entre-textos` and `eduliberta`). With one shared login screen,
+every product shows the IdP owner's branding.
+
+**The OIDC constraint.** Login *always* happens at the IdP — the RP redirects to
+`/authorize`, the IdP authenticates, then redirects back with a code. A client
+**cannot** serve its own login page on its own domain and still delegate auth to
+your IdP; that would require the deprecated ROPC grant (the client proxies the
+password) and breaks SSO. So the IdP renders — but each product can still **own**
+its screens.
+
+**The pattern.** Keep one IdP, and resolve the auth shell per client. The host
+already passes a `brand` (from `branding.clients[clientId]` in `defineConfig`) to
+every rendered screen. Build a small registry that picks the shell:
+
+```tsx title="app/authkit/ui/components/auth_shell.tsx"
+import EntreTextosAuthShell from './shells/entre_textos_auth_shell'
+import EduLibertaAuthShell from './shells/eduliberta_auth_shell'
+
+const REGISTRY = {
+  'entre-textos': EntreTextosAuthShell,
+  eduliberta: EduLibertaAuthShell,
+}
+
+export default function AuthShell({ brand, children }) {
+  const name = (brand?.appName ?? '').toLowerCase()
+  const Shell = name.includes('liberta') ? REGISTRY.eduliberta : EntreTextosAuthShell
+  return <Shell brand={brand}>{children}</Shell>
+}
+```
+
+Each `shells/<product>.tsx` owns that product's look (colors, fonts, copy). The
+pages (`login`, `consent`, …) keep importing `AuthShell` — selection is
+transparent. In a monorepo, promote each product's shells to its own package
+(`@workspace/authkit-ui-<product>`) so each team works in its own area; the IdP
+just imports and registers them.
+
+<Callout type="info">
+  Resolving by `brand.appName` is a string match. The robust key is the
+  `clientId`, which `brandFor()` currently flattens out of the props. If you
+  control the host, pass `clientId` through to the screen and switch on
+  `REGISTRY[clientId]` directly.
+</Callout>

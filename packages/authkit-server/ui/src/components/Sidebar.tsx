@@ -180,17 +180,24 @@ export function Sidebar() {
             )}
             {theme === 'dark' ? 'Light mode' : 'Dark mode'}
           </button>
-          <a
-            href="/account/login"
-            className="btn btn-ghost btn-sm"
-            title="Sign out"
-          >
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
-              <path d="M10 11l4-3.5L10 4" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M14 7.5H5" strokeLinecap="round" />
-              <path d="M6 3H3a1 1 0 00-1 1v7a1 1 0 001 1h3" strokeLinecap="round" />
-            </svg>
-          </a>
+          {/* Logout de verdade: POST /account/logout (session.forget → /account/login).
+              Um <a href="/account/login"> NÃO desloga — como a sessão segue ativa, o
+              /account/login redireciona pro accountHome (/account/security) e o usuário
+              "desloga" mas continua logado. Por isso é um form POST com CSRF. */}
+          <form method="POST" action="/account/logout" style={{ display: 'contents' }}>
+            <input type="hidden" name="_csrf" value={getConfig().csrfToken ?? ''} />
+            <button
+              type="submit"
+              className="btn btn-ghost btn-sm"
+              title="Sign out"
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
+                <path d="M10 11l4-3.5L10 4" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M14 7.5H5" strokeLinecap="round" />
+                <path d="M6 3H3a1 1 0 00-1 1v7a1 1 0 001 1h3" strokeLinecap="round" />
+              </svg>
+            </button>
+          </form>
         </div>
       </div>
     </aside>

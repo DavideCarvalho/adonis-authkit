@@ -20,6 +20,9 @@ import type {
   DeletedOrganization,
   DeletedSetting,
   DeletedUser,
+  KeysRotateInput,
+  KeysRotateResult,
+  KeysStatus,
   ListAuditParams,
   ListAuditResult,
   ListClientsResult,
@@ -257,6 +260,14 @@ export function createRemoteAuthkit(opts: RemoteOptions): Authkit {
         revoke(orgId: string, invitationId: string) {
           return request<RevokedOrgInvitation>('DELETE', `/organizations/${encodeURIComponent(orgId)}/invitations/${encodeURIComponent(invitationId)}`)
         },
+      },
+    },
+    keys: {
+      status(): Promise<KeysStatus> {
+        return request<KeysStatus>('GET', '/keys')
+      },
+      rotate(input?: KeysRotateInput): Promise<KeysRotateResult> {
+        return request<KeysRotateResult>('POST', '/keys/rotate', input ?? {})
       },
     },
   }

@@ -324,6 +324,35 @@ export interface RevokedOrgInvitation {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
+// Keys (keystore management)
+// ──────────────────────────────────────────────────────────────────────────
+
+/** Status of the managed signing key, returned by `keys.status()`. */
+export interface KeysStatus {
+  ageDays: number
+  policy: {
+    enabled: boolean
+    maxAgeDays: number
+    keep: number
+  }
+  nextRotationInDays: number | null
+}
+
+/** Input for `keys.rotate()`. */
+export interface KeysRotateInput {
+  retire?: boolean
+  keep?: number
+}
+
+/** Result of `keys.rotate()`. */
+export interface KeysRotateResult {
+  rotated: true
+  newKid: string
+  retiredKids: string[]
+  keptKids: string[]
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 // Runtime Settings
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -400,5 +429,12 @@ export interface Authkit {
     get(key: string): Promise<AuthkitSetting>
     set(key: string, value: unknown): Promise<AuthkitSetting>
     delete(key: string): Promise<DeletedSetting>
+  }
+  /** Managed signing-key status and rotation (Admin REST API only; returns 501 when jwks is not managed+store). */
+  keys: {
+    /** GET /keys — age, policy and ETA to next rotation. */
+    status(): Promise<KeysStatus>
+    /** POST /keys/rotate — rotate now, optionally retiring old keys. */
+    rotate(input?: KeysRotateInput): Promise<KeysRotateResult>
   }
 }

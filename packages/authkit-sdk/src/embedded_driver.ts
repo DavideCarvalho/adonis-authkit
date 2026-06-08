@@ -21,6 +21,9 @@ import type {
   DeletedOrganization,
   DeletedSetting,
   DeletedUser,
+  KeysRotateInput,
+  KeysRotateResult,
+  KeysStatus,
   ListAuditParams,
   ListAuditResult,
   ListClientsResult,
@@ -98,6 +101,8 @@ export async function createEmbeddedAuthkit(opts: EmbeddedOptions): Promise<Auth
     TokenVerifyService,
     enrichSessionsWithContext,
     computeAdminStats,
+    buildKeysStatus,
+    rotateNow,
   } = server as unknown as {
     AdminUsersService: any
     AdminClientsService: any
@@ -106,6 +111,8 @@ export async function createEmbeddedAuthkit(opts: EmbeddedOptions): Promise<Auth
     TokenVerifyService: any
     enrichSessionsWithContext: (cfg: any, accountId: string, sessions: any[]) => Promise<any[]>
     computeAdminStats: (cfg: any, sessionsService: any) => Promise<AuthkitStats>
+    buildKeysStatus: (svc: any, settings: any) => Promise<KeysStatus | null>
+    rotateNow: (svc: any, body: any) => Promise<{ rotated: true; newKid: string; retiredKids: string[]; keptKids: string[] }>
   }
 
   const service = await app.container.make('authkit.server')
@@ -523,6 +530,26 @@ export async function createEmbeddedAuthkit(opts: EmbeddedOptions): Promise<Auth
           metadata: { key, action: 'deleted' },
         })
         return { key, deleted: true }
+      },
+    },
+    keys: {
+      async status(): Promise<KeysStatus> {
+        // Build a settings capability for the policy (optional; falls back to defaults when absent).
+        const { RuntimeSettings } = await import('@dudousxd/adonis-authkit-server') as unknown as { RuntimeSettings: any }
+        let settingsSvc: any = null
+        try {
+          const db = await app.container.make('lucid.db')
+          const connection: string | undefined = (cfg.accountStore as any)?.connectionName
+          settingsSvc = new RuntimeSettings(db, connection ? { connection } : {})
+        } catch {
+          // RuntimeSettings unavailable — buildKeysStatus will fall back to defaults.
+        }
+        const status = await buildKeysStatus(service, settingsSvc)
+        if (!status) throw new Error('jwks não é managed+store.')
+        return status
+      },
+      async rotate(input?: KeysRotateInput): Promise<KeysRotateResult> {
+        return rotateNow(service, input)
       },
     },
   }

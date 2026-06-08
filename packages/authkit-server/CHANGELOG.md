@@ -1,5 +1,11 @@
 # @dudousxd/adonis-authkit-server
 
+## 0.30.0
+
+### Minor Changes
+
+- a450edb: Página "Signing Keys" no console admin: ver chaves JWKS (kids/idade/ativa), configurar rotação automática (enabled/maxAgeDays/keep), rotacionar agora e desabilitar todas + criar nova. O status de keys (`GET {base}/keys`) agora inclui a lista de chaves (`KeysStatus.keys`).
+
 ## 0.29.0
 
 ### Minor Changes

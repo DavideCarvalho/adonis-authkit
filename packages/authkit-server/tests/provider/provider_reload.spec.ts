@@ -134,3 +134,30 @@ test.group('OidcService.reloadKeys (e2e)', (group) => {
     assert.isOk(svc.provider)
   })
 })
+
+test.group('OidcService.reloadKeys (atomicidade)', () => {
+  test('reloadKeys: loader que lança NÃO troca o provider (atômico)', async ({ assert }) => {
+    const dir2 = mkdtempSync(join(tmpdir(), 'authkit-atomic-'))
+    const path2 = join(dir2, 'jwks.json')
+    try {
+      const m = mgr(path2)
+      await m.ensure()
+      const fakeApp = { container: { make: async () => ({ connection: () => new RedisMock() }) }, makePath: (p: string) => p } as any
+      const cfg = await configProvider.resolve(fakeApp, defineConfig({
+        issuer: 'http://localhost:9792',
+        adapter: adapters.redis({ connection: 'main' }),
+        jwks: { source: 'managed', algorithm: 'RS256', store: path2, encrypt: false },
+        clients: [], accountStore: fakeAccountStore(),
+      }))
+      const svc = new OidcService(cfg!, 'a'.repeat(32), undefined, {
+        jwksLoader: async () => { throw new Error('loader boom') },
+        keystoreHead: () => m.head(),
+      })
+      const providerBefore = svc.provider
+      await assert.rejects(() => svc.reloadKeys(), /loader boom/)
+      assert.strictEqual(svc.provider, providerBefore) // mesma instância — não trocou
+    } finally {
+      rmSync(dir2, { recursive: true, force: true })
+    }
+  })
+})

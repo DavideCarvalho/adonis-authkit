@@ -1,10 +1,14 @@
-import { DateTime } from 'luxon'
 import type {
   AuthenticationResponseJSON,
   RegistrationResponseJSON,
 } from '@simplewebauthn/server'
 import type { PasskeySummary, WebauthnCapability } from '../account_store.js'
-import type { LucidStoreContext, ResolvedRp, WebauthnCeremonies } from './shared.js'
+import {
+  buildMfaStateRepo,
+  type LucidStoreContext,
+  type ResolvedRp,
+  type WebauthnCeremonies,
+} from './shared.js'
 
 /**
  * Capacidade de passkeys / WebAuthn (2º fator alternativo ao TOTP). Só é montada
@@ -18,6 +22,9 @@ export function buildWebauthn(
   ceremonies: WebauthnCeremonies
 ): WebauthnCapability {
   const { Model } = ctx
+  // Estado de MFA é LIB-OWNED (tabela `auth_mfa`): registrar uma passkey habilita
+  // o MFA gravando `mfa_enabled_at` em `auth_mfa`, não numa coluna do model.
+  const mfaState = buildMfaStateRepo(Model)
 
   return {
     async generatePasskeyRegistrationOptions(accountId) {
@@ -71,10 +78,12 @@ export function buildWebauthn(
         transports: credential.transports ?? null,
         label: null,
       })
-      // Registrar uma passkey também habilita o MFA (2º fator presente).
-      if (!row.mfaEnabledAt) {
-        row.mfaEnabledAt = DateTime.now()
-        await row.save()
+      // Registrar uma passkey também habilita o MFA (2º fator presente). O estado
+      // vive em `auth_mfa`: só seta `mfa_enabled_at` se ainda não estiver habilitado
+      // (preserva o instante do enrollment original — importante p/ trusted-device).
+      const current = await mfaState.read(accountId)
+      if (!current?.mfaEnabledAt) {
+        await mfaState.upsert(accountId, { mfaEnabledAt: Date.now() })
       }
       return true
     },

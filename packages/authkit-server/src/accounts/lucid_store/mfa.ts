@@ -1,60 +1,75 @@
-import { DateTime } from 'luxon'
 import { authenticator } from 'otplib'
 import type { MfaCapability } from '../account_store.js'
-import { generateRecoveryCode, hashesEqual, sha256, type LucidStoreContext } from './shared.js'
+import {
+  generateRecoveryCode,
+  hashesEqual,
+  sha256,
+  buildMfaStateRepo,
+  type LucidStoreContext,
+} from './shared.js'
 
 /**
- * Capacidade de MFA / TOTP sobre o model principal (composto de `withMfa()`).
- * Sempre presente no {@link lucidAccountStore} — o model carrega as colunas
- * `totp_secret`/`mfa_enabled_at`/`recovery_codes`.
+ * Capacidade de MFA / TOTP — LIB-OWNED.
+ *
+ * O estado de MFA (`totp_secret`, `mfa_enabled_at`, `recovery_codes`,
+ * `last_totp_step`) vive numa tabela PRÓPRIA auto-gerida `auth_mfa` (criada pelo
+ * {@link ensureAuthkitSchema}), keyed por `account_id`. O host NÃO precisa migrar
+ * nada — `withMfa()` continua componível no model mas não declara mais colunas.
+ *
+ * Acesso ao banco via a CONEXÃO do próprio model (`Model.query().client`), a mesma
+ * usada pelo restante do store. O `email` (para o keyuri/QR) continua vindo do
+ * model principal — só o ESTADO de MFA migrou para `auth_mfa`.
  */
 export function buildMfa(ctx: LucidStoreContext): MfaCapability {
   const { Model, mfaIssuer, recoveryCodeCount, sealSecret, openSecret } = ctx
+  const repo = buildMfaStateRepo(Model)
 
   return {
     async getMfaState(accountId) {
-      const row = await Model.find(accountId)
+      const state = await repo.read(accountId)
       // `enabledAt` (epoch ms) habilita o trusted-device check: um cookie de
       // confiança emitido ANTES deste instante é inválido (re-enrolar revoga).
-      const enabledAt = row?.mfaEnabledAt ? row.mfaEnabledAt.toMillis() : null
-      return { enabled: !!row?.mfaEnabledAt, enabledAt }
+      return { enabled: !!state?.mfaEnabledAt, enabledAt: state?.mfaEnabledAt ?? null }
     },
 
     async startTotpEnrollment(accountId) {
+      // O email/QR vem do model principal; só o ESTADO de MFA vive em auth_mfa.
       const row = await Model.find(accountId)
       if (!row) return null
       const secret = authenticator.generateSecret()
       // Segredo PENDENTE: armazenado (encriptado em repouso) mas mfaEnabledAt continua null.
-      row.totpSecret = sealSecret(secret)
-      row.mfaEnabledAt = null
-      row.recoveryCodes = null
-      // Re-enrollment: zera o anti-replay para o NOVO segredo (o histórico de
-      // steps do segredo antigo não se aplica ao novo).
-      row.lastTotpStep = null
-      await row.save()
+      // Re-enrollment: zera o anti-replay para o NOVO segredo (o histórico de steps
+      // do segredo antigo não se aplica ao novo) e limpa recovery codes pendentes.
+      await repo.upsert(accountId, {
+        totpSecret: sealSecret(secret),
+        mfaEnabledAt: null,
+        recoveryCodes: null,
+        lastTotpStep: null,
+      })
       const otpauthUri = authenticator.keyuri(row.email, mfaIssuer, secret)
       return { secret, otpauthUri }
     },
 
     async confirmTotpEnrollment(accountId, code) {
-      const row = await Model.find(accountId)
-      if (!row || !row.totpSecret) return { ok: false }
-      const secret = openSecret(row.totpSecret)
+      const state = await repo.read(accountId)
+      if (!state || !state.totpSecret) return { ok: false }
+      const secret = openSecret(state.totpSecret)
       if (!secret) return { ok: false }
       // Só confirma a partir de um segredo pendente (não re-confirma um já ativo).
       const valid = authenticator.verify({ token: String(code ?? ''), secret })
       if (!valid) return { ok: false }
       const codes = Array.from({ length: recoveryCodeCount }, () => generateRecoveryCode())
-      row.mfaEnabledAt = DateTime.now()
-      row.recoveryCodes = codes.map(sha256)
-      await row.save()
+      await repo.upsert(accountId, {
+        mfaEnabledAt: Date.now(),
+        recoveryCodes: codes.map(sha256),
+      })
       return { ok: true, recoveryCodes: codes }
     },
 
     async verifyTotp(accountId, code) {
-      const row = await Model.find(accountId)
-      if (!row || !row.mfaEnabledAt || !row.totpSecret) return false
-      const secret = openSecret(row.totpSecret)
+      const state = await repo.read(accountId)
+      if (!state || !state.mfaEnabledAt || !state.totpSecret) return false
+      const secret = openSecret(state.totpSecret)
       if (!secret) return false
       const token = String(code ?? '')
 
@@ -75,35 +90,27 @@ export function buildMfa(ctx: LucidStoreContext): MfaCapability {
       // Rejeita replay: se este step já foi aceito (ou um posterior), nega. Isso
       // impede reusar o MESMO código dentro da janela de validade (~30s) e também
       // qualquer código de um step já consumido.
-      const last = typeof row.lastTotpStep === 'number' ? row.lastTotpStep : null
+      const last = typeof state.lastTotpStep === 'number' ? state.lastTotpStep : null
       if (last !== null && tokenStep <= last) return false
 
       // Sucesso: persiste o step aceito para barrar o próximo replay.
-      row.lastTotpStep = tokenStep
-      await row.save()
+      await repo.upsert(accountId, { lastTotpStep: tokenStep })
       return true
     },
 
     async consumeRecoveryCode(accountId, code) {
-      const row = await Model.find(accountId)
-      if (!row || !row.mfaEnabledAt || !Array.isArray(row.recoveryCodes)) return false
+      const state = await repo.read(accountId)
+      if (!state || !state.mfaEnabledAt || !Array.isArray(state.recoveryCodes)) return false
       const target = sha256(String(code ?? '').trim())
-      const remaining = (row.recoveryCodes as string[]).filter((h) => !hashesEqual(h, target))
-      if (remaining.length === row.recoveryCodes.length) return false // nada casou
-      row.recoveryCodes = remaining
-      await row.save()
+      const remaining = state.recoveryCodes.filter((h) => !hashesEqual(h, target))
+      if (remaining.length === state.recoveryCodes.length) return false // nada casou
+      await repo.upsert(accountId, { recoveryCodes: remaining })
       return true
     },
 
     async disableMfa(accountId) {
-      const row = await Model.find(accountId)
-      if (!row) return
-      row.totpSecret = null
-      row.mfaEnabledAt = null
-      row.recoveryCodes = null
-      // Limpa também o anti-replay: um futuro re-enroll começa do zero.
-      row.lastTotpStep = null
-      await row.save()
+      // Limpa todo o estado de MFA. Inclui o anti-replay: um futuro re-enroll começa do zero.
+      await repo.clear(accountId)
     },
   }
 }

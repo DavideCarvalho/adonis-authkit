@@ -1,72 +1,44 @@
-import { BaseModel, column } from '@adonisjs/lucid/orm'
+import { BaseModel } from '@adonisjs/lucid/orm'
 import type { NormalizeConstructor } from '@adonisjs/core/types/helpers'
 import { DateTime } from 'luxon'
-import { jsonColumn } from './json_column.js'
 
 /**
- * Instância composta pelo mixin {@link withMfa}.
- *
- * NOTA DE SEGURANÇA: `totpSecret` é o segredo TOTP em claro. No MVP ele é
- * armazenado as-is — encriptar em repouso (ex.: app-key / KMS) é um follow-up.
+ * @deprecated O estado de MFA deixou de viver no model do host. Estas propriedades
+ * NÃO existem mais na linha do model — o tipo é mantido apenas por compatibilidade
+ * de assinatura. Use os métodos da {@link MfaCapability} do store (que batem na
+ * tabela lib-owned `auth_mfa`).
  */
 export interface MfaRow {
-  /** Segredo TOTP (base32). null = sem enrollment. Pendente enquanto `mfaEnabledAt` for null. */
   totpSecret: string | null
-  /** Setado quando o enrollment é confirmado. null = MFA desligado. */
   mfaEnabledAt: DateTime | null
-  /** Hashes (sha256) dos recovery codes; consumidos single-use. */
   recoveryCodes: string[] | null
-  /**
-   * Último step TOTP aceito (anti-replay, M3). É o índice absoluto da janela
-   * (`floor(epoch/period) + delta`). Um código só é aceito se seu step for
-   * ESTRITAMENTE maior que este — assim o mesmo código não pode ser reusado
-   * dentro da janela de validade. null = nenhum código aceito ainda.
-   */
   lastTotpStep: number | null
-  /** true quando o MFA está ativo (segredo confirmado). */
   readonly isMfaEnabled: boolean
 }
 
 /**
- * Classe resultante da composição com o mixin {@link withMfa}.
+ * @deprecated Veja {@link MfaRow}. O mixin {@link withMfa} virou um no-op de schema.
  */
-export type MfaClass<Model extends NormalizeConstructor<typeof BaseModel>> = Model & {
-  new (...args: any[]): MfaRow
-}
+export type MfaClass<Model extends NormalizeConstructor<typeof BaseModel>> = Model
 
 /**
- * Mixin de MFA/TOTP. Adiciona as colunas `totp_secret`, `mfa_enabled_at`,
- * `recovery_codes` e `last_totp_step` (anti-replay) ao model de credenciais.
- * Mantido separado de {@link withCredentials} para clareza; componha ambos no
- * model do host.
+ * Mixin de MFA/TOTP — AGORA UM NO-OP DE SCHEMA.
+ *
+ * O estado de MFA (`totp_secret`, `mfa_enabled_at`, `recovery_codes`,
+ * `last_totp_step`) é LIB-OWNED: vive na tabela própria auto-gerida `auth_mfa`
+ * (criada pelo `ensureAuthkitSchema`), keyed por `account_id`. O host NÃO precisa
+ * mais de migration para MFA e o model NÃO carrega mais essas colunas.
+ *
+ * O export `withMfa` é MANTIDO por compatibilidade — os apps continuam compondo
+ * `withMfa()` no model sem precisar mudar nada — mas ele não adiciona mais nenhuma
+ * coluna nem comportamento. Toda a leitura/escrita de MFA passa pelos métodos da
+ * {@link MfaCapability} do store (`getMfaState`, `verifyTotp`, etc.), que operam
+ * sobre `auth_mfa`.
  */
 export function withMfa() {
-  return <Model extends NormalizeConstructor<typeof BaseModel>>(
-    superclass: Model
-  ): MfaClass<Model> => {
-    class MfaMixin extends superclass {
-      @column({ serializeAs: null })
-      declare totpSecret: string | null
-
-      @column.dateTime()
-      declare mfaEnabledAt: DateTime | null
-
-      // null quando vazio; consume já lida com valores pré-desserializados (Postgres json/jsonb).
-      @column({
-        serializeAs: null,
-        ...jsonColumn<string[] | null>({ fallback: null }),
-      })
-      declare recoveryCodes: string[] | null
-
-      // Anti-replay TOTP (M3): último step aceito. Coluna bigint nullable.
-      @column({ serializeAs: null })
-      declare lastTotpStep: number | null
-
-      get isMfaEnabled(): boolean {
-        return this.mfaEnabledAt !== null
-      }
-    }
-
-    return MfaMixin as unknown as MfaClass<Model>
+  return <Model extends NormalizeConstructor<typeof BaseModel>>(superclass: Model): Model => {
+    // No-op: nenhuma coluna/decorator adicionado. Apps que compõem `withMfa()`
+    // continuam compilando; o estado de MFA vive em `auth_mfa` (lib-owned).
+    return superclass
   }
 }

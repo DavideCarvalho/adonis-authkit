@@ -11,7 +11,7 @@ import {
   setAdminApiPrefix,
   normalizeAdminApiPrefix,
 } from './admin_prefix.js'
-import { RuntimeSettings } from './runtime_settings.js'
+import { resolveRuntimeSettings } from './runtime_settings.js'
 import { resolveEffectiveSessionPolicy } from './runtime_toggles.js'
 import { getAuthHostConfig } from './auth_host_config.js'
 
@@ -29,12 +29,10 @@ export const ACCOUNT_LAST_SEEN_KEY = 'authkit_last_seen'
  */
 async function checkAndRefreshIdle(ctx: any): Promise<boolean> {
   try {
-    const db = await ctx.containerResolver?.make?.('lucid.db')
-    if (!db) return false
-    // Usa a conexão do accountStore para que o probe seja searchPath-aware.
-    const service = await ctx.containerResolver?.make?.('authkit.server').catch(() => null)
-    const connection: string | undefined = (service?.config?.accountStore as any)?.connectionName
-    const runtimeSettings = new RuntimeSettings(db, connection ? { connection } : {})
+    // Fábrica canônica (searchPath-aware via a conexão do accountStore). Null =
+    // container/DB indisponível → fail-safe: nunca encerra a sessão.
+    const runtimeSettings = await resolveRuntimeSettings(ctx)
+    if (!runtimeSettings) return false
     const policy = await resolveEffectiveSessionPolicy(runtimeSettings)
     const idleMs = policy.idleTimeoutMinutes * 60 * 1000
     if (idleMs <= 0) return false // idle desligado

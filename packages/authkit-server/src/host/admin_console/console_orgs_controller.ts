@@ -2,7 +2,7 @@ import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
 import { AdminOrgsService } from '../admin_api/admin_orgs_service.js'
-import { RuntimeSettings } from '../runtime_settings.js'
+import { resolveRuntimeSettings } from '../runtime_settings.js'
 import type { SettingsCapability } from '../runtime_settings.js'
 import { orgDto, orgDetailDto, apiError } from '../admin_api/dto.js'
 import {
@@ -44,15 +44,7 @@ export default class ConsoleOrgsController {
 
   /** Resolve RuntimeSettings (fail-safe → null) para validação do catálogo de roles. */
   private async settings(ctx: HttpContext): Promise<SettingsCapability | null> {
-    try {
-      const db = await ctx.containerResolver.make('lucid.db').catch(() => null)
-      if (!db) return null
-      const service = await ctx.containerResolver.make('authkit.server').catch(() => null)
-      const connection: string | undefined = (service?.config?.accountStore as any)?.connectionName
-      return new RuntimeSettings(db, connection ? { connection } : {})
-    } catch {
-      return null
-    }
+    return resolveRuntimeSettings(ctx)
   }
 
   /** GET {prefix}/api/orgs */

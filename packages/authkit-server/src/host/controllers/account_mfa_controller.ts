@@ -5,7 +5,8 @@ import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
 import { translate } from '../i18n.js'
 import { supportsPasskeys } from '../../accounts/account_store.js'
 import { dispatchSecurityNotice } from '../security_notice_service.js'
-import { requireSudo, getRuntimeSettingsForSudo } from '../sudo_mode.js'
+import { resolveRuntimeSettings } from '../runtime_settings.js'
+import { requireSudo } from '../sudo_mode.js'
 
 /** Desafio WebAuthn pendente (registro) guardado na sessão entre begin/finish. */
 const PASSKEY_REG_CHALLENGE_KEY = 'authkit_passkey_reg_challenge'
@@ -66,7 +67,7 @@ export default class AccountMfaController {
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
 
     // Sudo mode gate.
-    const sudoSettingsPkAdd = await getRuntimeSettingsForSudo(ctx)
+    const sudoSettingsPkAdd = await resolveRuntimeSettings(ctx)
     const sudoResultPkAdd = await requireSudo(ctx, sudoSettingsPkAdd)
     if (sudoResultPkAdd !== true) return sudoResultPkAdd
 
@@ -112,7 +113,7 @@ export default class AccountMfaController {
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
 
     // Sudo mode gate.
-    const sudoSettingsPkRm = await getRuntimeSettingsForSudo(ctx)
+    const sudoSettingsPkRm = await resolveRuntimeSettings(ctx)
     const sudoResultPkRm = await requireSudo(ctx, sudoSettingsPkRm)
     if (sudoResultPkRm !== true) return sudoResultPkRm
 
@@ -141,7 +142,7 @@ export default class AccountMfaController {
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
 
     // Sudo mode gate.
-    const sudoSettingsEnroll = await getRuntimeSettingsForSudo(ctx)
+    const sudoSettingsEnroll = await resolveRuntimeSettings(ctx)
     const sudoResultEnroll = await requireSudo(ctx, sudoSettingsEnroll)
     if (sudoResultEnroll !== true) return sudoResultEnroll
 
@@ -211,7 +212,7 @@ export default class AccountMfaController {
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
 
     // Sudo mode gate.
-    const sudoSettingsDisable = await getRuntimeSettingsForSudo(ctx)
+    const sudoSettingsDisable = await resolveRuntimeSettings(ctx)
     const sudoResultDisable = await requireSudo(ctx, sudoSettingsDisable)
     if (sudoResultDisable !== true) return sudoResultDisable
 

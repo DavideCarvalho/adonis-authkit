@@ -1,19 +1,8 @@
 import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
-import { RuntimeSettings } from '../runtime_settings.js'
+import { resolveRuntimeSettings } from '../runtime_settings.js'
 import { apiError } from '../admin_api/dto.js'
 import { buildKeysStatus, rotateNow } from '../key_rotation_actions.js'
-
-async function getSettingsService(ctx: HttpContext): Promise<RuntimeSettings | null> {
-  try {
-    const db = await ctx.containerResolver.make('lucid.db')
-    const service = await ctx.containerResolver.make('authkit.server').catch(() => null)
-    const connection: string | undefined = (service?.config?.accountStore as any)?.connectionName
-    return new RuntimeSettings(db, connection ? { connection } : {})
-  } catch {
-    return null
-  }
-}
 
 function notSupported(ctx: HttpContext) {
   return ctx.response
@@ -37,7 +26,7 @@ export default class ConsoleKeysController {
   async status(ctx: HttpContext) {
     const svc: any = await ctx.containerResolver.make('authkit.server')
     // RuntimeSettings é opcional (tabela auth_settings ausente → política default).
-    const settings = await getSettingsService(ctx)
+    const settings = await resolveRuntimeSettings(ctx)
     const status = await buildKeysStatus(svc, settings)
     if (!status) return notSupported(ctx)
     return status

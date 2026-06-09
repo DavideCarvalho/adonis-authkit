@@ -3,7 +3,7 @@ import { supportsOrganizations } from '../../accounts/account_store.js'
 import type { OrgSummary, OrgMember, OrgInvitation } from '../../accounts/account_store.js'
 import type { AdminActor } from './admin_users_service.js'
 import type { SettingsCapability } from '../runtime_settings.js'
-import { resolveEffectiveOrganizationsPolicy } from '../runtime_toggles.js'
+import { resolveRoleCatalogList, isRoleInCatalog } from '../runtime_toggles.js'
 
 export interface OrgWithMemberCount extends OrgSummary {
   memberCount: number
@@ -63,31 +63,32 @@ export class AdminOrgsService {
     settings: SettingsCapability | null,
     orgId?: string | null
   ): Promise<string[]> {
-    const configDefaults = {
+    return resolveRoleCatalogList(settings, this.orgPolicyConfigDefaults(), orgId)
+  }
+
+  /** Defaults estáticos de policy de org derivados do config do host. */
+  private orgPolicyConfigDefaults() {
+    return {
       roles: this.cfg.organizations.roles,
       allowSelfCreate: this.cfg.organizations.allowSelfCreate,
       invitationTtlHours: this.cfg.organizations.invitationTtlHours,
     }
-    if (!settings) {
-      const roles = configDefaults.roles ?? ['owner', 'admin', 'member']
-      return roles.includes('owner') ? roles : ['owner', ...roles]
-    }
-    const policy = await resolveEffectiveOrganizationsPolicy(settings, configDefaults, orgId)
-    return policy.roles
   }
 
   /**
    * Valida um `role` de org contra o catálogo efetivo. Retorna `true` quando o
    * role faz parte do catálogo. H4: bloqueia roles fora do catálogo (incluindo
    * roles arbitrárias e, quando não catalogadas, `owner`).
+   *
+   * Delega ao helper PURO `isRoleInCatalog` de `runtime_toggles` — mesmo ponto de
+   * verdade usado pelo caminho member-facing (`account_orgs_controller`).
    */
   async isRoleInCatalog(
     role: string,
     settings: SettingsCapability | null,
     orgId?: string | null
   ): Promise<boolean> {
-    const catalog = await this.resolveRoleCatalog(settings, orgId)
-    return catalog.includes(role)
+    return isRoleInCatalog(role, settings, this.orgPolicyConfigDefaults(), orgId)
   }
 
   /** Lista todas as orgs com contagem de membros. */

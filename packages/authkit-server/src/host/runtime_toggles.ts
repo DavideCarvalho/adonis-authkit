@@ -1401,6 +1401,57 @@ export async function resolveEffectiveOrganizationsPolicy(
   }
 }
 
+/**
+ * Resolve o CATÁLOGO efetivo de roles de org (lista de roles permitidas),
+ * garantindo a invariante de governance: `owner` está sempre presente.
+ *
+ * Layer canônico de validação de role de org, compartilhado entre o caminho
+ * admin (`AdminOrgsService.resolveRoleCatalog`) e o member-facing
+ * (`account_orgs_controller`). Fail-safe: sem `settings` (null), usa o catálogo
+ * do config estático (mesma semântica do `resolveEffectiveOrganizationsPolicy`
+ * com `settings` indisponível — que cai nos `configDefault`).
+ *
+ * @param settings - SettingsCapability ou null (null → só config defaults)
+ * @param configDefault - defaults estáticos do config do host
+ * @param orgId - opcional; quando fornecido, tenta settings da org antes do global
+ */
+export async function resolveRoleCatalogList(
+  settings: SettingsCapability | null,
+  configDefault: OrganizationsPolicyConfigDefaults = {},
+  orgId?: string | null
+): Promise<string[]> {
+  if (!settings) {
+    const roles = configDefault.roles ?? ORGS_POLICY_LIB_DEFAULTS.roles
+    return roles.includes('owner') ? roles : ['owner', ...roles]
+  }
+  const policy = await resolveEffectiveOrganizationsPolicy(settings, configDefault, orgId)
+  return policy.roles
+}
+
+/**
+ * Função PURA: valida se um `role` faz parte do catálogo efetivo de roles de org.
+ *
+ * É o único ponto de verdade para "esta role é válida para esta org?", reusado
+ * tanto pelo caminho admin quanto pelo member-facing — eliminando a
+ * reimplementação inline `policy.roles.includes(role)` que vivia em dois layers.
+ * H4: bloqueia roles fora do catálogo (incluindo arbitrárias e, quando não
+ * catalogadas, `owner`). Fail-safe via {@link resolveRoleCatalogList}.
+ *
+ * @param role - role candidata
+ * @param settings - SettingsCapability ou null
+ * @param configDefault - defaults estáticos do config do host
+ * @param orgId - opcional; escopo de org para a resolução do catálogo
+ */
+export async function isRoleInCatalog(
+  role: string,
+  settings: SettingsCapability | null,
+  configDefault: OrganizationsPolicyConfigDefaults = {},
+  orgId?: string | null
+): Promise<boolean> {
+  const catalog = await resolveRoleCatalogList(settings, configDefault, orgId)
+  return catalog.includes(role)
+}
+
 // ---------------------------------------------------------------------------
 // 19. account_expiration setting
 // ---------------------------------------------------------------------------

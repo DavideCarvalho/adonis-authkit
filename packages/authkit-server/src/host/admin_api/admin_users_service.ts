@@ -7,6 +7,7 @@ import {
   supportsAccountDeletion,
   supportsAccountStatus,
   supportsProfile,
+  supportsCountByGlobalRole,
 } from '../../accounts/account_store.js'
 import { sendPasswordResetEmail } from '../default_mailer.js'
 import { AccountDeletionService, type DeletionResult } from '../account_deletion_service.js'
@@ -196,23 +197,56 @@ export class AdminUsersService {
   }
 
   /**
-   * Conta quantas contas possuem ao menos uma role de admin. Pagina por
-   * `listAccounts` (store-agnóstico: não exige uma query SQL específica de
-   * dialeto sobre a coluna JSON `globalRoles`). Usado para a invariante de
-   * "último admin" — chamado apenas em mudanças de role, então o custo é aceitável.
+   * Conta quantas contas possuem ao menos uma role de admin. Usado para a
+   * invariante de "último admin" — chamado apenas em mudanças de role.
+   *
+   * CAMINHO EFICIENTE: quando o store expõe `countByGlobalRole` E há exatamente
+   * UMA role de admin, conta direto no DB sem paginar a base. Com MÚLTIPLAS roles
+   * de admin NÃO usamos a capability: somar `countByGlobalRole` por role
+   * sobrecontaria contas que possuem 2+ roles de admin, e overcount aqui é uma
+   * regressão de SEGURANÇA (relaxaria o guard de last-admin). Nesse caso caímos
+   * no scan paginado, que deduplica naturalmente (conta cada conta uma vez).
+   *
+   * FALLBACK (sem capability ou múltiplas roles): pagina via `listAccounts`
+   * (store-agnóstico, não exige query SQL específica de dialeto sobre a coluna
+   * JSON `globalRoles`) e conta in-memory deduplicado.
    */
   async countAdmins(): Promise<number> {
+    const store = this.cfg.accountStore
+    const adminRoles = this.adminRoles()
+
+    // Caminho eficiente: capability presente + exatamente uma role de admin
+    // (evita double-count que sobrecontaria com múltiplas roles).
+    if (adminRoles.length === 1 && supportsCountByGlobalRole(store)) {
+      return store.countByGlobalRole(adminRoles[0])
+    }
+
+    return this.countAdminsByScan()
+  }
+
+  /**
+   * Fallback de contagem por paginação de `listAccounts` (deduplicado: cada
+   * conta é contada no máximo uma vez via {@link hasAdminRole}).
+   *
+   * Terminadores honestos (sem número mágico): a paginação para quando
+   *   - a página veio incompleta (`data.length < pageSize`) → última página, OU
+   *   - a página veio vazia (`data.length === 0`) → sem mais dados, OU
+   *   - já cobrimos o total reportado (`page * pageSize >= total`).
+   * Uma página COMPLETA com `total` ainda maior continua paginando. Isto encerra
+   * de forma garantida para qualquer store que devolva páginas finitas (a última
+   * página é, por definição, menor que `pageSize` ou vazia).
+   */
+  private async countAdminsByScan(): Promise<number> {
     const store = this.cfg.accountStore
     const pageSize = 100
     let page = 1
     let count = 0
-    // Limite de segurança para evitar loop infinito se um store retornar total inconsistente.
-    for (let guard = 0; guard < 10_000; guard++) {
+    while (true) {
       const { data, total } = await store.listAccounts({ page, limit: pageSize })
       for (const acc of data) {
         if (this.hasAdminRole(acc.globalRoles ?? [])) count++
       }
-      if (page * pageSize >= total || data.length === 0) break
+      if (data.length < pageSize || page * pageSize >= total) break
       page++
     }
     return count

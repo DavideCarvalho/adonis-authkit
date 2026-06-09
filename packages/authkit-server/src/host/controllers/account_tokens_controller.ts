@@ -2,7 +2,8 @@ import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { PatRecord } from '../../pat/pat_store.js'
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
-import { requireSudo, getRuntimeSettingsForSudo } from '../sudo_mode.js'
+import { resolveRuntimeSettings } from '../runtime_settings.js'
+import { requireSudo } from '../sudo_mode.js'
 
 export default class AccountTokensController {
   async index(ctx: HttpContext) {
@@ -34,7 +35,7 @@ export default class AccountTokensController {
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
 
     // Sudo mode gate.
-    const sudoSettingsPat = await getRuntimeSettingsForSudo(ctx)
+    const sudoSettingsPat = await resolveRuntimeSettings(ctx)
     const sudoResultPat = await requireSudo(ctx, sudoSettingsPat)
     if (sudoResultPat !== true) return sudoResultPat
 
@@ -57,7 +58,7 @@ export default class AccountTokensController {
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
 
     // Sudo mode gate.
-    const sudoSettingsPatRev = await getRuntimeSettingsForSudo(ctx)
+    const sudoSettingsPatRev = await resolveRuntimeSettings(ctx)
     const sudoResultPatRev = await requireSudo(ctx, sudoSettingsPatRev)
     if (sudoResultPatRev !== true) return sudoResultPatRev
 

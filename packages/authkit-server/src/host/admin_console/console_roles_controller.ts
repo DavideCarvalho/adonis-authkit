@@ -1,6 +1,6 @@
 import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
-import { RuntimeSettings } from '../runtime_settings.js'
+import { resolveRuntimeSettings } from '../runtime_settings.js'
 import {
   resolveEffectiveRolesCatalog,
   SETTING_KEYS,
@@ -16,17 +16,6 @@ const ROLE_NAME_RE = /^[A-Z][A-Z0-9_]*$/
 /** ADMIN é protegido: não pode ser removido. */
 const PROTECTED_ROLE = 'ADMIN'
 
-async function getRuntimeSettings(ctx: HttpContext): Promise<RuntimeSettings | null> {
-  try {
-    const db = await ctx.containerResolver.make('lucid.db')
-    const service = await ctx.containerResolver.make('authkit.server').catch(() => null)
-    const connection: string | undefined = (service?.config?.accountStore as any)?.connectionName
-    return new RuntimeSettings(db, connection ? { connection } : {})
-  } catch {
-    return null
-  }
-}
-
 /**
  * Endpoints JSON do catálogo de roles do console admin React.
  *
@@ -40,7 +29,7 @@ async function getRuntimeSettings(ctx: HttpContext): Promise<RuntimeSettings | n
 export default class ConsoleRolesController {
   /** GET {prefix}/api/roles */
   async index(ctx: HttpContext) {
-    const rs = await getRuntimeSettings(ctx)
+    const rs = await resolveRuntimeSettings(ctx)
     if (!rs) return ctx.response.notFound(apiError('capability_unsupported', 'Tabela auth_settings não disponível.'))
     const { roles } = await resolveEffectiveRolesCatalog(rs)
     return { data: roles }
@@ -65,7 +54,7 @@ export default class ConsoleRolesController {
       )
     }
 
-    const rs = await getRuntimeSettings(ctx)
+    const rs = await resolveRuntimeSettings(ctx)
     if (!rs) return ctx.response.notFound(apiError('capability_unsupported', 'Tabela auth_settings não disponível.'))
 
     const current = await resolveEffectiveRolesCatalog(rs)
@@ -96,7 +85,7 @@ export default class ConsoleRolesController {
     const { description: rawDescription } = await ctx.request.validateUsing(roleUpdateValidator)
     const description = rawDescription ?? ''
 
-    const rs = await getRuntimeSettings(ctx)
+    const rs = await resolveRuntimeSettings(ctx)
     if (!rs) return ctx.response.notFound(apiError('capability_unsupported', 'Tabela auth_settings não disponível.'))
 
     const current = await resolveEffectiveRolesCatalog(rs)
@@ -131,7 +120,7 @@ export default class ConsoleRolesController {
       )
     }
 
-    const rs = await getRuntimeSettings(ctx)
+    const rs = await resolveRuntimeSettings(ctx)
     if (!rs) return ctx.response.notFound(apiError('capability_unsupported', 'Tabela auth_settings não disponível.'))
 
     const current = await resolveEffectiveRolesCatalog(rs)

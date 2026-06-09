@@ -2,6 +2,8 @@ import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import { AdminOrgsService } from './admin_orgs_service.js'
 import { orgDto, orgDetailDto, orgInvitationDto, apiError } from './dto.js'
+import { RuntimeSettings } from '../runtime_settings.js'
+import type { SettingsCapability } from '../runtime_settings.js'
 import {
   orgCreateValidator,
   orgUpdateValidator,
@@ -21,6 +23,18 @@ async function ctxBits(ctx: HttpContext) {
 /** Helper: 404 JSON quando organizations não é suportado. */
 function notSupported(ctx: HttpContext) {
   return ctx.response.notFound(apiError('capability_unsupported', 'Organizations não é suportado nesta instalação.'))
+}
+
+/** Resolve RuntimeSettings (fail-safe → null) para validação do catálogo de roles. */
+async function resolveSettings(ctx: HttpContext, cfg: any): Promise<SettingsCapability | null> {
+  try {
+    const db = await ctx.containerResolver.make('lucid.db').catch(() => null)
+    if (!db) return null
+    const connection: string | undefined = (cfg?.accountStore as any)?.connectionName
+    return new RuntimeSettings(db, connection ? { connection } : {})
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -125,11 +139,17 @@ export default class ApiOrgsController {
 
     const { accountId, role } = await ctx.request.validateUsing(orgAddMemberValidator)
 
-    const result = await svc.addMember(orgId, { accountId, role: role ?? 'member' }, actor)
+    const result = await svc.addMember(
+      orgId,
+      { accountId, role: role ?? 'member' },
+      actor,
+      await resolveSettings(ctx, cfg)
+    )
 
     if (!result.ok) {
       if (result.reason === 'not_supported') return notSupported(ctx)
       if (result.reason === 'not_found') return ctx.response.notFound(apiError('not_found', 'Organização não encontrada.'))
+      if (result.reason === 'invalid_role') return ctx.response.unprocessableEntity(apiError('invalid_role', 'Role inválida — fora do catálogo da organização.'))
       return ctx.response.notFound(apiError('account_not_found', 'Conta não encontrada.'))
     }
 
@@ -164,11 +184,12 @@ export default class ApiOrgsController {
     const accountId = ctx.request.param('accountId')
     const { role } = await ctx.request.validateUsing(orgMemberRoleValidator)
 
-    const result = await svc.updateMemberRole(orgId, accountId, role, actor)
+    const result = await svc.updateMemberRole(orgId, accountId, role, actor, await resolveSettings(ctx, cfg))
 
     if (!result.ok) {
       if (result.reason === 'not_supported') return notSupported(ctx)
       if (result.reason === 'not_found') return ctx.response.notFound(apiError('not_found', 'Organização não encontrada.'))
+      if (result.reason === 'invalid_role') return ctx.response.unprocessableEntity(apiError('invalid_role', 'Role inválida — fora do catálogo da organização.'))
       if (result.reason === 'last_owner') return ctx.response.conflict(apiError('last_owner', 'Não é possível rebaixar o último owner.'))
       return ctx.response.notFound(apiError('member_not_found', 'Membro não encontrado.'))
     }
@@ -185,10 +206,17 @@ export default class ApiOrgsController {
     const { email, role } = await ctx.request.validateUsing(orgInvitationValidator)
 
     const origin = `${ctx.request.protocol()}://${ctx.request.host()}`
-    const result = await svc.createInvitation(orgId, { email, role: role ?? 'member' }, actor, origin)
+    const result = await svc.createInvitation(
+      orgId,
+      { email, role: role ?? 'member' },
+      actor,
+      origin,
+      await resolveSettings(ctx, cfg)
+    )
 
     if (!result.ok) {
       if (result.reason === 'not_supported') return notSupported(ctx)
+      if (result.reason === 'invalid_role') return ctx.response.unprocessableEntity(apiError('invalid_role', 'Role inválida — fora do catálogo da organização.'))
       return ctx.response.notFound(apiError('not_found', 'Organização não encontrada.'))
     }
 

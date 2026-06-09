@@ -276,8 +276,14 @@ export function buildOrganizations(ctx: OrgStoreContext): OrganizationsCapabilit
       return { ok: true }
     },
 
-    async revokeInvitation(invitationId) {
-      const inv = await InvitationModel.find(invitationId)
+    async revokeInvitation(organizationId, invitationId) {
+      // Escopado por org: exige que o convite pertença à org informada antes de
+      // deletar. Sem esse filtro, um owner/admin de qualquer org revogaria
+      // convites de outra org sabendo apenas o invitationId (IDOR cross-org).
+      const inv = await InvitationModel.query()
+        .where('id', invitationId)
+        .where('organization_id', organizationId)
+        .first()
       if (!inv) return false
       await inv.delete()
       return true

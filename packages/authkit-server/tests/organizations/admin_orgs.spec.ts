@@ -146,8 +146,9 @@ function buildMemoryStoreWithOrgs(): AccountStore {
       inv.acceptedAt = new Date().toISOString()
       return { ok: true }
     },
-    revokeInvitation: async (invitationId) => {
-      if (!invitations.has(invitationId)) return false
+    revokeInvitation: async (organizationId, invitationId) => {
+      const inv = invitations.get(invitationId)
+      if (!inv || inv.organizationId !== organizationId) return false
       invitations.delete(invitationId)
       return true
     },
@@ -209,6 +210,7 @@ function fakeCtx(opts: { inputs?: Record<string, unknown>; params?: Record<strin
       unauthorized: err(401),
       badRequest: err(400),
       conflict: err(409),
+      unprocessableEntity: err(422),
     },
     containerResolver: { make: async () => ({ config: cfg }) },
     session: { get: () => 'admin-actor' },
@@ -293,6 +295,54 @@ test.group('AdminOrgsService', (group) => {
     assert.deepEqual(removeResult, { ok: true })
   })
 
+  test('addMember rejeita role fora do catálogo (invalid_role) — H4', async ({ assert }) => {
+    const svc = new AdminOrgsService(cfg)
+    const actor = { actorId: null, ip: null, source: 'admin-api' as const }
+    const org = await svc.createOrg({ name: 'Acme', slug: 'acme', ownerAccountId: 'owner-1' }, actor) as any
+
+    const result = await svc.addMember(org.id, { accountId: 'user-2', role: 'superadmin' }, actor)
+    assert.deepEqual(result, { ok: false, reason: 'invalid_role' })
+
+    // Conta não virou membro.
+    const detail = await svc.getOrg(org.id) as any
+    assert.isFalse(detail.members.some((m: any) => m.accountId === 'user-2'))
+  })
+
+  test('addMember aceita role do catálogo (member) — H4', async ({ assert }) => {
+    const svc = new AdminOrgsService(cfg)
+    const actor = { actorId: null, ip: null, source: 'admin-api' as const }
+    const org = await svc.createOrg({ name: 'Acme', slug: 'acme', ownerAccountId: 'owner-1' }, actor) as any
+    const result = await svc.addMember(org.id, { accountId: 'user-2', role: 'member' }, actor)
+    assert.deepEqual(result, { ok: true })
+  })
+
+  test('updateMemberRole rejeita role fora do catálogo (invalid_role) — H4', async ({ assert }) => {
+    const svc = new AdminOrgsService(cfg)
+    const actor = { actorId: null, ip: null, source: 'admin-api' as const }
+    const org = await svc.createOrg({ name: 'Acme', slug: 'acme', ownerAccountId: 'owner-1' }, actor) as any
+    await svc.addMember(org.id, { accountId: 'user-2', role: 'member' }, actor)
+    const result = await svc.updateMemberRole(org.id, 'user-2', 'hacker', actor)
+    assert.deepEqual(result, { ok: false, reason: 'invalid_role' })
+  })
+
+  test('updateMemberRole permite promover a owner no Admin API global (super-admin) — H4', async ({ assert }) => {
+    const svc = new AdminOrgsService(cfg)
+    const actor = { actorId: null, ip: null, source: 'admin-api' as const }
+    const org = await svc.createOrg({ name: 'Acme', slug: 'acme', ownerAccountId: 'owner-1' }, actor) as any
+    await svc.addMember(org.id, { accountId: 'user-2', role: 'member' }, actor)
+    // owner está no catálogo → Admin API global pode promover a owner.
+    const result = await svc.updateMemberRole(org.id, 'user-2', 'owner', actor)
+    assert.deepEqual(result, { ok: true })
+  })
+
+  test('createInvitation rejeita role fora do catálogo (invalid_role) — H4', async ({ assert }) => {
+    const svc = new AdminOrgsService(cfg)
+    const actor = { actorId: null, ip: null, source: 'admin-api' as const }
+    const org = await svc.createOrg({ name: 'Acme', slug: 'acme', ownerAccountId: 'owner-1' }, actor) as any
+    const result = await svc.createInvitation(org.id, { email: 'x@x.com', role: 'root' }, actor, 'http://localhost')
+    assert.deepEqual(result, { ok: false, reason: 'invalid_role' })
+  })
+
   test('removeMember bloqueia remoção do último owner', async ({ assert }) => {
     const svc = new AdminOrgsService(cfg)
     const actor = { actorId: null, ip: null, source: 'admin-api' as const }
@@ -327,6 +377,22 @@ test.group('AdminOrgsService', (group) => {
 
     const detail = await svc.getOrg(org.id) as any
     assert.lengthOf(detail.pendingInvitations, 0)
+  })
+
+  test('revokeInvitation é escopado por org: convite de outra org → invitation_not_found (IDOR)', async ({ assert }) => {
+    const svc = new AdminOrgsService(cfg)
+    const actor = { actorId: null, ip: null, source: 'admin-api' as const }
+    const orgA = await svc.createOrg({ name: 'Acme', slug: 'acme', ownerAccountId: 'owner-1' }, actor) as any
+    const orgB = await svc.createOrg({ name: 'Beta', slug: 'beta', ownerAccountId: 'owner-1' }, actor) as any
+    const invB = (await svc.createInvitation(orgB.id, { email: 'v@x.com', role: 'member' }, actor, 'http://localhost')) as any
+
+    // Tenta revogar o convite da org B passando o orgId da org A.
+    const revoke = await svc.revokeInvitation(orgA.id, invB.invitation.id, actor)
+    assert.deepEqual(revoke, { ok: false, reason: 'invitation_not_found' })
+
+    // Convite da org B continua pendente.
+    const detailB = await svc.getOrg(orgB.id) as any
+    assert.lengthOf(detailB.pendingInvitations, 1)
   })
 
   test('deleteOrg remove org + audita', async ({ assert }) => {

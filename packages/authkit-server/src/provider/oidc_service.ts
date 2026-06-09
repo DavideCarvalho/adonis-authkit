@@ -139,6 +139,13 @@ export class OidcService {
     registerTokenExchange(provider, {
       findAccount: config.findAccount,
       globalRolesClaim: config.globalRolesClaim,
+      // Resource indicators (RFC 8707) suportados: o `audience` default + cada
+      // resource declarado. Usado para validar `audience`/`resource` no pedido de
+      // token-exchange — alvos fora desta lista são rejeitados (invalid_target).
+      supportedResources: [
+        config.accessTokens.audience,
+        ...Object.keys(config.accessTokens.resources),
+      ],
       audit: config.audit,
     })
 

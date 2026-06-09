@@ -180,6 +180,78 @@ export class AdminUsersService {
     await this.cfg.accountStore.setGlobalRoles(accountId, roles)
   }
 
+  /** Roles globais que conferem acesso de admin (default ['ADMIN']). */
+  private adminRoles(): string[] {
+    const roles = this.cfg.admin?.roles
+    return roles && roles.length > 0 ? roles : ['ADMIN']
+  }
+
+  /** Um conjunto de roles contém ao menos uma role de admin? */
+  private hasAdminRole(roles: Iterable<string>): boolean {
+    const adminRoles = new Set(this.adminRoles())
+    for (const r of roles) {
+      if (adminRoles.has(r)) return true
+    }
+    return false
+  }
+
+  /**
+   * Conta quantas contas possuem ao menos uma role de admin. Pagina por
+   * `listAccounts` (store-agnóstico: não exige uma query SQL específica de
+   * dialeto sobre a coluna JSON `globalRoles`). Usado para a invariante de
+   * "último admin" — chamado apenas em mudanças de role, então o custo é aceitável.
+   */
+  async countAdmins(): Promise<number> {
+    const store = this.cfg.accountStore
+    const pageSize = 100
+    let page = 1
+    let count = 0
+    // Limite de segurança para evitar loop infinito se um store retornar total inconsistente.
+    for (let guard = 0; guard < 10_000; guard++) {
+      const { data, total } = await store.listAccounts({ page, limit: pageSize })
+      for (const acc of data) {
+        if (this.hasAdminRole(acc.globalRoles ?? [])) count++
+      }
+      if (page * pageSize >= total || data.length === 0) break
+      page++
+    }
+    return count
+  }
+
+  /**
+   * Aplica proteções de segurança a uma troca de roles globais ANTES de gravar:
+   *
+   *   - `last_admin`: bloqueia remover a role de admin da ÚLTIMA conta que a possui
+   *     (evita lockout permanente do console). Só dispara quando o target ATUALMENTE
+   *     é admin, o novo conjunto NÃO é admin, e ele é o único admin.
+   *   - `cannot_self_demote`: bloqueia o ator remover a própria role de admin
+   *     (`actorId === targetId` e o novo conjunto não tem admin). Só aplica quando
+   *     há um `actorId` identificável.
+   *
+   * @returns código i18n/erro quando a operação deve ser bloqueada; `null` quando OK.
+   */
+  async guardGlobalRolesChange(
+    targetId: string,
+    newRoles: string[],
+    actorId: string | null
+  ): Promise<'last_admin' | 'cannot_self_demote' | null> {
+    const target = await this.cfg.accountStore.findById(targetId)
+    const currentlyAdmin = this.hasAdminRole(target?.globalRoles ?? [])
+    const willBeAdmin = this.hasAdminRole(newRoles)
+
+    // Só há risco quando a operação REMOVE o status de admin de quem o tinha.
+    if (!currentlyAdmin || willBeAdmin) return null
+
+    // Auto-rebaixamento: o ator removendo a própria role de admin.
+    if (actorId && actorId === targetId) return 'cannot_self_demote'
+
+    // Último admin: se o target é o único admin, a remoção causaria lockout.
+    const admins = await this.countAdmins()
+    if (admins <= 1) return 'last_admin'
+
+    return null
+  }
+
   /** Atualiza nome/avatar (capacidade opcional). Retorna a conta ou null. */
   async updateProfile(
     accountId: string,

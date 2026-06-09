@@ -148,8 +148,9 @@ function buildMemoryStore(): AccountStore {
       inv.acceptedAt = new Date().toISOString()
       return { ok: true }
     },
-    revokeInvitation: async (invitationId) => {
-      if (!invitations.has(invitationId)) return false
+    revokeInvitation: async (organizationId, invitationId) => {
+      const inv = invitations.get(invitationId)
+      if (!inv || inv.organizationId !== organizationId) return false
       invitations.delete(invitationId)
       return true
     },

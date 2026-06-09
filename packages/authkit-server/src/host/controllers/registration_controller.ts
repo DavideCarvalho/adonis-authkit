@@ -13,6 +13,7 @@ import {
   resolveEffectiveAuthMethods,
 } from '../runtime_toggles.js'
 import { dispatchSecurityNotice } from '../security_notice_service.js'
+import { AdminSessionsService } from '../admin_sessions_service.js'
 
 /** Best-effort: returns a RuntimeSettings backed by the container DB, or a no-op fallback. */
 async function getRuntimeSettings(ctx: HttpContext): Promise<RuntimeSettings> {
@@ -359,6 +360,30 @@ export default class AuthRegistrationController {
       type: 'password_reset.consumed',
       ip: ctx.request.ip?.() ?? null,
     })
+    // M2: reset de senha INVALIDA todas as sessões/grants da conta (segurança >
+    // conveniência — quem reseta a senha pode estar recuperando uma conta
+    // comprometida). Best-effort/fail-safe: uma falha aqui NÃO falha o reset.
+    if (accountForNotice) {
+      try {
+        const sessions = new AdminSessionsService(service)
+        const result = await sessions.revokeAll(accountForNotice.id)
+        await cfg.audit?.record({
+          type: 'session.revoked_all',
+          accountId: accountForNotice.id,
+          actorId: null,
+          ip: ctx.request.ip?.() ?? null,
+          metadata: {
+            sessions: result.sessions,
+            grants: result.grants,
+            accessTokens: result.accessTokens,
+            refreshTokens: result.refreshTokens,
+            source: 'password-reset',
+          },
+        })
+      } catch {
+        // fail-safe: a troca de senha já vale; a invalidação é best-effort.
+      }
+    }
     // Notificação de segurança: senha alterada via reset (best-effort, fail-safe).
     if (accountForNotice) {
       await dispatchSecurityNotice(

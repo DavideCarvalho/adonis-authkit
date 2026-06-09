@@ -155,6 +155,8 @@ function fakeCtx(opts: {
   inputs?: Record<string, unknown>
   params?: Record<string, string>
   authHeader?: string
+  /** id NÃO-SENSÍVEL da API key, como o adminApiGuard anexaria (M9). */
+  apiKeyId?: string
 }) {
   let status = 200
   let body: any
@@ -193,6 +195,7 @@ function fakeCtx(opts: {
     },
     containerResolver: { make: async () => opts.service },
     session: { get: () => undefined },
+    adminApiKeyId: opts.apiKeyId,
   } as any
   return { ctx, captured }
 }
@@ -326,10 +329,11 @@ test.group('Admin REST API (controllers)', (group) => {
     assert.equal(got.id, id)
     assert.equal(got.name, 'Jane')
 
-    // patch roles + name
-    const p = fakeCtx({ service, params: { id }, inputs: { globalRoles: ['ADMIN', 'STAFF'], name: 'Jane Doe' } })
+    // patch roles + name (ADMIN está no catálogo default; STAFF não — ver teste
+    // dedicado "roles fora do catálogo via REST → 422" abaixo).
+    const p = fakeCtx({ service, params: { id }, inputs: { globalRoles: ['ADMIN'], name: 'Jane Doe' } })
     const patched: any = await users.update(p.ctx)
-    assert.deepEqual(patched.globalRoles, ['ADMIN', 'STAFF'])
+    assert.deepEqual(patched.globalRoles, ['ADMIN'])
     assert.equal(patched.name, 'Jane Doe')
 
     // login works before disable
@@ -352,6 +356,109 @@ test.group('Admin REST API (controllers)', (group) => {
     await users.enable(e.ctx)
     const reLogin = await attemptPasswordLogin(cfg, { email: 'jane@x.com', password: 'pw-secret-123', ip: null })
     assert.isTrue(reLogin.ok)
+  })
+
+  // ─── H1: proteção de roles globais (REST) ──────────────────────────────────
+
+  test('H1: remover a role do último admin via REST → 409 last_admin', async ({ assert }) => {
+    const users = new ApiUsersController()
+    // Cria o ÚNICO admin.
+    const admin: any = await users.store(
+      fakeCtx({ service, inputs: { email: 'sole-admin@x.com', password: 'pw-secret-123' } }).ctx
+    )
+    await users.update(
+      fakeCtx({ service, params: { id: admin.id }, inputs: { globalRoles: ['ADMIN'] } }).ctx
+    )
+
+    // Tenta rebaixá-lo (key id != target → não é self-demote; é o ÚNICO admin).
+    const p = fakeCtx({
+      service,
+      params: { id: admin.id },
+      inputs: { globalRoles: [] },
+      apiKeyId: 'admin-key:deadbeef',
+    })
+    const res: any = await users.update(p.ctx)
+    assert.equal(p.captured.status(), 409)
+    assert.equal(res.error.code, 'last_admin')
+  })
+
+  test('H1: conceder ADMIN a outro havendo >1 admin → ok', async ({ assert }) => {
+    const users = new ApiUsersController()
+    const a1: any = await users.store(
+      fakeCtx({ service, inputs: { email: 'admin1@x.com', password: 'pw-secret-123' } }).ctx
+    )
+    const a2: any = await users.store(
+      fakeCtx({ service, inputs: { email: 'admin2@x.com', password: 'pw-secret-123' } }).ctx
+    )
+    await users.update(
+      fakeCtx({ service, params: { id: a1.id }, inputs: { globalRoles: ['ADMIN'] } }).ctx
+    )
+    // Agora há 2 admins → rebaixar a2 é permitido (não é o último).
+    await users.update(
+      fakeCtx({ service, params: { id: a2.id }, inputs: { globalRoles: ['ADMIN'] } }).ctx
+    )
+    const p = fakeCtx({ service, params: { id: a2.id }, inputs: { globalRoles: [] }, apiKeyId: 'admin-key:abc123' })
+    const res: any = await users.update(p.ctx)
+    assert.notEqual(p.captured.status(), 409)
+    assert.deepEqual(res.globalRoles, [])
+  })
+
+  test('H1: auto-rebaixamento via REST (actor === target) → 409 cannot_self_demote', async ({
+    assert,
+  }) => {
+    const users = new ApiUsersController()
+    // Dois admins, para isolar a checagem de self-demote da de último-admin.
+    const a1: any = await users.store(
+      fakeCtx({ service, inputs: { email: 'self1@x.com', password: 'pw-secret-123' } }).ctx
+    )
+    const a2: any = await users.store(
+      fakeCtx({ service, inputs: { email: 'self2@x.com', password: 'pw-secret-123' } }).ctx
+    )
+    await users.update(fakeCtx({ service, params: { id: a1.id }, inputs: { globalRoles: ['ADMIN'] } }).ctx)
+    await users.update(fakeCtx({ service, params: { id: a2.id }, inputs: { globalRoles: ['ADMIN'] } }).ctx)
+
+    // O ator (key id === id do target) tenta remover a própria role admin.
+    const p = fakeCtx({
+      service,
+      params: { id: a1.id },
+      inputs: { globalRoles: [] },
+      apiKeyId: a1.id,
+    })
+    const res: any = await users.update(p.ctx)
+    assert.equal(p.captured.status(), 409)
+    assert.equal(res.error.code, 'cannot_self_demote')
+  })
+
+  test('H1: conceder role fora do catálogo via REST → 422', async ({ assert }) => {
+    const users = new ApiUsersController()
+    const u: any = await users.store(
+      fakeCtx({ service, inputs: { email: 'cat@x.com', password: 'pw-secret-123' } }).ctx
+    )
+    // STAFF não está no catálogo default (só ADMIN) e o usuário não a tinha → 422.
+    const p = fakeCtx({ service, params: { id: u.id }, inputs: { globalRoles: ['STAFF'] } })
+    const res: any = await users.update(p.ctx)
+    assert.equal(p.captured.status(), 422)
+    assert.equal(res.error.code, 'invalid_role')
+  })
+
+  // ─── M9: ator (id da API key) na auditoria REST ────────────────────────────
+
+  test('M9: escrita REST registra actor com o id da key (não vaza a key)', async ({ assert }) => {
+    const users = new ApiUsersController()
+    const u: any = await users.store(
+      fakeCtx({ service, inputs: { email: 'm9@x.com', password: 'pw-secret-123' } }).ctx
+    )
+    // revoke-sessions audita com actorId = ctx.adminApiKeyId.
+    await users.revokeSessions(
+      fakeCtx({ service, params: { id: u.id }, apiKeyId: 'admin-key:9f8e7d6c' }).ctx
+    )
+    const ev = service.config.audit.events.find(
+      (e: any) => e.type === 'session.revoked_all' && e.accountId === u.id
+    )
+    assert.isObject(ev)
+    assert.equal(ev.actorId, 'admin-key:9f8e7d6c')
+    // NÃO vaza a key inteira (só o prefixo curto derivado).
+    assert.equal(ev.metadata.actor, 'admin-api')
   })
 
   test('create sem senha (invite) dispara reset e marca invited', async ({ assert }) => {

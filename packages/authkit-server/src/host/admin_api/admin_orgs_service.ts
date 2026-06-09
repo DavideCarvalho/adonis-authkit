@@ -2,6 +2,8 @@ import type { ResolvedServerConfig } from '../../define_config.js'
 import { supportsOrganizations } from '../../accounts/account_store.js'
 import type { OrgSummary, OrgMember, OrgInvitation } from '../../accounts/account_store.js'
 import type { AdminActor } from './admin_users_service.js'
+import type { SettingsCapability } from '../runtime_settings.js'
+import { resolveEffectiveOrganizationsPolicy } from '../runtime_toggles.js'
 
 export interface OrgWithMemberCount extends OrgSummary {
   memberCount: number
@@ -38,6 +40,7 @@ export interface CreateInvitationInput {
 export type OrgNotSupportedResult = { ok: false; reason: 'not_supported' }
 export type OrgNotFoundResult = { ok: false; reason: 'not_found' }
 export type LastOwnerResult = { ok: false; reason: 'last_owner' }
+export type InvalidRoleResult = { ok: false; reason: 'invalid_role' }
 
 /**
  * Lógica de gestão de organizações compartilhada entre o console admin (HTML)
@@ -49,6 +52,42 @@ export class AdminOrgsService {
 
   get supported() {
     return supportsOrganizations(this.cfg.accountStore)
+  }
+
+  /**
+   * Resolve o catálogo efetivo de roles de org (runtime settings → config →
+   * defaults da lib), garantindo sempre a presença de `owner`. Fail-safe: sem
+   * `settings`, usa o catálogo do config estático (`cfg.organizations`).
+   */
+  async resolveRoleCatalog(
+    settings: SettingsCapability | null,
+    orgId?: string | null
+  ): Promise<string[]> {
+    const configDefaults = {
+      roles: this.cfg.organizations.roles,
+      allowSelfCreate: this.cfg.organizations.allowSelfCreate,
+      invitationTtlHours: this.cfg.organizations.invitationTtlHours,
+    }
+    if (!settings) {
+      const roles = configDefaults.roles ?? ['owner', 'admin', 'member']
+      return roles.includes('owner') ? roles : ['owner', ...roles]
+    }
+    const policy = await resolveEffectiveOrganizationsPolicy(settings, configDefaults, orgId)
+    return policy.roles
+  }
+
+  /**
+   * Valida um `role` de org contra o catálogo efetivo. Retorna `true` quando o
+   * role faz parte do catálogo. H4: bloqueia roles fora do catálogo (incluindo
+   * roles arbitrárias e, quando não catalogadas, `owner`).
+   */
+  async isRoleInCatalog(
+    role: string,
+    settings: SettingsCapability | null,
+    orgId?: string | null
+  ): Promise<boolean> {
+    const catalog = await this.resolveRoleCatalog(settings, orgId)
+    return catalog.includes(role)
   }
 
   /** Lista todas as orgs com contagem de membros. */
@@ -197,13 +236,19 @@ export class AdminOrgsService {
   async addMember(
     orgId: string,
     input: AddMemberInput,
-    actor: AdminActor
-  ): Promise<{ ok: true } | OrgNotSupportedResult | OrgNotFoundResult | { ok: false; reason: 'account_not_found' }> {
+    actor: AdminActor,
+    settings: SettingsCapability | null = null
+  ): Promise<{ ok: true } | OrgNotSupportedResult | OrgNotFoundResult | InvalidRoleResult | { ok: false; reason: 'account_not_found' }> {
     const store = this.cfg.accountStore
     if (!supportsOrganizations(store)) return { ok: false, reason: 'not_supported' }
 
     const org = await store.findOrgById!(orgId)
     if (!org) return { ok: false, reason: 'not_found' }
+
+    // H4: valida o role contra o catálogo efetivo (runtime → config → defaults).
+    if (!(await this.isRoleInCatalog(input.role, settings, orgId))) {
+      return { ok: false, reason: 'invalid_role' }
+    }
 
     const account = await store.findById(input.accountId)
     if (!account) return { ok: false, reason: 'account_not_found' }
@@ -262,13 +307,19 @@ export class AdminOrgsService {
     orgId: string,
     accountId: string,
     newRole: string,
-    actor: AdminActor
-  ): Promise<{ ok: true } | OrgNotSupportedResult | OrgNotFoundResult | LastOwnerResult | { ok: false; reason: 'member_not_found' }> {
+    actor: AdminActor,
+    settings: SettingsCapability | null = null
+  ): Promise<{ ok: true } | OrgNotSupportedResult | OrgNotFoundResult | LastOwnerResult | InvalidRoleResult | { ok: false; reason: 'member_not_found' }> {
     const store = this.cfg.accountStore
     if (!supportsOrganizations(store)) return { ok: false, reason: 'not_supported' }
 
     const org = await store.findOrgById!(orgId)
     if (!org) return { ok: false, reason: 'not_found' }
+
+    // H4: valida o role-alvo contra o catálogo efetivo antes de promover/rebaixar.
+    if (!(await this.isRoleInCatalog(newRole, settings, orgId))) {
+      return { ok: false, reason: 'invalid_role' }
+    }
 
     const result = await store.updateOrgMemberRole!(orgId, accountId, newRole)
     if (!result.ok) {
@@ -296,13 +347,19 @@ export class AdminOrgsService {
     orgId: string,
     input: CreateInvitationInput,
     actor: AdminActor,
-    origin: string
-  ): Promise<{ ok: true; invitation: OrgInvitation; token: string } | OrgNotSupportedResult | OrgNotFoundResult> {
+    origin: string,
+    settings: SettingsCapability | null = null
+  ): Promise<{ ok: true; invitation: OrgInvitation; token: string } | OrgNotSupportedResult | OrgNotFoundResult | InvalidRoleResult> {
     const store = this.cfg.accountStore
     if (!supportsOrganizations(store)) return { ok: false, reason: 'not_supported' }
 
     const org = await store.findOrgById!(orgId)
     if (!org) return { ok: false, reason: 'not_found' }
+
+    // H4: valida o role do convite contra o catálogo efetivo.
+    if (!(await this.isRoleInCatalog(input.role, settings, orgId))) {
+      return { ok: false, reason: 'invalid_role' }
+    }
 
     const { invitation, token } = await store.createOrgInvitation!({
       organizationId: orgId,
@@ -357,7 +414,9 @@ export class AdminOrgsService {
     const org = await store.findOrgById!(orgId)
     if (!org) return { ok: false, reason: 'not_found' }
 
-    const revoked = await store.revokeInvitation!(invitationId)
+    // Escopado por org: o convite só é revogado se pertencer a esta org —
+    // mesmo no Admin API global, evita revogar convite de outra org por id.
+    const revoked = await store.revokeInvitation!(orgId, invitationId)
     if (!revoked) return { ok: false, reason: 'invitation_not_found' }
 
     await this.cfg.audit?.record({

@@ -2,11 +2,27 @@ import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import { supportsOrganizations } from '../../accounts/account_store.js'
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
+import { RuntimeSettings } from '../runtime_settings.js'
+import type { SettingsCapability } from '../runtime_settings.js'
+import { resolveEffectiveOrganizationsPolicy } from '../runtime_toggles.js'
 import {
   ACTIVE_ORG_COOKIE,
   ACTIVE_ORG_COOKIE_TTL,
   encodeActiveOrgCookie,
 } from '../active_org_cookie.js'
+
+/** Resolve RuntimeSettings (fail-safe → null) para validação do catálogo de roles. */
+async function getRuntimeSettings(ctx: HttpContext): Promise<SettingsCapability | null> {
+  try {
+    const db = await ctx.containerResolver.make('lucid.db').catch(() => null)
+    if (!db) return null
+    const service = await ctx.containerResolver.make('authkit.server').catch(() => null)
+    const connection: string | undefined = (service?.config?.accountStore as any)?.connectionName
+    return new RuntimeSettings(db, connection ? { connection } : {})
+  } catch {
+    return null
+  }
+}
 
 /**
  * Console de conta — Organizations. Server-rendered, padrão dos outros controllers
@@ -176,6 +192,28 @@ export default class AccountOrgsController {
     const role = request.input('role', 'member').trim()
     if (!email) return response.redirect('/account/orgs')
 
+    // H4: valida o role contra o catálogo efetivo de roles da org (runtime →
+    // config → defaults). Role fora do catálogo é rejeitada (não cria convite).
+    const settings = await getRuntimeSettings(ctx)
+    const policy = await resolveEffectiveOrganizationsPolicy(
+      settings as any,
+      {
+        roles: cfg.organizations.roles,
+        allowSelfCreate: cfg.organizations.allowSelfCreate,
+        invitationTtlHours: cfg.organizations.invitationTtlHours,
+      },
+      params.id
+    )
+    if (!policy.roles.includes(role)) {
+      return response.unprocessableEntity({ error: { code: 'invalid_role', message: 'Role inválida.' } })
+    }
+
+    // H4: no fluxo member-facing, só um OWNER pode conceder a role `owner`.
+    // Um admin (não-owner) tentando convidar como `owner` é escalonamento.
+    if (role === 'owner' && membership.role !== 'owner') {
+      return response.forbidden()
+    }
+
     const { invitation, token } = await store.createOrgInvitation!({
       organizationId: params.id,
       email,
@@ -311,7 +349,8 @@ export default class AccountOrgsController {
       return response.forbidden()
     }
 
-    await store.revokeInvitation!(params.invId)
+    // Escopado por org (params.id já validado acima): impede IDOR cross-org.
+    await store.revokeInvitation!(params.id, params.invId)
     await cfg.audit?.record({
       type: 'organization.invitation_revoked',
       actorId,

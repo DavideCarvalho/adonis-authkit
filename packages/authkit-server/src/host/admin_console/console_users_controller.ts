@@ -134,8 +134,25 @@ export default class ConsoleUsersController {
     const account = await cfg.accountStore.findById(id)
     if (!account) return ctx.response.notFound(apiError('not_found', 'Usuário não encontrado.'))
 
+    const actorId = (ctx.session?.get(ACCOUNT_SESSION_KEY) as string) ?? null
+
     const { roles: rolesInput } = await ctx.request.validateUsing(adminUserRolesValidator)
     const roles = Array.from(new Set((rolesInput ?? []).map((r) => r.trim()).filter(Boolean)))
+
+    const users = new AdminUsersService(cfg)
+
+    // Proteções de escalonamento/lockout: último admin + auto-rebaixamento.
+    const guard = await users.guardGlobalRolesChange(id, roles, actorId)
+    if (guard === 'last_admin') {
+      return ctx.response.status(409).send(
+        apiError('last_admin', 'Não é possível remover a última conta com a role de administrador.')
+      )
+    }
+    if (guard === 'cannot_self_demote') {
+      return ctx.response.status(409).send(
+        apiError('cannot_self_demote', 'Você não pode remover a sua própria role de administrador.')
+      )
+    }
 
     // Resolve RuntimeSettings para validação contra catálogo (fail-safe).
     let runtimeSettings: RuntimeSettings | null = null
@@ -149,7 +166,6 @@ export default class ConsoleUsersController {
       // fail-safe
     }
 
-    const users = new AdminUsersService(cfg)
     const errorKey = await users.setGlobalRolesValidated(id, roles, runtimeSettings)
     if (errorKey) {
       return ctx.response.badRequest(

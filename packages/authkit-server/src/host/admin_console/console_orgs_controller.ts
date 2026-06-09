@@ -2,6 +2,8 @@ import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
 import { AdminOrgsService } from '../admin_api/admin_orgs_service.js'
+import { RuntimeSettings } from '../runtime_settings.js'
+import type { SettingsCapability } from '../runtime_settings.js'
 import { orgDto, orgDetailDto, apiError } from '../admin_api/dto.js'
 import {
   orgCreateValidator,
@@ -37,6 +39,19 @@ export default class ConsoleOrgsController {
       actorId: (ctx.session?.get(ACCOUNT_SESSION_KEY) as string) ?? null,
       ip: ctx.request.ip?.() ?? null,
       source: 'admin' as const,
+    }
+  }
+
+  /** Resolve RuntimeSettings (fail-safe → null) para validação do catálogo de roles. */
+  private async settings(ctx: HttpContext): Promise<SettingsCapability | null> {
+    try {
+      const db = await ctx.containerResolver.make('lucid.db').catch(() => null)
+      if (!db) return null
+      const service = await ctx.containerResolver.make('authkit.server').catch(() => null)
+      const connection: string | undefined = (service?.config?.accountStore as any)?.connectionName
+      return new RuntimeSettings(db, connection ? { connection } : {})
+    } catch {
+      return null
     }
   }
 
@@ -189,11 +204,21 @@ export default class ConsoleOrgsController {
     const orgId = ctx.request.param('id') as string
     const { accountId, role } = await ctx.request.validateUsing(orgAddMemberValidator)
 
-    const result = await svc.addMember(orgId, { accountId, role: role ?? 'member' }, this.actor(ctx))
+    const result = await svc.addMember(
+      orgId,
+      { accountId, role: role ?? 'member' },
+      this.actor(ctx),
+      await this.settings(ctx)
+    )
 
     if ('ok' in result && result.ok === false) {
       if (result.reason === 'not_found') {
         return ctx.response.notFound(apiError('not_found', 'Organização não encontrada.'))
+      }
+      if (result.reason === 'invalid_role') {
+        return ctx.response.unprocessableEntity(
+          apiError('invalid_role', 'Role inválida — fora do catálogo da organização.')
+        )
       }
       if (result.reason === 'account_not_found') {
         return ctx.response.notFound(apiError('account_not_found', 'Conta não encontrada.'))
@@ -255,11 +280,16 @@ export default class ConsoleOrgsController {
     const accountId = ctx.request.param('accountId') as string
     const { role } = await ctx.request.validateUsing(orgMemberRoleValidator)
 
-    const result = await svc.updateMemberRole(orgId, accountId, role, this.actor(ctx))
+    const result = await svc.updateMemberRole(orgId, accountId, role, this.actor(ctx), await this.settings(ctx))
 
     if ('ok' in result && result.ok === false) {
       if (result.reason === 'not_found') {
         return ctx.response.notFound(apiError('not_found', 'Organização não encontrada.'))
+      }
+      if (result.reason === 'invalid_role') {
+        return ctx.response.unprocessableEntity(
+          apiError('invalid_role', 'Role inválida — fora do catálogo da organização.')
+        )
       }
       if (result.reason === 'last_owner') {
         return ctx.response.unprocessableEntity(
@@ -291,11 +321,22 @@ export default class ConsoleOrgsController {
     const { email, role } = await ctx.request.validateUsing(orgInvitationValidator)
 
     const origin = `${ctx.request.protocol()}://${ctx.request.host()}`
-    const result = await svc.createInvitation(orgId, { email, role: role ?? 'member' }, this.actor(ctx), origin)
+    const result = await svc.createInvitation(
+      orgId,
+      { email, role: role ?? 'member' },
+      this.actor(ctx),
+      origin,
+      await this.settings(ctx)
+    )
 
     if ('ok' in result && result.ok === false) {
       if (result.reason === 'not_found') {
         return ctx.response.notFound(apiError('not_found', 'Organização não encontrada.'))
+      }
+      if (result.reason === 'invalid_role') {
+        return ctx.response.unprocessableEntity(
+          apiError('invalid_role', 'Role inválida — fora do catálogo da organização.')
+        )
       }
       return ctx.response.notFound(
         apiError('capability_unsupported', 'O store não suporta organizações.')

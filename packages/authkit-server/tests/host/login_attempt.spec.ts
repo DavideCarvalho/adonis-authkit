@@ -364,6 +364,67 @@ test.group('attemptPasswordLogin', (group) => {
     assert.isTrue(await isEmailUnverifiedBlock(cfg, 'u1'))
   })
 
+  // ---- M1: lockout via runtime setting afeta o runtime ----
+
+  /** RuntimeSettings stub que devolve o setting `lockout` pedido. */
+  function lockoutSettings(value: Record<string, unknown>) {
+    const db = {
+      from(...args: any[]) { return (this as any).table(...args) },
+      table(_: string) {
+        function makeChain(filters: Array<{ col: string; val: string | null; isNull: boolean }>) {
+          return {
+            where(col: string, val: string) { return makeChain([...filters, { col, val, isNull: false }]) },
+            whereNull(col: string) { return makeChain([...filters, { col, val: null, isNull: true }]) },
+            async first() {
+              const keyVal = filters.find((f) => f.col === 'key')?.val
+              if (keyVal === 'lockout') {
+                return { key: keyVal, organization_id: null, value: JSON.stringify(value), updated_at: new Date(), updated_by: null }
+              }
+              return null
+            },
+          }
+        }
+        return {
+          select(_cols?: string) { return { limit(_n: number) { return Promise.resolve([]) } } },
+          where(col: string, val: string) { return makeChain([{ col, val, isNull: false }]) },
+          whereNull(col: string) { return makeChain([{ col, val: null, isNull: true }]) },
+        }
+      },
+    }
+    return new RuntimeSettings(db as any)
+  }
+
+  test('M1: runtime setting { lockout: enabled:false } desliga o lockout mesmo com cfg.lockout enabled', async ({
+    assert,
+  }) => {
+    // Config diz enabled:true/maxAttempts:1 → travaria na 1ª falha.
+    const cfg = makeCfg({ maxAttempts: 1, verify: async () => null })
+    const settings = lockoutSettings({ enabled: false })
+
+    // Várias falhas; com o setting OFF, NUNCA trava (locked sempre false).
+    for (let i = 0; i < 3; i++) {
+      const res = await attemptPasswordLogin(cfg, {
+        email: 'm1@b.com', password: 'x', ip: null, settings,
+      })
+      assert.isFalse(res.ok)
+      if (!res.ok) assert.isFalse(res.locked)
+    }
+  })
+
+  test('M1: runtime setting { lockout: maxAttempts custom } sobrescreve o cfg.lockout', async ({
+    assert,
+  }) => {
+    // Config diz maxAttempts:5; setting reduz para 2 → trava na 3ª tentativa.
+    const cfg = makeCfg({ maxAttempts: 5, verify: async () => null })
+    const settings = lockoutSettings({ enabled: true, maxAttempts: 2 })
+
+    await attemptPasswordLogin(cfg, { email: 'm1b@b.com', password: 'x', ip: null, settings })
+    await attemptPasswordLogin(cfg, { email: 'm1b@b.com', password: 'x', ip: null, settings })
+    const res = await attemptPasswordLogin(cfg, { email: 'm1b@b.com', password: 'x', ip: null, settings })
+    assert.isFalse(res.ok)
+    if (!res.ok) assert.isTrue(res.locked)
+  })
+
   test('travada: não verifica a senha e devolve { ok: false, locked: true, retryAfterSec }', async ({
     assert,
   }) => {

@@ -187,6 +187,14 @@ export function buildProvider(
     // scopes padrão do client: openid profile email offline_access). Assim as roles chegam
     // no ID token sem exigir um escopo `roles` customizado. Mantemos também o mapeamento
     // do escopo `roles` para quem optar por solicitá-lo explicitamente.
+    //
+    // NOTA DE SEGURANÇA (auditoria 2026-06-08, achado L3 — RISCO ACEITO): hoje só há
+    // clients FIRST-PARTY, então roles/org_* no `profile` não vazam para terceiros.
+    // Mover essas claims para um escopo `roles` dedicado QUEBRARIA a autorização em prod
+    // (o authkit-client lê `hasGlobalRole` do claim `roles` do token e os apps pedem só
+    // `openid profile email offline_access`). O fix correto, quando houver client
+    // third-party / dynamic registration, é GATEAR a emissão dessas claims a clients
+    // first-party (não simplesmente mover de escopo). Ver docs/superpowers/specs/2026-06-08-security-audit.md.
     claims: {
       openid: ['sub'],
       profile: ['name', 'picture', config.globalRolesClaim, 'org_id', 'org_slug', 'org_role'],

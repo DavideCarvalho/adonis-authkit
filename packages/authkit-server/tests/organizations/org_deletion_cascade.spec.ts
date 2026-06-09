@@ -86,6 +86,7 @@ async function migrate(db: any) {
     t.string('totp_secret').nullable()
     t.timestamp('mfa_enabled_at').nullable()
     t.text('recovery_codes').nullable()
+    t.bigInteger('last_totp_step').nullable()
   })
   await db.connection().schema.createTable('auth_organizations', (t: any) => {
     t.string('id').primary()

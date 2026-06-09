@@ -15,6 +15,13 @@ export type ThrottleMiddleware = (ctx: HttpContext, next: () => Promise<void>) =
 export interface AuthThrottles {
   login: ThrottleMiddleware
   introspection: ThrottleMiddleware
+  /**
+   * Throttle por IP do grupo admin-api (R6). Anti-brute-force REAL da Bearer key:
+   * diferente do `introspection` (keyed pelo próprio token, então cada key tentada
+   * cai em bucket distinto), este é keyed por `ctx.request.ip()` — limita o número
+   * de tentativas vindas do MESMO IP independentemente de qual key foi usada (M8).
+   */
+  adminIp: ThrottleMiddleware
 }
 
 /**
@@ -109,6 +116,13 @@ export function createAuthThrottles(
         return `bearer:${auth.slice(7).trim()}`
       }
       return undefined
+    }),
+    // Admin-api por IP: anti-brute-force REAL da Bearer key (M8). Keyed por IP —
+    // tentar muitas keys diferentes do mesmo IP cai no MESMO bucket, ao contrário
+    // do `introspection` (bucket por token). Camada adicional, não substitui o
+    // throttle de introspection nas rotas que o usam.
+    adminIp: buildThrottle('authkit_admin_ip', config.adminIp, config.store, (ctx) => {
+      return `admin-ip:${ctx.request.ip?.() ?? 'unknown'}`
     }),
   }
 }

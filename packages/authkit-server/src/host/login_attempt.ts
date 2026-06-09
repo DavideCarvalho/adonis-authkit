@@ -13,6 +13,7 @@ import {
   resolveEffectiveRequireVerifiedEmailFull,
   resolveEffectivePasswordExpiration,
   resolveEffectiveAccountExpiration,
+  resolveEffectiveLockout,
 } from './runtime_toggles.js'
 
 /**
@@ -204,7 +205,13 @@ export async function attemptPasswordLogin(
   input: PasswordLoginInput
 ): Promise<PasswordLoginResult> {
   const { email, password, ip } = input
-  const lockout = createAccountLockout(cfg.lockout)
+  // Lockout efetivo: runtime setting `lockout` sobrescreve o config estático.
+  // FAIL-SAFE → cfg.lockout (resolveEffectiveLockout já trata erros internamente).
+  // `store` é infra e permanece no config estático (não vem da setting).
+  const effectiveLockout = input.settings
+    ? { ...(await resolveEffectiveLockout(input.settings, cfg.lockout)), store: cfg.lockout.store }
+    : cfg.lockout
+  const lockout = createAccountLockout(effectiveLockout)
 
   // Bloqueio progressivo (keyed por email): se travada, não verifica a senha.
   const lock = await lockout.isLocked(email)

@@ -16,6 +16,13 @@ export interface MfaRow {
   mfaEnabledAt: DateTime | null
   /** Hashes (sha256) dos recovery codes; consumidos single-use. */
   recoveryCodes: string[] | null
+  /**
+   * Último step TOTP aceito (anti-replay, M3). É o índice absoluto da janela
+   * (`floor(epoch/period) + delta`). Um código só é aceito se seu step for
+   * ESTRITAMENTE maior que este — assim o mesmo código não pode ser reusado
+   * dentro da janela de validade. null = nenhum código aceito ainda.
+   */
+  lastTotpStep: number | null
   /** true quando o MFA está ativo (segredo confirmado). */
   readonly isMfaEnabled: boolean
 }
@@ -28,9 +35,10 @@ export type MfaClass<Model extends NormalizeConstructor<typeof BaseModel>> = Mod
 }
 
 /**
- * Mixin de MFA/TOTP. Adiciona as colunas `totp_secret`, `mfa_enabled_at` e
- * `recovery_codes` ao model de credenciais. Mantido separado de
- * {@link withCredentials} para clareza; componha ambos no model do host.
+ * Mixin de MFA/TOTP. Adiciona as colunas `totp_secret`, `mfa_enabled_at`,
+ * `recovery_codes` e `last_totp_step` (anti-replay) ao model de credenciais.
+ * Mantido separado de {@link withCredentials} para clareza; componha ambos no
+ * model do host.
  */
 export function withMfa() {
   return <Model extends NormalizeConstructor<typeof BaseModel>>(
@@ -49,6 +57,10 @@ export function withMfa() {
         ...jsonColumn<string[] | null>({ fallback: null }),
       })
       declare recoveryCodes: string[] | null
+
+      // Anti-replay TOTP (M3): último step aceito. Coluna bigint nullable.
+      @column({ serializeAs: null })
+      declare lastTotpStep: number | null
 
       get isMfaEnabled(): boolean {
         return this.mfaEnabledAt !== null

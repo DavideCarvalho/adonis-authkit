@@ -17,6 +17,7 @@ test.group('ensureAuthkitSchema', (group) => {
       'authkit_oidc_payloads',
       'auth_settings',
       'auth_password_history',
+      'auth_mfa',
       'auth_organizations',
       'auth_organization_members',
       'auth_organization_invitations',
@@ -74,6 +75,25 @@ test.group('ensureAuthkitSchema', (group) => {
     assert.notInclude(report.created, 'users')
     const info = await db.connection().schema.hasColumn('users', 'email')
     assert.isTrue(info)
+  })
+
+  test('auth_mfa: tabela lib-owned aceita estado de MFA por account_id', async ({ assert }) => {
+    await ensureAuthkitSchema(db)
+
+    await db.table('auth_mfa').insert({
+      account_id: 'u1',
+      totp_secret: 'enc-secret',
+      mfa_enabled_at: new Date(),
+      recovery_codes: JSON.stringify(['hash1', 'hash2']),
+      last_totp_step: 1234567,
+    })
+    const rows = await db.query().from('auth_mfa').where('account_id', 'u1').select('*')
+    assert.lengthOf(rows, 1)
+    assert.equal(rows[0].totp_secret, 'enc-secret')
+    assert.equal(Number(rows[0].last_totp_step), 1234567)
+
+    /* account_id é PK → 2ª inserção do mesmo id falha */
+    await assert.rejects(() => db.table('auth_mfa').insert({ account_id: 'u1' }))
   })
 
   test('organizations: FK e unique funcionam nas tabelas criadas', async ({ assert }) => {

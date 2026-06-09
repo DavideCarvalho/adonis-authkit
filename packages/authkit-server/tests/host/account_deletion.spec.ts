@@ -118,9 +118,13 @@ async function migrate(db: any) {
     t.string('email_verification_token').nullable()
     t.string('password_reset_token').nullable()
     t.timestamp('password_reset_expires_at').nullable()
-    t.string('totp_secret').nullable()
+  })
+  // Estado de MFA é LIB-OWNED (auth_mfa) — não mais colunas em users.
+  await db.connection().schema.createTable('auth_mfa', (t: any) => {
+    t.string('account_id').primary()
+    t.text('totp_secret').nullable()
     t.timestamp('mfa_enabled_at').nullable()
-    t.text('recovery_codes').nullable()
+    t.json('recovery_codes').nullable()
     t.bigInteger('last_totp_step').nullable()
   })
   await db.connection().schema.createTable('provider_identities', (t: any) => {

@@ -100,3 +100,124 @@ export async function hasTable(db: any, tableName: string): Promise<boolean> {
     return false
   }
 }
+
+/**
+ * Estado de MFA (lido de `auth_mfa`). Forma normalizada usada pela {@link MfaCapability}:
+ *  - `mfaEnabledAt` em EPOCH MS (ou null) — o trusted-device compara contra isso.
+ *  - `recoveryCodes` já desserializado (array de hashes) — o repo cuida do JSON.
+ */
+export interface MfaState {
+  totpSecret: string | null
+  mfaEnabledAt: number | null
+  recoveryCodes: string[] | null
+  lastTotpStep: number | null
+}
+
+/** Patch parcial para o upsert em `auth_mfa` — campos ausentes são preservados. */
+export interface MfaStatePatch {
+  totpSecret?: string | null
+  /** Epoch ms (ou null para limpar). */
+  mfaEnabledAt?: number | null
+  recoveryCodes?: string[] | null
+  lastTotpStep?: number | null
+}
+
+/**
+ * Repositório do estado de MFA na tabela LIB-OWNED `auth_mfa`, keyed por
+ * `account_id`. Acessa o banco pela CONEXÃO do próprio model (`Model.query().client`),
+ * a mesma usada pelo restante do store — sem exigir migration no host.
+ *
+ * O `upsert` é portável (sqlite + pg sem UPSERT nativo): tenta UPDATE pela PK;
+ * se não afetou nenhuma linha, faz INSERT. `recovery_codes` é serializado como
+ * JSON (string) na escrita e desserializado na leitura (aceita tanto string —
+ * sqlite/text — quanto array já parseado — pg jsonb).
+ */
+export function buildMfaStateRepo(Model: any) {
+  const TABLE = 'auth_mfa'
+
+  /** QueryClient ligado à conexão do model (equivale ao `db` do password_history). */
+  function client(): any {
+    return Model.query().client
+  }
+
+  /** Normaliza `recovery_codes` vindo do banco (json string OU array já parseado). */
+  function parseRecoveryCodes(raw: unknown): string[] | null {
+    if (raw === null || raw === undefined) return null
+    if (Array.isArray(raw)) return raw as string[]
+    if (typeof raw === 'string') {
+      try {
+        const parsed = JSON.parse(raw)
+        return Array.isArray(parsed) ? parsed : null
+      } catch {
+        return null
+      }
+    }
+    return null
+  }
+
+  /** Converte o valor de `mfa_enabled_at` do banco em epoch ms (ou null). */
+  function toEpochMs(raw: unknown): number | null {
+    if (raw === null || raw === undefined) return null
+    if (raw instanceof Date) return raw.getTime()
+    if (typeof raw === 'number') return raw
+    if (typeof raw === 'string') {
+      const t = new Date(raw).getTime()
+      return Number.isNaN(t) ? null : t
+    }
+    // Luxon DateTime (defensivo) — alguns clients podem hidratar assim.
+    if (raw && typeof (raw as any).toMillis === 'function') return (raw as any).toMillis()
+    return null
+  }
+
+  return {
+    /** Lê o estado de MFA da conta; null se não há linha em `auth_mfa`. */
+    async read(accountId: string): Promise<MfaState | null> {
+      const row = await client().from(TABLE).where('account_id', accountId).first()
+      if (!row) return null
+      return {
+        totpSecret: row.totp_secret ?? null,
+        mfaEnabledAt: toEpochMs(row.mfa_enabled_at),
+        recoveryCodes: parseRecoveryCodes(row.recovery_codes),
+        lastTotpStep:
+          row.last_totp_step === null || row.last_totp_step === undefined
+            ? null
+            : Number(row.last_totp_step),
+      }
+    },
+
+    /**
+     * Upsert parcial: cria a linha se não existir, senão atualiza apenas os campos
+     * presentes no patch (campos ausentes preservados). Portável (sqlite + pg).
+     */
+    async upsert(accountId: string, patch: MfaStatePatch): Promise<void> {
+      const update: Record<string, unknown> = {}
+      if ('totpSecret' in patch) update.totp_secret = patch.totpSecret ?? null
+      if ('mfaEnabledAt' in patch) {
+        update.mfa_enabled_at =
+          patch.mfaEnabledAt === null || patch.mfaEnabledAt === undefined
+            ? null
+            : new Date(patch.mfaEnabledAt)
+      }
+      if ('recoveryCodes' in patch) {
+        update.recovery_codes =
+          patch.recoveryCodes === null || patch.recoveryCodes === undefined
+            ? null
+            : JSON.stringify(patch.recoveryCodes)
+      }
+      if ('lastTotpStep' in patch) update.last_totp_step = patch.lastTotpStep ?? null
+
+      const affected = await client().from(TABLE).where('account_id', accountId).update(update)
+      // knex update retorna o nº de linhas afetadas (0 = linha ainda não existe).
+      if (!affected) {
+        await client()
+          .table(TABLE)
+          .insert({ account_id: accountId, ...update })
+      }
+    },
+
+    /** Remove o estado de MFA da conta (disable / reset total). No-op se ausente. */
+    async clear(accountId: string): Promise<void> {
+      await client().from(TABLE).where('account_id', accountId).delete()
+    },
+  }
+}

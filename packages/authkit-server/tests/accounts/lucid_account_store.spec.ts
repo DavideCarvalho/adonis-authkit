@@ -99,6 +99,29 @@ function fakeCeremonies(credentialId = 'cred-1'): WebauthnCeremonies {
   }
 }
 
+/**
+ * Lê a linha lib-owned de `auth_mfa` (estado de MFA) por account_id. Substitui a
+ * leitura antiga das colunas de MFA na própria `row` do model.
+ */
+async function readMfaRow(db: any, accountId: string) {
+  const row = await db.connection().from('auth_mfa').where('account_id', accountId).first()
+  if (!row) return null
+  return {
+    totpSecret: row.totp_secret ?? null,
+    mfaEnabledAt: row.mfa_enabled_at ?? null,
+    recoveryCodes:
+      row.recovery_codes === null || row.recovery_codes === undefined
+        ? null
+        : typeof row.recovery_codes === 'string'
+          ? JSON.parse(row.recovery_codes)
+          : row.recovery_codes,
+    lastTotpStep:
+      row.last_totp_step === null || row.last_totp_step === undefined
+        ? null
+        : Number(row.last_totp_step),
+  }
+}
+
 test.group('lucidAccountStore', (group) => {
   let db: any
   group.each.setup(async () => {
@@ -116,9 +139,13 @@ test.group('lucidAccountStore', (group) => {
       t.string('email_verification_token').nullable()
       t.string('password_reset_token').nullable()
       t.timestamp('password_reset_expires_at').nullable()
-      t.string('totp_secret').nullable()
+    })
+    // Estado de MFA agora é LIB-OWNED (tabela auth_mfa) — não mais colunas em users.
+    await db.connection().schema.createTable('auth_mfa', (t: any) => {
+      t.string('account_id').primary()
+      t.text('totp_secret').nullable()
       t.timestamp('mfa_enabled_at').nullable()
-      t.text('recovery_codes').nullable()
+      t.json('recovery_codes').nullable()
       t.bigInteger('last_totp_step').nullable()
     })
     await db.connection().schema.createTable('provider_identities', (t: any) => {
@@ -467,11 +494,11 @@ test.group('lucidAccountStore', (group) => {
     assert.lengthOf(result.recoveryCodes!, 8)
     assert.isTrue((await store.getMfaState!(acc.id)).enabled)
 
-    const row = await TestAccount.findBy('email', 'mfa2@x.com')
-    assert.isNotNull(row!.mfaEnabledAt)
+    const mfa = await readMfaRow(db, acc.id)
+    assert.isNotNull(mfa!.mfaEnabledAt)
     // armazenados como hashes, não plaintext
-    assert.notInclude(row!.recoveryCodes ?? [], result.recoveryCodes![0])
-    assert.lengthOf(row!.recoveryCodes ?? [], 8)
+    assert.notInclude(mfa!.recoveryCodes ?? [], result.recoveryCodes![0])
+    assert.lengthOf(mfa!.recoveryCodes ?? [], 8)
   })
 
   test('confirmTotpEnrollment com código inválido não ativa', async ({ assert }) => {
@@ -517,8 +544,8 @@ test.group('lucidAccountStore', (group) => {
     assert.isFalse(await store.verifyTotp!(acc.id, code))
 
     // O step aceito foi persistido.
-    const row = await TestAccount.findBy('email', 'replay1@x.com')
-    assert.isNumber(row!.lastTotpStep)
+    const mfa = await readMfaRow(db, acc.id)
+    assert.isNumber(mfa!.lastTotpStep)
   })
 
   test('verifyTotp: persiste o step ATUAL (floor(epoch/period)) no sucesso', async ({ assert }) => {
@@ -531,8 +558,8 @@ test.group('lucidAccountStore', (group) => {
     const expectedStep = Math.floor(Date.now() / 1000 / period)
 
     assert.isTrue(await store.verifyTotp!(acc.id, authenticator.generate(started!.secret)))
-    const row = await TestAccount.findBy('email', 'replay2@x.com')
-    assert.equal(row!.lastTotpStep, expectedStep)
+    const mfa = await readMfaRow(db, acc.id)
+    assert.equal(mfa!.lastTotpStep, expectedStep)
   })
 
   test('verifyTotp: um step FUTURO (maior que o último) é aceito; um <= é rejeitado', async ({
@@ -547,18 +574,14 @@ test.group('lucidAccountStore', (group) => {
     const currentStep = Math.floor(Date.now() / 1000 / period)
 
     // Pré-condição: lastTotpStep ANTERIOR ao step atual → o código atual (step maior) é aceito.
-    let row = await TestAccount.findBy('email', 'replay2b@x.com')
-    row!.lastTotpStep = currentStep - 1
-    await row!.save()
+    await db.connection().from('auth_mfa').where('account_id', acc.id).update({ last_totp_step: currentStep - 1 })
     assert.isTrue(await store.verifyTotp!(acc.id, authenticator.generate(started!.secret)))
 
     // Agora lastTotpStep == currentStep → o MESMO código (step == último) é rejeitado.
     assert.isFalse(await store.verifyTotp!(acc.id, authenticator.generate(started!.secret)))
 
     // E um lastTotpStep no FUTURO (maior) rejeita o código atual (step menor).
-    row = await TestAccount.findBy('email', 'replay2b@x.com')
-    row!.lastTotpStep = currentStep + 5
-    await row!.save()
+    await db.connection().from('auth_mfa').where('account_id', acc.id).update({ last_totp_step: currentStep + 5 })
     assert.isFalse(await store.verifyTotp!(acc.id, authenticator.generate(started!.secret)))
   })
 
@@ -574,8 +597,8 @@ test.group('lucidAccountStore', (group) => {
 
     // Re-enroll: novo segredo, lastTotpStep deve ser zerado.
     const s2 = await store.startTotpEnrollment!(acc.id)
-    const row = await TestAccount.findBy('email', 'replay3@x.com')
-    assert.isNull(row!.lastTotpStep)
+    const mfa = await readMfaRow(db, acc.id)
+    assert.isNull(mfa!.lastTotpStep)
     await store.confirmTotpEnrollment!(acc.id, authenticator.generate(s2!.secret))
     // Verifica com o novo segredo — funciona normalmente.
     assert.isTrue(await store.verifyTotp!(acc.id, authenticator.generate(s2!.secret)))
@@ -607,10 +630,9 @@ test.group('lucidAccountStore', (group) => {
 
     await store.disableMfa!(acc.id)
     assert.isFalse((await store.getMfaState!(acc.id)).enabled)
-    const row = await TestAccount.findBy('email', 'mfa7@x.com')
-    assert.isNull(row!.totpSecret)
-    assert.isNull(row!.mfaEnabledAt)
-    assert.isNull(row!.recoveryCodes)
+    // disable LIMPA o estado lib-owned: a linha de auth_mfa some por completo.
+    const mfa = await readMfaRow(db, acc.id)
+    assert.isNull(mfa)
   })
 
   test('com encrypter: segredo TOTP é encriptado em repouso e verifyTotp continua válido', async ({
@@ -632,9 +654,9 @@ test.group('lucidAccountStore', (group) => {
     const started = await store.startTotpEnrollment!(acc.id)
 
     // O valor persistido NÃO é o segredo raw — está encriptado.
-    const row = await TestAccount.findBy('email', 'enc1@x.com')
-    assert.notEqual(row!.totpSecret, started!.secret)
-    assert.equal(encrypter.decrypt(row!.totpSecret as string), started!.secret)
+    const mfa = await readMfaRow(db, acc.id)
+    assert.notEqual(mfa!.totpSecret, started!.secret)
+    assert.equal(encrypter.decrypt(mfa!.totpSecret as string), started!.secret)
 
     // Confirma + verifica usando códigos gerados a partir do segredo raw.
     const confirmed = await store.confirmTotpEnrollment!(
@@ -669,8 +691,8 @@ test.group('lucidAccountStore', (group) => {
     const store = lucidAccountStore(TestAccount)
     const acc = await store.create({ email: 'enc3@x.com', password: 'pass123456' })
     const started = await store.startTotpEnrollment!(acc.id)
-    const row = await TestAccount.findBy('email', 'enc3@x.com')
-    assert.equal(row!.totpSecret, started!.secret)
+    const mfa = await readMfaRow(db, acc.id)
+    assert.equal(mfa!.totpSecret, started!.secret)
   })
 
   // ----- M4: appKeyEncrypter fail-closed -----
@@ -1045,9 +1067,13 @@ test.group('lucidAccountStore — senha (rehash/legacy/política/import)', (grou
       t.string('email_verification_token').nullable()
       t.string('password_reset_token').nullable()
       t.timestamp('password_reset_expires_at').nullable()
-      t.string('totp_secret').nullable()
+    })
+    // Estado de MFA agora é LIB-OWNED (tabela auth_mfa) — não mais colunas em users.
+    await db.connection().schema.createTable('auth_mfa', (t: any) => {
+      t.string('account_id').primary()
+      t.text('totp_secret').nullable()
       t.timestamp('mfa_enabled_at').nullable()
-      t.text('recovery_codes').nullable()
+      t.json('recovery_codes').nullable()
       t.bigInteger('last_totp_step').nullable()
     })
     return async () => db.manager.closeAll()

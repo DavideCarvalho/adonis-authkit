@@ -48,9 +48,13 @@ async function setupDb() {
     t.string('email_verification_token').nullable()
     t.string('password_reset_token').nullable()
     t.timestamp('password_reset_expires_at').nullable()
-    t.string('totp_secret').nullable()
+  })
+  // Estado de MFA é LIB-OWNED (auth_mfa) — não mais colunas em users.
+  await db.connection().schema.createTable('auth_mfa', (t: any) => {
+    t.string('account_id').primary()
+    t.text('totp_secret').nullable()
     t.timestamp('mfa_enabled_at').nullable()
-    t.text('recovery_codes').nullable()
+    t.json('recovery_codes').nullable()
     t.bigInteger('last_totp_step').nullable()
   })
   return db
@@ -215,10 +219,11 @@ test.group('getMfaState.enabledAt', (group) => {
     assert.isFalse(before.enabled)
     assert.isNull(before.enabledAt ?? null)
 
-    // Liga o MFA setando mfa_enabled_at direto (sem cerimônia TOTP completa).
-    const row = await TestAccount.findBy('email', 'mfa@l.com')
-    row!.mfaEnabledAt = DateTime.now()
-    await row!.save()
+    // Liga o MFA gravando mfa_enabled_at direto na tabela lib-owned auth_mfa
+    // (sem cerimônia TOTP completa).
+    await TestAccount.query()
+      .client.table('auth_mfa')
+      .insert({ account_id: created.id, mfa_enabled_at: new Date() })
     const after = await store.getMfaState!(created.id)
     assert.isTrue(after.enabled)
     assert.isNumber(after.enabledAt)

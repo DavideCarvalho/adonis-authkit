@@ -21,7 +21,9 @@ Corrigido em `adonis-authkit-server` **0.31.0** (fixes de código) e **0.32.0** 
 - M9-sudo: actor-id na auditoria REST feito; **wiring de sudo nas ações destrutivas do admin** (delete user, rotate keys) NÃO foi feito — item dedicado.
 - M11: signup enumeration — mantido rate-limit; resposta uniforme deferida (acoplada à interaction OIDC).
 - M12: CSP — precisa de trabalho hands-on (policy + report endpoint contra o app rodando); cego = baixo valor (report-only) ou alto risco (enforce quebra login do IdP).
-- L2 client_secret plaintext (inerente ao oidc-provider; clients atuais são public/`none`) · L3 roles no scope `profile` (mover quebraria authz em prod — só first-party hoje) · L5 impersonation mira admin · L11 SSRF config-static · L13 TOTP drift 0 (estrito de propósito).
+- L2 client_secret plaintext (inerente ao oidc-provider; clients atuais são public/`none`) · L5 impersonation mira admin · L11 SSRF config-static · L13 TOTP drift 0 (estrito de propósito).
+
+**L3 — CORRIGIDO (2026-06-09, server 0.33.0 / client 0.8.0):** roles globais + claims de org saíram do scope `profile` → scope dedicado `roles`, com emissão **gated a clients first-party** (`branding.firstParty`) no `findAccount` — third-party NÃO recebe roles nem solicitando `scope=roles`. Default de scopes do authkit-client passou a incluir `roles`. Deploy coordenado (eduliberta → entre-textos) sem janela de authz. Verificado em prod: admin loga no app via OIDC e cai no `/admin/dashboard` (role ADMIN flui pelo token). Antes era "risco aceito" porque mover de scope sozinho quebraria authz; o gate por first-party resolveu de forma segura-por-default.
 - PRÉ-EXISTENTE: duplicação de tabelas `auth_*` entre schemas `auth` e `public` (autoManage rodava na connection default) — `auth_mfa` consolidado no `auth`; o resto (`auth_session_revocations` em public, dupes de `auth_settings`/`auth_organizations`) funciona via searchPath mas merece limpeza dedicada.
 
 ---

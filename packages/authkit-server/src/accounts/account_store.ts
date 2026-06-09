@@ -487,7 +487,13 @@ export interface OrganizationsCapability {
   listPendingInvitationsForOrg(orgId: string): Promise<OrgInvitation[]>
   listPendingInvitationsForEmail(email: string): Promise<OrgInvitation[]>
   acceptInvitation(invitationId: string, accountId: string): Promise<{ ok: boolean; reason?: 'not_found' | 'expired' | 'email_mismatch' | 'already_member' }>
-  revokeInvitation(invitationId: string): Promise<boolean>
+  /**
+   * Revoga (deleta) um convite pendente. ESCOPADO POR ORG: o convite só é
+   * deletado se pertencer à `organizationId` informada — previne IDOR cross-org
+   * onde um owner/admin de outra org revogaria o convite sabendo apenas o id.
+   * Retorna `false` quando o convite não existe OU não pertence à org (not-found).
+   */
+  revokeInvitation(organizationId: string, invitationId: string): Promise<boolean>
 
   // --- Cascade LGPD ---
   /** Remove todas as memberships e convites enviados pela conta. Best-effort. */

@@ -371,8 +371,34 @@ test.group('OrganizationsCapability — convites', (group) => {
       invitedBy: owner.id,
       ttlHours: 24,
     })
-    assert.isTrue(await store.revokeInvitation(invitation.id))
-    assert.isFalse(await store.revokeInvitation(invitation.id)) // já não existe
+    assert.isTrue(await store.revokeInvitation(org.id, invitation.id))
+    assert.isFalse(await store.revokeInvitation(org.id, invitation.id)) // já não existe
+  })
+
+  test('revokeInvitation é escopado por org: org A não revoga convite da org B (IDOR)', async ({ assert }) => {
+    // Org B com seu próprio owner e convite pendente.
+    const ownerB = await store.create({ email: 'ownerb@acme.test', password: 'pass12345678' })
+    const orgB = await store.createOrg({ name: 'Beta', slug: 'beta', ownerAccountId: ownerB.id })
+    const { invitation: invB } = await store.createOrgInvitation({
+      organizationId: orgB.id,
+      email: 'victim@example.com',
+      role: 'member',
+      invitedBy: ownerB.id,
+      ttlHours: 24,
+    })
+
+    // Owner da org A tenta revogar o convite da org B passando o orgId da org A.
+    const result = await store.revokeInvitation(org.id, invB.id)
+    assert.isFalse(result, 'não deve deletar convite de outra org (not-found)')
+
+    // Convite da org B continua existindo.
+    const pendingB = await store.listPendingInvitationsForOrg(orgB.id)
+    assert.lengthOf(pendingB, 1)
+    assert.equal(pendingB[0].id, invB.id)
+
+    // Owner da org B revoga o próprio convite → ok.
+    assert.isTrue(await store.revokeInvitation(orgB.id, invB.id))
+    assert.lengthOf(await store.listPendingInvitationsForOrg(orgB.id), 0)
   })
 
   test('listPendingInvitationsForOrg retorna apenas pendentes (sem accepted_at)', async ({ assert }) => {

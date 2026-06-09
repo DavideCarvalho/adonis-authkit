@@ -73,6 +73,27 @@ test.group('validateReturnTo', () => {
     // Defesa: se o valor contiver :// em qualquer posição, é rejeitado.
     assert.isNull(validateReturnTo('/redirect?next=https://evil.com'))
   })
+
+  // L9: backslash → open-redirect em browsers que normalizam `\`→`/`.
+  test('open-redirect: /\\evil.com (backslash) → null', ({ assert }) => {
+    assert.isNull(validateReturnTo('/\\evil.com'))
+  })
+
+  test('open-redirect: \\/evil.com (backslash+slash) → null', ({ assert }) => {
+    assert.isNull(validateReturnTo('\\/evil.com'))
+  })
+
+  test('open-redirect: \\\\evil.com (duplo backslash) → null', ({ assert }) => {
+    assert.isNull(validateReturnTo('\\\\evil.com'))
+  })
+
+  test('backslash no meio do path → null', ({ assert }) => {
+    assert.isNull(validateReturnTo('/admin\\users'))
+  })
+
+  test('backslash em qualquer posição (query) → null', ({ assert }) => {
+    assert.isNull(validateReturnTo('/ok?next=\\evil'))
+  })
 })
 
 // ---------------------------------------------------------------------------

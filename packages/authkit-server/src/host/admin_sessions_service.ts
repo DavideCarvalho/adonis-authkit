@@ -91,8 +91,15 @@ export class AdminSessionsService {
    *
    * Best-effort: a destruição de grants/tokens acima já é a fonte da verdade; esta
    * linha só acelera o efeito nos clients. Falha (tabela ausente) é silenciosa.
+   *
+   * @param accountId Conta cujas sessões devem ser derrubadas (gravado em `sub`).
+   * @param revokedAt Timestamp da revogação. Default: agora. A checagem do client
+   *   é `revoked_at >= iat(id_token)` (em segundos): uma sessão só é derrubada se
+   *   foi estabelecida ANTES (ou no mesmo segundo) da revogação. O
+   *   {@link revokeAllExcept} passa um `revokedAt` ANTERIOR ao `iat` da sessão
+   *   PRESERVADA, para que esta NÃO se auto-derrube (ver lá).
    */
-  async #recordSubRevocation(accountId: string): Promise<void> {
+  protected async recordSubRevocation(accountId: string, revokedAt: Date = new Date()): Promise<void> {
     try {
       const db = (await import('@adonisjs/lucid/services/db')).default
       const conn = this.#schemaConnection
@@ -101,7 +108,7 @@ export class AdminSessionsService {
       await conn.insertQuery().table('auth_session_revocations').insert({
         sid: null,
         sub: accountId,
-        revoked_at: new Date(),
+        revoked_at: revokedAt,
       })
     } catch {
       /* tabela ausente / lucid indisponível — a invalidação server-side ainda vale */
@@ -228,6 +235,7 @@ export class AdminSessionsService {
     const grantAdapter = this.#adapter('Grant')
 
     const sessions = await this.listSessions(accountId)
+    const preserved = sessions.find((s) => s.id === exceptSessionId)
     const sessionsToRevoke = sessions.filter((s) => s.id !== exceptSessionId)
     for (const s of sessionsToRevoke) {
       await sessionAdapter.destroy(s.id)
@@ -246,6 +254,26 @@ export class AdminSessionsService {
       await grantAdapter.revokeByGrantId(g.id)
       await grantAdapter.destroy(g.id)
     }
+
+    // M7: propaga a revogação por `sub` para clients COOKIE-BASED (instantâneo),
+    // igual ao revokeAll. Sem isto, o 1º dispositivo só cai quando o AT expira.
+    //
+    // Ordem do `iat` (CUIDADO): a sessão PRESERVADA já existe aqui (foi criada no
+    // completeLogin ANTES desta revogação), com `loginTs` (== iat do id_token) em
+    // segundos. A checagem do client é `revoked_at >= iat`. Se gravássemos
+    // `revoked_at = now`, como `now >= iat_preservada`, a sessão NOVA se
+    // auto-derrubaria. Por isso ancoramos `revoked_at` ESTRITAMENTE ANTES do
+    // `iat` da sessão preservada (`loginTs - 1s`): as sessões antigas (iat menor)
+    // continuam sendo apanhadas (`revoked_at >= iat_antiga`), enquanto a nova
+    // (iat = loginTs) sobrevive (`revoked_at < iat_nova`).
+    //
+    // Sem sessão preservada (exceptSessionId não encontrado / sem loginTs), caímos
+    // no default (`now`) — não há sessão nova a proteger nesse caminho.
+    const cutoff =
+      typeof preserved?.loginTs === 'number'
+        ? new Date((preserved.loginTs - 1) * 1000)
+        : undefined
+    await this.recordSubRevocation(accountId, cutoff)
 
     return {
       sessions: sessionsToRevoke.length,
@@ -289,7 +317,7 @@ export class AdminSessionsService {
     }
 
     // Revogação total → propaga p/ clients cookie-based via tabela compartilhada (instantâneo).
-    await this.#recordSubRevocation(accountId)
+    await this.recordSubRevocation(accountId)
 
     return {
       sessions: sessions.length,

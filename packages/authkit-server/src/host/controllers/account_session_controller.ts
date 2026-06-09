@@ -15,11 +15,17 @@ import { accountHome } from '../account_home.js'
  *   - Deve começar com `/`.
  *   - NÃO pode começar com `//` (esquema-relativo, ex.: `//evil.com`).
  *   - NÃO pode conter `://` (URL absoluta com esquema, ex.: `https://evil.com`).
+ *   - NÃO pode conter `\` (backslash). Browsers normalizam `\`→`/`, então
+ *     `/\evil.com` vira `//evil.com` (esquema-relativo) → open-redirect. (L9)
  *
  * Retorna o valor validado ou `null` quando inválido/ausente.
  */
 export function validateReturnTo(value: unknown): string | null {
   if (typeof value !== 'string' || !value) return null
+  // L9: backslash é tratado como `/` por muitos browsers; `/\evil.com` →
+  // `//evil.com`. Rejeitamos qualquer backslash ANTES das demais checagens
+  // para não deixar passar variantes ofuscadas (`/\`, `\/`, `\\`).
+  if (value.includes('\\')) return null
   if (!value.startsWith('/')) return null
   if (value.startsWith('//')) return null
   if (value.includes('://')) return null
@@ -76,6 +82,13 @@ export default class AccountSessionController {
     }
 
     const acc = result.account
+    // M5 (session fixation): regenera a sessão IMEDIATAMENTE após autenticar e
+    // ANTES de gravar a chave de conta. A elevação de privilégio (anônimo →
+    // autenticado) DEVE trocar o session id para que um id fixado por um atacante
+    // pré-login deixe de valer. O AdonisJS migra os dados já presentes na sessão
+    // para o novo id, então qualquer estado de pré-login (ex.: MFA-pending) é
+    // preservado — o que muda é só o identificador do cookie.
+    await ctx.session.regenerate()
     ctx.session.put(ACCOUNT_SESSION_KEY, acc.id)
     // Login com senha = confirmação de identidade → marca sudo (graça a partir do login).
     markSudo(ctx)
@@ -85,7 +98,14 @@ export default class AccountSessionController {
   }
 
   async logout(ctx: HttpContext) {
+    // M6: não basta `forget(ACCOUNT_SESSION_KEY)` — sobravam na sessão
+    // `authkit_sudo_at` (sudo), `authkit_last_seen` e qualquer outro estado
+    // sensível, com o session id INALTERADO. Regenerar a sessão troca o id E
+    // descarta todos os dados antigos (sudo/last-seen inclusos), destruindo de
+    // fato a sessão de privilégio. Mantemos o `forget` explícito por garantia
+    // (belt-and-braces) caso o store de sessão não suporte regenerate.
     ctx.session.forget(ACCOUNT_SESSION_KEY)
+    await ctx.session.regenerate()
     return ctx.response.redirect('/account/login')
   }
 }

@@ -28,6 +28,9 @@ export function buildMfa(ctx: LucidStoreContext): MfaCapability {
       row.totpSecret = sealSecret(secret)
       row.mfaEnabledAt = null
       row.recoveryCodes = null
+      // Re-enrollment: zera o anti-replay para o NOVO segredo (o histórico de
+      // steps do segredo antigo não se aplica ao novo).
+      row.lastTotpStep = null
       await row.save()
       const otpauthUri = authenticator.keyuri(row.email, mfaIssuer, secret)
       return { secret, otpauthUri }
@@ -53,7 +56,32 @@ export function buildMfa(ctx: LucidStoreContext): MfaCapability {
       if (!row || !row.mfaEnabledAt || !row.totpSecret) return false
       const secret = openSecret(row.totpSecret)
       if (!secret) return false
-      return authenticator.verify({ token: String(code ?? ''), secret })
+      const token = String(code ?? '')
+
+      // M3 (anti-replay): `checkDelta` retorna o offset (delta) da janela onde o
+      // token bate, ou null se inválido. Convertemos o delta no índice ABSOLUTO
+      // da janela (`step`) usando o epoch/period correntes do otplib:
+      //   stepAtual = floor(epochSegundos / period)
+      //   stepDoToken = stepAtual + delta
+      const delta = authenticator.checkDelta(token, secret)
+      if (delta === null) return false
+
+      const opts = authenticator.allOptions()
+      // `epoch` vem em ms; `step` (period) em segundos. Default do otplib: epoch=now, step=30.
+      const period = opts.step || 30
+      const currentStep = Math.floor(opts.epoch / 1000 / period)
+      const tokenStep = currentStep + delta
+
+      // Rejeita replay: se este step já foi aceito (ou um posterior), nega. Isso
+      // impede reusar o MESMO código dentro da janela de validade (~30s) e também
+      // qualquer código de um step já consumido.
+      const last = typeof row.lastTotpStep === 'number' ? row.lastTotpStep : null
+      if (last !== null && tokenStep <= last) return false
+
+      // Sucesso: persiste o step aceito para barrar o próximo replay.
+      row.lastTotpStep = tokenStep
+      await row.save()
+      return true
     },
 
     async consumeRecoveryCode(accountId, code) {
@@ -73,6 +101,8 @@ export function buildMfa(ctx: LucidStoreContext): MfaCapability {
       row.totpSecret = null
       row.mfaEnabledAt = null
       row.recoveryCodes = null
+      // Limpa também o anti-replay: um futuro re-enroll começa do zero.
+      row.lastTotpStep = null
       await row.save()
     },
   }

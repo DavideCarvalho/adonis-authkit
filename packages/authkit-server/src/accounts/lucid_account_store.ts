@@ -45,8 +45,10 @@ interface EncryptionService {
 }
 let encSvc: EncryptionService | undefined
 let encLoading: Promise<void> | undefined
-function loadEncryption(): void {
-  if (encSvc || encLoading) return
+/** Resolve quando o `loadEncryption()` corrente terminar (sucesso OU falha). */
+function loadEncryption(): Promise<void> {
+  if (encSvc) return Promise.resolve()
+  if (encLoading) return encLoading
   encLoading = import('@adonisjs/core/services/encryption')
     .then((m) => {
       encSvc = (m as { default: EncryptionService }).default
@@ -54,13 +56,29 @@ function loadEncryption(): void {
     .catch(() => {
       /* sem app booted (ex.: testes) → encSvc fica undefined → plaintext */
     })
+  return encLoading
 }
 
 /** Reset do cache de encryption — uso em testes. */
 export function __resetAppKeyEncryption(): void {
   encSvc = undefined
   encLoading = undefined
+  appKeyEncrypterPlaintextWarned = false
 }
+
+/**
+ * Injeta um serviço de encryption fake — uso EXCLUSIVO em testes. Permite exercitar
+ * o caminho fail-closed do {@link appKeyEncrypter} (decrypt que lança → null) sem
+ * precisar de um app AdonisJS booted. Marca `encLoading` como resolvido para que o
+ * encrypter use o serviço imediatamente.
+ */
+export function __setAppKeyEncryptionForTesting(svc: EncryptionService | undefined): void {
+  encSvc = svc
+  encLoading = Promise.resolve()
+}
+
+/** Garante que só logamos UMA vez o aviso de degradação para plaintext (evita flood). */
+let appKeyEncrypterPlaintextWarned = false
 
 /**
  * Encrypter default do AuthKit, baseado no `APP_KEY` (`@adonisjs/core/services/encryption`).
@@ -71,20 +89,44 @@ export function __resetAppKeyEncryption(): void {
  * testes sem app), opera em plaintext; uma vez carregado, encripta de verdade.
  */
 export function appKeyEncrypter(): AccountSecretEncrypter {
+  // Dispara o carregamento do serviço de encryption no boot. A primeira request
+  // já o encontra pronto; o `await` interno de `loadEncryption()` é exposto para
+  // call-sites que precisem garantir o serviço antes de aceitar escrita.
   loadEncryption()
   return {
     encrypt: (value) => {
       try {
-        return encSvc ? encSvc.encrypt(value) : value
+        if (encSvc) return encSvc.encrypt(value)
+        // M4: degradação para plaintext NÃO é silenciosa. Em vez de gravar o
+        // segredo em claro sem rastro, logamos um aviso CLARO (uma vez) para que
+        // o operador detecte a anomalia. O valor ainda é retornado as-is para não
+        // quebrar contextos de boot/teste sem app, mas o sinal fica visível.
+        if (!appKeyEncrypterPlaintextWarned) {
+          appKeyEncrypterPlaintextWarned = true
+          console.warn(
+            '[authkit] appKeyEncrypter: serviço de encryption indisponível — ' +
+              'segredo TOTP sendo gravado em PLAINTEXT. Garanta que o app esteja ' +
+              'booted antes da primeira escrita, ou passe `encrypter: false` para ' +
+              'opt-out explícito.'
+          )
+        }
+        return value
       } catch {
         return value
       }
     },
     decrypt: (value) => {
       try {
-        return encSvc ? (encSvc.decrypt<string>(value) ?? null) : value
-      } catch {
+        // Com serviço: decrypt real; falha de integridade/formato → null (negar).
+        if (encSvc) return encSvc.decrypt<string>(value) ?? null
+        // Sem serviço (boot/teste sem app): o valor foi gravado em plaintext (ver
+        // encrypt acima), então devolvê-lo as-is é o round-trip correto.
         return value
+      } catch {
+        // M4 (fail-closed): adulteração / ciphertext inválido NÃO degrada para o
+        // valor cru (que mascararia a adulteração e poderia devolver o ciphertext
+        // como se fosse o segredo). Negamos o fator retornando null.
+        return null
       }
     },
   }

@@ -129,6 +129,47 @@ test.group('AdminSessionsService (sessões/grants + revogação adapter-backed)'
     assert.lengthOf(await admin.listSessions('acc-2'), 1)
   })
 
+  test('revokeAllExcept grava a revogação por sub (M7) com cutoff antes do iat da sessão preservada', async ({
+    assert,
+    cleanup,
+  }) => {
+    const port = 9856
+    const { service, server } = await startService(port, db)
+    cleanup(() => new Promise<void>((r) => server.close(() => r())))
+
+    // Duas sessões da MESMA conta: uma "antiga" e a "nova" (preservada). loginTs distintos.
+    const session = new DatabaseAdapter('Session', db)
+    await session.upsert('sess-old', { accountId: 'acc-1', loginTs: 1700000000 } as any, 3600)
+    const NEW_IAT = 1700000100
+    await session.upsert('sess-new', { accountId: 'acc-1', loginTs: NEW_IAT } as any, 3600)
+
+    // Subclasse que captura a chamada protegida recordSubRevocation (em vez de
+    // tocar o db global, que não existe neste harness standalone).
+    const calls: Array<{ accountId: string; revokedAt?: Date }> = []
+    class SpySessions extends AdminSessionsService {
+      protected async recordSubRevocation(accountId: string, revokedAt?: Date): Promise<void> {
+        calls.push({ accountId, revokedAt })
+      }
+    }
+
+    const admin = new SpySessions(service)
+    const result = await admin.revokeAllExcept('acc-1', 'sess-new')
+
+    // A sessão antiga foi destruída; a nova preservada.
+    assert.equal(result.sessions, 1)
+    assert.isUndefined(await (service.provider as any).Session.find('sess-old'))
+    assert.isOk(await (service.provider as any).Session.find('sess-new'))
+
+    // M7: gravou a revogação por sub.
+    assert.lengthOf(calls, 1)
+    assert.equal(calls[0].accountId, 'acc-1')
+    // Cutoff ESTRITAMENTE antes do iat da sessão nova (loginTs - 1s), para que a
+    // sessão preservada NÃO se auto-derrube (revoked_at < iat_nova).
+    assert.instanceOf(calls[0].revokedAt, Date)
+    assert.isBelow(calls[0].revokedAt!.getTime(), NEW_IAT * 1000)
+    assert.equal(calls[0].revokedAt!.getTime(), (NEW_IAT - 1) * 1000)
+  })
+
   test('revokeClientGrants revoga só os grants de um client (consentimento)', async ({
     assert,
     cleanup,

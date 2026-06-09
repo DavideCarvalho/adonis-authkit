@@ -10,7 +10,12 @@ import { withCredentials } from '../../src/mixins/with_credentials.js'
 import { withMfa } from '../../src/mixins/with_mfa.js'
 import { withProviderIdentity } from '../../src/mixins/with_provider_identity.js'
 import { withWebauthnCredential } from '../../src/mixins/with_webauthn_credential.js'
-import { lucidAccountStore } from '../../src/accounts/lucid_account_store.js'
+import {
+  lucidAccountStore,
+  appKeyEncrypter,
+  __setAppKeyEncryptionForTesting,
+  __resetAppKeyEncryption,
+} from '../../src/accounts/lucid_account_store.js'
 import type { WebauthnCeremonies } from '../../src/accounts/lucid_account_store.js'
 import {
   supportsAccountDeletion,
@@ -114,6 +119,7 @@ test.group('lucidAccountStore', (group) => {
       t.string('totp_secret').nullable()
       t.timestamp('mfa_enabled_at').nullable()
       t.text('recovery_codes').nullable()
+      t.bigInteger('last_totp_step').nullable()
     })
     await db.connection().schema.createTable('provider_identities', (t: any) => {
       t.string('id').primary()
@@ -496,6 +502,85 @@ test.group('lucidAccountStore', (group) => {
     assert.isFalse(await store.verifyTotp!(acc.id, authenticator.generate(started!.secret)))
   })
 
+  // ----- M3: anti-replay TOTP -----
+
+  test('verifyTotp: o MESMO código falha na 2ª verificação (anti-replay)', async ({ assert }) => {
+    const store = lucidAccountStore(TestAccount)
+    const acc = await store.create({ email: 'replay1@x.com', password: 'pass123456' })
+    const started = await store.startTotpEnrollment!(acc.id)
+    await store.confirmTotpEnrollment!(acc.id, authenticator.generate(started!.secret))
+
+    const code = authenticator.generate(started!.secret)
+    // 1ª vez: aceito.
+    assert.isTrue(await store.verifyTotp!(acc.id, code))
+    // 2ª vez, MESMO código, MESMA janela: rejeitado (replay).
+    assert.isFalse(await store.verifyTotp!(acc.id, code))
+
+    // O step aceito foi persistido.
+    const row = await TestAccount.findBy('email', 'replay1@x.com')
+    assert.isNumber(row!.lastTotpStep)
+  })
+
+  test('verifyTotp: persiste o step ATUAL (floor(epoch/period)) no sucesso', async ({ assert }) => {
+    const store = lucidAccountStore(TestAccount)
+    const acc = await store.create({ email: 'replay2@x.com', password: 'pass123456' })
+    const started = await store.startTotpEnrollment!(acc.id)
+    await store.confirmTotpEnrollment!(acc.id, authenticator.generate(started!.secret))
+
+    const period = authenticator.allOptions().step || 30
+    const expectedStep = Math.floor(Date.now() / 1000 / period)
+
+    assert.isTrue(await store.verifyTotp!(acc.id, authenticator.generate(started!.secret)))
+    const row = await TestAccount.findBy('email', 'replay2@x.com')
+    assert.equal(row!.lastTotpStep, expectedStep)
+  })
+
+  test('verifyTotp: um step FUTURO (maior que o último) é aceito; um <= é rejeitado', async ({
+    assert,
+  }) => {
+    const store = lucidAccountStore(TestAccount)
+    const acc = await store.create({ email: 'replay2b@x.com', password: 'pass123456' })
+    const started = await store.startTotpEnrollment!(acc.id)
+    await store.confirmTotpEnrollment!(acc.id, authenticator.generate(started!.secret))
+
+    const period = authenticator.allOptions().step || 30
+    const currentStep = Math.floor(Date.now() / 1000 / period)
+
+    // Pré-condição: lastTotpStep ANTERIOR ao step atual → o código atual (step maior) é aceito.
+    let row = await TestAccount.findBy('email', 'replay2b@x.com')
+    row!.lastTotpStep = currentStep - 1
+    await row!.save()
+    assert.isTrue(await store.verifyTotp!(acc.id, authenticator.generate(started!.secret)))
+
+    // Agora lastTotpStep == currentStep → o MESMO código (step == último) é rejeitado.
+    assert.isFalse(await store.verifyTotp!(acc.id, authenticator.generate(started!.secret)))
+
+    // E um lastTotpStep no FUTURO (maior) rejeita o código atual (step menor).
+    row = await TestAccount.findBy('email', 'replay2b@x.com')
+    row!.lastTotpStep = currentStep + 5
+    await row!.save()
+    assert.isFalse(await store.verifyTotp!(acc.id, authenticator.generate(started!.secret)))
+  })
+
+  test('verifyTotp: re-enroll zera o anti-replay (novo segredo aceita de novo)', async ({
+    assert,
+  }) => {
+    const store = lucidAccountStore(TestAccount)
+    const acc = await store.create({ email: 'replay3@x.com', password: 'pass123456' })
+    const s1 = await store.startTotpEnrollment!(acc.id)
+    await store.confirmTotpEnrollment!(acc.id, authenticator.generate(s1!.secret))
+    const code1 = authenticator.generate(s1!.secret)
+    assert.isTrue(await store.verifyTotp!(acc.id, code1))
+
+    // Re-enroll: novo segredo, lastTotpStep deve ser zerado.
+    const s2 = await store.startTotpEnrollment!(acc.id)
+    const row = await TestAccount.findBy('email', 'replay3@x.com')
+    assert.isNull(row!.lastTotpStep)
+    await store.confirmTotpEnrollment!(acc.id, authenticator.generate(s2!.secret))
+    // Verifica com o novo segredo — funciona normalmente.
+    assert.isTrue(await store.verifyTotp!(acc.id, authenticator.generate(s2!.secret)))
+  })
+
   test('consumeRecoveryCode é single-use', async ({ assert }) => {
     const store = lucidAccountStore(TestAccount)
     const acc = await store.create({ email: 'mfa6@x.com', password: 'pass123456' })
@@ -586,6 +671,62 @@ test.group('lucidAccountStore', (group) => {
     const started = await store.startTotpEnrollment!(acc.id)
     const row = await TestAccount.findBy('email', 'enc3@x.com')
     assert.equal(row!.totpSecret, started!.secret)
+  })
+
+  // ----- M4: appKeyEncrypter fail-closed -----
+
+  test('appKeyEncrypter: decrypt de valor adulterado retorna null (fail-closed)', async ({
+    assert,
+    cleanup,
+  }) => {
+    // Injeta um serviço de encryption fake cujo decrypt LANÇA (simula ciphertext
+    // adulterado / APP_KEY trocada). O encrypter NÃO pode degradar para o valor
+    // cru — deve negar retornando null.
+    __setAppKeyEncryptionForTesting({
+      encrypt: (v: string) => `enc:${v}`,
+      decrypt: () => {
+        throw new Error('invalid mac / tampered')
+      },
+    })
+    cleanup(() => __resetAppKeyEncryption())
+
+    const enc = appKeyEncrypter()
+    // M4: o catch do decrypt retorna null (negar), NÃO o ciphertext cru.
+    assert.isNull(enc.decrypt('garbage-ciphertext'))
+  })
+
+  test('appKeyEncrypter: decrypt válido faz round-trip (serviço presente)', async ({
+    assert,
+    cleanup,
+  }) => {
+    const map = new Map<string, string>()
+    __setAppKeyEncryptionForTesting({
+      encrypt: (v: string) => {
+        const c = `enc:${v}`
+        map.set(c, v)
+        return c
+      },
+      decrypt: <T = string>(c: string) => (map.get(c) as T) ?? null,
+    })
+    cleanup(() => __resetAppKeyEncryption())
+
+    const enc = appKeyEncrypter()
+    const cipher = enc.encrypt('topsecret')
+    assert.notEqual(cipher, 'topsecret')
+    assert.equal(enc.decrypt(cipher), 'topsecret')
+  })
+
+  test('appKeyEncrypter: decrypt que devolve null (sem throw) também é null', async ({
+    assert,
+    cleanup,
+  }) => {
+    __setAppKeyEncryptionForTesting({
+      encrypt: (v: string) => v,
+      decrypt: () => null,
+    })
+    cleanup(() => __resetAppKeyEncryption())
+    const enc = appKeyEncrypter()
+    assert.isNull(enc.decrypt('whatever'))
   })
 
   test('getMfaState reflete habilitado/desabilitado', async ({ assert }) => {
@@ -907,6 +1048,7 @@ test.group('lucidAccountStore — senha (rehash/legacy/política/import)', (grou
       t.string('totp_secret').nullable()
       t.timestamp('mfa_enabled_at').nullable()
       t.text('recovery_codes').nullable()
+      t.bigInteger('last_totp_step').nullable()
     })
     return async () => db.manager.closeAll()
   })

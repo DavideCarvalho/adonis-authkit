@@ -6,6 +6,24 @@ import { attemptPasswordLogin } from '../login_attempt.js'
 import { notifyLoginSuccess } from '../login_notify.js'
 import { markSudo } from '../sudo_mode.js'
 import { accountHome } from '../account_home.js'
+import { RuntimeSettings } from '../runtime_settings.js'
+import type { SettingsCapability } from '../runtime_settings.js'
+
+/**
+ * Resolve RuntimeSettings (fail-safe → null) para que o login do console honre as
+ * mesmas settings runtime do fluxo OIDC: lockout (M1), verified-email e expiração.
+ * Sem isto, ajustar essas settings no admin console não afetaria este caminho.
+ */
+async function getRuntimeSettings(ctx: HttpContext): Promise<SettingsCapability | null> {
+  try {
+    const db = await ctx.containerResolver.make('lucid.db')
+    const service = await ctx.containerResolver.make('authkit.server').catch(() => null)
+    const connection: string | undefined = (service?.config?.accountStore as any)?.connectionName
+    return new RuntimeSettings(db, connection ? { connection } : {})
+  } catch {
+    return null
+  }
+}
 
 /**
  * Valida um valor de `return_to` recebido da query-string ou de um campo hidden.
@@ -66,7 +84,15 @@ export default class AccountSessionController {
     const returnTo = validateReturnTo(rawReturnTo)
 
     // Verificação + lockout + auditoria de falha centralizados (sem clientId no console).
-    const result = await attemptPasswordLogin(cfg, { email, password, ip, logger: ctx.logger })
+    // M1: passa `settings` p/ o lockout (e verified-email/expiração) runtime valerem aqui também.
+    const settings = await getRuntimeSettings(ctx)
+    const result = await attemptPasswordLogin(cfg, {
+      email,
+      password,
+      ip,
+      logger: ctx.logger,
+      settings: settings ?? undefined,
+    })
     if (!result.ok) {
       return render(ctx, 'account/login', {
         csrfToken: ctx.request.csrfToken,

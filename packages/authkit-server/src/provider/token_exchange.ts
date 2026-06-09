@@ -107,6 +107,10 @@ export function registerTokenExchange(provider: any, deps: TokenExchangeDeps): v
       scope = params.scope
         ? intersectScopes(params.scope, clientScopes)
         : [...clientScopes].join(' ')
+      // Pedido explícito sem nenhuma interseção → erro claro, não token de scope vazio.
+      if (params.scope && !scope) {
+        throw new errors.InvalidScope('requested scope is not allowed for this client', params.scope)
+      }
     } else {
       // Client sem allowlist declarada: comportamento atual preservado.
       scope = params.scope || DEFAULT_SCOPE

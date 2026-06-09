@@ -183,18 +183,23 @@ export function buildProvider(
     // apenas o escopo `openid` (só `sub`), removendo email/profile/roles do ID token.
     // O client valida o ID TOKEN, então precisamos que as claims configuradas cheguem nele.
     conformIdTokenClaims: false,
-    // L3 (least privilege): as claims de papéis globais (`globalRolesClaim`) e de
-    // organização (`org_id`/`org_slug`/`org_role`) ficam EXCLUSIVAMENTE no escopo
-    // dedicado `roles` — NÃO no `profile`. Antes elas vazavam para qualquer client
-    // com `profile`; agora só são emitidas a quem solicita explicitamente `roles`.
-    // Clients first-party que precisam de papéis devem pedir o escopo `roles` (já
-    // presente no catálogo de `scopes` abaixo). O `profile` mantém só dados de
-    // perfil neutros (name/picture).
+    // A claim de roles globais é atrelada ao escopo `profile` (sempre concedido pelos
+    // scopes padrão do client: openid profile email offline_access). Assim as roles chegam
+    // no ID token sem exigir um escopo `roles` customizado. Mantemos também o mapeamento
+    // do escopo `roles` para quem optar por solicitá-lo explicitamente.
+    //
+    // NOTA DE SEGURANÇA (auditoria 2026-06-08, achado L3 — RISCO ACEITO): hoje só há
+    // clients FIRST-PARTY, então roles/org_* no `profile` não vazam para terceiros.
+    // Mover essas claims para um escopo `roles` dedicado QUEBRARIA a autorização em prod
+    // (o authkit-client lê `hasGlobalRole` do claim `roles` do token e os apps pedem só
+    // `openid profile email offline_access`). O fix correto, quando houver client
+    // third-party / dynamic registration, é GATEAR a emissão dessas claims a clients
+    // first-party (não simplesmente mover de escopo). Ver docs/superpowers/specs/2026-06-08-security-audit.md.
     claims: {
       openid: ['sub'],
-      profile: ['name', 'picture'],
+      profile: ['name', 'picture', config.globalRolesClaim, 'org_id', 'org_slug', 'org_role'],
       email: ['email', 'email_verified'],
-      roles: [config.globalRolesClaim, 'org_id', 'org_slug', 'org_role'],
+      roles: [config.globalRolesClaim],
     },
     scopes: ['openid', 'profile', 'email', 'offline_access', 'roles'],
     // Permite que o parametro `audience` (hint de intencao do client, ex.: 'advisor')

@@ -80,8 +80,13 @@ test.group('buildProvider', () => {
     assert.isTrue(meta.backchannel_logout_session_required)
   })
 
-  // ── L3: roles/org claims fora do scope `profile`, no scope dedicado `roles` ───
-  test('L3: claim de roles e org_* ficam no scope `roles`, NÃO no `profile`', async ({
+  // ── L3 (RISCO ACEITO): roles/org_* permanecem no scope `profile` ──────────────
+  // Mover para um scope `roles` dedicado quebraria a autorização em prod (o
+  // authkit-client lê hasGlobalRole do claim `roles` do token e os apps pedem só
+  // `openid profile email offline_access`). Mantemos em `profile` — só há clients
+  // first-party, então não há vazamento para terceiros hoje. Este teste FIXA essa
+  // decisão para que ninguém mova as claims sem antes gatear por first-party.
+  test('L3: claim de roles e org_* permanecem no scope `profile` (first-party only)', async ({
     assert,
   }) => {
     const cfg = await resolved()
@@ -91,17 +96,12 @@ test.group('buildProvider', () => {
     })
     const claims = (instance(provider as any) as any).configuration.claims
 
-    // `profile` NÃO deve mais expor roles nem claims de org (least privilege).
+    // `profile` carrega roles + claims de org (chegam no ID token sem scope extra).
     const profileClaims = Object.keys(claims.profile ?? {})
-    assert.notInclude(profileClaims, cfg!.globalRolesClaim)
-    assert.notInclude(profileClaims, 'org_id')
-    assert.notInclude(profileClaims, 'org_slug')
-    assert.notInclude(profileClaims, 'org_role')
-    // `profile` mantém os dados neutros de perfil.
-    assert.includeMembers(profileClaims, ['name', 'picture'])
+    assert.includeMembers(profileClaims, ['name', 'picture', cfg!.globalRolesClaim, 'org_id', 'org_slug', 'org_role'])
 
-    // O scope `roles` (catálogo) carrega a claim de roles + claims de org.
+    // O scope `roles` dedicado também mapeia a claim de roles (para quem optar por pedi-lo).
     const rolesClaims = Object.keys(claims.roles ?? {})
-    assert.includeMembers(rolesClaims, [cfg!.globalRolesClaim, 'org_id', 'org_slug', 'org_role'])
+    assert.includeMembers(rolesClaims, [cfg!.globalRolesClaim])
   })
 })

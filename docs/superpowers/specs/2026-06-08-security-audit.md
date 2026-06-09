@@ -6,6 +6,26 @@ Auditoria defensiva do Authorization Server OIDC (`@dudousxd/adonis-authkit-serv
 
 ---
 
+## STATUS DE REMEDIAÇÃO (2026-06-09)
+
+Corrigido em `adonis-authkit-server` **0.31.0** (fixes de código) e **0.32.0** (MFA lib-owned), + entre-textos config/runtime. Verificado em prod (login + account self-service + MFA schema + backchannel).
+
+**CORRIGIDO (todos os HIGH + maioria dos MEDIUM/LOW):**
+- H1 último-admin/auto-rebaixamento/catálogo REST · H2 token-exchange (bind client + interseção scope + audience + InvalidScope) · H3 IDOR convite escopado · H4 role de org contra catálogo · H5 dummy-hash anti-enumeration.
+- M1 lockout via settings (incl. login do console) · M2 reset/troca revoga sessões · M3 TOTP anti-replay · M4 encrypter fail-closed · M5 regen no login · M6 destrói sessão no logout · M7 single-session propaga revogação · M8 throttle admin por IP · M10 allowlist grant_types.
+- L1 CSRF ancorado (entre-textos, `/account/api` re-protegido — verificado) · L6 throttle `/account/login` · L7 pepper (entre-textos) · L9 returnTo backslash · L10 redirect_uri url.
+- Runtime: #1 backchannel_logout_uri registrado no client entre-textos · #5 unique `lower(email)` · #3 LIMITER=redis (ok) · #4 passkeyFirst off (ok).
+- BÔNUS: MFA totalmente lib-owned em `auth_mfa` auto-gerida; fix de `schema.connection='auth'` no entre-textos (autoManage caía no schema `public`).
+
+**DEFERIDO / RISCO ACEITO (documentado):**
+- M9-sudo: actor-id na auditoria REST feito; **wiring de sudo nas ações destrutivas do admin** (delete user, rotate keys) NÃO foi feito — item dedicado.
+- M11: signup enumeration — mantido rate-limit; resposta uniforme deferida (acoplada à interaction OIDC).
+- M12: CSP — precisa de trabalho hands-on (policy + report endpoint contra o app rodando); cego = baixo valor (report-only) ou alto risco (enforce quebra login do IdP).
+- L2 client_secret plaintext (inerente ao oidc-provider; clients atuais são public/`none`) · L3 roles no scope `profile` (mover quebraria authz em prod — só first-party hoje) · L5 impersonation mira admin · L11 SSRF config-static · L13 TOTP drift 0 (estrito de propósito).
+- PRÉ-EXISTENTE: duplicação de tabelas `auth_*` entre schemas `auth` e `public` (autoManage rodava na connection default) — `auth_mfa` consolidado no `auth`; o resto (`auth_session_revocations` em public, dupes de `auth_settings`/`auth_organizations`) funciona via searchPath mas merece limpeza dedicada.
+
+---
+
 ## HIGH
 
 ### H1 — Privilege escalation: qualquer admin concede ADMIN; sem proteção de "último admin"; REST aceita roles fora do catálogo

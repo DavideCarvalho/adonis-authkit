@@ -96,6 +96,32 @@ const TABLES: TableDef[] = [
     },
   },
   {
+    name: 'auth_mfa',
+    /**
+     * Estado de MFA/TOTP por conta — LIB-OWNED (substitui as colunas
+     * `totp_secret`/`mfa_enabled_at`/`recovery_codes`/`last_totp_step` que viviam
+     * na tabela `users` do host). Keyed por `account_id` (1:1 com a conta).
+     *
+     *  - `totp_secret`   — segredo TOTP encriptado em repouso (text, null = sem enrollment).
+     *  - `mfa_enabled_at`— instante do (re)enrollment confirmado (null = MFA desligado).
+     *  - `recovery_codes`— hashes (sha256) dos recovery codes, single-use (json, null = nenhum).
+     *  - `last_totp_step`— último step TOTP aceito (anti-replay M3; bigint, null = nenhum).
+     */
+    create: (t) => {
+      t.string('account_id').notNullable().primary()
+      t.text('totp_secret').nullable()
+      t.timestamp('mfa_enabled_at', { useTz: true }).nullable()
+      t.json('recovery_codes').nullable()
+      t.bigInteger('last_totp_step').nullable()
+    },
+    columns: {
+      totp_secret: (t) => t.text('totp_secret').nullable(),
+      mfa_enabled_at: (t) => t.timestamp('mfa_enabled_at', { useTz: true }).nullable(),
+      recovery_codes: (t) => t.json('recovery_codes').nullable(),
+      last_totp_step: (t) => t.bigInteger('last_totp_step').nullable(),
+    },
+  },
+  {
     name: 'auth_organizations',
     create: (t) => {
       t.string('id').primary()

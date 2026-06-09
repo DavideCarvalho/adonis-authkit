@@ -207,6 +207,31 @@ test.group('registerAuthHost', () => {
     assert.isTrue(router.routes.some((r: any) => r.pattern === '/account/logout'))
   })
 
+  test('L6: POST /account/login e /account/logout recebem o throttle por IP (withLogin)', ({
+    assert,
+  }) => {
+    const router = fakeRouter()
+    // rateLimit habilitado (default) → throttles existem e withLogin aplica o middleware.
+    registerAuthHost(router, { mountPath: '/oidc', rateLimit: {} })
+
+    const postLogin = (router.routes as any[]).find(
+      (r) => r.pattern === '/account/login' && r.method === 'POST'
+    )
+    const postLogout = (router.routes as any[]).find(
+      (r) => r.pattern === '/account/logout' && r.method === 'POST'
+    )
+    // A rota de interaction/login (já protegida) serve de baseline do throttle.
+    const baseline = (router.routes as any[]).find(
+      (r) => r.pattern === '/auth/interaction/:uid/login' && r.method === 'POST'
+    )
+    assert.isOk(postLogin)
+    assert.isOk(postLogout)
+    assert.isAbove(baseline.middleware.length, 0, 'baseline deve ter throttle')
+    // O MESMO throttle aplicado ao baseline deve estar em login/logout do console.
+    assert.isAbove(postLogin.middleware.length, 0, '/account/login deve ter throttle por IP')
+    assert.isAbove(postLogout.middleware.length, 0, '/account/logout deve ter throttle por IP')
+  })
+
   test('NÃO monta rotas /admin por default (opt-in)', ({ assert }) => {
     const router = fakeRouter()
     registerAuthHost(router, { mountPath: '/oidc' })

@@ -48,7 +48,11 @@ export default class AccountSessionController {
     const cfg = service.config
     const render = cfg.render!
 
-    const { email, password } = ctx.request.only(['email', 'password'])
+    const { email: rawEmail, password } = ctx.request.only(['email', 'password'])
+    // L6: normaliza o e-mail (trim + lowercase) ANTES de usar — garante que o
+    // lookup, o lockout (keyed por email) e a auditoria usem a forma canônica,
+    // independente do casing/espaços digitados.
+    const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : rawEmail
     const ip = ctx.request.ip?.() ?? null
 
     // Lê e valida o return_to do corpo do formulário (hidden input) — nunca confiar sem revalidar.

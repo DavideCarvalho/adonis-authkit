@@ -364,6 +364,30 @@ export default class AccountSecurityController {
       accountId: userId,
       ip: ctx.request.ip?.() ?? null,
     })
+    // M2: troca de senha INVALIDA as sessões/grants OIDC da conta. A sessão do
+    // console de conta (cookie Adonis, ACCOUNT_SESSION_KEY) NÃO é tocada por
+    // revokeAll — ela só destrói sessões/grants OIDC — então o usuário corrente
+    // permanece logado no console, enquanto todas as sessões SSO derivadas da
+    // senha antiga são derrubadas. Best-effort/fail-safe.
+    try {
+      const sessions = new AdminSessionsService(service)
+      const result = await sessions.revokeAll(userId)
+      await cfg.audit?.record({
+        type: 'session.revoked_all',
+        accountId: userId,
+        actorId: userId,
+        ip: ctx.request.ip?.() ?? null,
+        metadata: {
+          sessions: result.sessions,
+          grants: result.grants,
+          accessTokens: result.accessTokens,
+          refreshTokens: result.refreshTokens,
+          source: 'password-change',
+        },
+      })
+    } catch {
+      // fail-safe: a troca de senha já vale; a invalidação é best-effort.
+    }
     // Notificação de segurança ao titular da conta (best-effort, fail-safe).
     if (account) {
       await dispatchSecurityNotice(

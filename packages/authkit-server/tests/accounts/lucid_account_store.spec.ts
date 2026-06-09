@@ -170,6 +170,34 @@ test.group('lucidAccountStore', (group) => {
     assert.isNull(await store.verifyCredentials('ghost@f.com', 'rightpass1'))
   })
 
+  test('H5 anti-enumeração: e-mail inexistente também chama o verify (dummy hash)', async ({
+    assert,
+  }) => {
+    const store = lucidAccountStore(TestAccount)
+    // Espia o PasswordManager.verify exposto internamente.
+    const pm = (store as any).__passwordManager
+    assert.isOk(pm, 'deve expor __passwordManager')
+    const original = pm.verify.bind(pm)
+    let calledWithoutRow = false
+    pm.verify = async (hashed: string, plain: string, hooks: any) => {
+      // O caminho sem-row roda contra um scrypt dummy ($scrypt$...).
+      if (typeof hashed === 'string' && hashed.startsWith('$scrypt$')) {
+        calledWithoutRow = true
+      }
+      return original(hashed, plain, hooks)
+    }
+    try {
+      const result = await store.verifyCredentials('ghost@nowhere.com', 'whatever1')
+      assert.isNull(result)
+      assert.isTrue(
+        calledWithoutRow,
+        'verify deve ser chamado mesmo sem conta (verificação dummy anti-timing)'
+      )
+    } finally {
+      pm.verify = original
+    }
+  })
+
   test('reset de senha: issue → consume válido troca a senha; reuso falha', async ({ assert }) => {
     const store = lucidAccountStore(TestAccount)
     await store.create({ email: 'g@h.com', password: 'oldpass123' })

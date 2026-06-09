@@ -324,8 +324,10 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
 
   // Console de conta (login de sessão do IdP + gerência de PAT).
   router.get('/account/login', [C.accountSession, 'show'])
-  router.post('/account/login', [C.accountSession, 'login'])
-  router.post('/account/logout', [C.accountSession, 'logout'])
+  // L6: throttle por IP no login/logout do console de conta (anti-brute-force),
+  // alinhado com as demais rotas de credencial (interaction, forgot, reset).
+  withLogin(router.post('/account/login', [C.accountSession, 'login']))
+  withLogin(router.post('/account/logout', [C.accountSession, 'logout']))
 
   // Confirmação de troca de e-mail (standalone, GET-only — consome o token do link;
   // pode ser aberta em outro dispositivo, então NÃO exige sessão).

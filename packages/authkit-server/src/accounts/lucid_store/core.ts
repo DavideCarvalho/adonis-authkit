@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { DateTime } from 'luxon'
+import { Scrypt } from '@adonisjs/core/hash/drivers/scrypt'
 import type {
   AccountImportCapability,
   AccountSecurityCapability,
@@ -15,6 +16,23 @@ const EMAIL_CHANGE_PREFIX = 'ec:'
 
 /** Prefixo do magic link (reaproveita as colunas de reset de senha). */
 const MAGIC_LINK_PREFIX = 'ml:'
+
+/**
+ * Hasher usado SOMENTE para a verificação "dummy" anti-enumeração (mesma
+ * instância/parâmetros do mixin withAuthUser). Não toca em hashes reais.
+ */
+const dummyHasher = new Scrypt({})
+
+/**
+ * Hash dummy pré-computado de uma senha aleatória (descartada). É um scrypt
+ * REAL com os mesmos parâmetros de custo dos hashes de conta — verificar contra
+ * ele gasta ~o mesmo tempo de CPU que verificar um hash legítimo.
+ *
+ * Promise resolvida UMA vez no boot do módulo; o caminho sem-row aguarda-a e
+ * roda `dummyHasher.verify` para igualar o timing do caminho com-row, mitigando
+ * account enumeration por timing no login (OWASP).
+ */
+const dummyHashPromise: Promise<string> = dummyHasher.make(randomBytes(32).toString('hex'))
 
 /**
  * Núcleo SEMPRE presente do {@link CoreAccountStore} sobre um model Lucid:
@@ -40,7 +58,22 @@ export function buildCore(
 
     async verifyCredentials(email, password) {
       const row = await Model.query().where('email', email).first()
-      if (!row) return null
+      if (!row) {
+        // Anti-enumeração por timing: e-mail inexistente roda uma verificação
+        // scrypt DUMMY (mesmo custo do caminho real) e descarta o resultado, de
+        // modo que com-row e sem-row gastem ~o mesmo tempo de CPU. Best-effort:
+        // qualquer erro aqui NÃO altera o retorno (segue null).
+        try {
+          const dummyHash = await dummyHashPromise
+          await ctx.passwords.verify(dummyHash, password, {
+            nativeVerify: (hashed: string, plain: string) => dummyHasher.verify(hashed, plain),
+            needsRehash: () => false,
+          })
+        } catch {
+          // ignora — o objetivo é só gastar o tempo equivalente.
+        }
+        return null
+      }
       const result = await ctx.passwords.verify(row.password, password, {
         nativeVerify: (_hashed: string, plain: string) => row.verifyPassword(plain),
         needsRehash: () => row.passwordNeedsRehash(),

@@ -183,15 +183,18 @@ export function buildProvider(
     // apenas o escopo `openid` (só `sub`), removendo email/profile/roles do ID token.
     // O client valida o ID TOKEN, então precisamos que as claims configuradas cheguem nele.
     conformIdTokenClaims: false,
-    // A claim de roles globais é atrelada ao escopo `profile` (sempre concedido pelos
-    // scopes padrão do client: openid profile email offline_access). Assim as roles chegam
-    // no ID token sem exigir um escopo `roles` customizado. Mantemos também o mapeamento
-    // do escopo `roles` para quem optar por solicitá-lo explicitamente.
+    // L3 (least privilege): as claims de papéis globais (`globalRolesClaim`) e de
+    // organização (`org_id`/`org_slug`/`org_role`) ficam EXCLUSIVAMENTE no escopo
+    // dedicado `roles` — NÃO no `profile`. Antes elas vazavam para qualquer client
+    // com `profile`; agora só são emitidas a quem solicita explicitamente `roles`.
+    // Clients first-party que precisam de papéis devem pedir o escopo `roles` (já
+    // presente no catálogo de `scopes` abaixo). O `profile` mantém só dados de
+    // perfil neutros (name/picture).
     claims: {
       openid: ['sub'],
-      profile: ['name', 'picture', config.globalRolesClaim, 'org_id', 'org_slug', 'org_role'],
+      profile: ['name', 'picture'],
       email: ['email', 'email_verified'],
-      roles: [config.globalRolesClaim],
+      roles: [config.globalRolesClaim, 'org_id', 'org_slug', 'org_role'],
     },
     scopes: ['openid', 'profile', 'email', 'offline_access', 'roles'],
     // Permite que o parametro `audience` (hint de intencao do client, ex.: 'advisor')

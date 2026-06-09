@@ -35,6 +35,12 @@ test.group('token-exchange (impersonation)', (group) => {
             redirectUris: [`${ISSUER}/cb`],
             grants: ['authorization_code', 'refresh_token', TOKEN_EXCHANGE],
           },
+          {
+            clientId: 'app2',
+            clientSecret: 's2',
+            redirectUris: [`${ISSUER}/cb2`],
+            grants: ['authorization_code', 'refresh_token', TOKEN_EXCHANGE],
+          },
         ],
         audit: { record: async (e) => { auditEvents.push(e) } },
         accountStore: fakeAccountStore({
@@ -53,9 +59,9 @@ test.group('token-exchange (impersonation)', (group) => {
     return async () => new Promise<void>((r) => server.close(() => r()))
   })
 
-  async function mintSubjectToken(accountId: string): Promise<string> {
+  async function mintSubjectToken(accountId: string, clientId = 'app1'): Promise<string> {
     const provider = (service as any).provider
-    const client = await provider.Client.find('app1')
+    const client = await provider.Client.find(clientId)
     const at = new provider.AccessToken({ accountId, client, scope: 'openid profile email' })
     return at.save()
   }
@@ -132,5 +138,69 @@ test.group('token-exchange (impersonation)', (group) => {
     assert.equal(res.status, 400)
     const json = await res.json()
     assert.equal(json.error, 'invalid_grant')
+  })
+
+  // ── H2: subject_token DEVE ser do mesmo client autenticado ───────────────────
+  test('subject_token de OUTRO client (app2) usado por app1 → invalid_grant', async ({
+    assert,
+  }) => {
+    // AT mintado para app2, mas a request autentica como app1 (Basic app1:s).
+    const subjectToken = await mintSubjectToken('admin-1', 'app2')
+    const res = await tokenRequest({
+      grant_type: TOKEN_EXCHANGE,
+      subject_token: subjectToken,
+      subject_token_type: ACCESS_TOKEN_TYPE,
+      requested_subject: 'target-1',
+    })
+    assert.equal(res.status, 400)
+    const json = await res.json()
+    assert.equal(json.error, 'invalid_grant')
+  })
+
+  // ── H2: scope emitido é a INTERSEÇÃO com os scopes permitidos do client ───────
+  test('scope pedido é reduzido à interseção com client.scope', async ({ assert }) => {
+    const provider = (service as any).provider
+    const client = await provider.Client.find('app1')
+    // Constrange os scopes permitidos do client a um subconjunto.
+    const original = client.scope
+    client.scope = 'openid email'
+    try {
+      const subjectToken = await mintSubjectToken('admin-1')
+      const res = await tokenRequest({
+        grant_type: TOKEN_EXCHANGE,
+        subject_token: subjectToken,
+        subject_token_type: ACCESS_TOKEN_TYPE,
+        requested_subject: 'target-1',
+        // Pede MAIS do que o client tem permissão.
+        scope: 'openid profile email roles',
+      })
+      const json = await res.json()
+      assert.equal(res.status, 200, JSON.stringify(json))
+      // Só os scopes na interseção (com a allowlist do client) saem; `profile` e
+      // `roles` (pedidos mas não permitidos) são descartados.
+      assert.equal(json.scope, 'openid email')
+      // O id_token reflete os scopes concedidos: `email` presente, `profile`
+      // (name/picture) ausente porque o scope `profile` foi descartado.
+      const payload = decodeJwtPayload(json.id_token)
+      assert.equal(payload.email, 't@x.com')
+      assert.isUndefined(payload.name)
+    } finally {
+      client.scope = original
+    }
+  })
+
+  // ── H2: audience/resource não suportado é rejeitado (invalid_target) ──────────
+  test('audience não suportada → invalid_target', async ({ assert }) => {
+    const subjectToken = await mintSubjectToken('admin-1')
+    const res = await tokenRequest({
+      grant_type: TOKEN_EXCHANGE,
+      subject_token: subjectToken,
+      subject_token_type: ACCESS_TOKEN_TYPE,
+      requested_subject: 'target-1',
+      audience: 'https://evil.example/api',
+    })
+    assert.equal(res.status, 400)
+    const json = await res.json()
+    assert.equal(json.error, 'invalid_target')
   })
 })

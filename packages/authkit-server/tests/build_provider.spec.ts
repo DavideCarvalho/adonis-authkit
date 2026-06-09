@@ -1,6 +1,7 @@
 import { test } from '@japa/runner'
 import RedisMock from 'ioredis-mock'
 import { configProvider } from '@adonisjs/core'
+import instance from 'oidc-provider/lib/helpers/weak_cache.js'
 import { defineConfig, adapters } from '../src/define_config.js'
 import { buildProvider } from '../src/provider/build_provider.js'
 import { fakeAccountStore } from './bootstrap.js'
@@ -77,5 +78,30 @@ test.group('buildProvider', () => {
     const meta = client.metadata()
     assert.equal(meta.backchannel_logout_uri, 'https://app1/auth/backchannel-logout')
     assert.isTrue(meta.backchannel_logout_session_required)
+  })
+
+  // ── L3: roles/org claims fora do scope `profile`, no scope dedicado `roles` ───
+  test('L3: claim de roles e org_* ficam no scope `roles`, NÃO no `profile`', async ({
+    assert,
+  }) => {
+    const cfg = await resolved()
+    const provider = buildProvider(cfg!, {
+      appKey: 'a'.repeat(32),
+      findAccount: async (_ctx: any, sub: string) => ({ accountId: sub, claims: async () => ({ sub }) }),
+    })
+    const claims = (instance(provider as any) as any).configuration.claims
+
+    // `profile` NÃO deve mais expor roles nem claims de org (least privilege).
+    const profileClaims = Object.keys(claims.profile ?? {})
+    assert.notInclude(profileClaims, cfg!.globalRolesClaim)
+    assert.notInclude(profileClaims, 'org_id')
+    assert.notInclude(profileClaims, 'org_slug')
+    assert.notInclude(profileClaims, 'org_role')
+    // `profile` mantém os dados neutros de perfil.
+    assert.includeMembers(profileClaims, ['name', 'picture'])
+
+    // O scope `roles` (catálogo) carrega a claim de roles + claims de org.
+    const rolesClaims = Object.keys(claims.roles ?? {})
+    assert.includeMembers(rolesClaims, [cfg!.globalRolesClaim, 'org_id', 'org_slug', 'org_role'])
   })
 })

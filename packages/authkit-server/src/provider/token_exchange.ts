@@ -15,12 +15,32 @@ export interface TokenExchangeDeps {
   findAccount: (sub: string) => Promise<TokenExchangeAccount | null>
   globalRolesClaim: string
   adminRole?: string
+  /**
+   * Resource indicators (RFC 8707) suportados pelo provider. Quando o pedido traz
+   * `audience`/`resource`, validamos contra esta lista; um alvo não suportado é
+   * rejeitado (conservador). Vazio/ausente => nenhum resource é aceito no pedido.
+   */
+  supportedResources?: string[]
   /** Sink de auditoria (best-effort). Quando presente, registra `impersonation`. */
   audit?: AuditSink
 }
 
+/**
+ * Interseção entre os scopes pedidos e os scopes permitidos do client (allowlist).
+ * Preserva a ordem do pedido. Nunca excede a allowlist do client.
+ */
+function intersectScopes(requested: string, allowed: Set<string>): string {
+  const out: string[] = []
+  for (const s of requested.split(' ')) {
+    const t = s.trim()
+    if (t && allowed.has(t) && !out.includes(t)) out.push(t)
+  }
+  return out.join(' ')
+}
+
 export function registerTokenExchange(provider: any, deps: TokenExchangeDeps): void {
   const adminRole = deps.adminRole ?? 'ADMIN'
+  const supportedResources = new Set(deps.supportedResources ?? [])
 
   const handler = async (ctx: any) => {
     const { params, client } = ctx.oidc
@@ -37,6 +57,12 @@ export function registerTokenExchange(provider: any, deps: TokenExchangeDeps): v
       throw new errors.InvalidGrant('subject_token invalid or expired')
     }
 
+    // O subject_token DEVE ter sido emitido para o MESMO client autenticado: senão
+    // um client B poderia trocar um AT emitido para o client A (cross-client).
+    if (subjectAt.clientId !== client?.clientId) {
+      throw new errors.InvalidGrant('subject_token was not issued to this client')
+    }
+
     const actor = await deps.findAccount(subjectAt.accountId)
     if (!actor || !(actor.globalRoles ?? []).includes(adminRole)) {
       throw new errors.InvalidGrant('actor not permitted to impersonate')
@@ -51,7 +77,40 @@ export function registerTokenExchange(provider: any, deps: TokenExchangeDeps): v
       throw new errors.InvalidGrant('requested_subject not found')
     }
 
-    const scope = params.scope || 'openid profile email'
+    // audience/resource: se o pedido vier com um alvo, ele PRECISA estar entre os
+    // resource indicators suportados. Caso contrário rejeitamos (conservador) —
+    // nunca embutimos audiência arbitrária no token emitido.
+    const requestedTargets = [params.audience, params.resource].filter(
+      (v): v is string => typeof v === 'string' && v.length > 0
+    )
+    for (const tgt of requestedTargets) {
+      if (!supportedResources.has(tgt)) {
+        throw new errors.InvalidTarget('requested audience/resource is not supported')
+      }
+    }
+
+    // scope: nunca exceder os scopes permitidos do client autenticado. Quando o
+    // client DECLARA `scope` (allowlist), o pedido é reduzido à INTERSEÇÃO com ela.
+    // Quando o client NÃO declara `scope` (metadata ausente nesta lib = "não
+    // configurado", não "nenhum scope"), preservamos o comportamento atual: usa o
+    // `scope` pedido, ou o default mínimo se o pedido vier vazio.
+    const clientScopes = new Set<string>(
+      String(client?.scope ?? '')
+        .split(' ')
+        .map((s: string) => s.trim())
+        .filter(Boolean)
+    )
+    const DEFAULT_SCOPE = 'openid profile email'
+    let scope: string
+    if (clientScopes.size) {
+      // Client com allowlist explícita: interseção (pedido) ou a própria allowlist.
+      scope = params.scope
+        ? intersectScopes(params.scope, clientScopes)
+        : [...clientScopes].join(' ')
+    } else {
+      // Client sem allowlist declarada: comportamento atual preservado.
+      scope = params.scope || DEFAULT_SCOPE
+    }
 
     const at = new provider.AccessToken({ accountId: target.id, client, scope })
     const accessToken = await at.save()

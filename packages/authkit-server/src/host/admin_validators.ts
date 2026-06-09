@@ -37,8 +37,34 @@ import type { ClientInput, TokenEndpointAuthMethod } from './admin_clients_servi
  * protocolo ficam de fora.
  */
 
-const stringArray = vine.array(vine.string().trim().minLength(1))
 const authMethod = vine.enum(['client_secret_basic', 'client_secret_post', 'none'] as const)
+
+/**
+ * Opções de validação de URL (L10): exige protocolo (URI absoluta), restringe a
+ * http/https (bloqueia `javascript:`, `ftp:`, etc.) e permite hosts de label única
+ * (`require_tld:false`) p/ não rejeitar `localhost` ou hostnames internos legítimos.
+ */
+const URL_OPTS = { require_protocol: true, require_tld: false, protocols: ['http', 'https'] }
+
+/** Array de URIs ABSOLUTAS http/https. Rejeita strings que não são URL válida. */
+const urlArray = vine.array(vine.string().trim().url(URL_OPTS))
+
+/**
+ * Allowlist de grant_types aceitos no registro/edição de client (M10). Bloqueia
+ * `implicit` (tokens no fragment da URL — sem PKCE/refresh) e qualquer valor fora
+ * desta lista. Mantém os fluxos suportados: authorization_code, refresh_token,
+ * client_credentials e token-exchange (impersonation, gateada em token_exchange.ts).
+ */
+const ALLOWED_GRANT_TYPES = [
+  'authorization_code',
+  'refresh_token',
+  'client_credentials',
+  'urn:ietf:params:oauth:grant-type:token-exchange',
+] as const
+const grantTypeArray = vine.array(vine.enum(ALLOWED_GRANT_TYPES))
+// NOTA: `response_types` NÃO é input de client nesta lib — é derivado por
+// `AdminClientsService.create` (`['code']` quando há authorization_code, senão
+// `[]`). Logo já está restrito a `code` sem precisar de validator (M10 ✓).
 
 // ─── Clients OIDC ───────────────────────────────────────────────────────────
 
@@ -52,12 +78,16 @@ const authMethod = vine.enum(['client_secret_basic', 'client_secret_post', 'none
 export const clientInputValidator = vine.compile(
   vine.object({
     clientId: vine.string().trim().optional(),
-    redirectUris: stringArray.optional(),
-    postLogoutRedirectUris: stringArray.optional(),
-    grantTypes: stringArray.optional(),
-    grants: stringArray.optional(),
+    // redirect/postLogout: URIs ABSOLUTAS (L10). `vine.string().url()` rejeita
+    // valores que não são URL (ex.: 'javascript:...', paths relativos).
+    redirectUris: urlArray.optional(),
+    postLogoutRedirectUris: urlArray.optional(),
+    // grant_types restrito à allowlist; `implicit` e desconhecidos viram 422 (M10).
+    grantTypes: grantTypeArray.optional(),
+    grants: grantTypeArray.optional(),
     tokenEndpointAuthMethod: authMethod.optional(),
-    backchannelLogoutUri: vine.string().trim().optional(),
+    // backchannel_logout_uri também precisa ser URI absoluta (L10).
+    backchannelLogoutUri: vine.string().trim().url(URL_OPTS).optional(),
     backchannelLogoutSessionRequired: vine.boolean().optional(),
   })
 )

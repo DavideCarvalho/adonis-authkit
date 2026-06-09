@@ -45,6 +45,14 @@ test.group('client ↔ server round-trip (ID token)', (group) => {
         // resolve as claims via accountStore.findById(sub). Aqui basta um store mínimo
         // que devolve a conta admin para qualquer sub (o interaction flow é dirigido
         // in-memory abaixo, então só findById é exercitado).
+        // Client first-party: roles/org_* só são emitidas a clients first-party (gate
+        // de least-privilege). Sem branding/firstParty, o gate dropa roles do token.
+        branding: {
+          company: 'Test',
+          clients: {},
+          default: { appName: 'Test', accent: '#000000', accentSoft: '#111111', tagline: 'test' },
+          firstParty: [CLIENT_ID],
+        },
         accountStore: {
           findById: async (id) => ({
             id,
@@ -90,7 +98,7 @@ test.group('client ↔ server round-trip (ID token)', (group) => {
       issuer: ISSUER,
       clientId: CLIENT_ID,
       redirectUri: REDIRECT_URI,
-      scopes: ['openid', 'profile', 'email', 'offline_access'], // scopes PADRÃO do client
+      scopes: ['openid', 'profile', 'email', 'offline_access', 'roles'], // scopes PADRÃO do client (roles incluído desde a 0.8.0)
       state,
       codeChallenge: challenge,
     })

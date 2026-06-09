@@ -20,7 +20,7 @@ function mgr(path: string) {
 /**
  * Fake ctx para os controllers da Admin REST API. `service` é resolvido para
  * `authkit.server`; `lucid.db` lança (sem DB nos testes), então
- * `getSettingsService` retorna null → política default (rotação off). Captura
+ * `resolveRuntimeSettings` retorna null → política default (rotação off). Captura
  * status/body das respostas de erro.
  */
 function fakeCtx(opts: { service?: any; body?: any; authHeader?: string }) {
@@ -55,7 +55,7 @@ function fakeCtx(opts: { service?: any; body?: any; authHeader?: string }) {
     containerResolver: {
       make: async (key: string) => {
         if (key === 'authkit.server') return opts.service
-        // lucid.db indisponível nos testes → getSettingsService cai no catch (null).
+        // lucid.db indisponível nos testes → resolveRuntimeSettings cai no catch (null).
         throw new Error(`no binding for ${key}`)
       },
     },

@@ -51,6 +51,7 @@
  * ```
  */
 
+import type { HttpContext } from '@adonisjs/core/http'
 import { isSettingLocked, SettingLockedError } from './config_locks.js'
 
 /** Uma entrada da tabela `auth_settings`. */
@@ -314,5 +315,41 @@ export class RuntimeSettings implements SettingsCapability {
     } catch {
       return null
     }
+  }
+}
+
+/**
+ * Fábrica canônica de {@link RuntimeSettings} a partir de um `HttpContext`.
+ *
+ * Resolve o `lucid.db` e o `authkit.server` do container, deriva a conexão
+ * nomeada do `accountStore` (para que o probe da tabela `auth_settings` seja
+ * searchPath-aware quando o auth vive numa conexão/schema próprios) e monta o
+ * `RuntimeSettings`.
+ *
+ * FAIL-SAFE → null: qualquer erro de resolução (DB ausente, serviço não
+ * registrado, etc.) retorna `null` em vez de lançar. Os callers usam o `null`
+ * tanto como sinal de "settings runtime indisponíveis" (caem no config estático)
+ * quanto, em alguns endpoints, como sinal de `capability_unsupported` (404) — a
+ * semântica do `!rs`/`!svc` de cada caller é preservada.
+ *
+ * Esta fábrica SUBSTITUI ~16 cópias do mesmo bloco db/connection que viviam sob
+ * nomes distintos (`getRuntimeSettings`, `getSettingsService`,
+ * `getRuntimeSettingsForSudo`) e elimina o cast `as any` (via `connectionName`
+ * tipado em {@link AccountStore}).
+ *
+ * @example
+ * ```ts
+ * const rs = await resolveRuntimeSettings(ctx)
+ * if (!rs) return response.notFound({ error: 'capability_unsupported' })
+ * ```
+ */
+export async function resolveRuntimeSettings(ctx: HttpContext): Promise<RuntimeSettings | null> {
+  try {
+    const db = await ctx.containerResolver.make('lucid.db')
+    const service = await ctx.containerResolver.make('authkit.server').catch(() => null)
+    const connection = service?.config?.accountStore?.connectionName
+    return new RuntimeSettings(db, connection ? { connection } : {})
+  } catch {
+    return null
   }
 }

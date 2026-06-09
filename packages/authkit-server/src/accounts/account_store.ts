@@ -87,6 +87,20 @@ export interface AdminCapability {
   listAccounts(params: ListAccountsParams): Promise<Paginated<AuthAccount>>
   /** Substitui as roles globais de uma conta. */
   setGlobalRoles(accountId: string, roles: string[]): Promise<void>
+  /**
+   * Capacidade OPCIONAL: conta eficientemente quantas contas possuem a role
+   * global `role` (ex.: para a invariante de "último admin", evitando paginar
+   * a base inteira em memória). Retorna o número de contas que têm a role.
+   *
+   * Por que opcional: o formato de `globalRoles` é host-shaped (coluna JSON,
+   * tabela de junção, claim externa, etc.), então a lib NÃO consegue emitir uma
+   * query de contagem genérica. Hosts que conhecem o próprio shape implementam
+   * isto (ex.: `whereJsonSuperset`/`EXISTS` no dialeto deles). Ausente → o
+   * caller usa o fallback de scan paginado via {@link listAccounts}.
+   *
+   * Use {@link supportsCountByGlobalRole} para estreitar em runtime.
+   */
+  countByGlobalRole?(role: string): Promise<number>
 }
 
 /**
@@ -514,8 +528,18 @@ export function supportsOrganizations(store: AccountStore): store is AccountStor
  * presentes-mas-lançando). Use os type guards {@link supportsMfa},
  * {@link supportsPasskeys}, {@link supportsProviderIdentity} para estreitar.
  */
-export type AccountStore = CoreAccountStore &
-  Partial<
+export type AccountStore = CoreAccountStore & {
+  /**
+   * Nome da conexão Lucid usada por este store (deriva de `Model.connection` no
+   * store default — ver `lucid_account_store.ts`). Quando presente, os call-sites
+   * de RuntimeSettings o repassam como `{ connection }` para que o probe da tabela
+   * `auth_settings` seja searchPath-aware (auth vivendo numa conexão/schema
+   * próprios). Undefined → conexão default (back-compat total). É metadado
+   * opcional, não um método de capacidade — por isso `readonly` e fora dos
+   * blocos `Partial<...>` de capacidades probáveis.
+   */
+  readonly connectionName?: string
+} & Partial<
     MfaCapability &
       WebauthnCapability &
       ProviderIdentityCapability &
@@ -534,6 +558,17 @@ export type AccountStore = CoreAccountStore &
 /** Type guard: o store implementa a capacidade de MFA / TOTP. */
 export function supportsMfa(store: AccountStore): store is AccountStore & MfaCapability {
   return typeof store.getMfaState === 'function'
+}
+
+/**
+ * Type guard: o store implementa a contagem eficiente por role global
+ * ({@link AdminCapability.countByGlobalRole}). Quando ausente, callers caem no
+ * fallback de scan paginado.
+ */
+export function supportsCountByGlobalRole(
+  store: AccountStore
+): store is AccountStore & { countByGlobalRole(role: string): Promise<number> } {
+  return typeof store.countByGlobalRole === 'function'
 }
 
 /** Type guard: o store implementa a capacidade de passkeys / WebAuthn. */

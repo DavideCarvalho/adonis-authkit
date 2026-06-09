@@ -3,7 +3,8 @@ import type { HttpContext } from '@adonisjs/core/http'
 import { AdminUsersService } from '../admin_api/admin_users_service.js'
 import { AdminSessionsService } from '../admin_sessions_service.js'
 import { enrichSessionsWithContext } from '../session_context.js'
-import { RuntimeSettings } from '../runtime_settings.js'
+import type { RuntimeSettings } from '../runtime_settings.js'
+import { resolveRuntimeSettings } from '../runtime_settings.js'
 import { resolveEffectiveRolesCatalog } from '../runtime_toggles.js'
 import { userDto, sessionDto, grantDto, apiError } from '../admin_api/dto.js'
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
@@ -72,10 +73,8 @@ export default class ConsoleUsersController {
     // Catálogo de roles (fail-safe).
     let catalogRoles: { name: string; description?: string }[] = []
     try {
-      const db = await ctx.containerResolver.make('lucid.db').catch(() => null)
-      if (db) {
-        const connection: string | undefined = (cfg.accountStore as any)?.connectionName
-        const rs = new RuntimeSettings(db, connection ? { connection } : {})
+      const rs = await resolveRuntimeSettings(ctx)
+      if (rs) {
         const catalog = await resolveEffectiveRolesCatalog(rs)
         catalogRoles = catalog.roles
       }
@@ -155,16 +154,7 @@ export default class ConsoleUsersController {
     }
 
     // Resolve RuntimeSettings para validação contra catálogo (fail-safe).
-    let runtimeSettings: RuntimeSettings | null = null
-    try {
-      const db = await ctx.containerResolver.make('lucid.db').catch(() => null)
-      if (db) {
-        const connection: string | undefined = (cfg.accountStore as any)?.connectionName
-        runtimeSettings = new RuntimeSettings(db, connection ? { connection } : {})
-      }
-    } catch {
-      // fail-safe
-    }
+    const runtimeSettings: RuntimeSettings | null = await resolveRuntimeSettings(ctx)
 
     const errorKey = await users.setGlobalRolesValidated(id, roles, runtimeSettings)
     if (errorKey) {

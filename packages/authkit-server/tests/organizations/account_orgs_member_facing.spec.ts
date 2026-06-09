@@ -6,7 +6,7 @@
  *   - H4: validação de role contra o catálogo + regra "só owner concede owner".
  *
  * Usa store em memória + fake HttpContext (sem roteador real). O
- * `getRuntimeSettings` cai no fail-safe (config catalog) porque
+ * `resolveRuntimeSettings` cai no fail-safe (config catalog) porque
  * `make('lucid.db')` rejeita — então o catálogo efetivo é
  * `cfg.organizations.roles`.
  */

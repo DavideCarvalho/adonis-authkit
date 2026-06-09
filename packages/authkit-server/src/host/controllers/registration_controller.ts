@@ -6,7 +6,7 @@ import { sendPasswordResetEmail, sendEmailVerificationEmail } from '../default_m
 import { translate } from '../i18n.js'
 import { PasswordPolicyError } from '../../password/password_manager.js'
 import { guardBotProtection, resolveEffectiveBotProtection } from '../bot_protection.js'
-import { RuntimeSettings } from '../runtime_settings.js'
+import { RuntimeSettings, resolveRuntimeSettings } from '../runtime_settings.js'
 import {
   resolveEffectiveRegistration,
   resolveEffectiveMaintenanceMode,
@@ -15,18 +15,16 @@ import {
 import { dispatchSecurityNotice } from '../security_notice_service.js'
 import { AdminSessionsService } from '../admin_sessions_service.js'
 
-/** Best-effort: returns a RuntimeSettings backed by the container DB, or a no-op fallback. */
+/**
+ * Best-effort: returns a RuntimeSettings backed by the container DB, or a no-op
+ * fallback. Contrato NON-NULL preservado (callers passam direto p/ resolvers que
+ * exigem SettingsCapability). Reusa a fábrica canônica `resolveRuntimeSettings`
+ * e degrada para o RuntimeSettings no-op (probe via SELECT lança → tabela ausente
+ * → config fallback) quando a resolução falha.
+ */
 async function getRuntimeSettings(ctx: HttpContext): Promise<RuntimeSettings> {
-  try {
-    const db = await ctx.containerResolver.make('lucid.db')
-    // Passa a conexão do accountStore para que o probe seja searchPath-aware.
-    const service = await ctx.containerResolver.make('authkit.server').catch(() => null)
-    const connection: string | undefined = (service?.config?.accountStore as any)?.connectionName
-    return new RuntimeSettings(db, connection ? { connection } : {})
-  } catch {
-    // Fallback: probe via SELECT lança → tabela considerada ausente → config fallback
-    return new RuntimeSettings({ table: () => { throw new Error('no-op') } })
-  }
+  const rs = await resolveRuntimeSettings(ctx)
+  return rs ?? new RuntimeSettings({ table: () => { throw new Error('no-op') } })
 }
 
 export default class AuthRegistrationController {

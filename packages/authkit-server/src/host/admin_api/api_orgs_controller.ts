@@ -2,8 +2,7 @@ import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import { AdminOrgsService } from './admin_orgs_service.js'
 import { orgDto, orgDetailDto, orgInvitationDto, apiError } from './dto.js'
-import { RuntimeSettings } from '../runtime_settings.js'
-import type { SettingsCapability } from '../runtime_settings.js'
+import { resolveRuntimeSettings } from '../runtime_settings.js'
 import {
   orgCreateValidator,
   orgUpdateValidator,
@@ -23,18 +22,6 @@ async function ctxBits(ctx: HttpContext) {
 /** Helper: 404 JSON quando organizations não é suportado. */
 function notSupported(ctx: HttpContext) {
   return ctx.response.notFound(apiError('capability_unsupported', 'Organizations não é suportado nesta instalação.'))
-}
-
-/** Resolve RuntimeSettings (fail-safe → null) para validação do catálogo de roles. */
-async function resolveSettings(ctx: HttpContext, cfg: any): Promise<SettingsCapability | null> {
-  try {
-    const db = await ctx.containerResolver.make('lucid.db').catch(() => null)
-    if (!db) return null
-    const connection: string | undefined = (cfg?.accountStore as any)?.connectionName
-    return new RuntimeSettings(db, connection ? { connection } : {})
-  } catch {
-    return null
-  }
 }
 
 /**
@@ -143,7 +130,7 @@ export default class ApiOrgsController {
       orgId,
       { accountId, role: role ?? 'member' },
       actor,
-      await resolveSettings(ctx, cfg)
+      await resolveRuntimeSettings(ctx)
     )
 
     if (!result.ok) {
@@ -184,7 +171,7 @@ export default class ApiOrgsController {
     const accountId = ctx.request.param('accountId')
     const { role } = await ctx.request.validateUsing(orgMemberRoleValidator)
 
-    const result = await svc.updateMemberRole(orgId, accountId, role, actor, await resolveSettings(ctx, cfg))
+    const result = await svc.updateMemberRole(orgId, accountId, role, actor, await resolveRuntimeSettings(ctx))
 
     if (!result.ok) {
       if (result.reason === 'not_supported') return notSupported(ctx)
@@ -211,7 +198,7 @@ export default class ApiOrgsController {
       { email, role: role ?? 'member' },
       actor,
       origin,
-      await resolveSettings(ctx, cfg)
+      await resolveRuntimeSettings(ctx)
     )
 
     if (!result.ok) {

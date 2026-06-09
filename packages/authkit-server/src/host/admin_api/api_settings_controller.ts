@@ -1,6 +1,6 @@
 import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
-import { RuntimeSettings } from '../runtime_settings.js'
+import { resolveRuntimeSettings } from '../runtime_settings.js'
 import { settingDto, apiError } from './dto.js'
 import { isSettingLocked, lockedSettingKeys, SettingLockedError } from '../config_locks.js'
 
@@ -16,23 +16,6 @@ function notSupported(ctx: HttpContext) {
   return ctx.response.notFound(
     apiError('capability_unsupported', 'Runtime settings não é suportado nesta instalação (tabela auth_settings ausente).')
   )
-}
-
-/**
- * Constrói um `RuntimeSettings` a partir do DB do container (searchPath-aware via
- * a conexão do accountStore). Exportado para reuso por outros controllers da Admin
- * REST API (e.g. api_keys_controller). Retorna null quando o DB não está disponível.
- */
-export async function getSettingsService(ctx: HttpContext): Promise<RuntimeSettings | null> {
-  try {
-    const db = await ctx.containerResolver.make('lucid.db')
-    // Passa a conexão do accountStore para que o probe seja searchPath-aware.
-    const service = await ctx.containerResolver.make('authkit.server').catch(() => null)
-    const connection: string | undefined = (service?.config?.accountStore as any)?.connectionName
-    return new RuntimeSettings(db, connection ? { connection } : {})
-  } catch {
-    return null
-  }
 }
 
 /** Extrai organizationId do query string. null = global. */
@@ -60,7 +43,7 @@ function resolveOrgId(ctx: HttpContext): string | null {
 export default class ApiSettingsController {
   /** GET /settings — lista settings (global por padrão, ou da org via ?organizationId=). */
   async index(ctx: HttpContext) {
-    const svc = await getSettingsService(ctx)
+    const svc = await resolveRuntimeSettings(ctx)
     if (!svc) return notSupported(ctx)
     // Probe table presence before returning list.
     const tablePresent = await svc.isTablePresent()
@@ -75,7 +58,7 @@ export default class ApiSettingsController {
   /** GET /settings/:key — obtém uma setting por key (global ou org). */
   async show(ctx: HttpContext) {
     const key = ctx.request.param('key') as string
-    const svc = await getSettingsService(ctx)
+    const svc = await resolveRuntimeSettings(ctx)
     if (!svc) return notSupported(ctx)
     const tablePresent = await svc.isTablePresent()
     if (!tablePresent) return notSupported(ctx)
@@ -95,7 +78,7 @@ export default class ApiSettingsController {
       return ctx.response.badRequest(apiError('invalid_request', 'O campo `value` é obrigatório.'))
     }
 
-    const svc = await getSettingsService(ctx)
+    const svc = await resolveRuntimeSettings(ctx)
     if (!svc) return notSupported(ctx)
     const tablePresent = await svc.isTablePresent()
     if (!tablePresent) return notSupported(ctx)
@@ -129,7 +112,7 @@ export default class ApiSettingsController {
   /** DELETE /settings/:key */
   async destroy(ctx: HttpContext) {
     const key = ctx.request.param('key') as string
-    const svc = await getSettingsService(ctx)
+    const svc = await resolveRuntimeSettings(ctx)
     if (!svc) return notSupported(ctx)
     const tablePresent = await svc.isTablePresent()
     if (!tablePresent) return notSupported(ctx)

@@ -1,6 +1,6 @@
 import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
-import { RuntimeSettings } from '../runtime_settings.js'
+import { resolveRuntimeSettings } from '../runtime_settings.js'
 import { settingDto, apiError } from '../admin_api/dto.js'
 import { isSettingLocked, lockedSettingKeys, SettingLockedError } from '../config_locks.js'
 
@@ -9,17 +9,6 @@ function lockedResponse(ctx: HttpContext, err: SettingLockedError) {
   return ctx.response
     .status(423)
     .send(apiError('setting_locked', err.message, { key: err.key, lockedBy: 'config' }))
-}
-
-async function getSettingsService(ctx: HttpContext): Promise<RuntimeSettings | null> {
-  try {
-    const db = await ctx.containerResolver.make('lucid.db')
-    const service = await ctx.containerResolver.make('authkit.server').catch(() => null)
-    const connection: string | undefined = (service?.config?.accountStore as any)?.connectionName
-    return new RuntimeSettings(db, connection ? { connection } : {})
-  } catch {
-    return null
-  }
 }
 
 function notSupported(ctx: HttpContext) {
@@ -58,7 +47,7 @@ function resolveOrgId(ctx: HttpContext): string | null {
 export default class ConsoleSettingsController {
   /** GET {prefix}/api/settings */
   async index(ctx: HttpContext) {
-    const svc = await getSettingsService(ctx)
+    const svc = await resolveRuntimeSettings(ctx)
     if (!svc) return notSupported(ctx)
     const tablePresent = await svc.isTablePresent()
     if (!tablePresent) return notSupported(ctx)
@@ -75,7 +64,7 @@ export default class ConsoleSettingsController {
       return ctx.response.badRequest(apiError('invalid_request', 'O campo `value` é obrigatório.'))
     }
 
-    const svc = await getSettingsService(ctx)
+    const svc = await resolveRuntimeSettings(ctx)
     if (!svc) return notSupported(ctx)
     const tablePresent = await svc.isTablePresent()
     if (!tablePresent) return notSupported(ctx)
@@ -108,7 +97,7 @@ export default class ConsoleSettingsController {
   async destroy(ctx: HttpContext) {
     const key = ctx.request.param('key') as string
 
-    const svc = await getSettingsService(ctx)
+    const svc = await resolveRuntimeSettings(ctx)
     if (!svc) return notSupported(ctx)
     const tablePresent = await svc.isTablePresent()
     if (!tablePresent) return notSupported(ctx)

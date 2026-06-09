@@ -4,7 +4,7 @@ import type { AuthAccount } from '../../accounts/account_store.js'
 import { AdminUsersService } from './admin_users_service.js'
 import { AdminSessionsService } from '../admin_sessions_service.js'
 import { enrichSessionsWithContext } from '../session_context.js'
-import { RuntimeSettings } from '../runtime_settings.js'
+import { resolveRuntimeSettings } from '../runtime_settings.js'
 import { userDto, sessionDto, grantDto, apiError } from './dto.js'
 import { adminUserCreateValidator, adminUserUpdateValidator } from '../admin_validators.js'
 
@@ -27,20 +27,6 @@ async function ctxBits(ctx: HttpContext) {
   return { service, cfg, actor }
 }
 
-/** Resolve o RuntimeSettings para validação de catálogo (fail-safe → null). */
-async function resolveRuntimeSettings(
-  ctx: HttpContext,
-  cfg: any
-): Promise<RuntimeSettings | null> {
-  try {
-    const db = await ctx.containerResolver.make('lucid.db').catch(() => null)
-    if (!db) return null
-    const connection: string | undefined = (cfg.accountStore as any)?.connectionName
-    return new RuntimeSettings(db, connection ? { connection } : {})
-  } catch {
-    return null
-  }
-}
 
 /**
  * Recurso de usuários da Admin REST API (R6). JSON puro (camelCase), erros no
@@ -125,7 +111,7 @@ export default class ApiUsersController {
 
       // Valida contra o catálogo (mesmo caminho do console) — roles fora do
       // catálogo (e que o usuário não tinha) → 422.
-      const settings = await resolveRuntimeSettings(ctx, cfg)
+      const settings = await resolveRuntimeSettings(ctx)
       const errorKey = await users.setGlobalRolesValidated(id, normalized, settings)
       if (errorKey) {
         return ctx.response

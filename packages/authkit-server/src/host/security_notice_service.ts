@@ -11,7 +11,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import type { MailHooks } from '../define_config.js'
 import type { AuditSink } from '../audit/audit_sink.js'
 import type { SecurityNotificationKind } from './runtime_toggles.js'
-import { RuntimeSettings } from './runtime_settings.js'
+import { resolveRuntimeSettings } from './runtime_settings.js'
 import { resolveEffectiveSecurityNotifications } from './runtime_toggles.js'
 import { sendSecurityNoticeEmail } from './default_mailer.js'
 
@@ -55,12 +55,8 @@ export async function dispatchSecurityNotice(
     ]
 
     try {
-      const db = await (ctx.containerResolver as any).make('lucid.db')
-      // Usa a conexão do accountStore para que o probe seja searchPath-aware.
-      const service = await (ctx.containerResolver as any).make('authkit.server').catch(() => null)
-      const connection: string | undefined = (service?.config?.accountStore as any)?.connectionName
-      const runtimeSettings = new RuntimeSettings(db, connection ? { connection } : {})
-      if (await runtimeSettings.isTablePresent()) {
+      const runtimeSettings = await resolveRuntimeSettings(ctx)
+      if (runtimeSettings && (await runtimeSettings.isTablePresent())) {
         const resolved = await resolveEffectiveSecurityNotifications(runtimeSettings)
         enabled = resolved.enabled
         enabledKinds = resolved.kinds

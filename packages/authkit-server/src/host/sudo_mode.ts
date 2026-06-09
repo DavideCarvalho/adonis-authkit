@@ -122,19 +122,3 @@ export async function requireSudo(
       : ''
   return ctx.response.redirect(`/account/confirm${returnTo}`)
 }
-
-/**
- * Resolve um RuntimeSettings a partir do container HTTP (helper para controllers).
- * Retorna `null` se o container não estiver disponível.
- */
-export async function getRuntimeSettingsForSudo(ctx: HttpContext): Promise<SettingsCapability | null> {
-  try {
-    const { RuntimeSettings } = await import('./runtime_settings.js')
-    const db = await ctx.containerResolver.make('lucid.db')
-    const service = await ctx.containerResolver.make('authkit.server').catch(() => null)
-    const connection: string | undefined = (service?.config?.accountStore as any)?.connectionName
-    return new RuntimeSettings(db, connection ? { connection } : {})
-  } catch {
-    return null
-  }
-}

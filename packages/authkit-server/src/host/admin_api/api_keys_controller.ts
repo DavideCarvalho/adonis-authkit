@@ -1,7 +1,7 @@
 import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import { buildKeysStatus, rotateNow } from '../key_rotation_actions.js'
-import { getSettingsService } from './api_settings_controller.js'
+import { resolveRuntimeSettings } from '../runtime_settings.js'
 import { apiError } from './dto.js'
 
 /**
@@ -15,7 +15,7 @@ export default class ApiKeysController {
   async status(ctx: HttpContext) {
     const svc: any = await ctx.containerResolver.make('authkit.server')
     // RuntimeSettings é opcional (tabela auth_settings ausente → política default).
-    const settings = await getSettingsService(ctx)
+    const settings = await resolveRuntimeSettings(ctx)
     const status = await buildKeysStatus(svc, settings)
     if (!status) {
       return ctx.response

@@ -2,27 +2,13 @@ import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import { supportsOrganizations } from '../../accounts/account_store.js'
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
-import { RuntimeSettings } from '../runtime_settings.js'
-import type { SettingsCapability } from '../runtime_settings.js'
-import { resolveEffectiveOrganizationsPolicy } from '../runtime_toggles.js'
+import { resolveRuntimeSettings } from '../runtime_settings.js'
+import { isRoleInCatalog } from '../runtime_toggles.js'
 import {
   ACTIVE_ORG_COOKIE,
   ACTIVE_ORG_COOKIE_TTL,
   encodeActiveOrgCookie,
 } from '../active_org_cookie.js'
-
-/** Resolve RuntimeSettings (fail-safe → null) para validação do catálogo de roles. */
-async function getRuntimeSettings(ctx: HttpContext): Promise<SettingsCapability | null> {
-  try {
-    const db = await ctx.containerResolver.make('lucid.db').catch(() => null)
-    if (!db) return null
-    const service = await ctx.containerResolver.make('authkit.server').catch(() => null)
-    const connection: string | undefined = (service?.config?.accountStore as any)?.connectionName
-    return new RuntimeSettings(db, connection ? { connection } : {})
-  } catch {
-    return null
-  }
-}
 
 /**
  * Console de conta — Organizations. Server-rendered, padrão dos outros controllers
@@ -194,9 +180,11 @@ export default class AccountOrgsController {
 
     // H4: valida o role contra o catálogo efetivo de roles da org (runtime →
     // config → defaults). Role fora do catálogo é rejeitada (não cria convite).
-    const settings = await getRuntimeSettings(ctx)
-    const policy = await resolveEffectiveOrganizationsPolicy(
-      settings as any,
+    // Usa o helper PURO `isRoleInCatalog` (mesmo ponto de verdade do caminho admin).
+    const settings = await resolveRuntimeSettings(ctx)
+    const roleValid = await isRoleInCatalog(
+      role,
+      settings,
       {
         roles: cfg.organizations.roles,
         allowSelfCreate: cfg.organizations.allowSelfCreate,
@@ -204,7 +192,7 @@ export default class AccountOrgsController {
       },
       params.id
     )
-    if (!policy.roles.includes(role)) {
+    if (!roleValid) {
       return response.unprocessableEntity({ error: { code: 'invalid_role', message: 'Role inválida.' } })
     }
 

@@ -46,13 +46,13 @@ import {
 import { AdminSessionsService } from '../admin_sessions_service.js'
 import { enrichSessionsWithContext } from '../session_context.js'
 import { PasswordPolicyError } from '../../password/password_manager.js'
-import { RuntimeSettings } from '../runtime_settings.js'
+import { resolveRuntimeSettings } from '../runtime_settings.js'
 import {
   resolveEffectiveEmailChange,
   resolveEffectivePasswordHistory,
 } from '../runtime_toggles.js'
 import { dispatchSecurityNotice } from '../security_notice_service.js'
-import { requireSudo, getRuntimeSettingsForSudo, isSudoActive, SUDO_MODE_DEFAULTS, resolveEffectiveSudoMode } from '../sudo_mode.js'
+import { requireSudo, isSudoActive, SUDO_MODE_DEFAULTS, resolveEffectiveSudoMode } from '../sudo_mode.js'
 import { translate } from '../i18n.js'
 import { storeAvatar, isDriveAvailable, AvatarUploadError } from '../avatar_storage.js'
 import {
@@ -66,22 +66,10 @@ import type { PatRecord } from '../../pat/pat_store.js'
 // Helpers (shared with existing controllers — kept local to avoid coupling)
 // ---------------------------------------------------------------------------
 
-/** Resolve a conexão do accountStore a partir do contexto (fail-safe). */
-async function resolveConnectionName(ctx: HttpContext): Promise<string | undefined> {
-  try {
-    const service = await (ctx.containerResolver as any).make('authkit.server')
-    return (service?.config?.accountStore as any)?.connectionName
-  } catch {
-    return undefined
-  }
-}
-
 async function resolvePasswordHistorySettings(ctx: HttpContext) {
   try {
-    const db = await (ctx.containerResolver as any).make('lucid.db')
-    const connection = await resolveConnectionName(ctx)
-    const rs = new RuntimeSettings(db, connection ? { connection } : {})
-    if (await rs.isTablePresent()) {
+    const rs = await resolveRuntimeSettings(ctx)
+    if (rs && (await rs.isTablePresent())) {
       return await resolveEffectivePasswordHistory(rs)
     }
   } catch {
@@ -92,10 +80,8 @@ async function resolvePasswordHistorySettings(ctx: HttpContext) {
 
 async function resolveEmailChangeSettings(ctx: HttpContext) {
   try {
-    const db = await (ctx.containerResolver as any).make('lucid.db')
-    const connection = await resolveConnectionName(ctx)
-    const rs = new RuntimeSettings(db, connection ? { connection } : {})
-    if (await rs.isTablePresent()) {
+    const rs = await resolveRuntimeSettings(ctx)
+    if (rs && (await rs.isTablePresent())) {
       return await resolveEffectiveEmailChange(rs)
     }
   } catch {
@@ -128,7 +114,7 @@ export default class AccountApiController {
     // Sudo mode ativo?
     let sudoActive = false
     try {
-      const sudoSettings = await getRuntimeSettingsForSudo(ctx)
+      const sudoSettings = await resolveRuntimeSettings(ctx)
       const resolved = sudoSettings ? await resolveEffectiveSudoMode(sudoSettings) : SUDO_MODE_DEFAULTS
       sudoActive = resolved.enabled ? isSudoActive(ctx, resolved.graceMinutes) : true
     } catch {
@@ -325,7 +311,7 @@ export default class AccountApiController {
     }
 
     // Sudo gate.
-    const sudoSettings = await getRuntimeSettingsForSudo(ctx)
+    const sudoSettings = await resolveRuntimeSettings(ctx)
     const sudoResult = await requireSudo(ctx, sudoSettings)
     if (sudoResult !== true) {
       // Para a API JSON, devolvemos 403 em vez de redirecionar.
@@ -410,7 +396,7 @@ export default class AccountApiController {
       )
     }
 
-    const sudoSettings = await getRuntimeSettingsForSudo(ctx)
+    const sudoSettings = await resolveRuntimeSettings(ctx)
     const sudoResult = await requireSudo(ctx, sudoSettings)
     if (sudoResult !== true) {
       return ctx.response.status(403).send(apiErr('sudo_required', 'Identity confirmation required.'))
@@ -793,7 +779,7 @@ export default class AccountApiController {
       )
     }
 
-    const sudoSettings = await getRuntimeSettingsForSudo(ctx)
+    const sudoSettings = await resolveRuntimeSettings(ctx)
     const sudoResult = await requireSudo(ctx, sudoSettings)
     if (sudoResult !== true) {
       return ctx.response.status(403).send(apiErr('sudo_required', 'Identity confirmation required.'))
@@ -867,7 +853,7 @@ export default class AccountApiController {
 
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
 
-    const sudoSettings = await getRuntimeSettingsForSudo(ctx)
+    const sudoSettings = await resolveRuntimeSettings(ctx)
     const sudoResult = await requireSudo(ctx, sudoSettings)
     if (sudoResult !== true) {
       return ctx.response.status(403).send(apiErr('sudo_required', 'Identity confirmation required.'))
@@ -908,7 +894,7 @@ export default class AccountApiController {
 
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
 
-    const sudoSettings = await getRuntimeSettingsForSudo(ctx)
+    const sudoSettings = await resolveRuntimeSettings(ctx)
     const sudoResult = await requireSudo(ctx, sudoSettings)
     if (sudoResult !== true) {
       return ctx.response.status(403).send(apiErr('sudo_required', 'Identity confirmation required.'))

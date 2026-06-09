@@ -26,31 +26,19 @@ import { AccountExportService } from '../account_export_service.js'
 import { AdminSessionsService } from '../admin_sessions_service.js'
 import { enrichSessionsWithContext } from '../session_context.js'
 import { PasswordPolicyError } from '../../password/password_manager.js'
-import { RuntimeSettings } from '../runtime_settings.js'
+import { resolveRuntimeSettings } from '../runtime_settings.js'
 import {
   resolveEffectiveEmailChange,
   resolveEffectivePasswordHistory,
 } from '../runtime_toggles.js'
 import { dispatchSecurityNotice } from '../security_notice_service.js'
-import { requireSudo, getRuntimeSettingsForSudo } from '../sudo_mode.js'
-
-/** Helper: resolve a conexão do accountStore a partir do contexto (fail-safe). */
-async function resolveConnectionName(ctx: HttpContext): Promise<string | undefined> {
-  try {
-    const service = await (ctx.containerResolver as any).make('authkit.server')
-    return (service?.config?.accountStore as any)?.connectionName
-  } catch {
-    return undefined
-  }
-}
+import { requireSudo } from '../sudo_mode.js'
 
 /** Resolve os password history settings em runtime (fail-safe). */
 async function resolvePasswordHistorySettings(ctx: HttpContext) {
   try {
-    const db = await (ctx.containerResolver as any).make('lucid.db')
-    const connection = await resolveConnectionName(ctx)
-    const runtimeSettings = new RuntimeSettings(db, connection ? { connection } : {})
-    if (await runtimeSettings.isTablePresent()) {
+    const runtimeSettings = await resolveRuntimeSettings(ctx)
+    if (runtimeSettings && (await runtimeSettings.isTablePresent())) {
       return await resolveEffectivePasswordHistory(runtimeSettings)
     }
   } catch {
@@ -62,10 +50,8 @@ async function resolvePasswordHistorySettings(ctx: HttpContext) {
 /** Resolve os settings de troca de e-mail em runtime (fail-safe). */
 async function resolveEmailChangeSettings(ctx: HttpContext) {
   try {
-    const db = await (ctx.containerResolver as any).make('lucid.db')
-    const connection = await resolveConnectionName(ctx)
-    const runtimeSettings = new RuntimeSettings(db, connection ? { connection } : {})
-    if (await runtimeSettings.isTablePresent()) {
+    const runtimeSettings = await resolveRuntimeSettings(ctx)
+    if (runtimeSettings && (await runtimeSettings.isTablePresent())) {
       return await resolveEffectiveEmailChange(runtimeSettings)
     }
   } catch {
@@ -176,7 +162,7 @@ export default class AccountSecurityController {
     }
 
     // Sudo mode gate (defesa em profundidade — confirmação inline continua abaixo).
-    const sudoSettingsDel = await getRuntimeSettingsForSudo(ctx)
+    const sudoSettingsDel = await resolveRuntimeSettings(ctx)
     const sudoResultDel = await requireSudo(ctx, sudoSettingsDel)
     if (sudoResultDel !== true) return sudoResultDel
 
@@ -311,7 +297,7 @@ export default class AccountSecurityController {
     }
 
     // Sudo mode gate (defesa em profundidade — a verificação de senha ATUAL continua abaixo).
-    const sudoSettings = await getRuntimeSettingsForSudo(ctx)
+    const sudoSettings = await resolveRuntimeSettings(ctx)
     const sudoResult = await requireSudo(ctx, sudoSettings)
     if (sudoResult !== true) return sudoResult
 
@@ -417,7 +403,7 @@ export default class AccountSecurityController {
     }
 
     // Sudo mode gate.
-    const sudoSettingsEmail = await getRuntimeSettingsForSudo(ctx)
+    const sudoSettingsEmail = await resolveRuntimeSettings(ctx)
     const sudoResultEmail = await requireSudo(ctx, sudoSettingsEmail)
     if (sudoResultEmail !== true) return sudoResultEmail
 

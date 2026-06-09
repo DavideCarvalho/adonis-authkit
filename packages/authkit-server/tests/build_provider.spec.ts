@@ -80,13 +80,11 @@ test.group('buildProvider', () => {
     assert.isTrue(meta.backchannel_logout_session_required)
   })
 
-  // ── L3 (RISCO ACEITO): roles/org_* permanecem no scope `profile` ──────────────
-  // Mover para um scope `roles` dedicado quebraria a autorização em prod (o
-  // authkit-client lê hasGlobalRole do claim `roles` do token e os apps pedem só
-  // `openid profile email offline_access`). Mantemos em `profile` — só há clients
-  // first-party, então não há vazamento para terceiros hoje. Este teste FIXA essa
-  // decisão para que ninguém mova as claims sem antes gatear por first-party.
-  test('L3: claim de roles e org_* permanecem no scope `profile` (first-party only)', async ({
+  // ── L3 (FIX least-privilege): roles/org_* vivem no scope `roles` DEDICADO ──────
+  // O `profile` volta a ser só identidade (name/picture). roles + org_* ficam num
+  // scope `roles` dedicado, fora do `profile`, para que clients que peçam só `profile`
+  // não recebam dados de autorização interna. Este teste FIXA a nova decisão.
+  test('L3: roles e org_* ficam no scope `roles` dedicado, não em `profile`', async ({
     assert,
   }) => {
     const cfg = await resolved()
@@ -96,12 +94,16 @@ test.group('buildProvider', () => {
     })
     const claims = (instance(provider as any) as any).configuration.claims
 
-    // `profile` carrega roles + claims de org (chegam no ID token sem scope extra).
+    // `profile` é só identidade — sem roles nem org_*.
     const profileClaims = Object.keys(claims.profile ?? {})
-    assert.includeMembers(profileClaims, ['name', 'picture', cfg!.globalRolesClaim, 'org_id', 'org_slug', 'org_role'])
+    assert.includeMembers(profileClaims, ['name', 'picture'])
+    assert.notInclude(profileClaims, cfg!.globalRolesClaim)
+    assert.notInclude(profileClaims, 'org_id')
+    assert.notInclude(profileClaims, 'org_slug')
+    assert.notInclude(profileClaims, 'org_role')
 
-    // O scope `roles` dedicado também mapeia a claim de roles (para quem optar por pedi-lo).
+    // O scope `roles` dedicado carrega roles + claims de org.
     const rolesClaims = Object.keys(claims.roles ?? {})
-    assert.includeMembers(rolesClaims, [cfg!.globalRolesClaim])
+    assert.includeMembers(rolesClaims, [cfg!.globalRolesClaim, 'org_id', 'org_slug', 'org_role'])
   })
 })

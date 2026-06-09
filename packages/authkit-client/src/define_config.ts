@@ -91,7 +91,7 @@ export function defineConfig(config: ClientConfigInput) {
       resolveUser: config.resolveUser,
       resolveAppRoles: config.resolveAppRoles,
       sessionKey: config.sessionKey ?? 'authkit',
-      scopes: config.scopes ?? ['openid', 'profile', 'email', 'offline_access'],
+      scopes: config.scopes ?? ['openid', 'profile', 'email', 'offline_access', 'roles'],
       globalRolesClaim: config.globalRolesClaim ?? 'roles',
       onBackchannelLogout,
       sessionIndex: config.sessionIndex,

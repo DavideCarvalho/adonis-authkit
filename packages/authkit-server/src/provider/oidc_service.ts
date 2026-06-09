@@ -8,6 +8,7 @@ import { buildProvider, type SessionTtlHolder, type TokenTtlHolder } from './bui
 import { createInteractionActions, type InteractionActions } from './interaction_actions.js'
 import { registerTokenExchange } from './token_exchange.js'
 import { readActiveOrgFromKoaCtx } from '../host/active_org_cookie.js'
+import { isFirstParty } from '../host/branding.js'
 import { signingKeyAgeDays, listKeyInfos, type ManagedKeyInfo } from '../keys/keystore.js'
 import type { KeystoreManager } from '../keys/keystore_manager.js'
 
@@ -109,6 +110,15 @@ export class OidcService {
           // Lê a org ativa do cookie de sessão (se organizations estiver disponível).
           const activeOrg = readActiveOrgFromKoaCtx(ctx)
 
+          // GATE de least-privilege: roles globais e claims de org só são emitidas para
+          // clients FIRST-PARTY (`branding.firstParty`). Capturamos o clientId aqui (fora
+          // do closure `claims()`, pois o `ctx` da request vive neste escopo). Um client
+          // third-party NUNCA recebe roles/org — mesmo solicitando `scope=roles`.
+          const clientId: string | undefined = ctx?.oidc?.client?.clientId
+          const firstParty = config.branding
+            ? isFirstParty(config.branding, clientId)
+            : false
+
           return {
             accountId: user.id,
             claims: async (_use: string, _scope: string) => {
@@ -118,13 +128,16 @@ export class OidcService {
                 email_verified: true,
                 name: user.name,
                 picture: user.avatarUrl,
-                [config.globalRolesClaim]: user.globalRoles ?? [],
               }
-              // Emite claims de org somente quando há uma org ativa na sessão.
-              if (activeOrg) {
-                base['org_id'] = activeOrg.orgId
-                base['org_slug'] = activeOrg.orgSlug
-                base['org_role'] = activeOrg.orgRole
+              // roles/org_* são dados de autorização interna: só para first-party.
+              if (firstParty) {
+                base[config.globalRolesClaim] = user.globalRoles ?? []
+                // Emite claims de org somente quando há uma org ativa na sessão.
+                if (activeOrg) {
+                  base['org_id'] = activeOrg.orgId
+                  base['org_slug'] = activeOrg.orgSlug
+                  base['org_role'] = activeOrg.orgRole
+                }
               }
               return base
             },

@@ -183,23 +183,26 @@ export function buildProvider(
     // apenas o escopo `openid` (só `sub`), removendo email/profile/roles do ID token.
     // O client valida o ID TOKEN, então precisamos que as claims configuradas cheguem nele.
     conformIdTokenClaims: false,
-    // A claim de roles globais é atrelada ao escopo `profile` (sempre concedido pelos
-    // scopes padrão do client: openid profile email offline_access). Assim as roles chegam
-    // no ID token sem exigir um escopo `roles` customizado. Mantemos também o mapeamento
-    // do escopo `roles` para quem optar por solicitá-lo explicitamente.
+    // DECISÃO DE SEGURANÇA (least privilege, 2026-06-09 — fix do achado L3):
+    // a claim de roles globais e as claims de org (`org_*`) ficam num escopo `roles`
+    // DEDICADO — fora do `profile`. O `profile` volta a ser só identidade (name/picture),
+    // de modo que QUALQUER client (inclusive third-party/dynamic registration futuro) que
+    // peça `scope=profile` NÃO recebe mais dados de autorização interna do usuário.
     //
-    // NOTA DE SEGURANÇA (auditoria 2026-06-08, achado L3 — RISCO ACEITO): hoje só há
-    // clients FIRST-PARTY, então roles/org_* no `profile` não vazam para terceiros.
-    // Mover essas claims para um escopo `roles` dedicado QUEBRARIA a autorização em prod
-    // (o authkit-client lê `hasGlobalRole` do claim `roles` do token e os apps pedem só
-    // `openid profile email offline_access`). O fix correto, quando houver client
-    // third-party / dynamic registration, é GATEAR a emissão dessas claims a clients
-    // first-party (não simplesmente mover de escopo). Ver docs/superpowers/specs/2026-06-08-security-audit.md.
+    // Defesa em duas camadas:
+    //  1) Escopo dedicado `roles` (aqui) — roles/org_* só são candidatas a aparecer no
+    //     token quando o client solicita explicitamente `scope=roles`.
+    //  2) Gate first-party no `findAccount.claims()` (ver oidc_service.ts) — mesmo pedindo
+    //     `scope=roles`, um client third-party NUNCA tem essas claims emitidas. Só clients
+    //     listados em `branding.firstParty` recebem.
+    //
+    // O authkit-client passa a incluir `roles` no default de scopes, então consumidores
+    // first-party continuam recebendo `hasGlobalRole`/org sem mudança de comportamento.
     claims: {
       openid: ['sub'],
-      profile: ['name', 'picture', config.globalRolesClaim, 'org_id', 'org_slug', 'org_role'],
+      profile: ['name', 'picture'],
       email: ['email', 'email_verified'],
-      roles: [config.globalRolesClaim],
+      roles: [config.globalRolesClaim, 'org_id', 'org_slug', 'org_role'],
     },
     scopes: ['openid', 'profile', 'email', 'offline_access', 'roles'],
     // Permite que o parametro `audience` (hint de intencao do client, ex.: 'advisor')

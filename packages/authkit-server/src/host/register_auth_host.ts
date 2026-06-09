@@ -574,6 +574,9 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
         withApiThrottle(router.post('/keys/rotate', [C.apiKeys, 'rotate']))
       })
       .prefix(aap)
-      .use([adminApiGuard])
+      // Throttle por IP do grupo inteiro (M8): roda ANTES da guard, então tentativas
+      // de Bearer key inválida do mesmo IP são limitadas mesmo quando a auth falha.
+      // O `withApiThrottle` (introspection, por token) continua como camada adicional.
+      .use(throttles ? [throttles.adminIp, adminApiGuard] : [adminApiGuard])
   }
 }

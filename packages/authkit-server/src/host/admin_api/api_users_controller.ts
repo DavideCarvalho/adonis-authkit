@@ -4,17 +4,42 @@ import type { AuthAccount } from '../../accounts/account_store.js'
 import { AdminUsersService } from './admin_users_service.js'
 import { AdminSessionsService } from '../admin_sessions_service.js'
 import { enrichSessionsWithContext } from '../session_context.js'
+import { RuntimeSettings } from '../runtime_settings.js'
 import { userDto, sessionDto, grantDto, apiError } from './dto.js'
 import { adminUserCreateValidator, adminUserUpdateValidator } from '../admin_validators.js'
 
 const PAGE_SIZE = 20
 
-/** Lê a config + monta o actor `admin-api` para auditoria. */
+/**
+ * Lê a config + monta o actor `admin-api` para auditoria. O `actorId` recebe o
+ * id NÃO-SENSÍVEL da API key que autenticou (anexado pelo `adminApiGuard` em
+ * `ctx.adminApiKeyId`) — assim a trilha REST registra QUAL key agiu (M9) sem
+ * vazar o segredo. `null` apenas se a guard não anexou (defensivo).
+ */
 async function ctxBits(ctx: HttpContext) {
   const service = await ctx.containerResolver.make('authkit.server')
   const cfg = service.config
-  const actor = { actorId: null, ip: ctx.request.ip?.() ?? null, source: 'admin-api' as const }
+  const actor = {
+    actorId: ctx.adminApiKeyId ?? null,
+    ip: ctx.request.ip?.() ?? null,
+    source: 'admin-api' as const,
+  }
   return { service, cfg, actor }
+}
+
+/** Resolve o RuntimeSettings para validação de catálogo (fail-safe → null). */
+async function resolveRuntimeSettings(
+  ctx: HttpContext,
+  cfg: any
+): Promise<RuntimeSettings | null> {
+  try {
+    const db = await ctx.containerResolver.make('lucid.db').catch(() => null)
+    if (!db) return null
+    const connection: string | undefined = (cfg.accountStore as any)?.connectionName
+    return new RuntimeSettings(db, connection ? { connection } : {})
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -72,7 +97,7 @@ export default class ApiUsersController {
 
   /** PATCH /users/:id — { globalRoles?, name?, avatarUrl? }. */
   async update(ctx: HttpContext) {
-    const { cfg } = await ctxBits(ctx)
+    const { cfg, actor } = await ctxBits(ctx)
     const id = ctx.request.param('id')
     const account = await cfg.accountStore.findById(id)
     if (!account) return ctx.response.notFound(apiError('not_found', 'Usuário não encontrado.'))
@@ -83,7 +108,30 @@ export default class ApiUsersController {
     )
     if (Array.isArray(roles)) {
       const normalized = Array.from(new Set(roles.map((r) => r.trim()).filter(Boolean)))
-      await users.setGlobalRoles(id, normalized)
+
+      // Proteções de escalonamento/lockout: último admin + auto-rebaixamento.
+      // O actorId vem do id da API key (M9); self-demote só aplica se identificável.
+      const guard = await users.guardGlobalRolesChange(id, normalized, actor.actorId)
+      if (guard === 'last_admin') {
+        return ctx.response.conflict(
+          apiError('last_admin', 'Não é possível remover a última conta com a role de administrador.')
+        )
+      }
+      if (guard === 'cannot_self_demote') {
+        return ctx.response.conflict(
+          apiError('cannot_self_demote', 'Você não pode remover a sua própria role de administrador.')
+        )
+      }
+
+      // Valida contra o catálogo (mesmo caminho do console) — roles fora do
+      // catálogo (e que o usuário não tinha) → 422.
+      const settings = await resolveRuntimeSettings(ctx, cfg)
+      const errorKey = await users.setGlobalRolesValidated(id, normalized, settings)
+      if (errorKey) {
+        return ctx.response
+          .status(422)
+          .send(apiError('invalid_role', cfg.messages[errorKey] ?? errorKey))
+      }
     }
 
     if (name !== undefined || avatarUrl !== undefined) {

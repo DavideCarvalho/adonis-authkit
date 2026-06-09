@@ -22,6 +22,18 @@ import type {} from '@adonisjs/shield/shield_middleware'
 import type {} from '@adonisjs/ally/ally_provider'
 import type {} from '@adonisjs/core/providers/vinejs_provider'
 
+/**
+ * Identificador NÃO-SENSÍVEL da API key admin que autenticou a request (R6),
+ * anexado pelo `adminApiGuard`. Usado pela trilha de auditoria REST para saber
+ * QUAL key agiu sem vazar o segredo (ex.: `admin-key:<8 hex>`). Ausente fora do
+ * grupo admin-api.
+ */
+declare module '@adonisjs/core/http' {
+  interface HttpContext {
+    adminApiKeyId?: string
+  }
+}
+
 // `export {}` garante que este módulo seja EMITIDO como JS (vazio) no build —
 // caso contrário um arquivo só com `import type` não gera `.js` e os controllers
 // que fazem `import '../augmentations.js'` quebrariam em runtime. O módulo emitido

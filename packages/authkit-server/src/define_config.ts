@@ -170,12 +170,24 @@ export interface ResolvedRateLimitConfig {
   enabled: boolean
   login: RateLimitBucket
   introspection: RateLimitBucket
+  /**
+   * Bucket por IP do grupo admin-api (R6). Anti-brute-force REAL da Bearer key:
+   * limita as tentativas vindas do MESMO IP independentemente de qual key foi
+   * usada (M8). Default: 30/min — generoso para uso legítimo machine-to-machine,
+   * apertado o suficiente para conter um ataque de força bruta por IP.
+   */
+  adminIp: RateLimitBucket
   store?: string
 }
 
-const RATE_LIMIT_DEFAULTS: { login: RateLimitBucket; introspection: RateLimitBucket } = {
+const RATE_LIMIT_DEFAULTS: {
+  login: RateLimitBucket
+  introspection: RateLimitBucket
+  adminIp: RateLimitBucket
+} = {
   login: { points: 10, duration: '1 min' },
   introspection: { points: 60, duration: '1 min' },
+  adminIp: { points: 30, duration: '1 min' },
 }
 
 export function resolveRateLimit(input?: RateLimitConfigInput): ResolvedRateLimitConfig {
@@ -184,6 +196,7 @@ export function resolveRateLimit(input?: RateLimitConfigInput): ResolvedRateLimi
     enabled,
     login: RATE_LIMIT_DEFAULTS.login,
     introspection: RATE_LIMIT_DEFAULTS.introspection,
+    adminIp: RATE_LIMIT_DEFAULTS.adminIp,
     store: input?.store,
   }
 }

@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useQueryState, parseAsInteger, parseAsString } from 'nuqs'
 import { AuditTableContainer, AuditEventDetailContainer } from '../containers/audit.containers'
-import type { AuditEventEntry } from '@dudousxd/adonis-authkit-react'
+import type { AuditEventEntry } from '@adonis-agora/authkit-react'
 
 const EVENT_TYPES = [
   '',

@@ -7,7 +7,7 @@ import {
   authkitKeys,
   type AdminClient,
   type CreateClientInput,
-} from '@dudousxd/adonis-authkit-react'
+} from '@adonis-agora/authkit-react'
 import { Modal } from '../components/Modal'
 import { useToast } from '../lib/toast'
 import { ClientsListContainer, useClientsCount } from '../containers/clients.containers'

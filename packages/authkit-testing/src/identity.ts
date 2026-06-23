@@ -1,4 +1,4 @@
-import type { Identity } from '@dudousxd/adonis-authkit-core'
+import type { Identity } from '@adonis-agora/authkit-core'
 
 /**
  * Cria uma {@link Identity} válida com valores padrão sãos para usar em testes.

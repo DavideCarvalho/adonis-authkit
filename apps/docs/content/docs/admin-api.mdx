@@ -11,7 +11,7 @@ either, both, or neither.
 
 <Callout type="info">
   **Prefer the [SDK](/docs/sdk).** Instead of hand-rolling `fetch` calls against this API,
-  use [`@dudousxd/adonis-authkit-sdk`](/docs/sdk) — a typed client with the same surface,
+  use [`@adonis-agora/authkit-sdk`](/docs/sdk) — a typed client with the same surface,
   typed errors (`AuthkitApiError`), and an `embedded` driver that skips HTTP entirely when
   the IdP runs in the same app. This reference documents the underlying wire contract.
 </Callout>
@@ -83,7 +83,7 @@ registerAuthHost(router, {
 ```
 
 ```ts title="services/authkit.ts"
-import { createAuthkit } from '@dudousxd/adonis-authkit-sdk'
+import { createAuthkit } from '@adonis-agora/authkit-sdk'
 
 const authkit = await createAuthkit({
   mode: 'remote',

@@ -64,7 +64,7 @@ A capability is **all-or-nothing**: a store either implements every method of
 throw. Narrow at runtime with the exported type guards:
 
 ```ts
-import { supportsMfa, supportsPasskeys, supportsProviderIdentity, supportsAccountSecurity, supportsAccountStatus, supportsProfile } from '@dudousxd/adonis-authkit-server'
+import { supportsMfa, supportsPasskeys, supportsProviderIdentity, supportsAccountSecurity, supportsAccountStatus, supportsProfile } from '@adonis-agora/authkit-server'
 
 if (supportsMfa(store)) {
   await store.getMfaState(accountId) // typed as MfaCapability here
@@ -93,7 +93,7 @@ See [MFA](/docs/mfa) and [WebAuthn](/docs/webauthn).
 
 ```ts
 import AuthUser from '#models/auth_user'
-import { lucidAccountStore } from '@dudousxd/adonis-authkit-server'
+import { lucidAccountStore } from '@adonis-agora/authkit-server'
 
 accountStore: lucidAccountStore(AuthUser, { mfaIssuer: 'Acme' })
 ```
@@ -122,7 +122,7 @@ store expects:
 ```ts title="app/models/auth_user.ts"
 import { BaseModel } from '@adonisjs/lucid/orm'
 import { compose } from '@adonisjs/core/helpers'
-import { withAuthUser, withCredentials, withMfa } from '@dudousxd/adonis-authkit-server'
+import { withAuthUser, withCredentials, withMfa } from '@adonis-agora/authkit-server'
 
 export default class AuthUser extends compose(
   BaseModel,

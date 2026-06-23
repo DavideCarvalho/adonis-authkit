@@ -1,5 +1,5 @@
 import { test } from '@japa/runner'
-import { resolvers } from '@dudousxd/adonis-authkit-client'
+import { resolvers } from '@adonis-agora/authkit-client'
 import { mintTestIdToken, serveJwks, generateTestKeyPair } from '../index.js'
 
 test.group('mintTestIdToken + JwtResolver', () => {

@@ -31,9 +31,9 @@ two separate cookies.
 ### A1. Install both packages
 
 ```bash
-npm install @dudousxd/adonis-authkit-server @dudousxd/adonis-authkit-client
-node ace configure @dudousxd/adonis-authkit-server
-node ace configure @dudousxd/adonis-authkit-client
+npm install @adonis-agora/authkit-server @adonis-agora/authkit-client
+node ace configure @adonis-agora/authkit-server
+node ace configure @adonis-agora/authkit-client
 ```
 
 `configure` publishes the config files, wires the providers, and registers the bundled ace
@@ -47,7 +47,7 @@ Compose an `AuthUser` from the mixins so the Lucid store has the columns it need
 ```ts title="app/models/auth_user.ts"
 import { BaseModel } from '@adonisjs/lucid/orm'
 import { compose } from '@adonisjs/core/helpers'
-import { withAuthUser, withCredentials } from '@dudousxd/adonis-authkit-server'
+import { withAuthUser, withCredentials } from '@adonis-agora/authkit-server'
 
 export default class AuthUser extends compose(
   BaseModel,
@@ -66,7 +66,7 @@ import {
   adapters,
   lucidAccountStore,
   inertiaRenderer,
-} from '@dudousxd/adonis-authkit-server'
+} from '@adonis-agora/authkit-server'
 
 const authServerConfig = defineConfig({
   issuer: env.get('AUTHKIT_ISSUER'), // e.g. http://localhost:3333/oidc
@@ -133,8 +133,8 @@ AUTHKIT_REDIRECT_URI=http://localhost:3333/auth/callback
 
 ```ts title="config/authkit_client.ts"
 import env from '#start/env'
-import { defineConfig, resolvers } from '@dudousxd/adonis-authkit-client'
-import type { Identity } from '@dudousxd/adonis-authkit-client'
+import { defineConfig, resolvers } from '@adonis-agora/authkit-client'
+import type { Identity } from '@adonis-agora/authkit-client'
 import AppUser from '#models/app_user'
 
 const authkitClientConfig = defineConfig({
@@ -159,7 +159,7 @@ export default authkitClientConfig
 
 ```ts title="start/routes.ts"
 import router from '@adonisjs/core/services/router'
-import { registerAuthHost } from '@dudousxd/adonis-authkit-server'
+import { registerAuthHost } from '@adonis-agora/authkit-server'
 
 registerAuthHost(router, {
   mountPath: '/oidc',
@@ -173,7 +173,7 @@ branding, and ejecting.
 ```ts title="start/kernel.ts"
 router.use([
   // ...
-  () => import('@dudousxd/adonis-authkit-client/authkit_middleware'),
+  () => import('@adonis-agora/authkit-client/authkit_middleware'),
 ])
 ```
 
@@ -188,7 +188,7 @@ import {
   buildAuthorizeUrl,
   exchangeCode,
   buildEndSessionUrl,
-} from '@dudousxd/adonis-authkit-client'
+} from '@adonis-agora/authkit-client'
 
 const cfg = {
   issuer: process.env.AUTHKIT_ISSUER!,
@@ -262,8 +262,8 @@ an optional back-channel pointer for server-to-server termination).
 #### B1. Install & configure
 
 ```bash
-npm install @dudousxd/adonis-authkit-server
-node ace configure @dudousxd/adonis-authkit-server
+npm install @adonis-agora/authkit-server
+node ace configure @adonis-agora/authkit-server
 ```
 
 #### B2. The account model
@@ -281,7 +281,7 @@ import {
   adapters,
   lucidAccountStore,
   inertiaRenderer,
-} from '@dudousxd/adonis-authkit-server'
+} from '@adonis-agora/authkit-server'
 
 const authServerConfig = defineConfig({
   issuer: env.get('AUTHKIT_ISSUER'), // https://auth.acme.com/oidc
@@ -311,7 +311,7 @@ export default authServerConfig
 
 ```ts title="start/routes.ts (IdP)"
 import router from '@adonisjs/core/services/router'
-import { registerAuthHost } from '@dudousxd/adonis-authkit-server'
+import { registerAuthHost } from '@adonis-agora/authkit-server'
 
 registerAuthHost(router, {
   mountPath: '/oidc',
@@ -369,16 +369,16 @@ example below is `acme-web`; `acme-admin` is identical with its own credentials.
 #### B5. Install & configure
 
 ```bash
-npm install @dudousxd/adonis-authkit-client
-node ace configure @dudousxd/adonis-authkit-client
+npm install @adonis-agora/authkit-client
+node ace configure @adonis-agora/authkit-client
 ```
 
 #### B6. Client config
 
 ```ts title="config/authkit_client.ts (acme-web)"
 import env from '#start/env'
-import { defineConfig, resolvers } from '@dudousxd/adonis-authkit-client'
-import type { Identity } from '@dudousxd/adonis-authkit-client'
+import { defineConfig, resolvers } from '@adonis-agora/authkit-client'
+import type { Identity } from '@adonis-agora/authkit-client'
 import AppUser from '#models/app_user'
 
 const authkitClientConfig = defineConfig({
@@ -404,7 +404,7 @@ export default authkitClientConfig
 ```ts title="start/kernel.ts (acme-web)"
 router.use([
   // ...
-  () => import('@dudousxd/adonis-authkit-client/authkit_middleware'),
+  () => import('@adonis-agora/authkit-client/authkit_middleware'),
 ])
 ```
 
@@ -421,7 +421,7 @@ import {
   buildAuthorizeUrl,
   exchangeCode,
   buildEndSessionUrl,
-} from '@dudousxd/adonis-authkit-client'
+} from '@adonis-agora/authkit-client'
 
 const cfg = {
   issuer: process.env.AUTHKIT_ISSUER!,

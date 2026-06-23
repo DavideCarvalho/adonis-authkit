@@ -173,7 +173,7 @@ importers:
 
   packages/authkit-client:
     dependencies:
-      '@dudousxd/adonis-authkit-core':
+      '@adonis-agora/authkit-core':
         specifier: workspace:*
         version: link:../authkit-core
       jose:
@@ -192,7 +192,7 @@ importers:
       '@adonisjs/tsconfig':
         specifier: catalog:adonis
         version: 2.0.0
-      '@dudousxd/adonis-authkit-server':
+      '@adonis-agora/authkit-server':
         specifier: workspace:*
         version: link:../authkit-server
       '@japa/assert':
@@ -231,7 +231,7 @@ importers:
 
   packages/authkit-react:
     dependencies:
-      '@dudousxd/adonis-authkit-core':
+      '@adonis-agora/authkit-core':
         specifier: workspace:*
         version: link:../authkit-core
     devDependencies:
@@ -280,7 +280,7 @@ importers:
       '@adonisjs/tsconfig':
         specifier: catalog:adonis
         version: 2.0.0
-      '@dudousxd/adonis-authkit-server':
+      '@adonis-agora/authkit-server':
         specifier: workspace:*
         version: link:../authkit-server
       '@japa/assert':
@@ -307,7 +307,7 @@ importers:
       '@adonisjs/redis':
         specifier: catalog:adonis
         version: 9.2.0(@adonisjs/core@7.3.3(@adonisjs/assembler@8.4.0(typescript@6.0.3))(@vinejs/vine@4.4.0)(edge.js@6.5.1)(youch@4.1.1))
-      '@dudousxd/adonis-authkit-core':
+      '@adonis-agora/authkit-core':
         specifier: workspace:*
         version: link:../authkit-core
       '@simplewebauthn/server':
@@ -356,7 +356,7 @@ importers:
       '@adonisjs/tsconfig':
         specifier: catalog:adonis
         version: 2.0.0
-      '@dudousxd/adonis-authkit-react':
+      '@adonis-agora/authkit-react':
         specifier: workspace:*
         version: link:../authkit-react
       '@japa/assert':
@@ -437,7 +437,7 @@ importers:
 
   packages/authkit-testing:
     dependencies:
-      '@dudousxd/adonis-authkit-core':
+      '@adonis-agora/authkit-core':
         specifier: workspace:*
         version: link:../authkit-core
       jose:
@@ -447,7 +447,7 @@ importers:
       '@adonisjs/tsconfig':
         specifier: catalog:adonis
         version: 2.0.0
-      '@dudousxd/adonis-authkit-client':
+      '@adonis-agora/authkit-client':
         specifier: workspace:*
         version: link:../authkit-client
       '@japa/assert':

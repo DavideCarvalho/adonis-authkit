@@ -1,6 +1,6 @@
 import { test } from '@japa/runner'
 import { OtelRecorder } from '../src/observability/otel_recorder.js'
-import { AUTHKIT_METRICS } from '@dudousxd/adonis-authkit-core'
+import { AUTHKIT_METRICS } from '@adonis-agora/authkit-core'
 
 test.group('OtelRecorder', () => {
   test('agrega counters e histograms no snapshot mesmo sem OTel', async ({ assert }) => {

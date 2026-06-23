@@ -27,7 +27,7 @@ const DEFAULT_LABELS: [string, string, string, string, string] = [
 
 /**
  * Medidor visual de força de senha sobre {@link usePasswordStrength}. Estilizado
- * com as CSS vars `--authkit-*` (importe `@dudousxd/adonis-authkit-react/styles.css`).
+ * com as CSS vars `--authkit-*` (importe `@adonis-agora/authkit-react/styles.css`).
  * Headless por baixo — passe um `scorer` (ex.: zxcvbn) para trocar o cálculo.
  */
 export function PasswordStrengthMeter({

@@ -1,12 +1,12 @@
-# @dudousxd/adonis-authkit-client
+# @adonis-agora/authkit-client
 
 Adapter consumidor OpenID Connect para AdonisJS — integra um app como client do
-Authorization Server (`@dudousxd/adonis-authkit-server`), validando o ID token localmente por JWKS.
+Authorization Server (`@adonis-agora/authkit-server`), validando o ID token localmente por JWKS.
 
 ## Instalação
 ```bash
-node ace add @dudousxd/adonis-authkit-client
-# ou: pnpm add @dudousxd/adonis-authkit-client && node ace configure @dudousxd/adonis-authkit-client
+node ace add @adonis-agora/authkit-client
+# ou: pnpm add @adonis-agora/authkit-client && node ace configure @adonis-agora/authkit-client
 ```
 O `configure` publica `config/authkit_client.ts`, o controller `app/controllers/oidc_session_controller.ts`
 (login/callback/logout) e registra o provider + o middleware `authkit_middleware`.
@@ -57,14 +57,14 @@ resolveAppRoles: async (identity) => {
 Sem FK cross-schema possível. Como o IdP emite um **ID token "gordo"**
 (email/name/roles nas claims), o caminho recomendado é claims-only:
 ```ts
-import { identityToUser } from '@dudousxd/adonis-authkit-client'
+import { identityToUser } from '@adonis-agora/authkit-client'
 
 resolveUser: identityToUser, // { id, email, name?, avatarUrl?, globalRoles }
 ```
 Pra dados além do que o token carrega, use o resolver de userinfo (busca no
 endpoint `${issuer}/me` com o access token; faz fallback pra claims sem token):
 ```ts
-import { createUserinfoResolver } from '@dudousxd/adonis-authkit-client'
+import { createUserinfoResolver } from '@adonis-agora/authkit-client'
 
 resolveUser: createUserinfoResolver({ issuer: env.get('AUTHKIT_ISSUER') }),
 // ou: createUserinfoResolver({ userinfoEndpoint: 'https://idp/me' })

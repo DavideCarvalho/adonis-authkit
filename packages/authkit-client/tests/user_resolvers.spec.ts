@@ -2,7 +2,7 @@ import { test } from '@japa/runner'
 import { createServer, type Server } from 'node:http'
 import { identityToUser, createUserinfoResolver } from '../src/user_resolvers.js'
 import { Authenticator } from '../src/authenticator.js'
-import type { Identity } from '@dudousxd/adonis-authkit-core'
+import type { Identity } from '@adonis-agora/authkit-core'
 
 const identity: Identity = {
   userId: 'u1',

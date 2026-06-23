@@ -1,4 +1,4 @@
-import type { Identity } from '@dudousxd/adonis-authkit-core'
+import type { Identity } from '@adonis-agora/authkit-core'
 
 /** Model Lucid mínimo que o mirror precisa (só `updateOrCreate`). */
 interface LucidModelLike {

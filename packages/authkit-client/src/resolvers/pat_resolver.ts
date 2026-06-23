@@ -1,5 +1,5 @@
 import type { HttpContext } from '@adonisjs/core/http'
-import type { Identity, SessionResolver } from '@dudousxd/adonis-authkit-core'
+import type { Identity, SessionResolver } from '@adonis-agora/authkit-core'
 import { buildIdentityFromClaims, introspectToken } from './identity.js'
 
 type FetchImpl = (url: string, init: any) => Promise<{ ok: boolean; json: () => Promise<any> }>

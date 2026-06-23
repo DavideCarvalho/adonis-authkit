@@ -115,7 +115,7 @@ function Hero() {
         <div className="mt-8 inline-flex items-center gap-2 rounded-lg border border-fd-border bg-fd-card/40 px-4 py-2 font-mono text-sm backdrop-blur">
           <span className="text-fd-muted-foreground select-none">$</span>
           <span>
-            npm i <span className="text-fd-primary">@dudousxd/adonis-authkit-server</span>
+            npm i <span className="text-fd-primary">@adonis-agora/authkit-server</span>
           </span>
         </div>
 
@@ -205,7 +205,7 @@ function ReactComponentsSection() {
         {/* left: description + component list */}
         <div>
           <span className="inline-block rounded-full border border-[#625fff]/40 bg-[#625fff]/10 px-3 py-1 font-mono text-xs text-[#9a8bff]">
-            @dudousxd/adonis-authkit-react
+            @adonis-agora/authkit-react
           </span>
           <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
             Clerk-style React components
@@ -247,7 +247,7 @@ function ReactComponentsSection() {
               <code>
                 <div className="whitespace-pre">
                   <span className="text-[#9a8bff]">import</span>
-                  <span className="text-zinc-300"> {`'@dudousxd/adonis-authkit-react/styles.css'`}</span>
+                  <span className="text-zinc-300"> {`'@adonis-agora/authkit-react/styles.css'`}</span>
                 </div>
                 <div className="whitespace-pre"> </div>
                 <div className="whitespace-pre">
@@ -272,7 +272,7 @@ function ReactComponentsSection() {
                 <div className="whitespace-pre">
                   <span className="text-zinc-300">{'}'}</span>
                   <span className="text-[#9a8bff]"> from</span>
-                  <span className="text-teal-300"> {`'@dudousxd/adonis-authkit-react'`}</span>
+                  <span className="text-teal-300"> {`'@adonis-agora/authkit-react'`}</span>
                 </div>
                 <div className="whitespace-pre"> </div>
                 <div className="whitespace-pre">
@@ -309,7 +309,7 @@ function ReactComponentsSection() {
                 </div>
                 <div className="whitespace-pre">
                   <span className="text-[#9a8bff]">  from</span>
-                  <span className="text-teal-300"> {`'@dudousxd/adonis-authkit-react'`}</span>
+                  <span className="text-teal-300"> {`'@adonis-agora/authkit-react'`}</span>
                 </div>
                 <div className="whitespace-pre"> </div>
                 <div className="whitespace-pre">
@@ -390,7 +390,7 @@ const CLIENT_CODE_LINES: readonly { tokens: { text: string; cls?: string }[] }[]
       { text: 'useUsersQueryOptions', cls: 'text-amber-300' },
       { text: ' }' },
       { text: ' from', cls: 'text-[#9a8bff]' },
-      { text: " '@dudousxd/adonis-authkit-react'", cls: 'text-teal-300' },
+      { text: " '@adonis-agora/authkit-react'", cls: 'text-teal-300' },
     ],
   },
   { tokens: [] },
@@ -658,7 +658,7 @@ const CODE_LINES: readonly { tokens: { text: string; cls?: string }[] }[] = [
       { text: 'import', cls: 'text-[#9a8bff]' },
       { text: ' { defineConfig } ' },
       { text: 'from', cls: 'text-[#9a8bff]' },
-      { text: " '@dudousxd/adonis-authkit-server'", cls: 'text-teal-300' },
+      { text: " '@adonis-agora/authkit-server'", cls: 'text-teal-300' },
     ],
   },
   { tokens: [] },

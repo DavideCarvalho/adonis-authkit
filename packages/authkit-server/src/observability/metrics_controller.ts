@@ -1,5 +1,5 @@
 import type { HttpContext } from '@adonisjs/core/http'
-import type { MetricsSnapshot } from '@dudousxd/adonis-authkit-core'
+import type { MetricsSnapshot } from '@adonis-agora/authkit-core'
 
 function renderDashboardHtml(snapshot: MetricsSnapshot): string {
   const counters = Object.entries(snapshot.counters)

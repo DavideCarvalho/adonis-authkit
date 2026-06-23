@@ -3,7 +3,7 @@ title: React Components
 description: Pre-built, themeable components — SignInButton, SignOutButton, UserButton, UserProfile, AuthorizedApps, Avatar, PasswordStrengthMeter, OrganizationSwitcher, OrganizationProfile.
 ---
 
-`@dudousxd/adonis-authkit-react` exports three layers: auth-state primitives, a typed HTTP
+`@adonis-agora/authkit-react` exports three layers: auth-state primitives, a typed HTTP
 client with TanStack Query hooks, and the pre-built UI components documented here. The
 components are built on the [headless hooks](/docs/react#6-headless-hooks) and consume the
 same auth state and `AuthkitProvider` config — no extra wiring beyond what
@@ -16,7 +16,7 @@ For data-fetching in management screens (admin panels, account pages), see
 Import the stylesheet once (anywhere in your app entry):
 
 ```tsx
-import '@dudousxd/adonis-authkit-react/styles.css'
+import '@adonis-agora/authkit-react/styles.css'
 
 import {
   SignInButton,
@@ -28,7 +28,7 @@ import {
   PasswordStrengthMeter,
   OrganizationSwitcher,
   OrganizationProfile,
-} from '@dudousxd/adonis-authkit-react'
+} from '@adonis-agora/authkit-react'
 ```
 
 All components are SSR-safe (no `window` access at module load).
@@ -122,7 +122,7 @@ The avatar primitive used by `UserButton` and `UserProfile`. Renders the user's
 | `className` | `string` | — | Appended to `authkit-avatar`. |
 
 ```tsx
-import { useAuth } from '@dudousxd/adonis-authkit-react'
+import { useAuth } from '@adonis-agora/authkit-react'
 
 function Me() {
   const { user } = useAuth()
@@ -141,7 +141,7 @@ A visual progress bar (0–4) for password strength feedback, built on
 | `className` | `string` | — | Appended to `authkit-strength-meter`. |
 
 ```tsx
-import { usePasswordStrength, PasswordStrengthMeter } from '@dudousxd/adonis-authkit-react'
+import { usePasswordStrength, PasswordStrengthMeter } from '@adonis-agora/authkit-react'
 
 function PasswordField() {
   const [password, setPassword] = useState('')

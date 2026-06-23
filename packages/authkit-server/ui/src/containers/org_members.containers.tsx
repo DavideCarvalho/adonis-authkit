@@ -7,7 +7,7 @@ import {
   useCreateOrgInvitationMutationOptions,
   useRevokeOrgInvitationMutationOptions,
   authkitKeys,
-} from '@dudousxd/adonis-authkit-react'
+} from '@adonis-agora/authkit-react'
 import { UserPicker, PickedUserChip, type PickedUser } from '../components/UserPicker'
 import { useToast } from '../lib/toast'
 import { DEFAULT_ORG_ROLES } from './org_settings.containers'

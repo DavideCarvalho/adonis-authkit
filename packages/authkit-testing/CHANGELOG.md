@@ -1,4 +1,4 @@
-# @dudousxd/adonis-authkit-testing
+# @adonis-agora/authkit-testing
 
 ## 0.2.5
 
@@ -6,42 +6,42 @@
 
 - Updated dependencies [93eaf69]
 - Updated dependencies [e2582b8]
-  - @dudousxd/adonis-authkit-core@0.6.0
+  - @adonis-agora/authkit-core@0.6.0
 
 ## 0.2.4
 
 ### Patch Changes
 
 - Updated dependencies [df4b41f]
-  - @dudousxd/adonis-authkit-core@0.5.0
+  - @adonis-agora/authkit-core@0.5.0
 
 ## 0.2.3
 
 ### Patch Changes
 
 - Updated dependencies
-  - @dudousxd/adonis-authkit-core@0.4.0
+  - @adonis-agora/authkit-core@0.4.0
 
 ## 0.2.2
 
 ### Patch Changes
 
 - Updated dependencies
-  - @dudousxd/adonis-authkit-core@0.3.1
+  - @adonis-agora/authkit-core@0.3.1
 
 ## 0.2.1
 
 ### Patch Changes
 
 - Updated dependencies
-  - @dudousxd/adonis-authkit-core@0.3.0
+  - @adonis-agora/authkit-core@0.3.0
 
 ## 0.2.0
 
 ### Minor Changes
 
 - 1872a30: DX & ops infra:
-  - New package `@dudousxd/adonis-authkit-testing` — test helpers for host apps:
+  - New package `@adonis-agora/authkit-testing` — test helpers for host apps:
     `createTestIdentity`, `mintTestIdToken` + `serveJwks`/`testJwks`/`jwksFromKey`
     (real RS256 tokens validated by a local JWKS), `fakeAuthenticator`, and a
     capability-aware `fakeAccountStore`.
@@ -55,4 +55,4 @@
 ### Patch Changes
 
 - Updated dependencies [1872a30]
-  - @dudousxd/adonis-authkit-core@0.2.0
+  - @adonis-agora/authkit-core@0.2.0

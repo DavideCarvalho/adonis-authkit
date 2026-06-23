@@ -1,4 +1,4 @@
-import { NoopRecorder, type MetricsRecorder, type ObservabilityConfig } from '@dudousxd/adonis-authkit-core'
+import { NoopRecorder, type MetricsRecorder, type ObservabilityConfig } from '@adonis-agora/authkit-core'
 import { OtelRecorder } from './otel_recorder.js'
 
 export async function createMetricsRecorder(

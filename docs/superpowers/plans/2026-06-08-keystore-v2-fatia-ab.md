@@ -830,14 +830,14 @@ test.group('resolveKeystoreVault', () => {
 
 ```ts
 import { FileKeystoreVault, DriveKeystoreVault, type KeystoreVault } from './keystore_vault.js'
-import type { KeystoreStoreConfig } from '@dudousxd/adonis-authkit-core'
+import type { KeystoreStoreConfig } from '@adonis-agora/authkit-core'
 
 /** Packages-irmãos que entregam os cofres de cloud (planos futuros). */
 const CLOUD_DRIVER_PACKAGE: Record<string, string> = {
-  'hashicorp-vault': '@dudousxd/adonis-authkit-vault-hashicorp',
-  'aws-secrets-manager': '@dudousxd/adonis-authkit-vault-aws',
-  'gcp-secret-manager': '@dudousxd/adonis-authkit-vault-gcp',
-  'azure-key-vault': '@dudousxd/adonis-authkit-vault-azure',
+  'hashicorp-vault': '@adonis-agora/authkit-vault-hashicorp',
+  'aws-secrets-manager': '@adonis-agora/authkit-vault-aws',
+  'gcp-secret-manager': '@adonis-agora/authkit-vault-gcp',
+  'azure-key-vault': '@adonis-agora/authkit-vault-azure',
 }
 
 /**
@@ -924,7 +924,7 @@ Expected: FAIL — `defaultEncryptForStore` não existe.
 Adicione a helper pura em `define_config.ts`:
 
 ```ts
-import type { KeystoreStoreConfig } from '@dudousxd/adonis-authkit-core'
+import type { KeystoreStoreConfig } from '@adonis-agora/authkit-core'
 
 /** Default backend-aware de encryption: file/drive ON; vaults reais OFF. */
 export function defaultEncryptForStore(store: KeystoreStoreConfig): boolean {
@@ -1189,7 +1189,7 @@ git commit -m "test(keys): suíte verde + typecheck para Fatia A+B-core" || echo
 ---
 
 ## Notas de follow-up (fora desta fatia)
-- **Cloud vault packages** (`@dudousxd/adonis-authkit-vault-{hashicorp,aws,gcp,azure}`): cada um implementa `KeystoreVault` e registra no resolver via import lazy. Plano-irmão por package.
+- **Cloud vault packages** (`@adonis-agora/authkit-vault-{hashicorp,aws,gcp,azure}`): cada um implementa `KeystoreVault` e registra no resolver via import lazy. Plano-irmão por package.
 - **Fatia C (hot-reload):** `OidcService.reloadKeys()` + poll de `manager.head()`.
 - **Fatia D (scheduler + política + dashboard):** setting `key_rotation`, housekeeping com `@adonisjs/lock.acquireImmediately()`, endpoints/painel admin.
 ```

@@ -3,7 +3,7 @@ import {
   type AuthkitMetricName,
   type MetricsRecorder,
   type MetricsSnapshot,
-} from '@dudousxd/adonis-authkit-core'
+} from '@adonis-agora/authkit-core'
 
 type Counter = { add(value: number, attrs?: Record<string, any>): void }
 type Histogram = { record(value: number, attrs?: Record<string, any>): void }

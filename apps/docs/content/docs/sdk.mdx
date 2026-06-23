@@ -3,7 +3,7 @@ title: Backend SDK
 description: One typed interface, two drivers — remote (HTTP Admin API) and embedded (in-process).
 ---
 
-`@dudousxd/adonis-authkit-sdk` is a **backend SDK** for managing AuthKit from server-side
+`@adonis-agora/authkit-sdk` is a **backend SDK** for managing AuthKit from server-side
 code: users, sessions, OIDC clients, the audit log, and token verification. It exposes a
 single typed interface backed by two interchangeable drivers:
 
@@ -20,10 +20,10 @@ start embedded and split out to remote later without touching call sites.
 ## Install
 
 ```bash
-pnpm add @dudousxd/adonis-authkit-sdk
+pnpm add @adonis-agora/authkit-sdk
 ```
 
-The server package (`@dudousxd/adonis-authkit-server`) is an **optional** peer dependency —
+The server package (`@adonis-agora/authkit-server`) is an **optional** peer dependency —
 only the `embedded` driver needs it (it is imported lazily). Remote-only consumers can skip
 it entirely and carry zero AdonisJS server dependency.
 
@@ -35,7 +35,7 @@ server kit).
 ### Remote
 
 ```ts
-import { createAuthkit } from '@dudousxd/adonis-authkit-sdk'
+import { createAuthkit } from '@adonis-agora/authkit-sdk'
 
 const authkit = await createAuthkit({
   mode: 'remote',
@@ -56,7 +56,7 @@ const authkit = await createAuthkit({
 ### Embedded
 
 ```ts
-import { createAuthkit } from '@dudousxd/adonis-authkit-sdk'
+import { createAuthkit } from '@adonis-agora/authkit-sdk'
 import type { ApplicationService } from '@adonisjs/core/types'
 
 export async function makeAuthkit(app: ApplicationService) {
@@ -199,7 +199,7 @@ API's `{ error: { code, message } }` envelope. Network/parse failures throw the 
 with code `network_error` and `status: 0`.
 
 ```ts
-import { AuthkitApiError } from '@dudousxd/adonis-authkit-sdk'
+import { AuthkitApiError } from '@adonis-agora/authkit-sdk'
 
 try {
   await authkit.users.create({ email: 'dup@example.com' })

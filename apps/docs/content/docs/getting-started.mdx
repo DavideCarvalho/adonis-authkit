@@ -18,8 +18,8 @@ Use `node ace add` — it installs the package **and** runs its configure hook i
 Run it once per package:
 
 ```bash
-node ace add @dudousxd/adonis-authkit-server
-node ace add @dudousxd/adonis-authkit-client
+node ace add @adonis-agora/authkit-server
+node ace add @adonis-agora/authkit-client
 ```
 
 <Callout type="info">
@@ -29,7 +29,7 @@ node ace add @dudousxd/adonis-authkit-client
 
 ### What the server `add` scaffolds
 
-`node ace add @dudousxd/adonis-authkit-server` prompts for the UI preset of the
+`node ace add @adonis-agora/authkit-server` prompts for the UI preset of the
 login/consent screens — **`edge` | `react` | `headless`** (pass `--ui=react` to skip the
 prompt) — and then:
 
@@ -78,7 +78,7 @@ import {
   adapters,
   lucidAccountStore,
   inertiaRenderer,
-} from '@dudousxd/adonis-authkit-server'
+} from '@adonis-agora/authkit-server'
 
 const authServerConfig = defineConfig({
   issuer: env.get('AUTHKIT_ISSUER'),
@@ -120,7 +120,7 @@ composes the mixins the Lucid store needs; add columns to it as your domain grow
 
 ### What the client `add` scaffolds
 
-`node ace add @dudousxd/adonis-authkit-client` (no prompts):
+`node ace add @adonis-agora/authkit-client` (no prompts):
 
 - Publishes **`config/authkit_client.ts`** — issuer, client credentials, and a JWT resolver
   reading the token set from the session.
@@ -143,8 +143,8 @@ the resolver, and how to map an IdP identity to your user record:
 
 ```ts title="config/authkit_client.ts"
 import env from '#start/env'
-import { defineConfig, resolvers } from '@dudousxd/adonis-authkit-client'
-import type { Identity } from '@dudousxd/adonis-authkit-client'
+import { defineConfig, resolvers } from '@adonis-agora/authkit-client'
+import type { Identity } from '@adonis-agora/authkit-client'
 import AppUser from '#models/app_user'
 
 const authkitClientConfig = defineConfig({
@@ -178,7 +178,7 @@ social, PAT introspection, and rate-limit middleware.
 
 ```ts title="start/routes.ts"
 import router from '@adonisjs/core/services/router'
-import { registerAuthHost } from '@dudousxd/adonis-authkit-server'
+import { registerAuthHost } from '@adonis-agora/authkit-server'
 
 registerAuthHost(router, {
   mountPath: '/oidc',
@@ -204,7 +204,7 @@ import router from '@adonisjs/core/services/router'
 
 router.use([
   // ...existing middleware
-  () => import('@dudousxd/adonis-authkit-client/authkit_middleware'),
+  () => import('@adonis-agora/authkit-client/authkit_middleware'),
 ])
 ```
 
@@ -224,7 +224,7 @@ If you'd rather opt routes in explicitly, swap the router-global registration fo
 ```ts title="start/kernel.ts"
 export const middleware = router.named({
   // ...
-  authkit: () => import('@dudousxd/adonis-authkit-client/authkit_middleware'),
+  authkit: () => import('@adonis-agora/authkit-client/authkit_middleware'),
 })
 ```
 
@@ -246,7 +246,7 @@ import {
   exchangeCode,
   generatePkce,
   buildEndSessionUrl,
-} from '@dudousxd/adonis-authkit-client'
+} from '@adonis-agora/authkit-client'
 import { randomUUID } from 'node:crypto'
 
 export default class OidcSessionController {

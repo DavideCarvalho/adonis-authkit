@@ -1,6 +1,6 @@
 ---
 title: Client
-description: Wire a relying party with @dudousxd/adonis-authkit-client.
+description: Wire a relying party with @adonis-agora/authkit-client.
 ---
 
 The client kit makes an AdonisJS app a relying party of an AuthKit IdP: it resolves an
@@ -10,14 +10,14 @@ logout helpers.
 ## Install & configure
 
 ```bash
-npm install @dudousxd/adonis-authkit-client
-node ace configure @dudousxd/adonis-authkit-client
+npm install @adonis-agora/authkit-client
+node ace configure @adonis-agora/authkit-client
 ```
 
 ```ts title="config/authkit_client.ts"
 import env from '#start/env'
-import { defineConfig, resolvers } from '@dudousxd/adonis-authkit-client'
-import type { Identity } from '@dudousxd/adonis-authkit-client'
+import { defineConfig, resolvers } from '@adonis-agora/authkit-client'
+import type { Identity } from '@adonis-agora/authkit-client'
 import AppUser from '#models/app_user'
 import UserRole from '#models/user_role'
 
@@ -111,7 +111,7 @@ Register `authkit_middleware` so each request gets an authenticator on `ctx.auth
 ```ts title="start/kernel.ts"
 router.use([
   // ...
-  () => import('@dudousxd/adonis-authkit-client/authkit_middleware'),
+  () => import('@adonis-agora/authkit-client/authkit_middleware'),
 ])
 ```
 
@@ -135,7 +135,7 @@ When the IdP emits [JWT access tokens](/docs/security#jwt-access-tokens-rfc-9068
 **resource server** can verify them locally without calling `/introspect`:
 
 ```ts
-import { verifyJwtAccessToken } from '@dudousxd/adonis-authkit-client'
+import { verifyJwtAccessToken } from '@adonis-agora/authkit-client'
 
 const claims = await verifyJwtAccessToken(bearerToken, {
   issuer: 'https://idp.acme.com/oidc',
@@ -169,7 +169,7 @@ import {
   buildAuthorizeUrl,
   exchangeCode,
   buildEndSessionUrl,
-} from '@dudousxd/adonis-authkit-client'
+} from '@adonis-agora/authkit-client'
 
 // 1. Login: generate PKCE + state, stash in session, redirect to the IdP
 const { verifier, challenge } = await generatePkce()

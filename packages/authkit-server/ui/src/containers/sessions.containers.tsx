@@ -1,6 +1,6 @@
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useSessionsQueryOptions } from '@dudousxd/adonis-authkit-react'
+import { useSessionsQueryOptions } from '@adonis-agora/authkit-react'
 import { Pagination } from '../components/Pagination'
 import { QueryBoundary } from '../components/QueryBoundary'
 import { SkeletonPanelTable } from '../components/Skeleton'

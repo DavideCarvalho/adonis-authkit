@@ -1,4 +1,4 @@
-# @dudousxd/adonis-authkit-server
+# @adonis-agora/authkit-server
 
 OpenID Connect / OAuth2 Authorization Server (Identity Provider) for AdonisJS — an idiomatic
 wrapper around [`oidc-provider`](https://github.com/panva/node-oidc-provider).
@@ -27,8 +27,8 @@ wrapper around [`oidc-provider`](https://github.com/panva/node-oidc-provider).
 ## Instalação
 
 ```bash
-node ace add @dudousxd/adonis-authkit-server
-# ou: pnpm add @dudousxd/adonis-authkit-server && node ace configure @dudousxd/adonis-authkit-server
+node ace add @adonis-agora/authkit-server
+# ou: pnpm add @adonis-agora/authkit-server && node ace configure @adonis-agora/authkit-server
 ```
 
 O `configure` publica `config/authkit_server.ts`, o model `app/models/auth_user.ts`,
@@ -40,7 +40,7 @@ registra o provider.
 ```ts
 // start/routes.ts
 import router from '@adonisjs/core/services/router'
-import { registerOidcRoutes } from '@dudousxd/adonis-authkit-server'
+import { registerOidcRoutes } from '@adonis-agora/authkit-server'
 
 registerOidcRoutes(router) // monta em /oidc por padrão
 ```
@@ -69,7 +69,7 @@ Sem essas rotas o fluxo de autorização cai num 404 ao chegar na tela de login.
 O `configure` ejeta as telas de interaction a partir de um preset escolhido:
 
 ```bash
-node ace configure @dudousxd/adonis-authkit-server --ui=edge
+node ace configure @adonis-agora/authkit-server --ui=edge
 # valores: edge | react | headless — se omitir, o configure pergunta
 ```
 
@@ -131,7 +131,7 @@ observability: {
 Passe as flags em `registerOidcRoutes` no `start/routes.ts`:
 
 ```ts
-import { registerOidcRoutes } from '@dudousxd/adonis-authkit-server'
+import { registerOidcRoutes } from '@adonis-agora/authkit-server'
 
 registerOidcRoutes(router, { metrics: true, dashboard: true })
 ```

@@ -14,7 +14,7 @@
  * ```ts
  * // database/migrations/xxxx_authkit_schema.ts
  * import { BaseSchema } from '@adonisjs/lucid/schema'
- * import { ensureAuthkitSchema } from '@dudousxd/adonis-authkit-server'
+ * import { ensureAuthkitSchema } from '@adonis-agora/authkit-server'
  *
  * export default class extends BaseSchema {
  *   async up() {

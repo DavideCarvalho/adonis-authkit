@@ -21,7 +21,7 @@
  * })
  * ```
  *
- * O hook é exportado do pacote principal `@dudousxd/adonis-authkit-react`.
+ * O hook é exportado do pacote principal `@adonis-agora/authkit-react`.
  */
 
 import { useEffect, useRef } from 'react'

@@ -1,5 +1,5 @@
 {
-  "name": "@dudousxd/adonis-authkit-client",
+  "name": "@adonis-agora/authkit-client",
   "version": "0.8.0",
   "description": "AdonisJS OIDC/OAuth2 relying-party (client) toolkit: session-based authentication against an OpenID Connect identity provider, with JWT/PAT user resolvers and OpenTelemetry metrics.",
   "license": "MIT",
@@ -44,12 +44,12 @@
     "./commands": "./build/commands/configure.js"
   },
   "adonisjs": {
-    "types": "@dudousxd/adonis-authkit-client",
+    "types": "@adonis-agora/authkit-client",
     "providers": [
-      "@dudousxd/adonis-authkit-client/authkit_client_provider"
+      "@adonis-agora/authkit-client/authkit_client_provider"
     ],
     "commands": [
-      "@dudousxd/adonis-authkit-client/commands"
+      "@adonis-agora/authkit-client/commands"
     ]
   },
   "scripts": {
@@ -68,12 +68,12 @@
     }
   },
   "dependencies": {
-    "@dudousxd/adonis-authkit-core": "workspace:*",
+    "@adonis-agora/authkit-core": "workspace:*",
     "jose": "^5.9.0"
   },
   "devDependencies": {
     "@adonisjs/core": "catalog:adonis",
-    "@dudousxd/adonis-authkit-server": "workspace:*",
+    "@adonis-agora/authkit-server": "workspace:*",
     "@adonisjs/session": "catalog:adonis",
     "@adonisjs/lucid": "catalog:adonis",
     "@adonisjs/tsconfig": "catalog:adonis",

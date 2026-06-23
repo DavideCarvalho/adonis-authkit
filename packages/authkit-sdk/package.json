@@ -1,5 +1,5 @@
 {
-  "name": "@dudousxd/adonis-authkit-sdk",
+  "name": "@adonis-agora/authkit-sdk",
   "version": "0.5.0",
   "description": "Backend SDK for the AuthKit Admin API with one typed interface and two drivers: remote (HTTP/Bearer) and embedded (in-process when the IdP runs in the same AdonisJS app).",
   "license": "MIT",
@@ -41,19 +41,19 @@
   },
   "peerDependencies": {
     "@adonisjs/core": "catalog:adonis",
-    "@dudousxd/adonis-authkit-server": ">=0.10.0"
+    "@adonis-agora/authkit-server": ">=0.10.0"
   },
   "peerDependenciesMeta": {
     "@adonisjs/core": {
       "optional": true
     },
-    "@dudousxd/adonis-authkit-server": {
+    "@adonis-agora/authkit-server": {
       "optional": true
     }
   },
   "devDependencies": {
     "@adonisjs/core": "catalog:adonis",
-    "@dudousxd/adonis-authkit-server": "workspace:*",
+    "@adonis-agora/authkit-server": "workspace:*",
     "@adonisjs/tsconfig": "catalog:adonis",
     "@japa/assert": "catalog:",
     "@japa/runner": "catalog:",

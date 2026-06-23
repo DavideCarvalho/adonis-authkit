@@ -1,6 +1,6 @@
 import type { Router } from '@adonisjs/core/http'
 import type { HttpContext } from '@adonisjs/core/http'
-import type { Identity } from '@dudousxd/adonis-authkit-core'
+import type { Identity } from '@adonis-agora/authkit-core'
 import { randomUUID } from 'node:crypto'
 import { buildAuthorizeUrl, buildEndSessionUrl, exchangeCode, generatePkce } from './oidc_login.js'
 
@@ -45,7 +45,7 @@ export interface RegisterOidcClientOptions {
  *
  * ```ts
  * // start/routes.ts
- * import { registerOidcClient } from '@dudousxd/adonis-authkit-client'
+ * import { registerOidcClient } from '@adonis-agora/authkit-client'
  * registerOidcClient(router, {
  *   loginMiddleware: middleware.guest(),
  *   redirects: { byGlobalRole: { ADMIN: '/admin' }, byAppRole: { ADVISOR: '/advisor' }, default: '/' },

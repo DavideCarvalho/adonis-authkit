@@ -1,5 +1,5 @@
 {
-  "name": "@dudousxd/adonis-authkit-vault-gcp",
+  "name": "@adonis-agora/authkit-vault-gcp",
   "version": "0.2.0",
   "description": "GCP Secret Manager keystore vault for the AuthKit JWKS keystore (createKeystoreVault).",
   "license": "MIT",

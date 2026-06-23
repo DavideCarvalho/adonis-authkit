@@ -8,7 +8,7 @@ session. Sometimes you want to reuse that session **outside** the
 console: protecting an admin route of your own, or gating a third-party
 package's dashboard to signed-in users only.
 
-For that, `@dudousxd/adonis-authkit-server` exports public helpers — use
+For that, `@adonis-agora/authkit-server` exports public helpers — use
 them instead of reading `ctx.session` with the internal key
 (`account_user_id`), which is an implementation detail and may change:
 
@@ -17,7 +17,7 @@ import {
   getAccountId,       // string | null — id of the signed-in account
   hasAccountSession,  // boolean
   consoleLoginUrl,    // login URL with an optional return_to
-} from '@dudousxd/adonis-authkit-server'
+} from '@adonis-agora/authkit-server'
 ```
 
 ## Protecting your own route
@@ -44,7 +44,7 @@ fit for the console session:
 ```ts
 // config/telescope.ts
 import { defineConfig } from '@dudousxd/adonis-telescope'
-import { hasAccountSession, consoleLoginUrl } from '@dudousxd/adonis-authkit-server'
+import { hasAccountSession, consoleLoginUrl } from '@adonis-agora/authkit-server'
 
 export default defineConfig({
   enabled: true,
@@ -88,7 +88,7 @@ or passkey), a timestamp is stored in the session and remains valid for a config
 period (default 15 minutes). The `sudo_mode` runtime setting controls both `enabled` and
 `graceMinutes`.
 
-`@dudousxd/adonis-authkit-server` exports the helpers you need in your own controllers:
+`@adonis-agora/authkit-server` exports the helpers you need in your own controllers:
 
 ```ts
 import {
@@ -96,7 +96,7 @@ import {
   isSudoActive,       // boolean check (no side-effects)
   markSudo,           // stamp the session after a successful confirmation
   SUDO_SESSION_KEY,   // raw session key ('authkit_sudo_at')
-} from '@dudousxd/adonis-authkit-server'
+} from '@adonis-agora/authkit-server'
 ```
 
 ### Protecting a sensitive route
@@ -104,7 +104,7 @@ import {
 ```ts
 // app/settings/controllers/delete_account_controller.ts
 import type { HttpContext } from '@adonisjs/core/http'
-import { requireSudo } from '@dudousxd/adonis-authkit-server'
+import { requireSudo } from '@adonis-agora/authkit-server'
 
 export default class DeleteAccountController {
   async handle(ctx: HttpContext) {
@@ -120,7 +120,7 @@ export default class DeleteAccountController {
 ### Checking without redirecting
 
 ```ts
-import { isSudoActive } from '@dudousxd/adonis-authkit-server'
+import { isSudoActive } from '@adonis-agora/authkit-server'
 
 const active = isSudoActive(ctx, graceMinutes)
 if (!active) {
@@ -134,7 +134,7 @@ If you add a custom confirmation screen, call `markSudo` after verifying the use
 credentials:
 
 ```ts
-import { markSudo } from '@dudousxd/adonis-authkit-server'
+import { markSudo } from '@adonis-agora/authkit-server'
 
 // After verifying password / passkey:
 markSudo(ctx) // stamps authkit_sudo_at = Date.now()

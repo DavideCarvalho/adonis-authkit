@@ -1,7 +1,7 @@
-# @dudousxd/adonis-authkit-core
+# @adonis-agora/authkit-core
 
 Contratos compartilhados do AuthKit: `Identity`, `SessionResolver`, tipos de config
-do server e nomes de métricas. Sem runtime — consumido por `@dudousxd/adonis-authkit-server` e `@dudousxd/adonis-authkit-client`.
+do server e nomes de métricas. Sem runtime — consumido por `@adonis-agora/authkit-server` e `@adonis-agora/authkit-client`.
 
 Normalmente você não instala este pacote diretamente: ele vem como dependência
 do server e do client. Mas, se precisar dos tipos compartilhados:
@@ -9,13 +9,13 @@ do server e do client. Mas, se precisar dos tipos compartilhados:
 ## Install
 
 ```bash
-npm install @dudousxd/adonis-authkit-core
+npm install @adonis-agora/authkit-core
 ```
 
 ## Usage
 
 ```ts
-import type { Identity, SessionResolver } from '@dudousxd/adonis-authkit-core'
+import type { Identity, SessionResolver } from '@adonis-agora/authkit-core'
 
 const resolver: SessionResolver = {
   async resolve(): Promise<Identity | null> {

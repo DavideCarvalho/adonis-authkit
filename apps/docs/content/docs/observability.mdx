@@ -30,7 +30,7 @@ defineConfig({
 
 ## The metric names
 
-The canonical names live in `AUTHKIT_METRICS` (from `@dudousxd/adonis-authkit-core`).
+The canonical names live in `AUTHKIT_METRICS` (from `@adonis-agora/authkit-core`).
 
 ### Server (IdP)
 
@@ -76,7 +76,7 @@ interface MetricsRecorder {
   silently stays in-memory-only. It **always** aggregates into an `InMemorySnapshot`.
 - **`NoopRecorder`** is used when `metrics` is off.
 
-`InMemorySnapshot` and `NoopRecorder` are exported from `@dudousxd/adonis-authkit-core`, so
+`InMemorySnapshot` and `NoopRecorder` are exported from `@adonis-agora/authkit-core`, so
 you can build a custom recorder over the same contract. The snapshot shape:
 
 ```ts

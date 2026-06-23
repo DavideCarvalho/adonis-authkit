@@ -1,6 +1,6 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose'
 import type { HttpContext } from '@adonisjs/core/http'
-import type { Identity, SessionResolver } from '@dudousxd/adonis-authkit-core'
+import type { Identity, SessionResolver } from '@adonis-agora/authkit-core'
 import { buildIdentityFromClaims } from './identity.js'
 
 export interface JwtResolverConfig {

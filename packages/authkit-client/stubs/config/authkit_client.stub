@@ -2,7 +2,7 @@
   exports({ to: app.configPath('authkit_client.ts') })
 }}}
 import env from '#start/env'
-import { defineConfig, resolvers } from '@dudousxd/adonis-authkit-client'
+import { defineConfig, resolvers } from '@adonis-agora/authkit-client'
 
 const authkitClientConfig = defineConfig({
   issuer: env.get('AUTHKIT_ISSUER'),

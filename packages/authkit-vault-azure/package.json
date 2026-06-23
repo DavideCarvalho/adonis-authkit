@@ -1,5 +1,5 @@
 {
-  "name": "@dudousxd/adonis-authkit-vault-azure",
+  "name": "@adonis-agora/authkit-vault-azure",
   "version": "0.2.0",
   "description": "Azure Key Vault keystore vault for the AuthKit JWKS keystore (createKeystoreVault).",
   "license": "MIT",

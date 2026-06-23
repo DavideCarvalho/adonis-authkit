@@ -13,8 +13,8 @@ test.group('LazyExternalVault', () => {
 
   test('package ausente → erro "instale o package"', async ({ assert }) => {
     const importFn = async (_spec: string) => { throw new Error('Cannot find module') }
-    const v = new LazyExternalVault('@dudousxd/adonis-authkit-vault-aws', {}, importFn)
-    await assert.rejects(() => v.read(), /instale o package @dudousxd\/adonis-authkit-vault-aws/)
+    const v = new LazyExternalVault('@adonis-agora/authkit-vault-aws', {}, importFn)
+    await assert.rejects(() => v.read(), /instale o package @adonis-agora\/authkit-vault-aws/)
   })
 
   test('package sem createKeystoreVault → erro claro', async ({ assert }) => {

@@ -1,4 +1,4 @@
-# @dudousxd/adonis-authkit-sdk
+# @adonis-agora/authkit-sdk
 
 ## 0.5.0
 
@@ -16,7 +16,7 @@
   - **REST API** `GET/POST /api/authkit/v1/keys` (Bearer key) — para backend/automação;
   - **Console API** `GET/POST {adminPrefix}/api/keys` (sessão + role admin) — para o browser.
 
-  `@dudousxd/adonis-authkit-sdk` expõe `authkit.keys.status()` / `authkit.keys.rotate()`
+  `@adonis-agora/authkit-sdk` expõe `authkit.keys.status()` / `authkit.keys.rotate()`
   (drivers remote + embedded). `@adonisjs/lock` é peer OPCIONAL.
 
   Default OFF: nada rotaciona automaticamente até um admin habilitar `key_rotation`.
@@ -54,7 +54,7 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @dudousxd/adonis-authkit-server@0.10.0
+  - @adonis-agora/authkit-server@0.10.0
 
 ## 1.1.0
 
@@ -72,15 +72,15 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @dudousxd/adonis-authkit-server@0.9.0
+  - @adonis-agora/authkit-server@0.9.0
 
 ## 1.0.0
 
 ### Minor Changes
 
-- b205782: Primeiro release do SDK backend (@dudousxd/adonis-authkit-sdk): uma interface tipada com dois drivers — `remote` (HTTP contra a Admin REST API `/api/authkit/v1` com Bearer API key) e `embedded` (in-process, quando o IdP roda no mesmo app AdonisJS). Cobre users, sessions, clients, audit e tokens.verify, com erros mapeados para `AuthkitApiError`.
+- b205782: Primeiro release do SDK backend (@adonis-agora/authkit-sdk): uma interface tipada com dois drivers — `remote` (HTTP contra a Admin REST API `/api/authkit/v1` com Bearer API key) e `embedded` (in-process, quando o IdP roda no mesmo app AdonisJS). Cobre users, sessions, clients, audit e tokens.verify, com erros mapeados para `AuthkitApiError`.
 
 ### Patch Changes
 
 - Updated dependencies [93bfc4f]
-  - @dudousxd/adonis-authkit-server@0.8.0
+  - @adonis-agora/authkit-server@0.8.0

@@ -3,7 +3,7 @@ title: Reference
 description: The full defineConfig option tables for server and client.
 ---
 
-## Server — `defineConfig` (`@dudousxd/adonis-authkit-server`)
+## Server — `defineConfig` (`@adonis-agora/authkit-server`)
 
 `AuthServerConfigInput`:
 
@@ -80,7 +80,7 @@ Infrastructure fields only. Bucket policy (`login`, `introspection`) is managed 
 | `enabled` | `boolean` | `false` |
 | `store` | `string?` | host default store |
 
-## Client — `defineConfig` (`@dudousxd/adonis-authkit-client`)
+## Client — `defineConfig` (`@adonis-agora/authkit-client`)
 
 `ClientConfigInput`:
 
@@ -118,7 +118,7 @@ Infrastructure fields only. Bucket policy (`login`, `introspection`) is managed 
 | `exchangeToken(params)` | RFC 8693 token-exchange (impersonation). |
 | `buildEndSessionUrl(params)` | `${issuer}/session/end` RP-initiated logout URL. |
 
-## SDK — `createAuthkit` (`@dudousxd/adonis-authkit-sdk`)
+## SDK — `createAuthkit` (`@adonis-agora/authkit-sdk`)
 
 `createAuthkit(options): Promise<Authkit>` builds the [backend SDK](/docs/sdk).
 
@@ -152,7 +152,7 @@ it is an opt-in capability.
 
 ### `RuntimeSettings`
 
-Class from `@dudousxd/adonis-authkit-server` (internal, used by the admin console and
+Class from `@adonis-agora/authkit-server` (internal, used by the admin console and
 API controllers). Accepts a Lucid `Database` instance and an optional `ttlMs` (default
 `15_000` — 15 s). Implements `SettingsCapability`.
 
@@ -168,7 +168,7 @@ API controllers). Accepts a Lucid `Database` instance and an optional `ttlMs` (d
 ### `SettingsCapability` and `supportsSettings`
 
 ```ts
-import { supportsSettings } from '@dudousxd/adonis-authkit-server'
+import { supportsSettings } from '@adonis-agora/authkit-server'
 
 if (supportsSettings(store)) {
   const raw = await store.getSetting('bot_protection')
@@ -210,7 +210,7 @@ for the canonical guide, precedence rules, CLI, and migration from static config
 
 ## Ace commands
 
-Commands provided by `@dudousxd/adonis-authkit-server`:
+Commands provided by `@adonis-agora/authkit-server`:
 
 | Command | Notes |
 | --- | --- |
@@ -294,7 +294,7 @@ For confidential clients a `clientSecret` is generated and printed **exactly onc
 it immediately. The admin console and Admin API are alternatives when you prefer a browser
 or HTTP interface.
 
-## Server backend helpers — `@dudousxd/adonis-authkit-server`
+## Server backend helpers — `@adonis-agora/authkit-server`
 
 Helpers for use inside AdonisJS controllers, middleware, and route callbacks.
 
@@ -320,7 +320,7 @@ See [Console session & sudo mode](/docs/console-session) for recipes.
 | `SUDO_MODE_DEFAULTS` | `{ enabled: true, graceMinutes: 15 }` |
 | `resolveEffectiveSudoMode(settings)` | Reads the `sudo_mode` setting from a `SettingsCapability` instance, with fail-safe fallback. |
 
-## Client helpers — `@dudousxd/adonis-authkit-client`
+## Client helpers — `@adonis-agora/authkit-client`
 
 Additional exports beyond the resolver factories:
 
@@ -331,7 +331,7 @@ Additional exports beyond the resolver factories:
 
 ## Account Self-Service API — `/account/api/*`
 
-Session-authenticated JSON API served by `@dudousxd/adonis-authkit-server`. Mounted
+Session-authenticated JSON API served by `@adonis-agora/authkit-server`. Mounted
 automatically when the account console is enabled (always on by default with `registerAuthHost`).
 Mutating routes require an `X-CSRF-TOKEN` header. Sensitive actions require an active
 **sudo session** — the server returns `403 { error: { code: 'sudo_required' } }` when the
@@ -363,9 +363,9 @@ grace period has expired.
 
 All routes are capability-probed: if the store doesn't support a feature, the response
 contains `{ supported: false }` instead of an error. The TypeScript types for every response
-are exported from `@dudousxd/adonis-authkit-react` (see below).
+are exported from `@adonis-agora/authkit-react` (see below).
 
-## React SDK — `@dudousxd/adonis-authkit-react`
+## React SDK — `@adonis-agora/authkit-react`
 
 Full export list. For usage and examples see
 [React (Frontend)](/docs/react), [React Components](/docs/components), and

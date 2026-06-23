@@ -6,7 +6,7 @@ import type { NextFn } from '@adonisjs/core/types/http'
  * rotas públicas que mostram estado logado/deslogado. Nunca redireciona.
  *
  * ```ts
- * silentAuth: () => import('@dudousxd/adonis-authkit-client/silent_auth_middleware'),
+ * silentAuth: () => import('@adonis-agora/authkit-client/silent_auth_middleware'),
  * ```
  */
 export default class AuthkitSilentAuthMiddleware {

@@ -1,5 +1,5 @@
 import { configProvider } from '@adonisjs/core'
-import type { Identity } from '@dudousxd/adonis-authkit-core'
+import type { Identity } from '@adonis-agora/authkit-core'
 import { resolvers, type ResolverFactory } from './resolvers/factory.js'
 import type { SessionIndex } from './backchannel_logout.js'
 import type { RevocationStore } from './revocation/revocation_store.js'

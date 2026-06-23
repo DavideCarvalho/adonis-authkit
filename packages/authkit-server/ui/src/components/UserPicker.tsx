@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useUsersQueryOptions, type AdminUser } from '@dudousxd/adonis-authkit-react'
+import { useUsersQueryOptions, type AdminUser } from '@adonis-agora/authkit-react'
 import { useDebounce } from '../lib/use_debounce'
 
 export type PickedUser = Pick<AdminUser, 'id' | 'email' | 'name'>

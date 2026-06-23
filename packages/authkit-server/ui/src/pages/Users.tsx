@@ -4,7 +4,7 @@ import { useQueryState, parseAsInteger, parseAsString } from 'nuqs'
 import {
   useCreateUserMutationOptions,
   authkitKeys,
-} from '@dudousxd/adonis-authkit-react'
+} from '@adonis-agora/authkit-react'
 import { Modal } from '../components/Modal'
 import { useToast } from '../lib/toast'
 import { useDebounce } from '../lib/use_debounce'

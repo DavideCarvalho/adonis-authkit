@@ -41,11 +41,11 @@ export async function configure(command: Configure) {
   }
 
   await codemods.updateRcFile((rcFile) => {
-    rcFile.addProvider('@dudousxd/adonis-authkit-server/authkit_server_provider')
+    rcFile.addProvider('@adonis-agora/authkit-server/authkit_server_provider')
   })
 
   await codemods.defineEnvValidations({
-    leadingComment: 'Variáveis do @dudousxd/adonis-authkit-server (Authorization Server OIDC)',
+    leadingComment: 'Variáveis do @adonis-agora/authkit-server (Authorization Server OIDC)',
     variables: {
       AUTHKIT_ISSUER: `Env.schema.string({ format: 'url', tld: false })`,
     },

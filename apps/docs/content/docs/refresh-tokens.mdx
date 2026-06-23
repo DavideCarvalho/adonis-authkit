@@ -17,14 +17,14 @@ to the session.
 ```ts title="start/kernel.ts"
 router.use([
   // ...
-  () => import('@dudousxd/adonis-authkit-client/authkit_middleware'),
+  () => import('@adonis-agora/authkit-client/authkit_middleware'),
 ])
 ```
 
 The refresh itself is `refreshTokens`, a `grant_type=refresh_token` call:
 
 ```ts
-import { refreshTokens } from '@dudousxd/adonis-authkit-client'
+import { refreshTokens } from '@adonis-agora/authkit-client'
 
 const next = await refreshTokens({
   issuer,

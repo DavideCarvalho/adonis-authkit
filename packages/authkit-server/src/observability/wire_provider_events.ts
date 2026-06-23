@@ -1,4 +1,4 @@
-import { AUTHKIT_METRICS, type MetricsRecorder } from '@dudousxd/adonis-authkit-core'
+import { AUTHKIT_METRICS, type MetricsRecorder } from '@adonis-agora/authkit-core'
 
 /**
  * Liga eventos do oidc-provider aos counters do recorder. Usa só eventos reais

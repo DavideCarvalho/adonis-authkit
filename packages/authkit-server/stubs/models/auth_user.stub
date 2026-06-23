@@ -3,7 +3,7 @@
 }}}
 import { BaseModel, column } from '@adonisjs/lucid/orm'
 import { compose } from '@adonisjs/core/helpers'
-import { withAuthUser, withCredentials } from '@dudousxd/adonis-authkit-server'
+import { withAuthUser, withCredentials } from '@adonis-agora/authkit-server'
 
 /**
  * Por padrão o AuthKit cria/usa as tabelas na conexão DEFAULT da aplicação

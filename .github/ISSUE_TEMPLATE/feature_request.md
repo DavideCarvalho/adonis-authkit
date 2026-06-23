@@ -19,11 +19,11 @@ Describe the API or behavior you'd like. Sketch config/code if you can.
 
 ## Which package?
 
-- [ ] @dudousxd/adonis-authkit-core
-- [ ] @dudousxd/adonis-authkit-server
-- [ ] @dudousxd/adonis-authkit-client
-- [ ] @dudousxd/adonis-authkit-react
-- [ ] @dudousxd/adonis-authkit-testing
+- [ ] @adonis-agora/authkit-core
+- [ ] @adonis-agora/authkit-server
+- [ ] @adonis-agora/authkit-client
+- [ ] @adonis-agora/authkit-react
+- [ ] @adonis-agora/authkit-testing
 
 ## Alternatives considered
 

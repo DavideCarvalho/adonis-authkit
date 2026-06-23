@@ -5,7 +5,7 @@ import {
   useAuthkitClient,
   authkitKeys,
   type RoleCatalogEntry,
-} from '@dudousxd/adonis-authkit-react'
+} from '@adonis-agora/authkit-react'
 import { Modal } from '../components/Modal'
 import { useToast } from '../lib/toast'
 import { RolesTableContainer } from '../containers/roles.containers'

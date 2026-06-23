@@ -87,7 +87,7 @@ node ace authkit:settings:set organizations_policy \
 Pass your three model classes to `lucidAccountStore`:
 
 ```ts title="config/authkit_server.ts"
-import { lucidAccountStore } from '@dudousxd/adonis-authkit-server'
+import { lucidAccountStore } from '@adonis-agora/authkit-server'
 import AuthOrganization from '#models/auth_organization'
 import AuthOrganizationMember from '#models/auth_organization_member'
 import AuthOrganizationInvitation from '#models/auth_organization_invitation'
@@ -258,7 +258,7 @@ See [SDK](/docs/sdk) for the full type table.
 
 ## React
 
-`@dudousxd/adonis-authkit-react` ships four hooks and two pre-built components for
+`@adonis-agora/authkit-react` ships four hooks and two pre-built components for
 organizations. They fetch data from the JSON endpoints the host kit exposes (`/account/orgs/json`,
 `/account/orgs/invitations/json`, `/account/orgs/:id/json`) and POST mutations via the
 standard account routes.
@@ -271,7 +271,7 @@ import {
   useOrganization,
   useSwitchOrganization,
   useOrgInvitations,
-} from '@dudousxd/adonis-authkit-react'
+} from '@adonis-agora/authkit-react'
 
 // List the current user's organizations + pending inbound invitations
 const orgs = useOrganizations()
@@ -302,7 +302,7 @@ const invitations = useOrgInvitations()
 import {
   OrganizationSwitcher,
   OrganizationProfile,
-} from '@dudousxd/adonis-authkit-react'
+} from '@adonis-agora/authkit-react'
 
 // Dropdown to switch the active organization; optionally shows a "Create org" button
 <OrganizationSwitcher

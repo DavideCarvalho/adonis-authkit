@@ -21,7 +21,7 @@ export interface AuthMiddlewareOptions {
  * ```ts
  * // start/kernel.ts
  * export const middleware = router.named({
- *   auth: () => import('@dudousxd/adonis-authkit-client/auth_middleware'),
+ *   auth: () => import('@adonis-agora/authkit-client/auth_middleware'),
  * })
  * // uso: .use(middleware.auth({ roles: ['ADVISOR'], redirectTo: '/auth/login' }))
  * ```

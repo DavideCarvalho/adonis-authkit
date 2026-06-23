@@ -102,8 +102,8 @@ the stable `userId` (the `sub`), and fall back to `email` to reconcile rows that
 the IdP:
 
 ```ts title="config/authkit_client.ts"
-import { defineConfig, resolvers } from '@dudousxd/adonis-authkit-client'
-import type { Identity } from '@dudousxd/adonis-authkit-client'
+import { defineConfig, resolvers } from '@adonis-agora/authkit-client'
+import type { Identity } from '@adonis-agora/authkit-client'
 import AppUser from '#models/app_user'
 
 export default defineConfig({
@@ -165,7 +165,7 @@ and include the standard Acme-style Tailwind markup, branding tokens, and i18n s
 Nothing in your project needs to exist for this to work:
 
 ```ts title="config/authkit.ts"
-import { defineConfig } from '@dudousxd/adonis-authkit-server'
+import { defineConfig } from '@adonis-agora/authkit-server'
 
 export default defineConfig({
   // No `render` key → Edge views are used automatically.
@@ -175,7 +175,7 @@ export default defineConfig({
 Or equivalently, using `edgeRenderer()` explicitly:
 
 ```ts title="config/authkit.ts"
-import { defineConfig, edgeRenderer } from '@dudousxd/adonis-authkit-server'
+import { defineConfig, edgeRenderer } from '@adonis-agora/authkit-server'
 
 export default defineConfig({
   // ...
@@ -195,7 +195,7 @@ To render the flow screens as React components you need to:
    starter components into your project that you then own and customise:
 
    ```bash
-   node ace add @dudousxd/adonis-authkit-server --ui=react
+   node ace add @adonis-agora/authkit-server --ui=react
    ```
 
    This requires `@adonisjs/inertia` + React + Vite already configured in your app
@@ -206,7 +206,7 @@ To render the flow screens as React components you need to:
    includes this — you only need to verify the prefix matches your Inertia pages directory:
 
    ```ts title="config/authkit.ts"
-   import { defineConfig, inertiaRenderer } from '@dudousxd/adonis-authkit-server'
+   import { defineConfig, inertiaRenderer } from '@adonis-agora/authkit-server'
 
    export default defineConfig({
      // ...
@@ -375,7 +375,7 @@ MFA, passkeys, provider linking, and magic link are **opt-in capabilities** you 
 if you want those features:
 
 ```ts title="app/auth/my_account_store.ts"
-import type { CoreAccountStore, AuthAccount, CreateAccountInput } from '@dudousxd/adonis-authkit-server'
+import type { CoreAccountStore, AuthAccount, CreateAccountInput } from '@adonis-agora/authkit-server'
 
 export class MyAccountStore implements CoreAccountStore {
   // --- identity (provider-facing) ---

@@ -1,5 +1,5 @@
 import type { HttpContext } from '@adonisjs/core/http'
-import type { Identity, SessionResolver } from '@dudousxd/adonis-authkit-core'
+import type { Identity, SessionResolver } from '@adonis-agora/authkit-core'
 import { getTokenFromSource, type TokenSource } from '../token_source.js'
 import { buildIdentityFromClaims, introspectToken } from './identity.js'
 

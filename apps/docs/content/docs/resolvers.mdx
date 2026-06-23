@@ -13,7 +13,7 @@ For browser / user sessions. Validates the OIDC token **locally** against the Id
 checking `issuer` and `audience` (your `clientId`). No network call per request.
 
 ```ts title="config/authkit_client.ts"
-import { resolvers } from '@dudousxd/adonis-authkit-client'
+import { resolvers } from '@adonis-agora/authkit-client'
 
 resolver: resolvers.jwt({ tokenSource: 'session' })
 ```
@@ -73,7 +73,7 @@ resolver: resolvers.opaque({ tokenSource: 'session' })
 Every resolver yields the same shape (claims only — no app domain):
 
 ```ts
-import type { Identity } from '@dudousxd/adonis-authkit-client'
+import type { Identity } from '@adonis-agora/authkit-client'
 
 interface Identity {
   userId: string          // sub

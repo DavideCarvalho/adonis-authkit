@@ -1,7 +1,7 @@
 /**
  * SDK-owned types. We DELIBERATELY duplicate the DTO shapes returned by the
  * Admin REST API (`packages/authkit-server/.../admin_api/dto.ts`) rather than
- * importing them from `@dudousxd/adonis-authkit-server`, so that remote-only
+ * importing them from `@adonis-agora/authkit-server`, so that remote-only
  * consumers can install JUST this package with ZERO dependency on the server
  * kit. The embedded driver maps the server's runtime values into these exact
  * shapes — keep them in sync with the server DTOs.

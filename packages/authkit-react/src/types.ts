@@ -2,8 +2,8 @@
  * Usuário serializado que o host AdonisJS compartilha com o frontend.
  *
  * Espelha a saída de `resolveUser`/`identityToUser` do backend
- * (`@dudousxd/adonis-authkit-client`), que por sua vez deriva da `Identity`
- * (claims OIDC validadas) do `@dudousxd/adonis-authkit-core`:
+ * (`@adonis-agora/authkit-client`), que por sua vez deriva da `Identity`
+ * (claims OIDC validadas) do `@adonis-agora/authkit-core`:
  *
  * - `id`            ← `Identity.userId` (claim `sub`)
  * - `email`         ← `Identity.email`
@@ -32,7 +32,7 @@ export interface AuthUser {
  * Contrato da shared-prop do Inertia exposta pelo host.
  *
  * O host AdonisJS deve compartilhar este objeto (ex.: via `inertia.share()`),
- * usando `auth.getUser()`/identidade do `@dudousxd/adonis-authkit-client`:
+ * usando `auth.getUser()`/identidade do `@adonis-agora/authkit-client`:
  *
  * ```ts
  * inertia.share({

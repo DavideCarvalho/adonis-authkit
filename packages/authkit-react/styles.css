@@ -1,7 +1,7 @@
 /**
- * Estilos prontos dos componentes do @dudousxd/adonis-authkit-react.
+ * Estilos prontos dos componentes do @adonis-agora/authkit-react.
  * Temáveis via CSS vars `--authkit-*` (defaults Adonis-violet).
- * Importe em algum ponto da app: `import '@dudousxd/adonis-authkit-react/styles.css'`
+ * Importe em algum ponto da app: `import '@adonis-agora/authkit-react/styles.css'`
  */
 :root {
   --authkit-primary: #5a45ff;

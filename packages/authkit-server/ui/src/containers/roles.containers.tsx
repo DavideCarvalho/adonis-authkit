@@ -1,9 +1,9 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useRolesQueryOptions } from '@dudousxd/adonis-authkit-react'
+import { useRolesQueryOptions } from '@adonis-agora/authkit-react'
 import { QueryBoundary } from '../components/QueryBoundary'
 import { SkeletonPanelTable } from '../components/Skeleton'
-import type { RoleCatalogEntry } from '@dudousxd/adonis-authkit-react'
+import type { RoleCatalogEntry } from '@adonis-agora/authkit-react'
 
 const PROTECTED = 'ADMIN'
 

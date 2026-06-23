@@ -13,7 +13,7 @@ const KNOWN_CONTROLLERS = [
 export default class AuthkitEject extends BaseCommand {
   static commandName = 'authkit:eject'
   static description =
-    'Ejeta views Edge ou um controller do host-kit do @dudousxd/adonis-authkit-server para customização local'
+    'Ejeta views Edge ou um controller do host-kit do @adonis-agora/authkit-server para customização local'
 
   static help = [
     'Use --views para copiar as views Edge da lib para resources/views/authkit/.',

@@ -1,4 +1,4 @@
-# @dudousxd/adonis-authkit-react
+# @adonis-agora/authkit-react
 
 ## 0.11.0
 
@@ -19,14 +19,14 @@
 
 - Updated dependencies [93eaf69]
 - Updated dependencies [e2582b8]
-  - @dudousxd/adonis-authkit-core@0.6.0
+  - @adonis-agora/authkit-core@0.6.0
 
 ## 0.9.1
 
 ### Patch Changes
 
 - Updated dependencies [df4b41f]
-  - @dudousxd/adonis-authkit-core@0.5.0
+  - @adonis-agora/authkit-core@0.5.0
 
 ## 0.9.0
 
@@ -43,13 +43,13 @@
 
 - feat(account): global sign-out — revoke all sessions across all devices
 
-  **Server (`@dudousxd/adonis-authkit-server`):**
+  **Server (`@adonis-agora/authkit-server`):**
   - `POST /account/api/sessions/revoke-all` — revokes all OIDC sessions/grants for the account
     and terminates the current Adonis console session (global logout).
     Returns `{ ok: true, signedOut: true }` so the UI can redirect to login.
     Emits audit event `account.signed_out_all`.
 
-  **React SDK (`@dudousxd/adonis-authkit-react`):**
+  **React SDK (`@adonis-agora/authkit-react`):**
   - `RevokeAllResult` type (`{ ok, signedOut, ...rest }`)
   - `client.account.sessions.revokeAll()` method
   - `useAccountRevokeAllSessionsMutationOptions()` hook (account namespace;
@@ -66,7 +66,7 @@
   - `resolveEffectiveOrganizationsPolicy` and `resolveEffectiveRolesCatalog` accept optional `orgId` and resolve org → global → default. All other resolvers remain global-only.
   - Console JSON API (`/api/settings`) and Admin REST API accept `?organizationId=` query param for scoped reads/writes/deletes.
   - Org detail drawer in console admin shows "Organization Settings" section for org-scopable keys (`organizations_policy`, `roles_catalog`) with source badges (from org / from global / default) and inline JSON editor.
-  - `@dudousxd/adonis-authkit-react` client: `settings.list(orgId?)`, `settings.set(key, value, orgId?)`, `settings.remove(key, orgId?)`. `authkitKeys.admin.settings(orgId?)`. `useSettingsQueryOptions(orgId?)`, `useSetSettingMutationOptions(orgId?)`, `useRemoveSettingMutationOptions(orgId?)`.
+  - `@adonis-agora/authkit-react` client: `settings.list(orgId?)`, `settings.set(key, value, orgId?)`, `settings.remove(key, orgId?)`. `authkitKeys.admin.settings(orgId?)`. `useSettingsQueryOptions(orgId?)`, `useSetSettingMutationOptions(orgId?)`, `useRemoveSettingMutationOptions(orgId?)`.
   - `SettingEntry` type gains `organizationId: string | null` field.
   - Existing rows default to `organization_id = NULL` (global) — no data migration needed.
 
@@ -92,7 +92,7 @@
   Todos os endpoints retornam 404 `capability_unsupported` quando o store não
   suporta organizações. Lógica reutiliza `AdminOrgsService` (sem duplicação).
 
-  **SDK `@dudousxd/adonis-authkit-react`:**
+  **SDK `@adonis-agora/authkit-react`:**
   - `client.admin.orgs`: novos métodos `addMember`, `removeMember`,
     `updateMemberRole`, `createInvitation`, `revokeInvitation`
   - Novos hooks: `useAddOrgMemberMutationOptions`, `useRemoveOrgMemberMutationOptions`,
@@ -140,7 +140,7 @@
 
 - Typed front-end client, TanStack Query hooks, and account JSON API:
   - **Account self-service JSON API** (`/account/api/*`): session-authed, CSRF-protected endpoints for profile, security overview, password/email change, sessions, authorized apps, MFA/passkeys, PATs and organizations — the data layer for client-side account screens. Login/consent stay postback for security.
-  - **Typed front-end client** in `@dudousxd/adonis-authkit-react`: `createAuthkitClient()` (auto-reads `window.__AUTHKIT__`) exposing `client.admin.*` and `client.account.*`, plus `AuthkitClientError`.
+  - **Typed front-end client** in `@adonis-agora/authkit-react`: `createAuthkitClient()` (auto-reads `window.__AUTHKIT__`) exposing `client.admin.*` and `client.account.*`, plus `AuthkitClientError`.
   - **TanStack Query hooks** (Tuyau-style): ready-made `use*QueryOptions`/`use*MutationOptions` for every admin and account endpoint, structured `authkitKeys` for invalidation, `AuthkitClientProvider` + `createAuthkitQueryClient()`. `@tanstack/react-query` is a new peer dependency.
   - **Admin console SPA** now consumes these hooks internally (client-side fetching via TanStack Query) instead of a bespoke fetch wrapper.
 
@@ -161,14 +161,14 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @dudousxd/adonis-authkit-core@0.4.0
+  - @adonis-agora/authkit-core@0.4.0
 
 ## 0.3.1
 
 ### Patch Changes
 
 - Updated dependencies
-  - @dudousxd/adonis-authkit-core@0.3.1
+  - @adonis-agora/authkit-core@0.3.1
 
 ## 0.3.0
 
@@ -186,7 +186,7 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @dudousxd/adonis-authkit-core@0.3.0
+  - @adonis-agora/authkit-core@0.3.0
 
 ## 0.2.0
 
@@ -199,7 +199,7 @@
 ### Patch Changes
 
 - Updated dependencies [1872a30]
-  - @dudousxd/adonis-authkit-core@0.2.0
+  - @adonis-agora/authkit-core@0.2.0
 
 ## 0.1.1
 

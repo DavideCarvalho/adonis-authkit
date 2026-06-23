@@ -4,7 +4,7 @@
 
 **Goal:** Adicionar uma página "Signing Keys" no console admin do `adonis-authkit-server` (SPA) para: ver as chaves JWKS (kids + idade + qual é a ativa), configurar a rotação automática (enabled/maxAgeDays/keep), rotacionar agora, e "desabilitar todas + criar uma nova". Cortar release e subir no entre-textos.
 
-**Architecture:** O backend já tem `rotateKeys(keep, retire)` (`retire:true` força keep=1 = desabilita todas + cria nova) e a setting `key_rotation`. Falta (a) o status expor a LISTA de kids, (b) a página no SPA, (c) o tipo `KeysStatus.keys` no SDK React. O SPA consome o SDK `@dudousxd/adonis-authkit-react` (hooks `useKeysQueryOptions`/`useRotateKeysMutationOptions`/`useSetSettingMutationOptions` + `authkitKeys`), com `@tanstack/react-query`.
+**Architecture:** O backend já tem `rotateKeys(keep, retire)` (`retire:true` força keep=1 = desabilita todas + cria nova) e a setting `key_rotation`. Falta (a) o status expor a LISTA de kids, (b) a página no SPA, (c) o tipo `KeysStatus.keys` no SDK React. O SPA consome o SDK `@adonis-agora/authkit-react` (hooks `useKeysQueryOptions`/`useRotateKeysMutationOptions`/`useSetSettingMutationOptions` + `authkitKeys`), com `@tanstack/react-query`.
 
 **Tech Stack:** AdonisJS, TypeScript, React 19, @tanstack/react-query v5, Vite (build do SPA → `build/src/host/ui-dist/`), changesets, pnpm.
 
@@ -98,7 +98,7 @@ export async function buildKeysStatus(
 
 - [ ] **Step 4: Testes** — estender `console_keys.spec.ts` e `api_keys.spec.ts`: nos testes de `status` que já existem, asseverar que `body.keys` é um array com 1 entrada após `ensure()`, com `keys[0].active === true` e `keys[0].kid` igual ao kid corrente; e após uma rotação com `keep:2`, que `keys.length === 2` e só o primeiro tem `active:true`. Seguir o helper `mgr(path)` e o `fakeCtx` já existentes no arquivo.
 
-Run: `cd ~/personal/adonis-authkit && pnpm --filter @dudousxd/adonis-authkit-server test 2>&1 | tail -20`
+Run: `cd ~/personal/adonis-authkit && pnpm --filter @adonis-agora/authkit-server test 2>&1 | tail -20`
 Expected: suíte verde, incluindo as novas asserções.
 
 - [ ] **Step 5: Commit**
@@ -112,7 +112,7 @@ git commit -m "feat(authkit-server): expõe lista de chaves managed no status de
 
 ### Task 2: SDK React — tipo `KeysStatus.keys`
 
-Espelha o novo campo no tipo do `@dudousxd/adonis-authkit-react` para o console (e consumidores) terem type-safety.
+Espelha o novo campo no tipo do `@adonis-agora/authkit-react` para o console (e consumidores) terem type-safety.
 
 **Files:**
 - Modify: `packages/authkit-react/src/client/types.ts:554` (interface `KeysStatus`)
@@ -141,7 +141,7 @@ Garantir que `ManagedKeyInfo` seja exportado do barrel do pacote se `KeysStatus`
 
 - [ ] **Step 2: Typecheck**
 
-Run: `cd ~/personal/adonis-authkit && pnpm --filter @dudousxd/adonis-authkit-react typecheck 2>&1 | tail -10`
+Run: `cd ~/personal/adonis-authkit && pnpm --filter @adonis-agora/authkit-react typecheck 2>&1 | tail -10`
 Expected: sem erros.
 
 - [ ] **Step 3: Commit**
@@ -204,7 +204,7 @@ import {
   useRotateKeysMutationOptions,
   useSetSettingMutationOptions,
   authkitKeys,
-} from '@dudousxd/adonis-authkit-react'
+} from '@adonis-agora/authkit-react'
 import { QueryBoundary } from '../components/QueryBoundary'
 import { Skeleton } from '../components/Skeleton'
 import { useToast } from '../lib/toast'
@@ -400,8 +400,8 @@ export function Keys() {
 
 - [ ] **Step 6: Build + typecheck do SPA**
 
-Run: `cd ~/personal/adonis-authkit && pnpm --filter @dudousxd/adonis-authkit-server build:ui && pnpm --filter @dudousxd/adonis-authkit-server typecheck 2>&1 | tail -15`
-Expected: build do Vite OK (gera `build/src/host/ui-dist/`), typecheck sem erros. Se `useSetSettingMutationOptions`/`authkitKeys` não forem exportados do SDK, conferir o barrel `@dudousxd/adonis-authkit-react` (já usados em `settings.containers.tsx`, então existem).
+Run: `cd ~/personal/adonis-authkit && pnpm --filter @adonis-agora/authkit-server build:ui && pnpm --filter @adonis-agora/authkit-server typecheck 2>&1 | tail -15`
+Expected: build do Vite OK (gera `build/src/host/ui-dist/`), typecheck sem erros. Se `useSetSettingMutationOptions`/`authkitKeys` não forem exportados do SDK, conferir o barrel `@adonis-agora/authkit-react` (já usados em `settings.containers.tsx`, então existem).
 
 - [ ] **Step 7: Commit**
 
@@ -422,8 +422,8 @@ git commit -m "feat(authkit-server): página Signing Keys no console admin"
 ```bash
 cd ~/personal/adonis-authkit && cat > .changeset/keys-console-page.md <<'EOF'
 ---
-"@dudousxd/adonis-authkit-server": minor
-"@dudousxd/adonis-authkit-react": minor
+"@adonis-agora/authkit-server": minor
+"@adonis-agora/authkit-react": minor
 ---
 
 Página "Signing Keys" no console admin: ver chaves JWKS (kids/idade/ativa), configurar rotação automática (enabled/maxAgeDays/keep), rotacionar agora e desabilitar todas + criar nova. O status de keys (`GET {base}/keys`) agora inclui a lista de chaves (`KeysStatus.keys`).
@@ -433,7 +433,7 @@ git add .changeset/keys-console-page.md && git commit -m "chore: changeset keys 
 
 - [ ] **Step 2: Suíte completa do server + typecheck dos dois pacotes**
 
-Run: `cd ~/personal/adonis-authkit && pnpm --filter @dudousxd/adonis-authkit-server test 2>&1 | tail -8 && pnpm --filter @dudousxd/adonis-authkit-react typecheck && pnpm --filter @dudousxd/adonis-authkit-server typecheck 2>&1 | tail -5`
+Run: `cd ~/personal/adonis-authkit && pnpm --filter @adonis-agora/authkit-server test 2>&1 | tail -8 && pnpm --filter @adonis-agora/authkit-react typecheck && pnpm --filter @adonis-agora/authkit-server typecheck 2>&1 | tail -5`
 Expected: suíte verde, typechecks limpos.
 
 ---
@@ -442,7 +442,7 @@ Expected: suíte verde, typechecks limpos.
 
 1. Finish branch → merge `feat-keys-console-page` em `main`.
 2. `pnpm changeset version` → commit "Version Packages" → push → CI publica (authkit-server e authkit-react minor).
-3. Em `streaming-educacao`: bumpar `@dudousxd/adonis-authkit-server` e `@dudousxd/adonis-authkit-react` pras versões novas, `pnpm install`, commit + push → deploy GuaraCloud.
+3. Em `streaming-educacao`: bumpar `@adonis-agora/authkit-server` e `@adonis-agora/authkit-react` pras versões novas, `pnpm install`, commit + push → deploy GuaraCloud.
 4. Verificar: logar em `/auth/admin`, abrir "Signing Keys", ver o kid `3a30c90d`, política 90d/keep2, testar "Rotacionar agora".
 
 ## Critérios de sucesso

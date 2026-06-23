@@ -1,4 +1,4 @@
-import type { ClientConfig } from '@dudousxd/adonis-authkit-core'
+import type { ClientConfig } from '@adonis-agora/authkit-core'
 import type { AdminClientsService } from '../host/admin_clients_service.js'
 import type { TokenEndpointAuthMethod } from '../host/admin_clients_service.js'
 

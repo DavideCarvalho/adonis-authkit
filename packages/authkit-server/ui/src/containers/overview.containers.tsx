@@ -1,6 +1,6 @@
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useOverviewQueryOptions } from '@dudousxd/adonis-authkit-react'
+import { useOverviewQueryOptions } from '@adonis-agora/authkit-react'
 import { TrendChart } from '../components/TrendChart'
 import { QueryBoundary } from '../components/QueryBoundary'
 import { SkeletonCards, SkeletonCard, SkeletonPanelTable, Skeleton } from '../components/Skeleton'

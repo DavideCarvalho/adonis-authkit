@@ -348,7 +348,7 @@ export default class AccountOrgsController {
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // JSON endpoints — consumed by @dudousxd/adonis-authkit-react hooks.
+  // JSON endpoints — consumed by @adonis-agora/authkit-react hooks.
   // ──────────────────────────────────────────────────────────────────────────
 
   /**

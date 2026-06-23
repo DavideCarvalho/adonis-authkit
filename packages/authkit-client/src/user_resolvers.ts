@@ -1,4 +1,4 @@
-import type { Identity } from '@dudousxd/adonis-authkit-core'
+import type { Identity } from '@adonis-agora/authkit-core'
 
 /**
  * Contexto opcional passado como 2º argumento de `resolveUser`.

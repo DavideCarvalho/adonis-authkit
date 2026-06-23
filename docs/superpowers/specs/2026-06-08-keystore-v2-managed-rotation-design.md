@@ -2,7 +2,7 @@
 
 **Data:** 2026-06-08
 **Status:** Draft (aguardando review)
-**Escopo:** `@dudousxd/adonis-authkit-server` — gestão das chaves de assinatura JWKS no modo `managed`.
+**Escopo:** `@adonis-agora/authkit-server` — gestão das chaves de assinatura JWKS no modo `managed`.
 
 ---
 
@@ -95,12 +95,12 @@ export interface KeystoreVault {
 | _custom_ | qualquer | app do usuário | — | conforme `encrypt` |
 
 **Packaging (decisão confirmada): cofres em packages separados.** O **core** (`authkit-server`) exporta a interface `KeystoreVault` + o codec/manager + os providers `file` (zero-dep, é o default) e `drive` (`@adonisjs/drive` já é peer estabelecido do repo, é o "bucket"). Os 4 cofres de verdade saem em packages dedicados, cada um puxando só o seu SDK:
-- `@dudousxd/adonis-authkit-vault-hashicorp`
-- `@dudousxd/adonis-authkit-vault-aws`
-- `@dudousxd/adonis-authkit-vault-gcp`
-- `@dudousxd/adonis-authkit-vault-azure`
+- `@adonis-agora/authkit-vault-hashicorp`
+- `@adonis-agora/authkit-vault-aws`
+- `@adonis-agora/authkit-vault-gcp`
+- `@adonis-agora/authkit-vault-azure`
 
-Resolução do `driver` string → provider: o core mantém um registry com import lazy por specifier-em-variável (`@dudousxd/adonis-authkit-vault-aws` etc.); package não instalado + driver selecionado → erro alto nomeando o package a instalar. Assim o core não carrega 4 SDKs de cloud, e cada cofre versiona/publica independente.
+Resolução do `driver` string → provider: o core mantém um registry com import lazy por specifier-em-variável (`@adonis-agora/authkit-vault-aws` etc.); package não instalado + driver selecionado → erro alto nomeando o package a instalar. Assim o core não carrega 4 SDKs de cloud, e cada cofre versiona/publica independente.
 
 > **Por que vaults reais default OFF:** eles já encriptam at-rest + fazem access control. Encriptar por cima (envelope) é **opcional** para defense-in-depth (o app guarda a chave, o vault guarda o ciphertext → nem o admin do vault lê), mas o default evita blobs opacos que o vault não introspecta. File/drive são blobs burros → encryption ON é o que protege a privada.
 
@@ -214,7 +214,7 @@ Back-compat: `store: 'tmp/x.json'` → `{ driver:'file', path:'tmp/x.json' }`. O
 2. **Decrypt fail / mudança de APP_KEY → throw alto, nunca auto-regenerar** (regenerar invalidaria todos os tokens vivos). Recuperação: restaurar APP_KEY ou `--force-new` explícito.
 3. **Multi-instância:** vault/bucket compartilhado + **poll de reload por instância** + **lock single-flight via `@adonisjs/lock`** (peer opt-in, store db/redis do host) para o scheduler; sem o package → assume single-instance e rotaciona sem lock. _(Confirmado — `@adonisjs/lock.acquireImmediately()`.)_
 4. **Scheduler é housekeeping da lib** (setInterval mínimo, callback com imports estáticos), **default OFF**, opt-in via dashboard. _(Alt: depender do scheduler do host + comando ace — contraria a preferência housekeeping-na-lib.)_
-5. **Cofres em packages separados** ✅ (confirmado). Core exporta a interface + `file` + `drive`; `hashicorp/aws/gcp/azure` em `@dudousxd/adonis-authkit-vault-*` dedicados, resolvidos por registry lazy; erro alto se driver selecionado mas package ausente. _(Trade-off aceito: mais overhead de publish, em troca de isolamento de deps.)_
+5. **Cofres em packages separados** ✅ (confirmado). Core exporta a interface + `file` + `drive`; `hashicorp/aws/gcp/azure` em `@adonis-agora/authkit-vault-*` dedicados, resolvidos por registry lazy; erro alto se driver selecionado mas package ausente. _(Trade-off aceito: mais overhead de publish, em troca de isolamento de deps.)_
 6. **Política default:** `maxAgeDays 90, keep 2, enabled false`.
 7. **Cofres no v1:** os 4 grandes (HashiCorp, AWS, GCP, Azure) ✅ (confirmado).
 

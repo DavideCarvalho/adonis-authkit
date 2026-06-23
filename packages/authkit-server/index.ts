@@ -200,7 +200,7 @@ export type { AuthThrottles, ThrottleMiddleware } from './src/host/rate_limit.js
 
 /**
  * Admin services compartilhados pelo console (B6/HTML), pela Admin REST API (R6)
- * e pelo driver `embedded` do @dudousxd/adonis-authkit-sdk (in-process).
+ * e pelo driver `embedded` do @adonis-agora/authkit-sdk (in-process).
  */
 export { AdminUsersService } from './src/host/admin_api/admin_users_service.js'
 export { AdminOrgsService } from './src/host/admin_api/admin_orgs_service.js'
@@ -276,7 +276,7 @@ export type {
 } from './src/accounts/account_store.js'
 
 /**
- * Configure hook + stubsRoot resolvidos pelo `node ace configure @dudousxd/adonis-authkit-server`.
+ * Configure hook + stubsRoot resolvidos pelo `node ace configure @adonis-agora/authkit-server`.
  * O comando do AdonisJS importa o entrypoint principal e procura por estes exports.
  */
 export { configure } from './commands/configure.js'

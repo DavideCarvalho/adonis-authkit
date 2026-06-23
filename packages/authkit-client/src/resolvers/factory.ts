@@ -1,4 +1,4 @@
-import type { SessionResolver } from '@dudousxd/adonis-authkit-core'
+import type { SessionResolver } from '@adonis-agora/authkit-core'
 import { JwtResolver } from './jwt_resolver.js'
 import { PatResolver } from './pat_resolver.js'
 import { OpaqueResolver } from './opaque_resolver.js'

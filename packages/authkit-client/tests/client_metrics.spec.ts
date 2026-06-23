@@ -1,7 +1,7 @@
 import { test } from '@japa/runner'
 import { Authenticator } from '../src/authenticator.js'
 import { OtelRecorder } from '../src/observability/client_metrics.js'
-import { AUTHKIT_METRICS } from '@dudousxd/adonis-authkit-core'
+import { AUTHKIT_METRICS } from '@adonis-agora/authkit-core'
 
 test.group('client metrics', () => {
   test('mede duração do resolve', async ({ assert }) => {

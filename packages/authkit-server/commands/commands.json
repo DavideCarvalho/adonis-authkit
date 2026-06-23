@@ -3,7 +3,7 @@
   "commands": [
     {
       "commandName": "authkit:eject",
-      "description": "Ejeta views Edge ou um controller do host-kit do @dudousxd/adonis-authkit-server para customização local",
+      "description": "Ejeta views Edge ou um controller do host-kit do @adonis-agora/authkit-server para customização local",
       "namespace": "authkit",
       "aliases": [],
       "flags": [

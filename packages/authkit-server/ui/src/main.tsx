@@ -5,7 +5,7 @@ import { NuqsAdapter } from 'nuqs/adapters/react'
 import {
   AuthkitClientProvider,
   createAuthkitQueryClient,
-} from '@dudousxd/adonis-authkit-react'
+} from '@adonis-agora/authkit-react'
 import { ThemeProvider } from './lib/theme'
 import { ToastProvider } from './lib/toast'
 import { App } from './app'

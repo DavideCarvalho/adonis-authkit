@@ -1,4 +1,4 @@
-# @dudousxd/adonis-authkit-client
+# @adonis-agora/authkit-client
 
 ## 0.8.0
 
@@ -12,14 +12,14 @@
 
 - Updated dependencies [93eaf69]
 - Updated dependencies [e2582b8]
-  - @dudousxd/adonis-authkit-core@0.6.0
+  - @adonis-agora/authkit-core@0.6.0
 
 ## 0.7.1
 
 ### Patch Changes
 
 - Updated dependencies [df4b41f]
-  - @dudousxd/adonis-authkit-core@0.5.0
+  - @adonis-agora/authkit-core@0.5.0
 
 ## 0.7.0
 
@@ -45,7 +45,7 @@
 
   Antes, fechar o gap de logout SSO em sessão cookie-based exigia escrever model + service + middleware à mão em cada app (e era fácil esquecer — deixando a sessão válida por até 30 dias após um logout SSO). Agora o AuthKit absorve isso:
 
-  **`@dudousxd/adonis-authkit-client`**
+  **`@adonis-agora/authkit-client`**
   - `lucidRevocationStore({ connection?, table? })` + interface `RevocationStore`: persistência append-only de revogações (sid/sub/revoked_at), sem precisar declarar model.
   - `BackchannelRevocationMiddleware` (subpath `/backchannel_revocation_middleware`): derruba a sessão revogada na próxima request.
   - `defineConfig({ backchannelLogout: { store } })`: deriva o `onBackchannelLogout` e expõe o store ao middleware.
@@ -56,7 +56,7 @@
   - `AuthkitClientManager.impersonate()` / `stopImpersonating()` / `isImpersonating()`: ciclo de impersonação (RFC 8693) gerenciado.
   - `registerOidcClient(router, { redirects, afterLogin, loginMiddleware })`: registra login/callback/logout (+back-channel) absorvendo PKCE/state/exchange/redirect-por-papel do OidcSessionController.
 
-  **`@dudousxd/adonis-authkit-server`**
+  **`@adonis-agora/authkit-server`**
   - Tabela `auth_session_revocations` gerenciada pelo `ensureAuthkitSchema()` (schema auto-manage) — compartilhável entre apps no mesmo banco.
   - Revogação em massa do admin (`AdminSessionsService.revokeAll`) grava uma revogação `sub` na tabela compartilhada → logout INSTANTÂNEO nos clients cookie-based (antes esperava o refresh token falhar, ~TTL do access token).
   - **Config locks (BREAKING semântico):** settings definidas no `defineConfig` ficam TRAVADAS — config vence e a UI/Admin API não pode alterá-las (`getSetting` → null p/ resolvers caírem no config; `setSetting`/`deleteSetting` → 423 `SettingLockedError`). O console mostra badge "definido via config" e desabilita o controle. Exports: `isSettingLocked`, `lockedSettingKeys`, `deriveLockedSettingKeys`, `SettingLockedError`.
@@ -82,14 +82,14 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @dudousxd/adonis-authkit-core@0.4.0
+  - @adonis-agora/authkit-core@0.4.0
 
 ## 0.4.1
 
 ### Patch Changes
 
 - Updated dependencies
-  - @dudousxd/adonis-authkit-core@0.3.1
+  - @adonis-agora/authkit-core@0.3.1
 
 ## 0.4.0
 
@@ -107,7 +107,7 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @dudousxd/adonis-authkit-core@0.3.0
+  - @adonis-agora/authkit-core@0.3.0
 
 ## 0.3.0
 
@@ -133,7 +133,7 @@
 ### Patch Changes
 
 - Updated dependencies [1872a30]
-  - @dudousxd/adonis-authkit-core@0.2.0
+  - @adonis-agora/authkit-core@0.2.0
 
 ## 0.2.0
 
@@ -172,7 +172,7 @@
 ### Patch Changes
 
 - Corrige os stubs de scaffolding (`node ace configure`):
-  - Usa os nomes renomeados dos pacotes (`@dudousxd/adonis-authkit-*`) — antes os
+  - Usa os nomes renomeados dos pacotes (`@adonis-agora/authkit-*`) — antes os
     stubs ainda importavam de `@authkit/*` (inexistente), gerando código quebrado.
   - O model `AuthUser` scaffoldado passa a usar a **conexão default da aplicação**
     (config/database.ts) por padrão, em vez de forçar `static connection = 'auth'`.

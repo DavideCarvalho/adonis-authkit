@@ -2,7 +2,7 @@ import { test } from '@japa/runner'
 import RedisMock from 'ioredis-mock'
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http'
 import { configProvider } from '@adonisjs/core'
-import { defineConfig as defineServer, adapters, OidcService } from '@dudousxd/adonis-authkit-server'
+import { defineConfig as defineServer, adapters, OidcService } from '@adonis-agora/authkit-server'
 import { resolvers } from '../src/resolvers/factory.js'
 import { buildAuthorizeUrl, generatePkce } from '../src/oidc_login.js'
 

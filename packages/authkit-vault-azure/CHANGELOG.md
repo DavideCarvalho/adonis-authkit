@@ -1,4 +1,4 @@
-# @dudousxd/adonis-authkit-vault-azure
+# @adonis-agora/authkit-vault-azure
 
 ## 0.2.0
 

@@ -6,7 +6,7 @@ import {
   useRemoveSettingMutationOptions,
   authkitKeys,
   type SettingEntry,
-} from '@dudousxd/adonis-authkit-react'
+} from '@adonis-agora/authkit-react'
 import { QueryBoundary } from '../components/QueryBoundary'
 import { Skeleton } from '../components/Skeleton'
 import { useToast } from '../lib/toast'

@@ -231,7 +231,7 @@ test.group('RuntimeSettings', () => {
 - [ ] **Step 1.2: Run test to verify it fails**
 
 ```bash
-cd /home/dudousxd/personal/adonis-authkit && pnpm --filter @dudousxd/adonis-authkit-server test -- --files tests/runtime_settings.spec.ts 2>&1 | tail -20
+cd /home/dudousxd/personal/adonis-authkit && pnpm --filter @adonis-agora/authkit-server test -- --files tests/runtime_settings.spec.ts 2>&1 | tail -20
 ```
 
 Expected: FAIL with "Cannot find module" or import errors.
@@ -429,7 +429,7 @@ export class RuntimeSettings implements SettingsCapability {
 - [ ] **Step 1.4: Run test to verify it passes**
 
 ```bash
-cd /home/dudousxd/personal/adonis-authkit && pnpm --filter @dudousxd/adonis-authkit-server test -- --files tests/runtime_settings.spec.ts 2>&1 | tail -30
+cd /home/dudousxd/personal/adonis-authkit && pnpm --filter @adonis-agora/authkit-server test -- --files tests/runtime_settings.spec.ts 2>&1 | tail -30
 ```
 
 Expected: All runtime_settings tests PASS.
@@ -437,7 +437,7 @@ Expected: All runtime_settings tests PASS.
 - [ ] **Step 1.5: Typecheck**
 
 ```bash
-cd /home/dudousxd/personal/adonis-authkit && pnpm --filter @dudousxd/adonis-authkit-server typecheck 2>&1 | tail -20
+cd /home/dudousxd/personal/adonis-authkit && pnpm --filter @adonis-agora/authkit-server typecheck 2>&1 | tail -20
 ```
 
 Expected: No errors.
@@ -530,7 +530,7 @@ test.group('resolveEffectiveBotProtection', () => {
 - [ ] **Step 2.2: Run to confirm new tests fail (import missing)**
 
 ```bash
-cd /home/dudousxd/personal/adonis-authkit && pnpm --filter @dudousxd/adonis-authkit-server test -- --files tests/runtime_settings.spec.ts 2>&1 | tail -20
+cd /home/dudousxd/personal/adonis-authkit && pnpm --filter @adonis-agora/authkit-server test -- --files tests/runtime_settings.spec.ts 2>&1 | tail -20
 ```
 
 Expected: Compilation error about `resolveEffectiveBotProtection` not exported.
@@ -606,7 +606,7 @@ import type { SettingsCapability } from './runtime_settings.js'
 - [ ] **Step 2.4: Run bot-protection tests**
 
 ```bash
-cd /home/dudousxd/personal/adonis-authkit && pnpm --filter @dudousxd/adonis-authkit-server test -- --files tests/runtime_settings.spec.ts 2>&1 | tail -30
+cd /home/dudousxd/personal/adonis-authkit && pnpm --filter @adonis-agora/authkit-server test -- --files tests/runtime_settings.spec.ts 2>&1 | tail -30
 ```
 
 Expected: All tests PASS.
@@ -1230,7 +1230,7 @@ test.group('AdminSettingsController', (group) => {
 - [ ] **Step 3.7: Run tests**
 
 ```bash
-cd /home/dudousxd/personal/adonis-authkit && pnpm --filter @dudousxd/adonis-authkit-server test -- --files tests/admin_settings.spec.ts 2>&1 | tail -40
+cd /home/dudousxd/personal/adonis-authkit && pnpm --filter @adonis-agora/authkit-server test -- --files tests/admin_settings.spec.ts 2>&1 | tail -40
 ```
 
 Expected: All admin settings tests PASS.
@@ -1570,7 +1570,7 @@ test.group('Admin REST API — /settings', (group) => {
 - [ ] **Step 4.5: Run API tests**
 
 ```bash
-cd /home/dudousxd/personal/adonis-authkit && pnpm --filter @dudousxd/adonis-authkit-server test -- --files tests/admin_settings.spec.ts 2>&1 | tail -40
+cd /home/dudousxd/personal/adonis-authkit && pnpm --filter @adonis-agora/authkit-server test -- --files tests/admin_settings.spec.ts 2>&1 | tail -40
 ```
 
 Expected: All tests PASS.
@@ -1697,7 +1697,7 @@ settings: (function() {
   return {
     async list(): Promise<ListSettingsResult> {
       // Lazy import RuntimeSettings from the server package
-      const { RuntimeSettings } = await import('@dudousxd/adonis-authkit-server') as { RuntimeSettings: any }
+      const { RuntimeSettings } = await import('@adonis-agora/authkit-server') as { RuntimeSettings: any }
       let db: any
       try { db = await app.container.make('lucid.db') } catch { return { data: [] } }
       const svc = new RuntimeSettings(db)
@@ -1712,7 +1712,7 @@ settings: (function() {
       }
     },
     async get(key: string): Promise<AuthkitSetting> {
-      const { RuntimeSettings } = await import('@dudousxd/adonis-authkit-server') as { RuntimeSettings: any }
+      const { RuntimeSettings } = await import('@adonis-agora/authkit-server') as { RuntimeSettings: any }
       let db: any
       try { db = await app.container.make('lucid.db') } catch { throw new Error('Runtime settings not available.') }
       const svc = new RuntimeSettings(db)
@@ -1721,7 +1721,7 @@ settings: (function() {
       return { key, value, updatedAt: null, updatedBy: null }
     },
     async set(key: string, value: unknown): Promise<AuthkitSetting> {
-      const { RuntimeSettings } = await import('@dudousxd/adonis-authkit-server') as { RuntimeSettings: any }
+      const { RuntimeSettings } = await import('@adonis-agora/authkit-server') as { RuntimeSettings: any }
       let db: any
       try { db = await app.container.make('lucid.db') } catch { throw new Error('Runtime settings not available.') }
       const svc = new RuntimeSettings(db)
@@ -1736,7 +1736,7 @@ settings: (function() {
       return { key, value: saved, updatedAt: new Date().toISOString(), updatedBy: null }
     },
     async delete(key: string): Promise<DeletedSetting> {
-      const { RuntimeSettings } = await import('@dudousxd/adonis-authkit-server') as { RuntimeSettings: any }
+      const { RuntimeSettings } = await import('@adonis-agora/authkit-server') as { RuntimeSettings: any }
       let db: any
       try { db = await app.container.make('lucid.db') } catch { throw new Error('Runtime settings not available.') }
       const svc = new RuntimeSettings(db)
@@ -1891,7 +1891,7 @@ Create `packages/authkit-server/tests/sdk_settings.spec.ts`:
 
 ```typescript
 import { test } from '@japa/runner'
-import { createRemoteAuthkit } from '@dudousxd/adonis-authkit-sdk'
+import { createRemoteAuthkit } from '@adonis-agora/authkit-sdk'
 
 function mockFetch(responses: Record<string, { status?: number; body: any }>): typeof fetch {
   return async (url: string, init: RequestInit = {}) => {
@@ -1964,7 +1964,7 @@ export type { SettingsCapability, SettingRow, RuntimeSettingsOptions } from './s
 - [ ] **Step 5.6: Run SDK tests**
 
 ```bash
-cd /home/dudousxd/personal/adonis-authkit && pnpm --filter @dudousxd/adonis-authkit-server test -- --files tests/sdk_settings.spec.ts 2>&1 | tail -30
+cd /home/dudousxd/personal/adonis-authkit && pnpm --filter @adonis-agora/authkit-server test -- --files tests/sdk_settings.spec.ts 2>&1 | tail -30
 ```
 
 Expected: All SDK settings tests PASS.
@@ -2120,7 +2120,7 @@ test('checkSettings: table present + no botProtection.verify → warn (orphan se
 - [ ] **Step 6.3: Run doctor tests**
 
 ```bash
-cd /home/dudousxd/personal/adonis-authkit && pnpm --filter @dudousxd/adonis-authkit-server test -- --files tests/doctor_checks.spec.ts 2>&1 | tail -20
+cd /home/dudousxd/personal/adonis-authkit && pnpm --filter @adonis-agora/authkit-server test -- --files tests/doctor_checks.spec.ts 2>&1 | tail -20
 ```
 
 Expected: All doctor tests PASS.

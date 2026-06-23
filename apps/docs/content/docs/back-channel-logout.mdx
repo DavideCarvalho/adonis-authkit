@@ -60,7 +60,7 @@ To know *which* local sessions to destroy, the client maps the OP's `sid`/`sub` 
 local session ids via a `SessionIndex`. Configure it and an `onBackchannelLogout` callback:
 
 ```ts title="config/authkit_client.ts"
-import { defineConfig, InMemorySessionIndex } from '@dudousxd/adonis-authkit-client'
+import { defineConfig, InMemorySessionIndex } from '@adonis-agora/authkit-client'
 
 const sessionIndex = new InMemorySessionIndex()
 

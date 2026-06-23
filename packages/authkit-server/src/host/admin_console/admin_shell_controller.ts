@@ -44,7 +44,7 @@ async function loadShell(): Promise<{ html: string; source: 'dist' | 'fallback' 
 p{color:#9292ac;font-size:13px;line-height:1.6}code{background:#12121f;border:1px solid rgba(151,151,196,.15);padding:2px 8px;border-radius:4px;font-family:monospace}</style>
 </head><body><div class="box">
 <h1>AuthKit Admin — Build Required</h1>
-<p>The React SPA has not been built yet. Run:<br><code>pnpm --filter @dudousxd/adonis-authkit-server build</code><br>
+<p>The React SPA has not been built yet. Run:<br><code>pnpm --filter @adonis-agora/authkit-server build</code><br>
 then restart the server.</p>
 </div></body></html>`
     _shellHtml = err

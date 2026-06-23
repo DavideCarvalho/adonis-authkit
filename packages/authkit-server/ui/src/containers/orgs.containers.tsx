@@ -7,7 +7,7 @@ import {
   useUpdateOrgMutationOptions,
   useDeleteOrgMutationOptions,
   authkitKeys,
-} from '@dudousxd/adonis-authkit-react'
+} from '@adonis-agora/authkit-react'
 import { Drawer } from '../components/Drawer'
 import { Pagination } from '../components/Pagination'
 import { QueryBoundary } from '../components/QueryBoundary'

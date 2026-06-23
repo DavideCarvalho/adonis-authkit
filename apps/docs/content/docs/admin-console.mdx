@@ -86,7 +86,7 @@ The console is a self-contained, Vite-built React application (nuqs URL state, d
 theme, violet accent `#625fff`) bundled **inside** the npm package — zero extra build step
 for the host. It is:
 
-- **Pre-built and bundled inside `@dudousxd/adonis-authkit-server`** — the Vite output lands
+- **Pre-built and bundled inside `@adonis-agora/authkit-server`** — the Vite output lands
   in `build/src/host/ui-dist/` at publish time and is served directly by `AdminShellController`.
   No separate build, no Vite dev server, no extra npm scripts on the host.
 - **nuqs URL state** — page navigation (`?view=users`) and per-page filters (search,
@@ -96,7 +96,7 @@ for the host. It is:
   shared filter params so state never leaks between views. Ephemeral UI (modals, forms)
   stays in React state.
 - **JSON API + TanStack Query** — the SPA fetches all data client-side via
-  `@dudousxd/adonis-authkit-react`'s typed client and TanStack Query hooks
+  `@adonis-agora/authkit-react`'s typed client and TanStack Query hooks
   (`useUsersQueryOptions`, `useCreateUserMutationOptions`, etc.). The API endpoints live
   under `{prefix}/api/*` and are protected by the same `adminGuard` as the shell.
   See **[Typed Client & TanStack Query](/docs/data-fetching)** for the full hook catalog —

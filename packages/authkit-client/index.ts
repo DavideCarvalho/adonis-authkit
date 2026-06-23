@@ -67,5 +67,5 @@ export type {
   JwtAccessTokenClaims,
 } from './src/verify_access_token.js'
 export type { TokenSet } from './src/types.js'
-export type { Identity } from '@dudousxd/adonis-authkit-core'
+export type { Identity } from '@adonis-agora/authkit-core'
 export { configure } from './commands/configure.js'

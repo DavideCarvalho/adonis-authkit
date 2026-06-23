@@ -416,7 +416,7 @@ must never throw into the request path. `lucidAuditSink(Model)` persists to a Lu
 
 ```ts title="config/authkit_server.ts"
 import AuditLog from '#models/audit_log'
-import { lucidAuditSink } from '@dudousxd/adonis-authkit-server'
+import { lucidAuditSink } from '@adonis-agora/authkit-server'
 
 audit: lucidAuditSink(AuditLog),
 ```
@@ -432,7 +432,7 @@ Use `buildEndSessionUrl` from the client to end the IdP SSO session and bounce t
 to a registered `post_logout_redirect_uri`:
 
 ```ts
-import { buildEndSessionUrl } from '@dudousxd/adonis-authkit-client'
+import { buildEndSessionUrl } from '@adonis-agora/authkit-client'
 
 response.redirect(
   buildEndSessionUrl({
@@ -756,12 +756,12 @@ Requests without a DPoP proof keep working unchanged.
 
 ### Client-side proof generation
 
-The `@dudousxd/adonis-authkit-client` package ships DPoP proof helpers (jose ES256). Generate
+The `@adonis-agora/authkit-client` package ships DPoP proof helpers (jose ES256). Generate
 a key pair once (persist the exported JWKs in the session), then mint a fresh proof per
 request:
 
 ```ts
-import { generateDpopKeyPair, createDpopProof } from '@dudousxd/adonis-authkit-client'
+import { generateDpopKeyPair, createDpopProof } from '@adonis-agora/authkit-client'
 
 // once per client/session
 const key = await generateDpopKeyPair()

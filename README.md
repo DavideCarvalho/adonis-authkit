@@ -23,10 +23,10 @@ It is built as an idiomatic wrapper around
 - **Hardening** — progressive account lockout, per-IP rate-limiting, audit logging with
   an events/webhook fan-out, new-login email alerts.
 - **Operability** — i18n (English + pt-BR built in), OpenTelemetry metrics, `authkit:doctor`
-  and `authkit:rotate-keys` commands, and a `@dudousxd/adonis-authkit-testing` helper package.
+  and `authkit:rotate-keys` commands, and a `@adonis-agora/authkit-testing` helper package.
 - **Client & React** — typed OIDC client resolvers (JWT/opaque/PAT) and a React
   `useAuth()` hook with role-gating components.
-- **Backend SDK** — `@dudousxd/adonis-authkit-sdk`: one typed interface with `remote`
+- **Backend SDK** — `@adonis-agora/authkit-sdk`: one typed interface with `remote`
   (HTTP Admin API) and `embedded` (in-process) drivers for managing users, clients,
   sessions, audit, and token verification.
 
@@ -34,33 +34,33 @@ It is built as an idiomatic wrapper around
 
 | Package | Description |
 | --- | --- |
-| [`@dudousxd/adonis-authkit-core`](./packages/authkit-core) | Shared contracts and types (`Identity`, `SessionResolver`, server config types, metric names). No runtime — consumed by the server and client packages. |
-| [`@dudousxd/adonis-authkit-server`](./packages/authkit-server) | AdonisJS OIDC/OAuth2 Authorization Server (Identity Provider): ejectable auth server with sessions, rate-limiting, MFA/TOTP, audit log, federated logout, and OpenTelemetry metrics. |
-| [`@dudousxd/adonis-authkit-client`](./packages/authkit-client) | OIDC relying-party (client) adapter: session-based authentication against an OpenID Connect identity provider, with JWT/PAT user resolvers and OpenTelemetry metrics. |
-| [`@dudousxd/adonis-authkit-react`](./packages/authkit-react) | Frontend ergonomics for AdonisJS + Inertia + React apps: a typed `useAuth()` hook, role-gating hooks, and gating components. |
-| [`@dudousxd/adonis-authkit-sdk`](./packages/authkit-sdk) | Backend SDK over the Admin API with one typed interface and two drivers: `remote` (HTTP/Bearer) and `embedded` (in-process). |
+| [`@adonis-agora/authkit-core`](./packages/authkit-core) | Shared contracts and types (`Identity`, `SessionResolver`, server config types, metric names). No runtime — consumed by the server and client packages. |
+| [`@adonis-agora/authkit-server`](./packages/authkit-server) | AdonisJS OIDC/OAuth2 Authorization Server (Identity Provider): ejectable auth server with sessions, rate-limiting, MFA/TOTP, audit log, federated logout, and OpenTelemetry metrics. |
+| [`@adonis-agora/authkit-client`](./packages/authkit-client) | OIDC relying-party (client) adapter: session-based authentication against an OpenID Connect identity provider, with JWT/PAT user resolvers and OpenTelemetry metrics. |
+| [`@adonis-agora/authkit-react`](./packages/authkit-react) | Frontend ergonomics for AdonisJS + Inertia + React apps: a typed `useAuth()` hook, role-gating hooks, and gating components. |
+| [`@adonis-agora/authkit-sdk`](./packages/authkit-sdk) | Backend SDK over the Admin API with one typed interface and two drivers: `remote` (HTTP/Bearer) and `embedded` (in-process). |
 
 ## Install
 
 Run the Authorization Server in your IdP app:
 
 ```bash
-node ace add @dudousxd/adonis-authkit-server
+node ace add @adonis-agora/authkit-server
 ```
 
 Consume it from a client app:
 
 ```bash
-node ace add @dudousxd/adonis-authkit-client
+node ace add @adonis-agora/authkit-client
 ```
 
 Add the React ergonomics to an Inertia + React frontend:
 
 ```bash
-pnpm add @dudousxd/adonis-authkit-react
+pnpm add @adonis-agora/authkit-react
 ```
 
-`@dudousxd/adonis-authkit-core` is pulled in transitively by the server and client
+`@adonis-agora/authkit-core` is pulled in transitively by the server and client
 packages — you rarely install it directly.
 
 ## Documentation

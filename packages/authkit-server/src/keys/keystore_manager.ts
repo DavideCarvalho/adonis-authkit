@@ -2,7 +2,7 @@ import { generateSigningJwk, planRotation, type PersistedKeystore, type Rotation
 import type { KeystoreCodec } from './keystore_codec.js'
 import { FileKeystoreVault, DriveKeystoreVault, LucidKeystoreVault, RedisKeystoreVault, HashicorpVaultKeystoreVault, LazyExternalVault, type KeystoreVault } from './keystore_vault.js'
 import type { SigningAlg } from './jwks_manager.js'
-import type { KeystoreStoreConfig } from '@dudousxd/adonis-authkit-core'
+import type { KeystoreStoreConfig } from '@adonis-agora/authkit-core'
 
 /**
  * Único caminho de I/O do keystore managed: compõe um {@link KeystoreVault} (onde
@@ -64,9 +64,9 @@ export class KeystoreManager {
 
 /** Packages-irmãos que entregam os cofres de cloud (planos futuros). */
 const CLOUD_DRIVER_PACKAGE: Record<string, string> = {
-  'aws-secrets-manager': '@dudousxd/adonis-authkit-vault-aws',
-  'gcp-secret-manager': '@dudousxd/adonis-authkit-vault-gcp',
-  'azure-key-vault': '@dudousxd/adonis-authkit-vault-azure',
+  'aws-secrets-manager': '@adonis-agora/authkit-vault-aws',
+  'gcp-secret-manager': '@adonis-agora/authkit-vault-gcp',
+  'azure-key-vault': '@adonis-agora/authkit-vault-azure',
 }
 
 /** Acesso mínimo ao app que o resolver precisa (paths + container p/ lucid/redis). */

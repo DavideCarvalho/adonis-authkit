@@ -12,11 +12,11 @@ of registration helpers.
 ## The packages
 
 <Cards>
-  <Card title="@dudousxd/adonis-authkit-server" description="The Authorization Server: OIDC provider, host-kit routes/pages, account store, PAT, MFA, admin API/console, audit, rate-limit." />
-  <Card title="@dudousxd/adonis-authkit-client" description="The relying-party kit: defineConfig, JWT/PAT resolvers, login/callback/logout flow, per-request Identity middleware." />
-  <Card title="@dudousxd/adonis-authkit-core" description="Shared, transport-agnostic types (Identity, ClientConfig, TtlConfig, JwksConfig) and the metrics contracts." />
-  <Card title="@dudousxd/adonis-authkit-sdk" description="A typed client for the Admin API, in remote (HTTP) or embedded (in-process) mode." />
-  <Card title="@dudousxd/adonis-authkit-react" description="Frontend kit for Inertia + React: useAuth(), headless hooks, and pre-built components." href="/docs/react" />
+  <Card title="@adonis-agora/authkit-server" description="The Authorization Server: OIDC provider, host-kit routes/pages, account store, PAT, MFA, admin API/console, audit, rate-limit." />
+  <Card title="@adonis-agora/authkit-client" description="The relying-party kit: defineConfig, JWT/PAT resolvers, login/callback/logout flow, per-request Identity middleware." />
+  <Card title="@adonis-agora/authkit-core" description="Shared, transport-agnostic types (Identity, ClientConfig, TtlConfig, JwksConfig) and the metrics contracts." />
+  <Card title="@adonis-agora/authkit-sdk" description="A typed client for the Admin API, in remote (HTTP) or embedded (in-process) mode." />
+  <Card title="@adonis-agora/authkit-react" description="Frontend kit for Inertia + React: useAuth(), headless hooks, and pre-built components." href="/docs/react" />
   <Card title="React Components" description="Pre-built, themeable components — SignInButton, SignOutButton, UserButton, UserProfile, AuthorizedApps, Avatar." href="/docs/components" />
 </Cards>
 
@@ -43,14 +43,14 @@ of registration helpers.
   fail-safe semantics. See [Security](/docs/security#bot-protection).
 - **Admin REST API** — a versioned `/api/authkit/v1` (users / clients / sessions / orgs /
   stats / audit / token-verify) secured by API keys, plus a server-rendered admin console.
-- **SDK** — `@dudousxd/adonis-authkit-sdk`, a typed client for the Admin API that runs in
+- **SDK** — `@adonis-agora/authkit-sdk`, a typed client for the Admin API that runs in
   remote (HTTP) or embedded (in-process) mode.
 - **Device flow, DPoP, PAR & step-up** — OAuth device authorization grant, sender-constrained
   tokens, pushed authorization requests, and re-authentication for sensitive actions.
 - **Account linking & dynamic registration** — link multiple identity providers and let
   clients self-register via RFC 7591.
 - **Events & webhooks** — subscribe to lifecycle events in-process or via outbound webhooks.
-- **React frontend** — `@dudousxd/adonis-authkit-react` with `useAuth()`, headless hooks,
+- **React frontend** — `@adonis-agora/authkit-react` with `useAuth()`, headless hooks,
   organization hooks, `PasswordStrengthMeter`, and pre-built components (see [React](/docs/react)).
 - **Audit logging** — a pluggable `AuditSink` receives security-relevant events
   (`login.success`, `pat.issued`, `impersonation`, `mfa.enabled`, …).

@@ -1,5 +1,5 @@
 import { timingSafeEqual } from 'node:crypto'
-import { NoopRecorder, type ClientConfig, type MetricsRecorder } from '@dudousxd/adonis-authkit-core'
+import { NoopRecorder, type ClientConfig, type MetricsRecorder } from '@adonis-agora/authkit-core'
 import Koa from 'koa'
 import mount from 'koa-mount'
 import type { ResolvedServerConfig } from '../define_config.js'

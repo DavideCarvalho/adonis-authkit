@@ -18,7 +18,7 @@ keeps working — hiding only the pieces that genuinely need the AuthKit server.
                                     └──────────────────────┘
 ```
 
-## 1. Server side — `@dudousxd/adonis-authkit-client`
+## 1. Server side — `@adonis-agora/authkit-client`
 
 The client toolkit is a full OIDC relying party: authorization-code + PKCE login,
 session management, stateless JWT verification via remote JWKS, RP-initiated and
@@ -38,7 +38,7 @@ import {
   buildAuthorizeUrl,
   exchangeCode,
   buildEndSessionUrl,
-} from '@dudousxd/adonis-authkit-client'
+} from '@adonis-agora/authkit-client'
 
 const endpoints = await discoverEndpoints(issuer) // cached per issuer (15 min)
 

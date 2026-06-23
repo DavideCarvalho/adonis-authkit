@@ -479,7 +479,7 @@ Expected: tudo verde.
 ```bash
 cat > ../../.changeset/keystore-v2-fatia-c.md <<'EOF'
 ---
-'@dudousxd/adonis-authkit-server': minor
+'@adonis-agora/authkit-server': minor
 ---
 
 feat: hot-reload das chaves de assinatura JWKS — a chave rotacionada passa a

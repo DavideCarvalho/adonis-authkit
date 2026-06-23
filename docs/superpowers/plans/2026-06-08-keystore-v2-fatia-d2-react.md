@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Expor a gestão de rotação de chave JWKS no `@dudousxd/adonis-authkit-react`: método tipado `client.admin.keys.{status,rotate}` (console API session-authed), hooks headless TanStack (`useKeysQueryOptions`/`useRotateKeysMutationOptions`), e um componente `<KeyRotation>`. Tudo consome a **Console JSON API** (`{adminBase}/api/keys`) entregue na Fatia D1 — sem API key no browser.
+**Goal:** Expor a gestão de rotação de chave JWKS no `@adonis-agora/authkit-react`: método tipado `client.admin.keys.{status,rotate}` (console API session-authed), hooks headless TanStack (`useKeysQueryOptions`/`useRotateKeysMutationOptions`), e um componente `<KeyRotation>`. Tudo consome a **Console JSON API** (`{adminBase}/api/keys`) entregue na Fatia D1 — sem API key no browser.
 
 **Architecture:** Mirror exato dos padrões existentes do `authkit-react`: tipos em `client/types.ts`, recurso `admin.keys` no `AuthkitClient` (`client.ts`), query key em `queries/keys.ts`, hooks options-object em `queries/admin/index.ts`, componente `createElement`+BEM em `components/`. O componente usa `useQuery`/`useMutation` com os hooks headless e invalida o cache no sucesso. A política (`enabled/maxAgeDays/keep`) é salva via o recurso de settings genérico já existente (`client.admin.settings`).
 
@@ -304,7 +304,7 @@ npm run build           # o build do package sai limpo
 ```bash
 cat > ../../.changeset/keystore-v2-fatia-d2.md <<'EOF'
 ---
-'@dudousxd/adonis-authkit-react': minor
+'@adonis-agora/authkit-react': minor
 ---
 
 feat: gestão de rotação de chave JWKS no React SDK. Novo `client.admin.keys.status()`

@@ -7,7 +7,7 @@
  *
  * ```ts
  * // config/shield.ts
- * import { authkitCsrfExceptions } from '@dudousxd/adonis-authkit-server'
+ * import { authkitCsrfExceptions } from '@adonis-agora/authkit-server'
  * csrf: {
  *   enabled: true,
  *   exceptRoutes: (ctx) => authkitCsrfExceptions(ctx.request.url(), { mountPath: '/oidc' })

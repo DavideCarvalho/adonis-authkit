@@ -86,13 +86,13 @@ function fakeCtx(app: ApplicationService): any {
  * the SAME underlying services the Admin API controllers use
  * (`AdminUsersService`, `AdminClientsService`, `AdminSessionsService`,
  * `TokenVerifyService`), producing identical return shapes. The
- * `@dudousxd/adonis-authkit-server` package is imported LAZILY so remote-mode
+ * `@adonis-agora/authkit-server` package is imported LAZILY so remote-mode
  * users never need it installed (it's an optional peer dependency).
  */
 export async function createEmbeddedAuthkit(opts: EmbeddedOptions): Promise<Authkit> {
   const { app } = opts
   // Lazy import: only remote-mode consumers may not have the server installed.
-  const server = await import('@dudousxd/adonis-authkit-server')
+  const server = await import('@adonis-agora/authkit-server')
   const {
     AdminUsersService,
     AdminClientsService,
@@ -475,7 +475,7 @@ export async function createEmbeddedAuthkit(opts: EmbeddedOptions): Promise<Auth
     })(),
     settings: {
       async list(): Promise<ListSettingsResult> {
-        const { RuntimeSettings } = await import('@dudousxd/adonis-authkit-server') as unknown as { RuntimeSettings: any }
+        const { RuntimeSettings } = await import('@adonis-agora/authkit-server') as unknown as { RuntimeSettings: any }
         let db: any
         try { db = await app.container.make('lucid.db') } catch { return { data: [] } }
         const connection: string | undefined = (cfg.accountStore as any)?.connectionName
@@ -491,7 +491,7 @@ export async function createEmbeddedAuthkit(opts: EmbeddedOptions): Promise<Auth
         }
       },
       async get(key: string): Promise<AuthkitSetting> {
-        const { RuntimeSettings } = await import('@dudousxd/adonis-authkit-server') as unknown as { RuntimeSettings: any }
+        const { RuntimeSettings } = await import('@adonis-agora/authkit-server') as unknown as { RuntimeSettings: any }
         let db: any
         try { db = await app.container.make('lucid.db') } catch { throw new Error('Runtime settings not available.') }
         const connection: string | undefined = (cfg.accountStore as any)?.connectionName
@@ -501,7 +501,7 @@ export async function createEmbeddedAuthkit(opts: EmbeddedOptions): Promise<Auth
         return { key, value, updatedAt: null, updatedBy: null }
       },
       async set(key: string, value: unknown): Promise<AuthkitSetting> {
-        const { RuntimeSettings } = await import('@dudousxd/adonis-authkit-server') as unknown as { RuntimeSettings: any }
+        const { RuntimeSettings } = await import('@adonis-agora/authkit-server') as unknown as { RuntimeSettings: any }
         let db: any
         try { db = await app.container.make('lucid.db') } catch { throw new Error('Runtime settings not available.') }
         const connection: string | undefined = (cfg.accountStore as any)?.connectionName
@@ -517,7 +517,7 @@ export async function createEmbeddedAuthkit(opts: EmbeddedOptions): Promise<Auth
         return { key, value: saved, updatedAt: new Date().toISOString(), updatedBy: null }
       },
       async delete(key: string): Promise<DeletedSetting> {
-        const { RuntimeSettings } = await import('@dudousxd/adonis-authkit-server') as unknown as { RuntimeSettings: any }
+        const { RuntimeSettings } = await import('@adonis-agora/authkit-server') as unknown as { RuntimeSettings: any }
         let db: any
         try { db = await app.container.make('lucid.db') } catch { throw new Error('Runtime settings not available.') }
         const connection: string | undefined = (cfg.accountStore as any)?.connectionName
@@ -535,7 +535,7 @@ export async function createEmbeddedAuthkit(opts: EmbeddedOptions): Promise<Auth
     keys: {
       async status(): Promise<KeysStatus> {
         // Build a settings capability for the policy (optional; falls back to defaults when absent).
-        const { RuntimeSettings } = await import('@dudousxd/adonis-authkit-server') as unknown as { RuntimeSettings: any }
+        const { RuntimeSettings } = await import('@adonis-agora/authkit-server') as unknown as { RuntimeSettings: any }
         let settingsSvc: any = null
         try {
           const db = await app.container.make('lucid.db')

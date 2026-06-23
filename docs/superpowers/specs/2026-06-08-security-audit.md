@@ -1,6 +1,6 @@
 # Auditoria de Segurança — adonis-authkit IdP (2026-06-08)
 
-Auditoria defensiva do Authorization Server OIDC (`@dudousxd/adonis-authkit-server` sobre `oidc-provider@9.8.4`) + integração prod `entre-textos`. 7 dimensões em paralelo, leitura do código real. `file:line` referem-se a `packages/authkit-server/src/...` salvo indicação.
+Auditoria defensiva do Authorization Server OIDC (`@adonis-agora/authkit-server` sobre `oidc-provider@9.8.4`) + integração prod `entre-textos`. 7 dimensões em paralelo, leitura do código real. `file:line` referem-se a `packages/authkit-server/src/...` salvo indicação.
 
 **TL;DR:** nenhuma falha CRITICAL óbvia; a postura base é boa (PKCE S256 obrigatório, sem `none` alg, refresh reuse-detection, PAT/recovery codes hasheados, keystore sólido, guards admin aplicados, sem SQLi, CORS fechado). Mas há **5 HIGH** reais (escalonamento de privilégio, IDOR cross-org, token-exchange sem gate, enumeration por timing) e um tema recorrente de **drift entre settings do console e comportamento real** + **defesa-em-profundidade faltando** (sudo em ações admin, CSP, revogar sessões no reset).
 

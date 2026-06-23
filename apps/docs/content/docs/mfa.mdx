@@ -19,7 +19,7 @@ mfaIssuer: 'Acme',
 ```
 
 ```ts title="app/models/auth_user.ts"
-import { withMfa } from '@dudousxd/adonis-authkit-server'
+import { withMfa } from '@adonis-agora/authkit-server'
 
 export default class AuthUser extends compose(BaseModel, withAuthUser(), withCredentials(), withMfa()) {}
 ```

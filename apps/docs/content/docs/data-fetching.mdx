@@ -3,7 +3,7 @@ title: Typed Client & TanStack Query
 description: createAuthkitClient, AuthkitClientProvider, query/mutation hooks, query keys, and error handling for the admin and account APIs.
 ---
 
-`@dudousxd/adonis-authkit-react` ships a **typed HTTP client** and a full set of
+`@adonis-agora/authkit-react` ships a **typed HTTP client** and a full set of
 **TanStack Query hooks** for both the admin console API and the account self-service API.
 This lets your React UI fetch and mutate data with full TypeScript inference — no hand-written
 fetch calls, no manual cache invalidation boilerplate.
@@ -29,7 +29,7 @@ is for **management screens** (admin UIs, account pages) that need rich, reactiv
 `@tanstack/react-query` is a **peer dependency**. Install it alongside the package:
 
 ```bash
-pnpm add @dudousxd/adonis-authkit-react @tanstack/react-query
+pnpm add @adonis-agora/authkit-react @tanstack/react-query
 ```
 
 ## Provider setup
@@ -41,7 +41,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import {
   createAuthkitQueryClient,
   AuthkitClientProvider,
-} from '@dudousxd/adonis-authkit-react'
+} from '@adonis-agora/authkit-react'
 
 const queryClient = createAuthkitQueryClient()
 
@@ -72,7 +72,7 @@ configure the base URLs and CSRF token automatically. In SSR or tests, pass an e
 client:
 
 ```tsx
-import { createAuthkitClient, AuthkitClientProvider } from '@dudousxd/adonis-authkit-react'
+import { createAuthkitClient, AuthkitClientProvider } from '@adonis-agora/authkit-react'
 
 const client = createAuthkitClient({ baseUrl: '/admin/api', csrfToken: 'test-token' })
 
@@ -87,7 +87,7 @@ const client = createAuthkitClient({ baseUrl: '/admin/api', csrfToken: 'test-tok
 `window.__AUTHKIT__` for URLs and CSRF by default.
 
 ```ts
-import { createAuthkitClient } from '@dudousxd/adonis-authkit-react'
+import { createAuthkitClient } from '@adonis-agora/authkit-react'
 
 // Browser — reads window.__AUTHKIT__ automatically
 const client = createAuthkitClient()
@@ -176,7 +176,7 @@ operations (`PATCH`, `POST`, `DELETE`) send `X-CSRF-TOKEN` automatically.
 Every non-2xx response throws `AuthkitClientError`:
 
 ```ts
-import { AuthkitClientError } from '@dudousxd/adonis-authkit-react'
+import { AuthkitClientError } from '@adonis-agora/authkit-react'
 
 try {
   await client.admin.users.get('u_missing')
@@ -310,7 +310,7 @@ import {
   useDisableUserMutationOptions,
   useDeleteUserMutationOptions,
   AuthkitClientError,
-} from '@dudousxd/adonis-authkit-react'
+} from '@adonis-agora/authkit-react'
 
 export default function UsersPage() {
   const queryClient = useQueryClient()
@@ -371,7 +371,7 @@ export default function UsersPage() {
 `queryClient.invalidateQueries`:
 
 ```ts
-import { authkitKeys } from '@dudousxd/adonis-authkit-react'
+import { authkitKeys } from '@adonis-agora/authkit-react'
 
 // Invalidate all admin data
 queryClient.invalidateQueries({ queryKey: authkitKeys.admin.all })
@@ -447,7 +447,7 @@ const client = createAuthkitClient({
 ## Account self-service API
 
 The account API (`/account/api/*`) is a session-authenticated JSON API served by
-`@dudousxd/adonis-authkit-server`. It is **not** the admin API — it only exposes data and
+`@adonis-agora/authkit-server`. It is **not** the admin API — it only exposes data and
 actions for the currently signed-in user.
 
 Authentication uses the account console session cookie (set at login). All mutating

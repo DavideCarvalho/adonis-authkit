@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { configProvider } from '@adonisjs/core'
 import { RuntimeException } from '@adonisjs/core/exceptions'
 import type { ApplicationService } from '@adonisjs/core/types'
-import type { MetricsRecorder } from '@dudousxd/adonis-authkit-core'
+import type { MetricsRecorder } from '@adonis-agora/authkit-core'
 import { OidcService } from '../src/provider/oidc_service.js'
 import { KeystoreReloadPoller } from '../src/provider/keystore_reload.js'
 import { KeyRotationScheduler } from '../src/provider/key_rotation_scheduler.js'
@@ -90,7 +90,7 @@ export default class AuthkitServerProvider {
       )) as ResolvedServerConfig | null
       if (!config) {
         throw new RuntimeException(
-          'Config inválido em "config/authkit.ts". Use o método defineConfig de @dudousxd/adonis-authkit-server.'
+          'Config inválido em "config/authkit.ts". Use o método defineConfig de @adonis-agora/authkit-server.'
         )
       }
 
@@ -107,7 +107,7 @@ export default class AuthkitServerProvider {
       if (!appKey || typeof appKey !== 'string') {
         throw new RuntimeException(
           'APP_KEY ausente: defina `export const appKey = new Secret(env.get(\'APP_KEY\'))` em config/app.ts. ' +
-            'O @dudousxd/adonis-authkit-server precisa dele para assinar os cookies do oidc-provider.'
+            'O @adonis-agora/authkit-server precisa dele para assinar os cookies do oidc-provider.'
         )
       }
       const metrics = await this.app.container.make('authkit.metrics')
@@ -153,7 +153,7 @@ export default class AuthkitServerProvider {
       const config = (await configProvider.resolve(this.app, value)) as ResolvedServerConfig | null
       if (!config?.accountStore) {
         throw new RuntimeException(
-          'accountStore não configurado em "config/authkit.ts". Use defineConfig de @dudousxd/adonis-authkit-server.'
+          'accountStore não configurado em "config/authkit.ts". Use defineConfig de @adonis-agora/authkit-server.'
         )
       }
       return config.accountStore

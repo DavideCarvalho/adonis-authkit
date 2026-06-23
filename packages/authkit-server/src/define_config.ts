@@ -9,7 +9,7 @@ import type {
   KeystoreStoreConfig,
   ObservabilityConfig,
   TtlConfig,
-} from '@dudousxd/adonis-authkit-core'
+} from '@adonis-agora/authkit-core'
 import { generateJwks } from './keys/jwks_manager.js'
 import { KeystoreManager, resolveKeystoreVault } from './keys/keystore_manager.js'
 import { KeystoreCodec } from './keys/keystore_codec.js'

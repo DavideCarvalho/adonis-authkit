@@ -11,7 +11,7 @@ up.
 
 ```ts title="start/routes.ts"
 import router from '@adonisjs/core/services/router'
-import { registerAuthHost } from '@dudousxd/adonis-authkit-server'
+import { registerAuthHost } from '@adonis-agora/authkit-server'
 
 registerAuthHost(router, {
   mountPath: '/oidc',
@@ -119,7 +119,7 @@ The flow screens (login, consent, signup, account, MFA, etc.) are rendered throu
   built-in Edge views from the `authkit::` virtual disk. Nothing needs to exist in your
   project; the views ship inside the package.
 - **`inertiaRenderer({ prefix, views })`** — renders through Inertia/React using pages
-  scaffolded into your project by `node ace add @dudousxd/adonis-authkit-server --ui=react`.
+  scaffolded into your project by `node ace add @adonis-agora/authkit-server --ui=react`.
   `prefix` is a subdirectory under your Inertia pages root (e.g. `'authkit'` → resolves
   to `inertia/pages/authkit/<view>.tsx`). `views` is an allowlist of the screen names you
   have React pages for; any other screen falls back to the built-in Edge view.
@@ -132,7 +132,7 @@ The flow screens (login, consent, signup, account, MFA, etc.) are rendered throu
 </Callout>
 
 ```ts title="config/authkit.ts (Edge — default, zero setup)"
-import { defineConfig } from '@dudousxd/adonis-authkit-server'
+import { defineConfig } from '@adonis-agora/authkit-server'
 
 export default defineConfig({
   // No `render` key: built-in Edge views are served automatically.
@@ -140,7 +140,7 @@ export default defineConfig({
 ```
 
 ```ts title="config/authkit.ts (React — after running node ace add --ui=react)"
-import { defineConfig, inertiaRenderer } from '@dudousxd/adonis-authkit-server'
+import { defineConfig, inertiaRenderer } from '@adonis-agora/authkit-server'
 
 export default defineConfig({
   // ...

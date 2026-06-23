@@ -1,4 +1,4 @@
-# @dudousxd/adonis-authkit-server
+# @adonis-agora/authkit-server
 
 ## 0.33.1
 
@@ -58,7 +58,7 @@
   - **REST API** `GET/POST /api/authkit/v1/keys` (Bearer key) — para backend/automação;
   - **Console API** `GET/POST {adminPrefix}/api/keys` (sessão + role admin) — para o browser.
 
-  `@dudousxd/adonis-authkit-sdk` expõe `authkit.keys.status()` / `authkit.keys.rotate()`
+  `@adonis-agora/authkit-sdk` expõe `authkit.keys.status()` / `authkit.keys.rotate()`
   (drivers remote + embedded). `@adonisjs/lock` é peer OPCIONAL.
 
   Default OFF: nada rotaciona automaticamente até um admin habilitar `key_rotation`.
@@ -79,7 +79,7 @@
 
 - Updated dependencies [93eaf69]
 - Updated dependencies [e2582b8]
-  - @dudousxd/adonis-authkit-core@0.6.0
+  - @adonis-agora/authkit-core@0.6.0
 
 ## 0.28.0
 
@@ -118,7 +118,7 @@ action="/account/logout">` com CSRF, que faz `session.forget` e redireciona pro
   `/account/login` de verdade.
 
 - Updated dependencies [df4b41f]
-  - @dudousxd/adonis-authkit-core@0.5.0
+  - @adonis-agora/authkit-core@0.5.0
 
 ## 0.27.0
 
@@ -178,7 +178,7 @@ action="/account/logout">` com CSRF, que faz `session.forget` e redireciona pro
 
   Antes, fechar o gap de logout SSO em sessão cookie-based exigia escrever model + service + middleware à mão em cada app (e era fácil esquecer — deixando a sessão válida por até 30 dias após um logout SSO). Agora o AuthKit absorve isso:
 
-  **`@dudousxd/adonis-authkit-client`**
+  **`@adonis-agora/authkit-client`**
   - `lucidRevocationStore({ connection?, table? })` + interface `RevocationStore`: persistência append-only de revogações (sid/sub/revoked_at), sem precisar declarar model.
   - `BackchannelRevocationMiddleware` (subpath `/backchannel_revocation_middleware`): derruba a sessão revogada na próxima request.
   - `defineConfig({ backchannelLogout: { store } })`: deriva o `onBackchannelLogout` e expõe o store ao middleware.
@@ -189,7 +189,7 @@ action="/account/logout">` com CSRF, que faz `session.forget` e redireciona pro
   - `AuthkitClientManager.impersonate()` / `stopImpersonating()` / `isImpersonating()`: ciclo de impersonação (RFC 8693) gerenciado.
   - `registerOidcClient(router, { redirects, afterLogin, loginMiddleware })`: registra login/callback/logout (+back-channel) absorvendo PKCE/state/exchange/redirect-por-papel do OidcSessionController.
 
-  **`@dudousxd/adonis-authkit-server`**
+  **`@adonis-agora/authkit-server`**
   - Tabela `auth_session_revocations` gerenciada pelo `ensureAuthkitSchema()` (schema auto-manage) — compartilhável entre apps no mesmo banco.
   - Revogação em massa do admin (`AdminSessionsService.revokeAll`) grava uma revogação `sub` na tabela compartilhada → logout INSTANTÂNEO nos clients cookie-based (antes esperava o refresh token falhar, ~TTL do access token).
   - **Config locks (BREAKING semântico):** settings definidas no `defineConfig` ficam TRAVADAS — config vence e a UI/Admin API não pode alterá-las (`getSetting` → null p/ resolvers caírem no config; `setSetting`/`deleteSetting` → 423 `SettingLockedError`). O console mostra badge "definido via config" e desabilita o controle. Exports: `isSettingLocked`, `lockedSettingKeys`, `deriveLockedSettingKeys`, `SettingLockedError`.
@@ -256,13 +256,13 @@ action="/account/logout">` com CSRF, que faz `session.forget` e redireciona pro
 
 - feat(account): global sign-out — revoke all sessions across all devices
 
-  **Server (`@dudousxd/adonis-authkit-server`):**
+  **Server (`@adonis-agora/authkit-server`):**
   - `POST /account/api/sessions/revoke-all` — revokes all OIDC sessions/grants for the account
     and terminates the current Adonis console session (global logout).
     Returns `{ ok: true, signedOut: true }` so the UI can redirect to login.
     Emits audit event `account.signed_out_all`.
 
-  **React SDK (`@dudousxd/adonis-authkit-react`):**
+  **React SDK (`@adonis-agora/authkit-react`):**
   - `RevokeAllResult` type (`{ ok, signedOut, ...rest }`)
   - `client.account.sessions.revokeAll()` method
   - `useAccountRevokeAllSessionsMutationOptions()` hook (account namespace;
@@ -279,7 +279,7 @@ action="/account/logout">` com CSRF, que faz `session.forget` e redireciona pro
   - `resolveEffectiveOrganizationsPolicy` and `resolveEffectiveRolesCatalog` accept optional `orgId` and resolve org → global → default. All other resolvers remain global-only.
   - Console JSON API (`/api/settings`) and Admin REST API accept `?organizationId=` query param for scoped reads/writes/deletes.
   - Org detail drawer in console admin shows "Organization Settings" section for org-scopable keys (`organizations_policy`, `roles_catalog`) with source badges (from org / from global / default) and inline JSON editor.
-  - `@dudousxd/adonis-authkit-react` client: `settings.list(orgId?)`, `settings.set(key, value, orgId?)`, `settings.remove(key, orgId?)`. `authkitKeys.admin.settings(orgId?)`. `useSettingsQueryOptions(orgId?)`, `useSetSettingMutationOptions(orgId?)`, `useRemoveSettingMutationOptions(orgId?)`.
+  - `@adonis-agora/authkit-react` client: `settings.list(orgId?)`, `settings.set(key, value, orgId?)`, `settings.remove(key, orgId?)`. `authkitKeys.admin.settings(orgId?)`. `useSettingsQueryOptions(orgId?)`, `useSetSettingMutationOptions(orgId?)`, `useRemoveSettingMutationOptions(orgId?)`.
   - `SettingEntry` type gains `organizationId: string | null` field.
   - Existing rows default to `organization_id = NULL` (global) — no data migration needed.
 
@@ -305,7 +305,7 @@ action="/account/logout">` com CSRF, que faz `session.forget` e redireciona pro
   Todos os endpoints retornam 404 `capability_unsupported` quando o store não
   suporta organizações. Lógica reutiliza `AdminOrgsService` (sem duplicação).
 
-  **SDK `@dudousxd/adonis-authkit-react`:**
+  **SDK `@adonis-agora/authkit-react`:**
   - `client.admin.orgs`: novos métodos `addMember`, `removeMember`,
     `updateMemberRole`, `createInvitation`, `revokeInvitation`
   - Novos hooks: `useAddOrgMemberMutationOptions`, `useRemoveOrgMemberMutationOptions`,
@@ -362,7 +362,7 @@ action="/account/logout">` com CSRF, que faz `session.forget` e redireciona pro
 
 - Typed front-end client, TanStack Query hooks, and account JSON API:
   - **Account self-service JSON API** (`/account/api/*`): session-authed, CSRF-protected endpoints for profile, security overview, password/email change, sessions, authorized apps, MFA/passkeys, PATs and organizations — the data layer for client-side account screens. Login/consent stay postback for security.
-  - **Typed front-end client** in `@dudousxd/adonis-authkit-react`: `createAuthkitClient()` (auto-reads `window.__AUTHKIT__`) exposing `client.admin.*` and `client.account.*`, plus `AuthkitClientError`.
+  - **Typed front-end client** in `@adonis-agora/authkit-react`: `createAuthkitClient()` (auto-reads `window.__AUTHKIT__`) exposing `client.admin.*` and `client.account.*`, plus `AuthkitClientError`.
   - **TanStack Query hooks** (Tuyau-style): ready-made `use*QueryOptions`/`use*MutationOptions` for every admin and account endpoint, structured `authkitKeys` for invalidation, `AuthkitClientProvider` + `createAuthkitQueryClient()`. `@tanstack/react-query` is a new peer dependency.
   - **Admin console SPA** now consumes these hooks internally (client-side fetching via TanStack Query) instead of a bespoke fetch wrapper.
 
@@ -432,7 +432,7 @@ action="/account/logout">` com CSRF, que faz `session.forget` e redireciona pro
 ### Patch Changes
 
 - Updated dependencies
-  - @dudousxd/adonis-authkit-core@0.4.0
+  - @adonis-agora/authkit-core@0.4.0
 
 ## 0.15.2
 
@@ -508,7 +508,7 @@ action="/account/logout">` com CSRF, que faz `session.forget` e redireciona pro
 ### Patch Changes
 
 - Updated dependencies
-  - @dudousxd/adonis-authkit-core@0.3.1
+  - @adonis-agora/authkit-core@0.3.1
 
 ## 0.10.0
 
@@ -538,7 +538,7 @@ action="/account/logout">` com CSRF, que faz `session.forget` e redireciona pro
 ### Patch Changes
 
 - Updated dependencies
-  - @dudousxd/adonis-authkit-core@0.3.0
+  - @adonis-agora/authkit-core@0.3.0
 
 ## 0.8.0
 
@@ -586,7 +586,7 @@ action="/account/logout">` com CSRF, que faz `session.forget` e redireciona pro
   Authorization Grant (RFC 8628), DPoP, PAR e step-up acr/MFA; `authkit:doctor`
   e `authkit:rotate-keys` (keystore de JWKS com rotação).
 - 1872a30: DX & ops infra:
-  - New package `@dudousxd/adonis-authkit-testing` — test helpers for host apps:
+  - New package `@adonis-agora/authkit-testing` — test helpers for host apps:
     `createTestIdentity`, `mintTestIdToken` + `serveJwks`/`testJwks`/`jwksFromKey`
     (real RS256 tokens validated by a local JWKS), `fakeAuthenticator`, and a
     capability-aware `fakeAccountStore`.
@@ -600,7 +600,7 @@ action="/account/logout">` com CSRF, que faz `session.forget` e redireciona pro
 ### Patch Changes
 
 - Updated dependencies [1872a30]
-  - @dudousxd/adonis-authkit-core@0.2.0
+  - @adonis-agora/authkit-core@0.2.0
 
 ## 0.3.0
 
@@ -651,7 +651,7 @@ action="/account/logout">` com CSRF, que faz `session.forget` e redireciona pro
 ### Patch Changes
 
 - Corrige os stubs de scaffolding (`node ace configure`):
-  - Usa os nomes renomeados dos pacotes (`@dudousxd/adonis-authkit-*`) — antes os
+  - Usa os nomes renomeados dos pacotes (`@adonis-agora/authkit-*`) — antes os
     stubs ainda importavam de `@authkit/*` (inexistente), gerando código quebrado.
   - O model `AuthUser` scaffoldado passa a usar a **conexão default da aplicação**
     (config/database.ts) por padrão, em vez de forçar `static connection = 'auth'`.

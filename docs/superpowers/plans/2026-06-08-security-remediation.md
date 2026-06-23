@@ -4,7 +4,7 @@
 
 **Runtime confirmado:** entre-textos SEM backchannel_logout_uri (gap aberto); ambos clients têm token-exchange (public); LIMITER_STORE=redis ✓; passkeyFirst OFF ✓; email unique case-sensitive (varchar, sem citext).
 
-**Escopo:** corrigir HIGH + MEDIUM + LOWs claros + runtime. Cada grupo = 1+ commit atômico, com teste, suíte verde antes de seguir. Regra: `pnpm --filter @dudousxd/adonis-authkit-server test` verde no fim de cada grupo. Não dar push até o fim.
+**Escopo:** corrigir HIGH + MEDIUM + LOWs claros + runtime. Cada grupo = 1+ commit atômico, com teste, suíte verde antes de seguir. Regra: `pnpm --filter @adonis-agora/authkit-server test` verde no fim de cada grupo. Não dar push até o fim.
 
 ---
 

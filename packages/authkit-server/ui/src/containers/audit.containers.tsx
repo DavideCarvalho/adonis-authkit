@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useAuditQueryOptions, type AuditEventEntry } from '@dudousxd/adonis-authkit-react'
+import { useAuditQueryOptions, type AuditEventEntry } from '@adonis-agora/authkit-react'
 import { Pagination } from '../components/Pagination'
 import { QueryBoundary } from '../components/QueryBoundary'
 import { SkeletonPanelTable } from '../components/Skeleton'

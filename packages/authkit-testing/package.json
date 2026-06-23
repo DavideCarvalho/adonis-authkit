@@ -1,5 +1,5 @@
 {
-  "name": "@dudousxd/adonis-authkit-testing",
+  "name": "@adonis-agora/authkit-testing",
   "version": "0.2.5",
   "description": "Test helpers for apps built on AuthKit: mint real signed ID tokens with a local JWKS, fake authenticators and account stores, and build valid identities — so host apps can test auth flows without booting an IdP.",
   "license": "MIT",
@@ -41,11 +41,11 @@
     "test": "node --import=@poppinss/ts-exec bin/test.ts"
   },
   "dependencies": {
-    "@dudousxd/adonis-authkit-core": "workspace:*",
+    "@adonis-agora/authkit-core": "workspace:*",
     "jose": "^5.9.0"
   },
   "devDependencies": {
-    "@dudousxd/adonis-authkit-client": "workspace:*",
+    "@adonis-agora/authkit-client": "workspace:*",
     "@adonisjs/tsconfig": "catalog:adonis",
     "@japa/assert": "catalog:",
     "@japa/runner": "catalog:",

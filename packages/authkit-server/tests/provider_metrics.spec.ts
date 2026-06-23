@@ -3,7 +3,7 @@ import RedisMock from 'ioredis-mock'
 import { configProvider } from '@adonisjs/core'
 import { defineConfig, adapters, OidcService } from '../index.js'
 import { OtelRecorder } from '../src/observability/otel_recorder.js'
-import { AUTHKIT_METRICS } from '@dudousxd/adonis-authkit-core'
+import { AUTHKIT_METRICS } from '@adonis-agora/authkit-core'
 import { fakeAccountStore } from './bootstrap.js'
 
 test.group('provider metrics wiring', () => {

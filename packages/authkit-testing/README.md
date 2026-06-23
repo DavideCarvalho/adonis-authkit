@@ -1,11 +1,11 @@
-# @dudousxd/adonis-authkit-testing
+# @adonis-agora/authkit-testing
 
 Test helpers so **host apps** built on AuthKit can test auth flows without booting
 an IdP. Mint real signed ID tokens validated by a local JWKS, fake the
 `ctx.auth` authenticator, fake an account store, and build valid identities.
 
 ```sh
-pnpm add -D @dudousxd/adonis-authkit-testing
+pnpm add -D @adonis-agora/authkit-testing
 ```
 
 ## API
@@ -15,7 +15,7 @@ pnpm add -D @dudousxd/adonis-authkit-testing
 Returns a valid `Identity` with sane defaults.
 
 ```ts
-import { createTestIdentity } from '@dudousxd/adonis-authkit-testing'
+import { createTestIdentity } from '@adonis-agora/authkit-testing'
 
 const identity = createTestIdentity({ globalRoles: ['ADMIN'] })
 ```
@@ -26,8 +26,8 @@ Mints a **real** RS256-signed JWT plus the public JWKS that validates it. Return
 `{ token, key, jwks }`.
 
 ```ts
-import { mintTestIdToken, serveJwks } from '@dudousxd/adonis-authkit-testing'
-import { resolvers } from '@dudousxd/adonis-authkit-client'
+import { mintTestIdToken, serveJwks } from '@adonis-agora/authkit-testing'
+import { resolvers } from '@adonis-agora/authkit-client'
 
 const { token, jwks } = await mintTestIdToken({
   issuer: 'https://idp.test',
@@ -59,7 +59,7 @@ Object satisfying the client's `Authenticator` surface, for injecting into
 `ctx.auth` in controller tests.
 
 ```ts
-import { fakeAuthenticator } from '@dudousxd/adonis-authkit-testing'
+import { fakeAuthenticator } from '@adonis-agora/authkit-testing'
 
 const auth = fakeAuthenticator({
   identity: createTestIdentity({ globalRoles: ['ADMIN'] }),
@@ -79,7 +79,7 @@ the server's `supportsMfa` / `supportsPasskeys` / `supportsAccountSecurity`
 type guards.
 
 ```ts
-import { fakeAccountStore } from '@dudousxd/adonis-authkit-testing'
+import { fakeAccountStore } from '@adonis-agora/authkit-testing'
 
 const store = fakeAccountStore({
   account: { id: 'u1', email: 'a@b.com', globalRoles: ['ADMIN'] },

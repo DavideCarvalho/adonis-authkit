@@ -1,9 +1,9 @@
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useClientsQueryOptions } from '@dudousxd/adonis-authkit-react'
+import { useClientsQueryOptions } from '@adonis-agora/authkit-react'
 import { QueryBoundary } from '../components/QueryBoundary'
 import { Skeleton } from '../components/Skeleton'
-import type { AdminClient } from '@dudousxd/adonis-authkit-react'
+import type { AdminClient } from '@adonis-agora/authkit-react'
 
 // ── Skeleton for client cards ─────────────────────────────────────────────────
 

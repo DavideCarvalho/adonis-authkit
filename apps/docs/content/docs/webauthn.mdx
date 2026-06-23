@@ -45,7 +45,7 @@ import {
   withCredentials,
   withMfa,
   withWebauthnCredential,
-} from '@dudousxd/adonis-authkit-server'
+} from '@adonis-agora/authkit-server'
 
 export default class AuthUser extends compose(
   BaseModel,
@@ -108,7 +108,7 @@ node ace authkit:settings:set auth_methods '{"passkeyAutofill":false}'
 ```
 
 **Custom login screens (React hosts):** use `usePasskeyAutofill` from
-`@dudousxd/adonis-authkit-react` to replicate the same behaviour on a fully custom login
+`@adonis-agora/authkit-react` to replicate the same behaviour on a fully custom login
 page. See [React — usePasskeyAutofill](/docs/react#8-usepasskeyautofill).
 
 **Browser support:** Chrome 108+, Safari 16+, Edge 108+. Browsers without support silently

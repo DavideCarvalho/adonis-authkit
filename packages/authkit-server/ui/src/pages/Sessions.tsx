@@ -4,7 +4,7 @@ import { useQueryState, parseAsInteger } from 'nuqs'
 import {
   useRevokeAllSessionsMutationOptions,
   authkitKeys,
-} from '@dudousxd/adonis-authkit-react'
+} from '@adonis-agora/authkit-react'
 import { useToast } from '../lib/toast'
 import { SessionsTableContainer, useSessionsTotal } from '../containers/sessions.containers'
 

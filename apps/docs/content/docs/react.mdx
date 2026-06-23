@@ -3,7 +3,7 @@ title: React (Frontend)
 description: useAuth, gating components, and role helpers for Inertia + React.
 ---
 
-`@dudousxd/adonis-authkit-react` is the complete frontend SDK for AuthKit. It exports
+`@adonis-agora/authkit-react` is the complete frontend SDK for AuthKit. It exports
 three orthogonal layers:
 
 | Layer | What it does |
@@ -16,13 +16,13 @@ The first two layers are covered here. The typed client and TanStack hooks have 
 page: **[Typed Client & TanStack Query](/docs/data-fetching)**.
 
 The package does **not** authenticate — it consumes the auth state the AdonisJS host already
-resolved (via [`@dudousxd/adonis-authkit-client`](/docs/client)) and shared as an Inertia
+resolved (via [`@adonis-agora/authkit-client`](/docs/client)) and shared as an Inertia
 shared-prop.
 
 ## Install
 
 ```bash
-pnpm add @dudousxd/adonis-authkit-react
+pnpm add @adonis-agora/authkit-react
 ```
 
 `react`, `react-dom`, and `@inertiajs/react` are peer dependencies (the app provides them).
@@ -57,7 +57,7 @@ The `user` object must match `AuthUser`:
 ## 2. useAuth()
 
 ```tsx
-import { useAuth } from '@dudousxd/adonis-authkit-react'
+import { useAuth } from '@adonis-agora/authkit-react'
 
 function Header() {
   const { user, isAuthenticated, hasGlobalRole } = useAuth()
@@ -79,7 +79,7 @@ function Header() {
 ## 3. Gating components
 
 ```tsx
-import { Authenticated, Guest, Can } from '@dudousxd/adonis-authkit-react'
+import { Authenticated, Guest, Can } from '@adonis-agora/authkit-react'
 
 <Authenticated fallback={<LoginButton />}>
   <Dashboard />
@@ -111,7 +111,7 @@ Outside Inertia (tests, Storybook), inject the value manually. The context takes
 over the page props when present:
 
 ```tsx
-import { AuthProvider } from '@dudousxd/adonis-authkit-react'
+import { AuthProvider } from '@adonis-agora/authkit-react'
 
 <AuthProvider value={{ user, globalRoles: user.globalRoles }}>
   <App />
@@ -126,7 +126,7 @@ real routes**. In a *client-app* topology (the app is not the IdP), point these 
 routes that redirect/proxy to the IdP.
 
 ```tsx
-import { AuthkitProvider } from '@dudousxd/adonis-authkit-react'
+import { AuthkitProvider } from '@adonis-agora/authkit-react'
 
 <AuthkitProvider
   config={{
@@ -167,7 +167,7 @@ import {
   useOrgInvitations,
   usePasswordStrength,
   usePasskeyAutofill,
-} from '@dudousxd/adonis-authkit-react'
+} from '@adonis-agora/authkit-react'
 
 // OIDC is redirect-based — these navigate the browser.
 const { signIn } = useSignIn()
@@ -229,7 +229,7 @@ background. The browser shows passkey suggestions directly inside an `<input>` e
 called with the serialised assertion.
 
 ```tsx
-import { usePasskeyAutofill } from '@dudousxd/adonis-authkit-react'
+import { usePasskeyAutofill } from '@adonis-agora/authkit-react'
 
 function LoginForm({ uid, csrfToken }: { uid: string; csrfToken: string }) {
   usePasskeyAutofill({
@@ -303,7 +303,7 @@ import {
   hasAppRole,
   hasAnyAppRole,
   hasAllAppRoles,
-} from '@dudousxd/adonis-authkit-react'
+} from '@adonis-agora/authkit-react'
 
 hasGlobalRole(user, 'ADMIN')
 hasAnyGlobalRole(user, ['ADMIN', 'TEACHER'])

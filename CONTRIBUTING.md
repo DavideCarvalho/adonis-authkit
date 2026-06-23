@@ -26,7 +26,7 @@ pnpm smoke          # packaging smoke: imports every built module
 Run a single package:
 
 ```sh
-pnpm --filter @dudousxd/adonis-authkit-server test
+pnpm --filter @adonis-agora/authkit-server test
 ```
 
 Format before committing:

@@ -1,7 +1,7 @@
 import { test } from '@japa/runner'
 import { OtelRecorder } from '../src/observability/otel_recorder.js'
 import MetricsController from '../src/observability/metrics_controller.js'
-import { AUTHKIT_METRICS } from '@dudousxd/adonis-authkit-core'
+import { AUTHKIT_METRICS } from '@adonis-agora/authkit-core'
 
 test.group('metrics route', () => {
   test('json() devolve o snapshot agregado', async ({ assert }) => {

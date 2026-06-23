@@ -5,7 +5,7 @@ import {
   useSetSettingMutationOptions,
   useRemoveSettingMutationOptions,
   authkitKeys,
-} from '@dudousxd/adonis-authkit-react'
+} from '@adonis-agora/authkit-react'
 import { FieldRow, Toggle, ChipsEditor } from '../components/forms'
 import { useToast } from '../lib/toast'
 

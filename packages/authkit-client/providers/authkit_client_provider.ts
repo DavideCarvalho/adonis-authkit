@@ -7,7 +7,7 @@ import { refreshTokens, exchangeToken } from '../src/oidc_login.js'
 import { validateLogoutToken } from '../src/backchannel_logout.js'
 import type { ResolvedClientConfig } from '../src/define_config.js'
 import type { TokenSet } from '../src/types.js'
-import type { SessionResolver } from '@dudousxd/adonis-authkit-core'
+import type { SessionResolver } from '@adonis-agora/authkit-core'
 
 /** Margem (ms) antes do `expiresAt` em que o access token é renovado proativamente. */
 const REFRESH_SKEW_MS = 60_000
@@ -199,7 +199,7 @@ export default class AuthkitClientProvider {
       const config = (await configProvider.resolve(this.app, value)) as ResolvedClientConfig | null
       if (!config) {
         throw new RuntimeException(
-          'Config inválido em "config/authkit_client.ts". Use defineConfig de @dudousxd/adonis-authkit-client.'
+          'Config inválido em "config/authkit_client.ts". Use defineConfig de @adonis-agora/authkit-client.'
         )
       }
       return new AuthkitClientManager(config)

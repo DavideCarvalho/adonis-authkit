@@ -1,6 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
-import type { Identity, SessionResolver } from '@dudousxd/adonis-authkit-core'
-import { AUTHKIT_METRICS, NoopRecorder, type MetricsRecorder } from '@dudousxd/adonis-authkit-core'
+import type { Identity, SessionResolver } from '@adonis-agora/authkit-core'
+import { AUTHKIT_METRICS, NoopRecorder, type MetricsRecorder } from '@adonis-agora/authkit-core'
 
 /** Contexto opcional repassado a `resolveUser` (extensão backward-compatible). */
 export interface ResolveUserContext {
@@ -96,7 +96,7 @@ export class Authenticator {
 
   /**
    * Monta o objeto pronto para compartilhar com o frontend (ex.: Inertia share),
-   * casando com o `AuthSharedProps` que o `@dudousxd/adonis-authkit-react` consome.
+   * casando com o `AuthSharedProps` que o `@adonis-agora/authkit-react` consome.
    * `abilities` é a união de app roles + global roles (conveniente p/ policies/CASL).
    * Retorna `null` quando não há sessão.
    */

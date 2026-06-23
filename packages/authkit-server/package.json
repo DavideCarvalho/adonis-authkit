@@ -1,5 +1,5 @@
 {
-  "name": "@dudousxd/adonis-authkit-server",
+  "name": "@adonis-agora/authkit-server",
   "version": "0.33.1",
   "description": "AdonisJS OIDC/OAuth2 provider (Identity Provider) toolkit: ejectable auth server with sessions, rate-limiting, MFA/TOTP, audit log, federated logout and OpenTelemetry metrics.",
   "license": "MIT",
@@ -43,12 +43,12 @@
     "./commands/configure": "./build/commands/configure.js"
   },
   "adonisjs": {
-    "types": "@dudousxd/adonis-authkit-server",
+    "types": "@adonis-agora/authkit-server",
     "providers": [
-      "@dudousxd/adonis-authkit-server/authkit_server_provider"
+      "@adonis-agora/authkit-server/authkit_server_provider"
     ],
     "commands": [
-      "@dudousxd/adonis-authkit-server/commands"
+      "@adonis-agora/authkit-server/commands"
     ]
   },
   "scripts": {
@@ -87,7 +87,7 @@
     }
   },
   "dependencies": {
-    "@dudousxd/adonis-authkit-core": "workspace:*",
+    "@adonis-agora/authkit-core": "workspace:*",
     "@simplewebauthn/server": "^13.3.1",
     "@vinejs/vine": "catalog:",
     "jose": "^5.9.0",
@@ -126,7 +126,7 @@
     "react": "catalog:frontend",
     "react-dom": "catalog:frontend",
     "vite": "catalog:",
-    "@dudousxd/adonis-authkit-react": "workspace:*",
+    "@adonis-agora/authkit-react": "workspace:*",
     "@tanstack/react-query": "catalog:frontend",
     "react-error-boundary": "catalog:frontend",
     "nuqs": "2.8.9",

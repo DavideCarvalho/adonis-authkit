@@ -1,4 +1,4 @@
-# @dudousxd/adonis-authkit-vault-gcp
+# @adonis-agora/authkit-vault-gcp
 
 ## 0.2.0
 

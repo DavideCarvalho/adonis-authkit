@@ -5,7 +5,7 @@ import { createContext, useContext } from 'react'
  * `useAuthorizedApps`, passkeys) consultam.
  *
  * Os defaults apontam para as rotas reais do host-kit
- * (`@dudousxd/adonis-authkit-server`). Numa topologia de *client app*
+ * (`@adonis-agora/authkit-server`). Numa topologia de *client app*
  * (o app não é o IdP), aponte-os para rotas locais do app que
  * redirecionam/proxiam para o IdP.
  */
@@ -34,7 +34,7 @@ export interface AuthkitEndpoints {
  * - `'authkit'` (default) — o backend roda o authkit-server: TODOS os
  *   componentes funcionam (perfil, orgs, apps autorizados, passkeys…).
  * - `'external'` — o backend autentica contra um IdP de terceiros
- *   (Keycloak, Auth0, Okta… tipicamente via `@dudousxd/adonis-authkit-client`).
+ *   (Keycloak, Auth0, Okta… tipicamente via `@adonis-agora/authkit-client`).
  *   Os componentes que dependem da REST surface do authkit-server
  *   (`UserProfile`, `OrganizationSwitcher`, `OrganizationProfile`,
  *   `AuthorizedApps`) degradam para `null` em vez de chamar endpoints que

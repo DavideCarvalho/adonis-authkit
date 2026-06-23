@@ -371,8 +371,8 @@ cd ../authkit-core && npm run build && npx tsc --noEmit && cd ../authkit-server
 ```bash
 cat > ../../.changeset/keystore-v2-vaults-lucid-redis.md <<'EOF'
 ---
-'@dudousxd/adonis-authkit-server': minor
-'@dudousxd/adonis-authkit-core': minor
+'@adonis-agora/authkit-server': minor
+'@adonis-agora/authkit-core': minor
 ---
 
 feat: cofres do keystore JWKS em Lucid e Redis. Novos drivers `jwks.store`:

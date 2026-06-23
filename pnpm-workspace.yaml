@@ -157,3 +157,6 @@ catalogs:
     "tailwindcss": "4.3.0"
     "@tailwindcss/vite": "4.3.0"
     "@tailwindcss/postcss": "4.3.0"
+
+minimumReleaseAgeExclude:
+  - '@adonis-agora/telescope@0.1.0'

@@ -183,6 +183,9 @@ importers:
       '@adonis-agora/authkit-server':
         specifier: workspace:*
         version: link:../authkit-server
+      '@adonis-agora/resilience':
+        specifier: ^0.1.0
+        version: 0.1.0(@adonisjs/core@7.3.3(@adonisjs/assembler@8.4.0(typescript@6.0.3))(@vinejs/vine@4.4.0)(edge.js@6.5.1)(youch@4.1.1))(@adonisjs/lucid@22.4.2(@adonisjs/assembler@8.4.0(typescript@6.0.3))(@adonisjs/core@7.3.3(@adonisjs/assembler@8.4.0(typescript@6.0.3))(@vinejs/vine@4.4.0)(edge.js@6.5.1)(youch@4.1.1))(@vinejs/vine@4.4.0)(luxon@3.7.2))(ioredis@5.4.2)
       '@adonisjs/core':
         specifier: catalog:adonis
         version: 7.3.3(@adonisjs/assembler@8.4.0(typescript@6.0.3))(@vinejs/vine@4.4.0)(edge.js@6.5.1)(youch@4.1.1)
@@ -548,6 +551,22 @@ importers:
         version: 6.0.3
 
 packages:
+
+  '@adonis-agora/resilience@0.1.0':
+    resolution: {integrity: sha512-8W7VstG/tVGyBp1ewBgbNoFvxVPi/JrmoM2mVDbO1/0Oo9nmTE/jB4OsmsX9dpDQqSRZZMGDDOOTUpNRXS0fNg==}
+    engines: {node: '>=20.6.0'}
+    peerDependencies:
+      '@adonisjs/core': ^6.12.0
+      '@adonisjs/lucid': ^21.0.0
+      '@adonisjs/redis': ^9.0.0
+      ioredis: ^5.0.0
+    peerDependenciesMeta:
+      '@adonisjs/lucid':
+        optional: true
+      '@adonisjs/redis':
+        optional: true
+      ioredis:
+        optional: true
 
   '@adonis-agora/telescope@0.1.0':
     resolution: {integrity: sha512-XoXTaYJ1kH/Pv0wKAISOyg3NNDklqDnhna9wD2tSg1vNiOI/eaYrDondo9EQ2xZp1hoSHvjfgJbTL6hbm1UnkQ==}
@@ -5689,6 +5708,13 @@ packages:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
 
 snapshots:
+
+  '@adonis-agora/resilience@0.1.0(@adonisjs/core@7.3.3(@adonisjs/assembler@8.4.0(typescript@6.0.3))(@vinejs/vine@4.4.0)(edge.js@6.5.1)(youch@4.1.1))(@adonisjs/lucid@22.4.2(@adonisjs/assembler@8.4.0(typescript@6.0.3))(@adonisjs/core@7.3.3(@adonisjs/assembler@8.4.0(typescript@6.0.3))(@vinejs/vine@4.4.0)(edge.js@6.5.1)(youch@4.1.1))(@vinejs/vine@4.4.0)(luxon@3.7.2))(ioredis@5.4.2)':
+    dependencies:
+      '@adonisjs/core': 7.3.3(@adonisjs/assembler@8.4.0(typescript@6.0.3))(@vinejs/vine@4.4.0)(edge.js@6.5.1)(youch@4.1.1)
+    optionalDependencies:
+      '@adonisjs/lucid': 22.4.2(@adonisjs/assembler@8.4.0(typescript@6.0.3))(@adonisjs/core@7.3.3(@adonisjs/assembler@8.4.0(typescript@6.0.3))(@vinejs/vine@4.4.0)(edge.js@6.5.1)(youch@4.1.1))(@vinejs/vine@4.4.0)(better-sqlite3@11.10.0)(luxon@3.7.2)
+      ioredis: 5.4.2
 
   '@adonis-agora/telescope@0.1.0(@adonisjs/core@7.3.3(@adonisjs/assembler@8.4.0(typescript@6.0.3))(@vinejs/vine@4.4.0)(edge.js@6.5.1)(youch@4.1.1))(@adonisjs/lucid@22.4.2(@adonisjs/assembler@8.4.0(typescript@6.0.3))(@adonisjs/core@7.3.3(@adonisjs/assembler@8.4.0(typescript@6.0.3))(@vinejs/vine@4.4.0)(edge.js@6.5.1)(youch@4.1.1))(@vinejs/vine@4.4.0)(better-sqlite3@11.10.0)(luxon@3.7.2))':
     dependencies:

@@ -60,10 +60,14 @@
   "peerDependencies": {
     "@adonisjs/core": "catalog:adonis",
     "@adonisjs/session": "catalog:adonis",
-    "@adonisjs/lucid": "catalog:adonis"
+    "@adonisjs/lucid": "catalog:adonis",
+    "@adonis-agora/resilience": "^0.1.0"
   },
   "peerDependenciesMeta": {
     "@adonisjs/lucid": {
+      "optional": true
+    },
+    "@adonis-agora/resilience": {
       "optional": true
     }
   },
@@ -74,6 +78,7 @@
   "devDependencies": {
     "@adonisjs/core": "catalog:adonis",
     "@adonis-agora/authkit-server": "workspace:*",
+    "@adonis-agora/resilience": "^0.1.0",
     "@adonisjs/session": "catalog:adonis",
     "@adonisjs/lucid": "catalog:adonis",
     "@adonisjs/tsconfig": "catalog:adonis",

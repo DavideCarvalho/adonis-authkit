@@ -17,13 +17,18 @@
  * ```
  */
 
+import {
+  resilientFetch,
+  type ResiliencePolicy,
+} from "./http/resilient_fetch.js";
+
 export interface OidcEndpoints {
-  authorizationEndpoint: string
-  tokenEndpoint: string
-  jwksUri: string
-  endSessionEndpoint?: string
-  userinfoEndpoint?: string
-  introspectionEndpoint?: string
+  authorizationEndpoint: string;
+  tokenEndpoint: string;
+  jwksUri: string;
+  endSessionEndpoint?: string;
+  userinfoEndpoint?: string;
+  introspectionEndpoint?: string;
 }
 
 /**
@@ -31,7 +36,7 @@ export interface OidcEndpoints {
  * documento de discovery não está acessível.
  */
 export function conventionEndpoints(issuer: string): OidcEndpoints {
-  const base = issuer.replace(/\/$/, '')
+  const base = issuer.replace(/\/$/, "");
   return {
     authorizationEndpoint: `${base}/auth`,
     tokenEndpoint: `${base}/token`,
@@ -39,23 +44,28 @@ export function conventionEndpoints(issuer: string): OidcEndpoints {
     endSessionEndpoint: `${base}/session/end`,
     userinfoEndpoint: `${base}/me`,
     introspectionEndpoint: `${base}/token/introspection`,
-  }
+  };
 }
 
 interface CacheEntry {
-  endpoints: OidcEndpoints
-  fetchedAt: number
+  endpoints: OidcEndpoints;
+  fetchedAt: number;
 }
 
-const DEFAULT_TTL_MS = 15 * 60_000
-const cache = new Map<string, CacheEntry>()
+const DEFAULT_TTL_MS = 15 * 60_000;
+const cache = new Map<string, CacheEntry>();
 
 export interface DiscoverOptions {
   /** Overrides manuais — precedem o documento de discovery, campo a campo. */
-  overrides?: Partial<OidcEndpoints>
+  overrides?: Partial<OidcEndpoints>;
   /** TTL do cache por issuer. Default: 15 min. */
-  cacheTtlMs?: number
-  fetchImpl?: typeof fetch
+  cacheTtlMs?: number;
+  fetchImpl?: typeof fetch;
+  /**
+   * Política de resiliência OPCIONAL p/ a chamada de discovery. Sem ela, é um
+   * `fetch` puro (nenhuma mudança de comportamento).
+   */
+  resilience?: ResiliencePolicy;
 }
 
 /**
@@ -68,52 +78,66 @@ export interface DiscoverOptions {
  */
 export async function discoverEndpoints(
   issuer: string,
-  options: DiscoverOptions = {}
+  options: DiscoverOptions = {},
 ): Promise<OidcEndpoints> {
-  const base = issuer.replace(/\/$/, '')
-  const ttl = options.cacheTtlMs ?? DEFAULT_TTL_MS
+  const base = issuer.replace(/\/$/, "");
+  const ttl = options.cacheTtlMs ?? DEFAULT_TTL_MS;
 
-  const cached = cache.get(base)
-  let endpoints: OidcEndpoints
+  const cached = cache.get(base);
+  let endpoints: OidcEndpoints;
   if (cached && Date.now() - cached.fetchedAt < ttl) {
-    endpoints = cached.endpoints
+    endpoints = cached.endpoints;
   } else {
-    endpoints = await fetchDiscovery(base, options.fetchImpl ?? fetch)
-    cache.set(base, { endpoints, fetchedAt: Date.now() })
+    endpoints = await fetchDiscovery(
+      base,
+      options.fetchImpl ?? fetch,
+      options.resilience,
+    );
+    cache.set(base, { endpoints, fetchedAt: Date.now() });
   }
 
-  if (!options.overrides) return endpoints
-  const merged = { ...endpoints }
+  if (!options.overrides) return endpoints;
+  const merged = { ...endpoints };
   for (const [key, value] of Object.entries(options.overrides)) {
-    if (value !== undefined) (merged as any)[key] = value
+    if (value !== undefined) (merged as any)[key] = value;
   }
-  return merged
+  return merged;
 }
 
-async function fetchDiscovery(base: string, fetchImpl: typeof fetch): Promise<OidcEndpoints> {
-  const fallback = conventionEndpoints(base)
+async function fetchDiscovery(
+  base: string,
+  fetchImpl: typeof fetch,
+  resilience?: ResiliencePolicy,
+): Promise<OidcEndpoints> {
+  const fallback = conventionEndpoints(base);
   try {
-    const res = await fetchImpl(`${base}/.well-known/openid-configuration`, {
-      headers: { accept: 'application/json' },
-    })
-    if (!res.ok) return fallback
-    const doc = (await res.json()) as Record<string, unknown>
-    const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined)
+    const res = await resilientFetch(
+      `${base}/.well-known/openid-configuration`,
+      { headers: { accept: "application/json" } },
+      resilience,
+      fetchImpl,
+    );
+    if (!res.ok) return fallback;
+    const doc = (await res.json()) as Record<string, unknown>;
+    const str = (v: unknown): string | undefined =>
+      typeof v === "string" && v ? v : undefined;
     return {
-      authorizationEndpoint: str(doc.authorization_endpoint) ?? fallback.authorizationEndpoint,
+      authorizationEndpoint:
+        str(doc.authorization_endpoint) ?? fallback.authorizationEndpoint,
       tokenEndpoint: str(doc.token_endpoint) ?? fallback.tokenEndpoint,
       jwksUri: str(doc.jwks_uri) ?? fallback.jwksUri,
-      endSessionEndpoint: str(doc.end_session_endpoint) ?? fallback.endSessionEndpoint,
+      endSessionEndpoint:
+        str(doc.end_session_endpoint) ?? fallback.endSessionEndpoint,
       userinfoEndpoint: str(doc.userinfo_endpoint) ?? fallback.userinfoEndpoint,
       introspectionEndpoint:
         str(doc.introspection_endpoint) ?? fallback.introspectionEndpoint,
-    }
+    };
   } catch {
-    return fallback
+    return fallback;
   }
 }
 
 /** Limpa o cache de discovery (testes). */
 export function __clearDiscoveryCacheForTests(): void {
-  cache.clear()
+  cache.clear();
 }

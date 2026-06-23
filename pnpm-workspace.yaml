@@ -160,3 +160,4 @@ catalogs:
 
 minimumReleaseAgeExclude:
   - '@adonis-agora/telescope@0.1.0'
+  - '@adonis-agora/resilience@0.1.0'

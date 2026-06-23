@@ -8,6 +8,7 @@ const SET_SLOT = Symbol.for("@agora/context:set");
 type Patch = {
   userRef?: { type: string; id: string };
   tenantId?: string;
+  globalRoles?: string[];
   [k: string]: unknown;
 };
 
@@ -52,6 +53,7 @@ test.group("observability/context_bridge", () => {
     assert.lengthOf(patches, 1);
     assert.deepEqual(patches[0].userRef, { type: "user", id: "u1" });
     assert.isUndefined(patches[0].tenantId);
+    assert.deepEqual(patches[0].globalRoles, ["ADMIN"]);
   });
 
   test("populateContext deriva tenantId da claim de org ativa", ({

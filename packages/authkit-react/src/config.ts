@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react'
+import { createContext, useContext } from "react";
 
 /**
  * Endpoints JSON que os hooks de dados (`useProfile`, `useSessions`,
@@ -11,17 +11,23 @@ import { createContext, useContext } from 'react'
  */
 export interface AuthkitEndpoints {
   /** GET retorna o usuário; POST atualiza o perfil. Default: `/account/security/profile` */
-  profile: string
+  profile: string;
   /** GET lista sessões/dispositivos confiáveis. Default: `/account/security` */
-  sessions: string
+  sessions: string;
   /** GET lista apps autorizados; revoke em `${apps}/:clientId/revoke`. Default: `/account/apps` */
-  apps: string
+  apps: string;
   /** GET lista passkeys. Default: `/account/mfa/passkeys` */
-  passkeys: string
+  passkeys: string;
   /** GET lista orgs do usuário (JSON). Default: `/account/orgs/json` */
-  orgs: string
+  orgs: string;
   /** GET lista convites pendentes para o e-mail do usuário (JSON). Default: `/account/orgs/invitations/json` */
-  orgInvitations: string
+  orgInvitations: string;
+  /**
+   * POST consulta a Authz se o usuário pode uma permissão sobre um recurso.
+   * Contrato: `{ permission, resource? }` → `{ allowed }`. Default: `/authz/can`.
+   * Usado por `useCan`/`<CanPermission>`.
+   */
+  can: string;
 }
 
 /**
@@ -41,50 +47,57 @@ export interface AuthkitEndpoints {
  *   não existem; `SignInButton`/`SignOutButton`/`useAuth`/`Avatar`/`Can`
  *   continuam funcionando normalmente.
  */
-export type AuthkitIdpMode = 'authkit' | 'external'
+export type AuthkitIdpMode = "authkit" | "external";
 
 export interface AuthkitConfig {
   /** URL de início de login (OIDC é redirect-based). Default: `/auth/login` */
-  loginUrl?: string
+  loginUrl?: string;
   /** URL de logout. Default: `/account/logout` */
-  logoutUrl?: string
+  logoutUrl?: string;
   /** URL da página de perfil/segurança. Default: `/account/security` */
-  profileUrl?: string
+  profileUrl?: string;
   /** override parcial dos endpoints JSON */
-  endpoints?: Partial<AuthkitEndpoints>
+  endpoints?: Partial<AuthkitEndpoints>;
   /**
    * Token CSRF a ser enviado como header `X-CSRF-TOKEN` nas mutações JSON.
    * Em apps Inertia/AdonisJS, passe `usePage().props.csrfToken` (ou similar).
    */
-  csrfToken?: string
+  csrfToken?: string;
   /** IdP atrás do app. Default: `'authkit'`. Veja {@link AuthkitIdpMode}. */
-  idp?: AuthkitIdpMode
+  idp?: AuthkitIdpMode;
+  /**
+   * Path do endpoint de checagem de permissão da Authz consultado por
+   * `useCan`/`<CanPermission>`. Atalho para `endpoints.can`. Default: `/authz/can`.
+   * Se ambos forem passados, `endpoints.can` vence.
+   */
+  canPath?: string;
 }
 
 /** Configuração já resolvida (sem campos opcionais). */
 export interface ResolvedAuthkitConfig {
-  loginUrl: string
-  logoutUrl: string
-  profileUrl: string
-  endpoints: AuthkitEndpoints
-  csrfToken?: string
-  idp: AuthkitIdpMode
+  loginUrl: string;
+  logoutUrl: string;
+  profileUrl: string;
+  endpoints: AuthkitEndpoints;
+  csrfToken?: string;
+  idp: AuthkitIdpMode;
 }
 
 export const DEFAULT_CONFIG: ResolvedAuthkitConfig = {
-  idp: 'authkit',
-  loginUrl: '/auth/login',
-  logoutUrl: '/account/logout',
-  profileUrl: '/account/security',
+  idp: "authkit",
+  loginUrl: "/auth/login",
+  logoutUrl: "/account/logout",
+  profileUrl: "/account/security",
   endpoints: {
-    profile: '/account/security/profile',
-    sessions: '/account/security',
-    apps: '/account/apps',
-    passkeys: '/account/mfa/passkeys',
-    orgs: '/account/orgs/json',
-    orgInvitations: '/account/orgs/invitations/json',
+    profile: "/account/security/profile",
+    sessions: "/account/security",
+    apps: "/account/apps",
+    passkeys: "/account/mfa/passkeys",
+    orgs: "/account/orgs/json",
+    orgInvitations: "/account/orgs/invitations/json",
+    can: "/authz/can",
   },
-}
+};
 
 /**
  * Mescla a config do usuário com os defaults (deep-merge raso em `endpoints`).
@@ -97,15 +110,23 @@ export function resolveConfig(config?: AuthkitConfig): ResolvedAuthkitConfig {
     profileUrl: config?.profileUrl ?? DEFAULT_CONFIG.profileUrl,
     endpoints: {
       profile: config?.endpoints?.profile ?? DEFAULT_CONFIG.endpoints.profile,
-      sessions: config?.endpoints?.sessions ?? DEFAULT_CONFIG.endpoints.sessions,
+      sessions:
+        config?.endpoints?.sessions ?? DEFAULT_CONFIG.endpoints.sessions,
       apps: config?.endpoints?.apps ?? DEFAULT_CONFIG.endpoints.apps,
-      passkeys: config?.endpoints?.passkeys ?? DEFAULT_CONFIG.endpoints.passkeys,
+      passkeys:
+        config?.endpoints?.passkeys ?? DEFAULT_CONFIG.endpoints.passkeys,
       orgs: config?.endpoints?.orgs ?? DEFAULT_CONFIG.endpoints.orgs,
-      orgInvitations: config?.endpoints?.orgInvitations ?? DEFAULT_CONFIG.endpoints.orgInvitations,
+      orgInvitations:
+        config?.endpoints?.orgInvitations ??
+        DEFAULT_CONFIG.endpoints.orgInvitations,
+      can:
+        config?.endpoints?.can ??
+        config?.canPath ??
+        DEFAULT_CONFIG.endpoints.can,
     },
     csrfToken: config?.csrfToken,
-    idp: config?.idp ?? 'authkit',
-  }
+    idp: config?.idp ?? "authkit",
+  };
 }
 
 /**
@@ -113,14 +134,15 @@ export function resolveConfig(config?: AuthkitConfig): ResolvedAuthkitConfig {
  * Pura e SSR-safe (não toca em `window`).
  */
 export function buildAuthUrl(base: string, returnTo?: string): string {
-  if (!returnTo) return base
-  const sep = base.includes('?') ? '&' : '?'
-  return `${base}${sep}returnTo=${encodeURIComponent(returnTo)}`
+  if (!returnTo) return base;
+  const sep = base.includes("?") ? "&" : "?";
+  return `${base}${sep}returnTo=${encodeURIComponent(returnTo)}`;
 }
 
-export const AuthkitConfigContext = createContext<ResolvedAuthkitConfig>(DEFAULT_CONFIG)
+export const AuthkitConfigContext =
+  createContext<ResolvedAuthkitConfig>(DEFAULT_CONFIG);
 
 /** Lê a config resolvida do `<AuthkitProvider>` (ou defaults). */
 export function useAuthkitConfig(): ResolvedAuthkitConfig {
-  return useContext(AuthkitConfigContext)
+  return useContext(AuthkitConfigContext);
 }

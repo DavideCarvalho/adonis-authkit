@@ -11,6 +11,7 @@ const SET_SLOT = Symbol.for("@agora/context:set");
 type SetFn = (patch: {
   userRef?: { type: string; id: string };
   tenantId?: string;
+  globalRoles?: string[];
   [k: string]: unknown;
 }) => void;
 
@@ -40,8 +41,9 @@ function deriveTenant(
 
 /**
  * Popula o contexto do Agora a partir de uma identidade recém-resolvida:
- * `userRef` ({ type: 'user', id: userId }) e, quando presente nas claims,
- * `tenantId`. Best-effort: qualquer erro é engolido e nada acontece sem o slot.
+ * `userRef` ({ type: 'user', id: userId }), os `globalRoles` da identidade e,
+ * quando presente nas claims, `tenantId`. Best-effort: qualquer erro é engolido
+ * e nada acontece sem o slot.
  */
 export function populateContext(identity: Identity): void {
   try {
@@ -52,6 +54,7 @@ export function populateContext(identity: Identity): void {
     const tenant = deriveTenant(identity.raw);
     set({
       userRef: { type: "user", id: identity.userId },
+      globalRoles: identity.globalRoles,
       ...(tenant ? { tenantId: tenant } : {}),
     });
   } catch {

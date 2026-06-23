@@ -1,5 +1,18 @@
 # @adonis-agora/authkit-client
 
+## 0.9.0
+
+### Minor Changes
+
+- 394b9aa: Bridge audit events to the @agora diagnostics bus; populate @agora context from the resolved session
+- 0542665: Re-scope to @adonis-agora/authkit-\* (join the Agora ecosystem)
+- 08e721e: Optional resilience policy for outbound OIDC/JWKS calls
+
+### Patch Changes
+
+- Updated dependencies [0542665]
+  - @adonis-agora/authkit-core@0.7.0
+
 ## 0.8.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @adonis-agora/authkit-vault-aws
 
+## 0.3.0
+
+### Minor Changes
+
+- 0542665: Re-scope to @adonis-agora/authkit-\* (join the Agora ecosystem)
+
 ## 0.2.0
 
 ### Minor Changes

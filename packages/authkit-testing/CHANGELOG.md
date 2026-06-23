@@ -1,5 +1,16 @@
 # @adonis-agora/authkit-testing
 
+## 0.3.0
+
+### Minor Changes
+
+- 0542665: Re-scope to @adonis-agora/authkit-\* (join the Agora ecosystem)
+
+### Patch Changes
+
+- Updated dependencies [0542665]
+  - @adonis-agora/authkit-core@0.7.0
+
 ## 0.2.5
 
 ### Patch Changes

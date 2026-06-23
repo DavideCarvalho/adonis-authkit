@@ -1,48 +1,53 @@
-import type { OidcService } from '../provider/oidc_service.js'
-import type { ResolvedServerConfig } from '../define_config.js'
+import type { OidcService } from "../provider/oidc_service.js";
+import type { ResolvedServerConfig } from "../define_config.js";
+import { supportsAccountDeletion } from "../accounts/account_store.js";
 import {
-  supportsAccountDeletion,
-  supportsMfa,
-  supportsOrganizations,
-  supportsPasskeys,
-  supportsProviderIdentity,
-} from '../accounts/account_store.js'
-import { AdminSessionsService } from './admin_sessions_service.js'
-import { deleteAvatar } from './avatar_storage.js'
+  anonymizeAudit,
+  auditDeleted,
+  deleteAccountAvatar,
+  deleteAccountRow,
+  disableMfa,
+  removeFromOrgs,
+  removePasskeys,
+  revokePats,
+  revokeSessions,
+  snapshotAccount,
+  unlinkProviders,
+} from "./account_deletion_ops.js";
 
 /** Quem disparou a deleção (auditoria). 'self' = o próprio usuário; senão admin. */
 export interface DeletionActor {
   /** Id de quem agiu: o próprio user (self-service) ou o admin. null para admin-api. */
-  actorId: string | null
+  actorId: string | null;
   /** IP da request, quando disponível. */
-  ip: string | null
+  ip: string | null;
   /**
    * Origem da deleção (vai no metadata do audit):
    *   - 'self'      → o próprio usuário no console de conta;
    *   - 'admin'     → um admin pelo console HTML;
    *   - 'admin-api' → via Admin REST API / SDK.
    */
-  source: 'self' | 'admin' | 'admin-api'
+  source: "self" | "admin" | "admin-api";
 }
 
 /** Contagens do que foi removido no cascade (para auditoria/diagnóstico). */
 export interface DeletionResult {
-  ok: boolean
-  sessions: number
-  grants: number
-  accessTokens: number
-  refreshTokens: number
-  pats: number
-  passkeys: number
-  providerIdentities: number
+  ok: boolean;
+  sessions: number;
+  grants: number;
+  accessTokens: number;
+  refreshTokens: number;
+  pats: number;
+  passkeys: number;
+  providerIdentities: number;
   /** Linhas de audit anonimizadas (não deletadas). */
-  auditAnonymized: number
+  auditAnonymized: number;
   /** Avatar removido do drive (best-effort). */
-  avatarDeleted: boolean
+  avatarDeleted: boolean;
   /** Memberships em organizations removidas. */
-  orgMemberships: number
+  orgMemberships: number;
   /** Convites pendentes de organizations removidos. */
-  orgInvitations: number
+  orgInvitations: number;
 }
 
 /**
@@ -68,22 +73,25 @@ export interface DeletionResult {
  * destruição final da conta.
  */
 export class AccountDeletionService {
-  #cfg: ResolvedServerConfig
-  #oidc: OidcService
+  #cfg: ResolvedServerConfig;
+  #oidc: OidcService;
 
   constructor(oidc: OidcService) {
-    this.#oidc = oidc
-    this.#cfg = oidc.config
+    this.#oidc = oidc;
+    this.#cfg = oidc.config;
   }
 
   /** Indica se a deleção está disponível (o store suporta hard delete). */
   get canDelete(): boolean {
-    return supportsAccountDeletion(this.#cfg.accountStore)
+    return supportsAccountDeletion(this.#cfg.accountStore);
   }
 
-  async delete(accountId: string, actor: DeletionActor): Promise<DeletionResult> {
-    const cfg = this.#cfg
-    const store = cfg.accountStore
+  async delete(
+    accountId: string,
+    actor: DeletionActor,
+  ): Promise<DeletionResult> {
+    const cfg = this.#cfg;
+    const store = cfg.accountStore;
     const result: DeletionResult = {
       ok: false,
       sessions: 0,
@@ -97,111 +105,94 @@ export class AccountDeletionService {
       avatarDeleted: false,
       orgMemberships: 0,
       orgInvitations: 0,
-    }
+    };
 
-    if (!supportsAccountDeletion(store)) return result
+    if (!supportsAccountDeletion(store)) return result;
 
     // Snapshot da conta ANTES de destruir (precisamos do e-mail/avatar p/ audit + drive).
-    const account = await store.findById(accountId)
-    if (!account) return result
+    const snapshot = await snapshotAccount(cfg, accountId);
+    if (!snapshot) return result;
+
+    // O cascade chama as MESMAS operações idempotentes do `account_deletion_ops`,
+    // na MESMA ordem e com a MESMA semântica best-effort (cada etapa isolada). O
+    // workflow durável (subpath `/durable`) envolve estas operações em `ctx.step`.
 
     // 1) Audit `account.deleted` ANTES de anonimizar/destruir — registra com os
     // identificadores reais (a anonimização posterior cuidará desta linha também).
-    await cfg.audit?.record({
-      type: 'account.deleted',
-      accountId,
-      email: account.email,
-      actorId: actor.actorId,
-      ip: actor.ip,
-      metadata: { actor: actor.source },
-    })
+    await auditDeleted(cfg, snapshot, actor);
 
     // 2) Sessões + grants (cascateia os tokens do oidc-provider).
     try {
-      const revoke = await new AdminSessionsService(this.#oidc).revokeAll(accountId)
-      result.sessions = revoke.sessions
-      result.grants = revoke.grants
-      result.accessTokens = revoke.accessTokens
-      result.refreshTokens = revoke.refreshTokens
+      const revoke = await revokeSessions(this.#oidc, accountId);
+      result.sessions = revoke.sessions;
+      result.grants = revoke.grants;
+      result.accessTokens = revoke.accessTokens;
+      result.refreshTokens = revoke.refreshTokens;
     } catch {
       // best-effort: a destruição da conta segue mesmo se a enumeração falhar.
     }
 
     // 3) Personal Access Tokens.
-    if (cfg.patStore) {
-      try {
-        const pats = await cfg.patStore.listForAccount(accountId)
-        for (const pat of pats) {
-          const ok = await cfg.patStore.revoke(accountId, pat.id)
-          if (ok) result.pats++
-        }
-      } catch {
-        /* best-effort */
-      }
+    try {
+      result.pats = (await revokePats(cfg, accountId)).pats;
+    } catch {
+      /* best-effort */
     }
 
     // 4) Passkeys / credenciais WebAuthn.
-    if (supportsPasskeys(store)) {
-      try {
-        const passkeys = await store.listPasskeys(accountId)
-        for (const pk of passkeys) {
-          await store.removePasskey(accountId, pk.id)
-          result.passkeys++
-        }
-      } catch {
-        /* best-effort */
-      }
+    try {
+      result.passkeys = (await removePasskeys(cfg, accountId)).passkeys;
+    } catch {
+      /* best-effort */
     }
 
     // 5) MFA / TOTP (segredo + recovery codes).
-    if (supportsMfa(store)) {
-      try {
-        await store.disableMfa(accountId)
-      } catch {
-        /* best-effort */
-      }
+    try {
+      await disableMfa(cfg, accountId);
+    } catch {
+      /* best-effort */
     }
 
     // 6) Identidades de provider linkadas (Google, GitHub, …).
-    if (supportsProviderIdentity(store)) {
-      try {
-        result.providerIdentities = await store.unlinkAllProviderIdentities(accountId)
-      } catch {
-        /* best-effort */
-      }
+    try {
+      result.providerIdentities = (
+        await unlinkProviders(cfg, accountId)
+      ).providerIdentities;
+    } catch {
+      /* best-effort */
     }
 
     // 6b) Organizations: remove memberships + convites da conta (best-effort).
     // Nota: se a conta é o ÚNICO owner de uma org, a org fica sem owner e isso é
     // documentado no JSDoc — a deleção NUNCA é bloqueada por LGPD/GDPR.
-    if (supportsOrganizations(store)) {
-      try {
-        const orgResult = await store.removeAccountFromAllOrgs(accountId)
-        result.orgMemberships = orgResult.memberships
-        result.orgInvitations = orgResult.invitations
-      } catch {
-        /* best-effort */
-      }
+    try {
+      const orgResult = await removeFromOrgs(cfg, accountId);
+      result.orgMemberships = orgResult.orgMemberships;
+      result.orgInvitations = orgResult.orgInvitations;
+    } catch {
+      /* best-effort */
     }
 
     // 7) Avatar no drive (best-effort, fail-safe).
     try {
-      result.avatarDeleted = await deleteAvatar(cfg.uploads, account.avatarUrl)
+      result.avatarDeleted = (
+        await deleteAccountAvatar(cfg, snapshot.avatarUrl)
+      ).avatarDeleted;
     } catch {
       /* best-effort */
     }
 
     // 8) Anonimiza o histórico de audit (mantém as linhas, remove identificadores).
-    if (cfg.audit && typeof cfg.audit.anonymizeAccount === 'function') {
-      try {
-        result.auditAnonymized = await cfg.audit.anonymizeAccount(accountId)
-      } catch {
-        /* best-effort */
-      }
+    try {
+      result.auditAnonymized = (
+        await anonymizeAudit(cfg, accountId)
+      ).auditAnonymized;
+    } catch {
+      /* best-effort */
     }
 
     // 9) Deleta a linha da conta.
-    result.ok = await store.deleteAccount(accountId)
-    return result
+    result.ok = (await deleteAccountRow(cfg, accountId)).ok;
+    return result;
   }
 }

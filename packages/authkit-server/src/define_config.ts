@@ -918,6 +918,20 @@ export interface AuthServerConfigInput {
    * - `connection`: conexão Lucid a usar (default: primária).
    */
   schema?: { autoManage?: boolean; connection?: string };
+  /**
+   * Ciclo de vida da conta (LGPD/GDPR). OPT-IN para workflows DURÁVEIS:
+   *
+   * - `durable` (default `false`/ausente): comportamento SÍNCRONO de sempre — a
+   *   deleção/export rodam in-process via `AccountDeletionService`/
+   *   `AccountExportService` (byte-idêntico ao anterior).
+   * - `durable: true`: os endpoints ENFILEIRAM os workflows duráveis
+   *   (`authkit.account.delete` / `authkit.account.export`) no `WorkflowEngine` do
+   *   app. O app DEVE registrar os workflows (via
+   *   `@adonis-agora/authkit-server/durable`) e rodar um worker. No self-service de
+   *   deleção, a sessão do ator é revogada SINCRONAMENTE (logout imediato) e o
+   *   resto do cascade roda async.
+   */
+  accountLifecycle?: { durable?: boolean };
 }
 
 export interface ResolvedServerConfig {
@@ -999,6 +1013,11 @@ export interface ResolvedServerConfig {
   locale: string;
   /** Gestão automática de schema resolvida (default ligada). */
   schema: { autoManage: boolean; connection?: string };
+  /**
+   * Ciclo de vida da conta resolvido. `durable` default `false` → caminho
+   * síncrono de sempre. `true` → endpoints enfileiram os workflows duráveis.
+   */
+  accountLifecycle: { durable: boolean };
   /** Keys de `auth_settings` travadas por terem sido definidas no defineConfig. */
   lockedSettingKeys: string[];
 }
@@ -1198,6 +1217,10 @@ export function defineConfig(config: AuthServerConfigInput) {
         schema: {
           autoManage: config.schema?.autoManage !== false,
           connection: config.schema?.connection,
+        },
+        // OPT-IN: default false → caminho síncrono de sempre (byte-idêntico).
+        accountLifecycle: {
+          durable: config.accountLifecycle?.durable === true,
         },
         // Keys de auth_settings travadas porque foram definidas no defineConfig:
         // config vence e a UI/Admin API não pode alterá-las (ver host/config_locks.ts).

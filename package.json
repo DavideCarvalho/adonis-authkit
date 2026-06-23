@@ -17,6 +17,7 @@
     "smoke": "node scripts/import-smoke.mjs",
     "lint": "prettier --check .",
     "format": "prettier --write .",
+    "version-packages": "changeset version",
     "release": "pnpm build && pnpm changeset publish"
   },
   "devDependencies": {

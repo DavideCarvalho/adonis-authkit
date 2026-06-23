@@ -1,5 +1,6 @@
-import { createHmac } from 'node:crypto'
-import type { AuditEvent, AuditSink } from '../audit/audit_sink.js'
+import { createHmac } from "node:crypto";
+import type { AuditEvent, AuditSink } from "../audit/audit_sink.js";
+import { emitDiagnostic } from "../observability/diagnostics_bridge.js";
 
 /**
  * Configuração de eventos/webhooks para o host observar tudo que o IdP audita.
@@ -13,31 +14,33 @@ import type { AuditEvent, AuditSink } from '../audit/audit_sink.js'
  */
 export interface EventsConfigInput {
   /** Callback in-process para cada evento auditado (best-effort). */
-  onEvent?: (event: AuditEvent) => void | Promise<void>
+  onEvent?: (event: AuditEvent) => void | Promise<void>;
   /** Webhook HTTP: POST do evento em JSON. */
   webhook?: {
     /** URL de destino do POST. */
-    url: string
+    url: string;
     /** Segredo opcional para assinar o corpo (HMAC-SHA256). */
-    secret?: string
-  }
+    secret?: string;
+  };
 }
 
 export interface ResolvedEventsConfig {
-  onEvent?: (event: AuditEvent) => void | Promise<void>
-  webhook?: { url: string; secret?: string }
+  onEvent?: (event: AuditEvent) => void | Promise<void>;
+  webhook?: { url: string; secret?: string };
 }
 
-export function resolveEvents(input?: EventsConfigInput): ResolvedEventsConfig | undefined {
-  if (!input || (!input.onEvent && !input.webhook)) return undefined
+export function resolveEvents(
+  input?: EventsConfigInput,
+): ResolvedEventsConfig | undefined {
+  if (!input || (!input.onEvent && !input.webhook)) return undefined;
   return {
     onEvent: input.onEvent,
     webhook: input.webhook,
-  }
+  };
 }
 
 /** Timeout (ms) do POST do webhook antes de abortar. */
-const WEBHOOK_TIMEOUT_MS = 5000
+const WEBHOOK_TIMEOUT_MS = 5000;
 
 /**
  * Constrói o corpo JSON canônico do webhook a partir de um evento de auditoria.
@@ -52,12 +55,12 @@ export function buildWebhookBody(event: AuditEvent): string {
     ip: event.ip ?? null,
     metadata: event.metadata ?? {},
     ts: new Date().toISOString(),
-  })
+  });
 }
 
 /** Calcula o header de assinatura `sha256=<hmac>` para um corpo + segredo. */
 export function signWebhookBody(body: string, secret: string): string {
-  return 'sha256=' + createHmac('sha256', secret).update(body).digest('hex')
+  return "sha256=" + createHmac("sha256", secret).update(body).digest("hex");
 }
 
 /**
@@ -66,20 +69,22 @@ export function signWebhookBody(body: string, secret: string): string {
  */
 async function dispatchWebhook(
   webhook: { url: string; secret?: string },
-  event: AuditEvent
+  event: AuditEvent,
 ): Promise<void> {
   try {
-    const body = buildWebhookBody(event)
-    const headers: Record<string, string> = { 'content-type': 'application/json' }
+    const body = buildWebhookBody(event);
+    const headers: Record<string, string> = {
+      "content-type": "application/json",
+    };
     if (webhook.secret) {
-      headers['x-authkit-signature'] = signWebhookBody(body, webhook.secret)
+      headers["x-authkit-signature"] = signWebhookBody(body, webhook.secret);
     }
     await fetch(webhook.url, {
-      method: 'POST',
+      method: "POST",
       headers,
       body,
       signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
-    })
+    });
   } catch {
     // best-effort: erro de webhook nunca quebra o caminho da request.
   }
@@ -94,14 +99,14 @@ async function dispatchWebhook(
  */
 export function composeAuditSink(
   original: AuditSink | undefined,
-  events: ResolvedEventsConfig
+  events: ResolvedEventsConfig = {},
 ): AuditSink {
   const composed: AuditSink = {
     async record(event: AuditEvent): Promise<void> {
       // Persistência original (best-effort, isolada).
       if (original) {
         try {
-          await original.record(event)
+          await original.record(event);
         } catch {
           // sink original com defeito não impede os demais ramos.
         }
@@ -109,24 +114,42 @@ export function composeAuditSink(
       // Callback in-process (best-effort, isolado).
       if (events.onEvent) {
         try {
-          await events.onEvent(event)
+          await events.onEvent(event);
         } catch {
           // onEvent com defeito não quebra a request.
         }
       }
       // Webhook fire-and-forget (não aguardamos a entrega).
       if (events.webhook) {
-        void dispatchWebhook(events.webhook, event)
+        void dispatchWebhook(events.webhook, event);
       }
+      // Diagnostics Agora (best-effort, sempre ligado, no-op sem o slot).
+      // Canal: `agora:authkit:<AuditEventType>` (o `type` É o sufixo).
+      emitDiagnostic(event.type, event);
     },
-  }
+  };
   // Preserva a capacidade de consulta do sink original (console admin).
-  if (original && typeof original.list === 'function') {
-    composed.list = original.list.bind(original)
+  if (original && typeof original.list === "function") {
+    composed.list = original.list.bind(original);
   }
   // Preserva a anonimização (LGPD) do sink original (deleção de conta).
-  if (original && typeof original.anonymizeAccount === 'function') {
-    composed.anonymizeAccount = original.anonymizeAccount.bind(original)
+  if (original && typeof original.anonymizeAccount === "function") {
+    composed.anonymizeAccount = original.anonymizeAccount.bind(original);
   }
-  return composed
+  // Preserva quaisquer propriedades extras do sink original (ex.: campos de
+  // introspecção/diagnóstico que sinks customizados expõem) — o fan-out é um
+  // decorador transparente sobre a superfície do sink original. Funções são
+  // re-ligadas ao original para manter o `this`; métodos já tratados acima e o
+  // `record` (sobrescrito) não são copiados.
+  if (original) {
+    const src = original as unknown as Record<string, unknown>;
+    const dst = composed as unknown as Record<string, unknown>;
+    for (const key of Object.keys(src)) {
+      if (key === "record" || key === "list" || key === "anonymizeAccount")
+        continue;
+      const value = src[key];
+      dst[key] = typeof value === "function" ? value.bind(original) : value;
+    }
+  }
+  return composed;
 }

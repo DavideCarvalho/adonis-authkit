@@ -1,5 +1,19 @@
 # @adonis-agora/authkit-server
 
+## 0.34.0
+
+### Minor Changes
+
+- 394b9aa: Bridge audit events to the @agora diagnostics bus; populate @agora context from the resolved session
+- 0542665: Re-scope to @adonis-agora/authkit-\* (join the Agora ecosystem)
+- 93fef40: Opt-in durable workflows for GDPR account deletion (sync-logout + async cascade) and export
+- d98ad01: Add a Telescope auth-dashboard extension (defineAuthkitTelescopeExtension)
+
+### Patch Changes
+
+- Updated dependencies [0542665]
+  - @adonis-agora/authkit-core@0.7.0
+
 ## 0.33.1
 
 ### Patch Changes

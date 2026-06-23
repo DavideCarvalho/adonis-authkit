@@ -1,5 +1,16 @@
 # @adonis-agora/authkit-react
 
+## 0.12.0
+
+### Minor Changes
+
+- 0542665: Re-scope to @adonis-agora/authkit-\* (join the Agora ecosystem)
+
+### Patch Changes
+
+- Updated dependencies [0542665]
+  - @adonis-agora/authkit-core@0.7.0
+
 ## 0.11.0
 
 ### Minor Changes

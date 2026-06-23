@@ -1,5 +1,11 @@
 # @adonis-agora/authkit-sdk
 
+## 0.6.0
+
+### Minor Changes
+
+- 0542665: Re-scope to @adonis-agora/authkit-\* (join the Agora ecosystem)
+
 ## 0.5.0
 
 ### Minor Changes

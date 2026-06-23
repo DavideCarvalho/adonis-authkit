@@ -1,5 +1,24 @@
 # @adonis-agora/authkit-react
 
+## 0.13.0
+
+### Minor Changes
+
+- 12df185: Write `globalRoles` into the @agora context from the resolved session (so the Authz global-role bridge can read them), and add Authz permission gating to authkit-react: `useCan(permission, resource?)` and `<CanPermission>`, which consult the Authz `POST <canPath>` endpoint (`{ permission, resource? }` → `{ allowed }`, credentials included) with in-memory caching/dedupe. The endpoint path is configurable via `AuthkitProvider` (`canPath` / `endpoints.can`, default `/authz/can`).
+- 4bccbe9: fix: invalidate can-permission cache on principal change (stale authz after logout/org-switch)
+
+  The in-memory `useCan`/`checkCan` cache was process-global and keyed only by
+  `(path, permission, resource)`, so resolved permission decisions kept being
+  served across logout / user-switch / org-switch — a decision could outlive the
+  session that authorized it. The current principal (`useAuth().user?.id`, or an
+  `anon` sentinel when logged out) is now folded into the cache key, so a new
+  principal naturally misses the previous principal's answers and re-checks.
+
+  Also: `UseCanResult` now exposes an optional `error?: Error` (fail-closed:
+  `allowed` stays `false` on error), symmetric with `ResourceState<T>`; a public
+  `invalidateCanCache()` is exported to force a global refetch; and the warm-cache
+  render no longer triggers a redundant second `setState`.
+
 ## 0.12.0
 
 ### Minor Changes

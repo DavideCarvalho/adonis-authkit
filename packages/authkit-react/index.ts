@@ -87,7 +87,7 @@ export { Can } from "./src/components/can.js";
 export type { CanProps } from "./src/components/can.js";
 export { CanPermission } from "./src/components/can_permission.js";
 export type { CanPermissionProps } from "./src/components/can_permission.js";
-export { useCan, checkCan } from "./src/hooks/use_can.js";
+export { useCan, checkCan, invalidateCanCache } from "./src/hooks/use_can.js";
 export type { UseCanResult } from "./src/hooks/use_can.js";
 
 // Componentes prontos

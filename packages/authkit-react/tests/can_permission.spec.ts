@@ -10,9 +10,16 @@
 import { test } from "@japa/runner";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { checkCan, useCan, canCache } from "../src/hooks/use_can.js";
+import {
+  checkCan,
+  useCan,
+  canCache,
+  invalidateCanCache,
+} from "../src/hooks/use_can.js";
 import { CanPermission } from "../src/components/can_permission.js";
 import { AuthkitConfigContext, resolveConfig } from "../src/config.js";
+import { AuthProvider } from "../src/provider.js";
+import type { AuthUser } from "../src/types.js";
 
 /** Instala um `fetch` fake global e devolve as chamadas + restaurador. */
 function installFetch(handler: (url: string, init?: RequestInit) => Response) {
@@ -132,6 +139,95 @@ test.group("checkCan — contrato e fetch", (group) => {
   });
 });
 
+test.group("checkCan — discriminação por principal", (group) => {
+  group.each.setup(() => {
+    canCache.clear();
+  });
+
+  test("mudança de principal não serve a resposta do anterior", async ({
+    assert,
+  }) => {
+    // Usuário A → permitido.
+    const okFetch = installFetch(() => jsonResponse({ allowed: true }));
+    try {
+      assert.isTrue(
+        await checkCan(
+          "/authz/can",
+          "posts.update",
+          undefined,
+          undefined,
+          "userA",
+        ),
+      );
+      assert.lengthOf(okFetch.calls, 1);
+      // Repetir como A serve do cache (sem novo fetch).
+      assert.isTrue(
+        await checkCan(
+          "/authz/can",
+          "posts.update",
+          undefined,
+          undefined,
+          "userA",
+        ),
+      );
+      assert.lengthOf(okFetch.calls, 1);
+    } finally {
+      okFetch.restore();
+    }
+
+    // Troca para usuário B → mesma permissão é RE-buscada (não serve cache de A).
+    const denyFetch = installFetch(() => jsonResponse({ allowed: false }));
+    try {
+      assert.isFalse(
+        await checkCan(
+          "/authz/can",
+          "posts.update",
+          undefined,
+          undefined,
+          "userB",
+        ),
+      );
+      assert.lengthOf(denyFetch.calls, 1);
+    } finally {
+      denyFetch.restore();
+    }
+  });
+
+  test("logout (anon) não herda a decisão do usuário logado", async ({
+    assert,
+  }) => {
+    const okFetch = installFetch(() => jsonResponse({ allowed: true }));
+    try {
+      assert.isTrue(
+        await checkCan("/authz/can", "x", undefined, undefined, "userA"),
+      );
+    } finally {
+      okFetch.restore();
+    }
+    const denyFetch = installFetch(() => jsonResponse({ allowed: false }));
+    try {
+      // Sem principal explícito → sentinela 'anon': re-busca.
+      assert.isFalse(await checkCan("/authz/can", "x"));
+      assert.lengthOf(denyFetch.calls, 1);
+    } finally {
+      denyFetch.restore();
+    }
+  });
+
+  test("invalidateCanCache força refetch", async ({ assert }) => {
+    const fetchMock = installFetch(() => jsonResponse({ allowed: true }));
+    try {
+      await checkCan("/authz/can", "x", undefined, undefined, "userA");
+      assert.lengthOf(fetchMock.calls, 1);
+      invalidateCanCache();
+      await checkCan("/authz/can", "x", undefined, undefined, "userA");
+      assert.lengthOf(fetchMock.calls, 2);
+    } finally {
+      fetchMock.restore();
+    }
+  });
+});
+
 test.group("useCan — render (cache quente / loading)", (group) => {
   group.each.setup(() => {
     canCache.clear();
@@ -163,12 +259,12 @@ test.group("useCan — render (cache quente / loading)", (group) => {
   test("cache quente allowed → renderiza children (sem loading)", ({
     assert,
   }) => {
-    canCache.resolved.set("/authz/can|posts.update|", true);
+    canCache.resolved.set("anon|/authz/can|posts.update|", true);
     assert.equal(renderCanPermission("posts.update"), "YES");
   });
 
   test("cache quente denied → renderiza fallback", ({ assert }) => {
-    canCache.resolved.set("/authz/can|posts.delete|", false);
+    canCache.resolved.set("anon|/authz/can|posts.delete|", false);
     assert.equal(renderCanPermission("posts.delete"), "NO");
   });
 
@@ -176,5 +272,41 @@ test.group("useCan — render (cache quente / loading)", (group) => {
     assert,
   }) => {
     assert.equal(renderCanPermission("posts.read"), "LOAD");
+  });
+
+  function renderForUser(userId: string | null, permission: string) {
+    const config = resolveConfig();
+    const user: AuthUser | null =
+      userId === null
+        ? null
+        : { id: userId, email: `${userId}@example.com`, globalRoles: [] };
+    return renderToStaticMarkup(
+      createElement(
+        AuthProvider,
+        { value: { user, globalRoles: [] } },
+        createElement(
+          AuthkitConfigContext.Provider,
+          { value: config },
+          createElement(
+            CanPermission,
+            { permission, fallback: "NO", loadingFallback: "LOAD" },
+            "YES",
+          ),
+        ),
+      ),
+    );
+  }
+
+  test("cache do usuário A não vaza para o usuário B (re-checa → loading)", ({
+    assert,
+  }) => {
+    // Resposta resolvida para o usuário A.
+    canCache.resolved.set("userA|/authz/can|posts.update|", true);
+    // A vê o cache quente.
+    assert.equal(renderForUser("userA", "posts.update"), "YES");
+    // B não herda a decisão de A → cai em loading (re-fetch).
+    assert.equal(renderForUser("userB", "posts.update"), "LOAD");
+    // Anônimo (logout) também não herda.
+    assert.equal(renderForUser(null, "posts.update"), "LOAD");
   });
 });

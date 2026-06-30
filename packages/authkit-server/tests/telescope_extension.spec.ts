@@ -175,4 +175,18 @@ test.group("observability/telescope — data providers", () => {
     assert.equal(imp?.actor, "admin");
     assert.equal(imp?.subject, "b");
   });
+
+  test("authkit.tokenActivity never surfaces ip (LGPD/GDPR — no PII column)", async ({
+    assert,
+  }) => {
+    // Even if a (legacy / non-redacted) entry carried an ip, the provider must
+    // not expose it — the dashboard table has no IP column anymore.
+    const res = (await authkitTokenActivityProvider().resolve(
+      {},
+      makeCtx([entry("pat.issued", { accountId: "a", ip: "203.0.113.9" })]),
+    )) as { rows: Array<Record<string, unknown>> };
+    assert.lengthOf(res.rows, 1);
+    assert.notProperty(res.rows[0], "ip");
+    assert.notInclude(JSON.stringify(res.rows[0]), "203.0.113.9");
+  });
 });

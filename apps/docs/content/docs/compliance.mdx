@@ -21,14 +21,14 @@ defineConfig({
   login: {
     requireVerifiedEmail: true, // default: false
   },
-})
+});
 ```
 
 <Callout type="info">
-  **Capability-probed.** The check requires the account store to expose `isEmailVerified`.
-  The bundled `lucidAccountStore` supports it when your user model has an
-  `email_verified_at` column. Without the capability the feature degrades to a no-op and
-  `authkit:doctor` emits a warning.
+  **Capability-probed.** The check requires the account store to expose
+  `isEmailVerified`. The bundled `lucidAccountStore` supports it when your user
+  model has an `email_verified_at` column. Without the capability the feature
+  degrades to a no-op and `authkit:doctor` emits a warning.
 </Callout>
 
 ### Grace period
@@ -81,11 +81,11 @@ The flow is controlled by the `email_change` runtime setting (no static-config e
 }
 ```
 
-| Field | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `enabled` | `boolean?` | `true` | `false` disables the email-change form entirely. |
-| `ttlHours` | `number?` | `24` | How long the confirmation token is valid. |
-| `requirePassword` | `boolean?` | `true` | Require the current password to initiate a change. Password-less accounts (e.g. social-only) are never asked. |
+| Field             | Type       | Default | Notes                                                                                                         |
+| ----------------- | ---------- | ------- | ------------------------------------------------------------------------------------------------------------- |
+| `enabled`         | `boolean?` | `true`  | `false` disables the email-change form entirely.                                                              |
+| `ttlHours`        | `number?`  | `24`    | How long the confirmation token is valid.                                                                     |
+| `requirePassword` | `boolean?` | `true`  | Require the current password to initiate a change. Password-less accounts (e.g. social-only) are never asked. |
 
 Manage via the Admin Console (`{prefix}/settings`) or the Admin REST API:
 
@@ -108,7 +108,7 @@ curl -X PUT https://auth.acme.com/api/authkit/v1/settings/email_change \
 Override the default email templates by adding hooks to `mail` in `defineConfig`:
 
 ```ts title="config/authkit_server.ts"
-import mail from '@adonisjs/mail/services/main'
+import mail from "@adonisjs/mail/services/main";
 
 defineConfig({
   // …
@@ -119,10 +119,12 @@ defineConfig({
      */
     onEmailChangeConfirm: async ({ email, confirmUrl, token, oldEmail }) => {
       await mail.send((m) =>
-        m.from(env.get('EMAIL_FROM')).to(email)
-          .subject('Confirm your new email address')
-          .text(`Please confirm: ${confirmUrl}`)
-      )
+        m
+          .from(env.get("EMAIL_FROM"))
+          .to(email)
+          .subject("Confirm your new email address")
+          .text(`Please confirm: ${confirmUrl}`),
+      );
     },
 
     /**
@@ -131,13 +133,15 @@ defineConfig({
      */
     onEmailChangeNotice: async ({ email, newEmail }) => {
       await mail.send((m) =>
-        m.from(env.get('EMAIL_FROM')).to(email)
-          .subject('Email address change requested')
-          .text(`Someone requested to change the address to ${newEmail}.`)
-      )
+        m
+          .from(env.get("EMAIL_FROM"))
+          .to(email)
+          .subject("Email address change requested")
+          .text(`Someone requested to change the address to ${newEmail}.`),
+      );
     },
   },
-})
+});
 ```
 
 If `onEmailChangeConfirm` is absent, AuthKit falls back to `onEmailVerification` (if set),
@@ -156,11 +160,11 @@ No additional columns or migrations are required beyond what email verification 
 
 ### Audit events
 
-| Event | When |
-| --- | --- |
-| `email_change.requested` | User submits a new email address (token issued). |
+| Event                    | When                                                              |
+| ------------------------ | ----------------------------------------------------------------- |
+| `email_change.requested` | User submits a new email address (token issued).                  |
 | `email_change.cancelled` | Pending change is cancelled (by the user or via the notice link). |
-| `email_change.confirmed` | New address confirmed; change applied. |
+| `email_change.confirmed` | New address confirmed; change applied.                            |
 
 ## Security notifications
 
@@ -170,19 +174,20 @@ These are **separate** from the new-device and new-IP alerts (which are in the
 
 ### Covered events
 
-| Kind | Trigger |
-| --- | --- |
-| `password_changed` | User changed their own password. |
-| `mfa_enabled` | TOTP was enrolled. |
-| `mfa_disabled` | TOTP was disabled. |
-| `passkey_added` | A WebAuthn passkey was registered. |
-| `passkey_removed` | A WebAuthn passkey was removed. |
-| `email_changed` | An email address change was confirmed. |
+| Kind               | Trigger                                |
+| ------------------ | -------------------------------------- |
+| `password_changed` | User changed their own password.       |
+| `mfa_enabled`      | TOTP was enrolled.                     |
+| `mfa_disabled`     | TOTP was disabled.                     |
+| `passkey_added`    | A WebAuthn passkey was registered.     |
+| `passkey_removed`  | A WebAuthn passkey was removed.        |
+| `email_changed`    | An email address change was confirmed. |
 
 <Callout type="info">
-  **New-device login** (`login.new_device`) is handled separately — it has its own flow and
-  the `notifications.newDeviceEmail` setting. Similarly, lazy **rehash** (`password.rehashed`)
-  is transparent to the user and does not trigger a notification.
+  **New-device login** (`login.new_device`) is handled separately — it has its
+  own flow and the `notifications.newDeviceEmail` setting. Similarly, lazy
+  **rehash** (`password.rehashed`) is transparent to the user and does not
+  trigger a notification.
 </Callout>
 
 ### Configuration
@@ -203,10 +208,10 @@ The `security_notifications` runtime setting controls the feature:
 }
 ```
 
-| Field | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `enabled` | `boolean?` | `true` | `false` disables all security notifications. |
-| `kinds` | `string[]?` | all 6 kinds | Subset of kinds to notify. Invalid kinds are silently dropped. Empty array resets to all. |
+| Field     | Type        | Default     | Notes                                                                                     |
+| --------- | ----------- | ----------- | ----------------------------------------------------------------------------------------- |
+| `enabled` | `boolean?`  | `true`      | `false` disables all security notifications.                                              |
+| `kinds`   | `string[]?` | all 6 kinds | Subset of kinds to notify. Invalid kinds are silently dropped. Empty array resets to all. |
 
 Manage via the Admin Console or Admin REST API:
 
@@ -230,31 +235,40 @@ Provide a single `onSecurityNotice` hook that receives the event `kind` and rend
 appropriate template. When absent, AuthKit sends a built-in default email:
 
 ```ts title="config/authkit_server.ts"
-import mail from '@adonisjs/mail/services/main'
+import mail from "@adonisjs/mail/services/main";
 
 defineConfig({
   // …
   mail: {
-    onSecurityNotice: async ({ account, kind, ip, userAgent, timestamp, metadata }) => {
+    onSecurityNotice: async ({
+      account,
+      kind,
+      ip,
+      userAgent,
+      timestamp,
+      metadata,
+    }) => {
       const subject: Record<string, string> = {
-        password_changed: 'Your password was changed',
-        mfa_enabled: 'Two-factor authentication enabled',
-        mfa_disabled: 'Two-factor authentication disabled',
-        passkey_added: 'A passkey was added to your account',
-        passkey_removed: 'A passkey was removed from your account',
-        email_changed: 'Your email address was changed',
-      }
+        password_changed: "Your password was changed",
+        mfa_enabled: "Two-factor authentication enabled",
+        mfa_disabled: "Two-factor authentication disabled",
+        passkey_added: "A passkey was added to your account",
+        passkey_removed: "A passkey was removed from your account",
+        email_changed: "Your email address was changed",
+      };
       await mail.send((m) =>
-        m.from(env.get('EMAIL_FROM')).to(account.email)
-          .subject(subject[kind] ?? 'Security notification')
+        m
+          .from(env.get("EMAIL_FROM"))
+          .to(account.email)
+          .subject(subject[kind] ?? "Security notification")
           .text(
             `This action occurred on your account at ${timestamp}` +
-            (ip ? ` from ${ip}` : '')
-          )
-      )
+              (ip ? ` from ${ip}` : ""),
+          ),
+      );
     },
   },
-})
+});
 ```
 
 The hook is **best-effort and fire-and-forget**: a failure never blocks the action that
@@ -262,8 +276,8 @@ triggered it.
 
 ### Audit events
 
-| Event | When |
-| --- | --- |
+| Event                  | When                                                                                   |
+| ---------------------- | -------------------------------------------------------------------------------------- |
 | `security_notice.sent` | A security notification email was dispatched. `metadata.kind` contains the event kind. |
 
 ## Data export
@@ -301,6 +315,20 @@ pseudonym (`anon:<sha256>`) and the personal fields (`email`, `ip`) are cleared.
 trail is preserved for forensics without retaining personal data. The `anonymizeAccount`
 method on `AuditSink` is called if the sink implements it (the bundled `lucidAuditSink`
 does).
+
+### Diagnostics / Telescope mirror
+
+AuthKit also mirrors every audit event onto the Agora **diagnostics bus**
+(`agora:authkit:<type>`), where [Telescope](/docs/observability) captures it as an
+independent `diagnostic` entry in its **own** store — a store the deletion cascade above
+does not reach. To keep a deleted account's PII from surviving there, the diagnostics
+bridge emits a **redacted projection** of each event: `email`, `ip` and the free-form
+`metadata` (which can itself carry addresses, e.g. `oldEmail` / `newEmail`) are dropped at
+the source, leaving only the event `type` and the opaque internal ids
+(`accountId` / `actorId` / `clientId`) the security dashboard needs for correlation. So
+Telescope never stores raw PII, and **no cross-store purge is needed** on deletion. The
+`onEvent` callback and outbound `webhook` (integrations you enable explicitly) still
+receive the **complete** event — only the diagnostics mirror is redacted.
 
 The endpoint is:
 
@@ -343,7 +371,7 @@ The response includes the cascade counts so callers can verify what was removed.
 ### SDK
 
 ```ts
-const result = await authkit.users.delete('acc-42')
+const result = await authkit.users.delete("acc-42");
 // result.deleted === true
 // result.auditAnonymized — how many audit rows were pseudonymized
 ```
@@ -373,11 +401,11 @@ When the sink is write-only, the feature is unavailable and `authkit:doctor` exp
 }
 ```
 
-| Field | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `enabled` | `boolean` | `false` | `true` activates expiration checks on login and the expire-scan command. |
-| `inactiveDays` | `number` | `365` | Days without a `login.success` before the account is considered expired. Minimum: 1. |
-| `warnDays` | `number` | `14` | Days before expiration to send the warning email. `0` = no warning. |
+| Field          | Type      | Default | Notes                                                                                |
+| -------------- | --------- | ------- | ------------------------------------------------------------------------------------ |
+| `enabled`      | `boolean` | `false` | `true` activates expiration checks on login and the expire-scan command.             |
+| `inactiveDays` | `number`  | `365`   | Days without a `login.success` before the account is considered expired. Minimum: 1. |
+| `warnDays`     | `number`  | `14`    | Days before expiration to send the warning email. `0` = no warning.                  |
 
 ```bash
 # Enable with 1-year expiration and 2-week warning
@@ -410,11 +438,11 @@ node ace authkit:accounts:expire-scan --warn --dry-run
 node ace authkit:accounts:expire-scan --warn --json
 ```
 
-| Flag | Notes |
-| --- | --- |
-| `--warn` | Send the expiration warning email to accounts approaching expiration. Deduplicates: accounts that already have an `account.expiration_warned` event within the last `warnDays` days are skipped. |
-| `--dry-run` | Print the counts without sending emails or writing audit events. |
-| `--json` | Output a JSON object `{ expired, warned, skipped }` to stdout. |
+| Flag        | Notes                                                                                                                                                                                            |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--warn`    | Send the expiration warning email to accounts approaching expiration. Deduplicates: accounts that already have an `account.expiration_warned` event within the last `warnDays` days are skipped. |
+| `--dry-run` | Print the counts without sending emails or writing audit events.                                                                                                                                 |
+| `--json`    | Output a JSON object `{ expired, warned, skipped }` to stdout.                                                                                                                                   |
 
 **Example cron** (runs nightly at 02:00):
 
@@ -429,24 +457,25 @@ warning window, even if the cron runs multiple times.
 ### Mail hook
 
 ```ts title="config/authkit_server.ts"
-import mail from '@adonisjs/mail/services/main'
+import mail from "@adonisjs/mail/services/main";
 
 defineConfig({
   // …
   mail: {
     onAccountExpirationWarning: async ({ account, expiresAt, daysLeft }) => {
       await mail.send((m) =>
-        m.from(env.get('EMAIL_FROM')).to(account.email!)
-          .subject('Your account will expire soon')
-          .html(`
+        m
+          .from(env.get("EMAIL_FROM"))
+          .to(account.email!)
+          .subject("Your account will expire soon").html(`
             <p>Your account at Acme will be locked in <strong>${daysLeft} day(s)</strong>
             due to inactivity (last login: ${expiresAt.toLocaleDateString()}).</p>
             <p>Log in to keep your account active.</p>
-          `)
-      )
+          `),
+      );
     },
   },
-})
+});
 ```
 
 When `onAccountExpirationWarning` is absent, AuthKit logs to the console (development) and
@@ -454,21 +483,21 @@ skips the email send.
 
 ### Audit events
 
-| Event | When |
-| --- | --- |
-| `account.expired_login_blocked` | A login was blocked because the account has exceeded `inactiveDays`. |
-| `account.expiration_warned` | An expiration warning email was sent (dedup anchor for the expire-scan command). |
+| Event                           | When                                                                             |
+| ------------------------------- | -------------------------------------------------------------------------------- |
+| `account.expired_login_blocked` | A login was blocked because the account has exceeded `inactiveDays`.             |
+| `account.expiration_warned`     | An expiration warning email was sent (dedup anchor for the expire-scan command). |
 
 ## Audit events
 
-| Event | When |
-| --- | --- |
-| `email_change.requested` | User requested an email address change. |
-| `email_change.cancelled` | Pending email change was cancelled. |
-| `email_change.confirmed` | Email address change confirmed (new address activated). |
-| `security_notice.sent` | A security notification email was dispatched. |
-| `account.deleted` | A user deletes their own account (self-service). |
-| `account.exported` | A user downloads their data export. |
-| `user.deleted` | An admin deletes a user via the console or API. |
-| `account.expired_login_blocked` | Login blocked — account exceeded inactivity threshold. |
-| `account.expiration_warned` | Expiration warning email sent (expire-scan dedup anchor). |
+| Event                           | When                                                      |
+| ------------------------------- | --------------------------------------------------------- |
+| `email_change.requested`        | User requested an email address change.                   |
+| `email_change.cancelled`        | Pending email change was cancelled.                       |
+| `email_change.confirmed`        | Email address change confirmed (new address activated).   |
+| `security_notice.sent`          | A security notification email was dispatched.             |
+| `account.deleted`               | A user deletes their own account (self-service).          |
+| `account.exported`              | A user downloads their data export.                       |
+| `user.deleted`                  | An admin deletes a user via the console or API.           |
+| `account.expired_login_blocked` | Login blocked — account exceeded inactivity threshold.    |
+| `account.expiration_warned`     | Expiration warning email sent (expire-scan dedup anchor). |

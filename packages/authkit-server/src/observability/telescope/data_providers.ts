@@ -8,8 +8,12 @@ import type { DataProvider, ExtensionContext } from "@adonis-agora/telescope";
  * audit event on the Agora diagnostics bus as `agora:authkit:<AuditEventType>`,
  * and Telescope's generic diagnostics watcher records each one as a `diagnostic`
  * entry (`tag: 'lib:authkit'`, `content.event` = the `AuditEventType`,
- * `content.payload` = the full {@link AuditEvent}). These providers roll those
- * captured entries up — no host service is resolved from the container.
+ * `content.payload` = a PII-free projection of the {@link AuditEvent}). The bridge
+ * REDACTS the projection before it hits the bus — `email`, `ip` and the free-form
+ * `metadata` are dropped, leaving only `type` + the opaque `accountId`/`actorId`/
+ * `clientId` — so Telescope never stores raw PII for a (possibly deleted) account.
+ * See `redactAuditEventForDiagnostics` in events/dispatcher.ts. These providers
+ * roll those captured entries up — no host service is resolved from the container.
  *
  * The entry slice each provider reads (a structural subset of a Telescope
  * `Entry`, so the providers stay decoupled from the entry's concrete shape).
@@ -265,7 +269,10 @@ export function authkitTokenActivityProvider(): DataProvider {
             event: eventOf(e),
             subject: p?.accountId ?? "",
             actor: p?.actorId ?? "",
-            ip: p?.ip ?? "",
+            // `ip` is intentionally NOT surfaced: the diagnostics bridge emits a
+            // PII-free projection of each audit event (no `email`/`ip`/`metadata`)
+            // so a deleted account's PII never lands in Telescope's store. See
+            // `redactAuditEventForDiagnostics` in events/dispatcher.ts.
           };
         });
       return { rows };

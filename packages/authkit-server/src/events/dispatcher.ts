@@ -64,6 +64,45 @@ export function signWebhookBody(body: string, secret: string): string {
 }
 
 /**
+ * Projeta um {@link AuditEvent} para o barramento `@agora/diagnostics` SEM PII
+ * direta (LGPD/GDPR — completude do "direito ao esquecimento").
+ *
+ * Motivação: o ramo de diagnostics espelha CADA evento de auditoria no barramento,
+ * de onde o Telescope o captura como um `diagnostic` INDEPENDENTE (tag
+ * `lib:authkit`) na SUA PRÓPRIA store. Esse espelho NÃO é alcançado pelo cascade de
+ * deleção de conta — o passo `anonymizeAudit` só anonimiza as linhas do audit-sink,
+ * não as cópias que vazaram para o Telescope. Se o evento bruto fosse para o
+ * barramento, o `email`/`ip` de uma conta deletada sobreviveria no store do
+ * Telescope.
+ *
+ * Para fechar isso na origem (mais robusto que um purge cross-store), a projeção que
+ * vai para o barramento já NASCE sem os identificadores diretos:
+ *
+ *   - REMOVE `email` e `ip` (PII direta);
+ *   - REMOVE `metadata` — é livre (`Record<string, unknown>`) e pode carregar PII,
+ *     p.ex. `{ email }` (convites de org) ou `{ oldEmail, newEmail }` (troca de
+ *     e-mail). Nenhum data provider do dashboard lê `metadata`, então dropá-lo é
+ *     seguro;
+ *   - MANTÉM `type` (a família do evento — o que os providers agregam) e os ids
+ *     internos opacos `accountId`/`actorId`/`clientId` (correlação de subject/actor
+ *     no dashboard; NÃO são PII direta e, sem `email`/`ip`/`metadata` e com a linha
+ *     da conta já deletada, não são reidentificáveis).
+ *
+ * Assim o Telescope nunca armazena PII bruta e a deleção de conta não precisa de uma
+ * etapa de purge cross-lib. Os ramos `onEvent`/`webhook` (integrações que o host
+ * habilita explicitamente) continuam recebendo o evento COMPLETO — só a ponte de
+ * diagnostics é redigida.
+ */
+export function redactAuditEventForDiagnostics(event: AuditEvent): AuditEvent {
+  return {
+    type: event.type,
+    accountId: event.accountId ?? null,
+    actorId: event.actorId ?? null,
+    clientId: event.clientId ?? null,
+  };
+}
+
+/**
  * Dispara o webhook de forma fire-and-forget: timeout de 5s via AbortSignal,
  * captura QUALQUER erro (rede, abort, HMAC) sem propagar. Nunca lança.
  */
@@ -125,7 +164,9 @@ export function composeAuditSink(
       }
       // Diagnostics Agora (best-effort, sempre ligado, no-op sem o slot).
       // Canal: `agora:authkit:<AuditEventType>` (o `type` É o sufixo).
-      emitDiagnostic(event.type, event);
+      // Emite uma projeção REDIGIDA (sem `email`/`ip`/`metadata`) para que o
+      // Telescope nunca armazene PII bruta — ver `redactAuditEventForDiagnostics`.
+      emitDiagnostic(event.type, redactAuditEventForDiagnostics(event));
     },
   };
   // Preserva a capacidade de consulta do sink original (console admin).

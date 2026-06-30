@@ -143,12 +143,14 @@ function authkitSecurityDashboard(
             kind: "table",
             title: "Recent token & impersonation events",
             data: { provider: "authkit.tokenActivity" },
+            // No "IP" column: the diagnostics bridge emits a PII-free projection
+            // (no `email`/`ip`/`metadata`), so a deleted account's PII never lands
+            // in Telescope's store. See `redactAuditEventForDiagnostics`.
             columns: [
               { key: "at", label: "When" },
               { key: "event", label: "Event" },
               { key: "subject", label: "Subject" },
               { key: "actor", label: "Actor" },
-              { key: "ip", label: "IP" },
             ],
           },
         ],

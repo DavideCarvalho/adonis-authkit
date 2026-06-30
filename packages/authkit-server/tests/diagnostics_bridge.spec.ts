@@ -83,7 +83,7 @@ test.group("observability/diagnostics_bridge", () => {
 test.group(
   "observability/diagnostics_bridge — fan-out do composeAuditSink",
   () => {
-    test("cada record emite agora:authkit:<type> com o evento completo", async ({
+    test("cada record emite agora:authkit:<type> com a projeção (sem PII) do evento", async ({
       assert,
     }) => {
       const { calls, restore } = installFakeEmit();
@@ -101,8 +101,50 @@ test.group(
       assert.lengthOf(calls, 2);
       assert.equal(calls[0].lib, "authkit");
       assert.equal(calls[0].event, "login.success");
+      // O `type` + os ids opacos passam; nenhum identificador direto.
       assert.equal((calls[0].payload as AuditEvent).accountId, "acc-1");
       assert.equal(calls[1].event, "mfa.enabled");
+    });
+
+    test("a projeção de diagnostics NÃO carrega email/ip/metadata (LGPD/GDPR)", async ({
+      assert,
+    }) => {
+      const { calls, restore } = installFakeEmit();
+      try {
+        const sink = composeAuditSink(undefined);
+        // Evento com PII direta no topo E escondida no metadata livre.
+        await sink.record({
+          type: "email_change.confirmed",
+          accountId: "acc-7",
+          actorId: "admin-1",
+          clientId: "app1",
+          email: "victim@example.com",
+          ip: "203.0.113.7",
+          metadata: {
+            oldEmail: "old@example.com",
+            newEmail: "new@example.com",
+          },
+        });
+      } finally {
+        restore();
+      }
+      assert.lengthOf(calls, 1);
+      const payload = calls[0].payload as Record<string, unknown>;
+      // PII direta E a forma livre que pode escondê-la são removidas.
+      assert.notProperty(payload, "email");
+      assert.notProperty(payload, "ip");
+      assert.notProperty(payload, "metadata");
+      // Nenhum e-mail/IP sobrevive em QUALQUER parte do payload serializado.
+      const serialized = JSON.stringify(payload);
+      assert.notInclude(serialized, "victim@example.com");
+      assert.notInclude(serialized, "old@example.com");
+      assert.notInclude(serialized, "new@example.com");
+      assert.notInclude(serialized, "203.0.113.7");
+      // Os campos não-PII de correlação seguem presentes.
+      assert.equal(payload.type, "email_change.confirmed");
+      assert.equal(payload.accountId, "acc-7");
+      assert.equal(payload.actorId, "admin-1");
+      assert.equal(payload.clientId, "app1");
     });
 
     test("emite diagnostics em paralelo a onEvent (sem se atrapalharem)", async ({

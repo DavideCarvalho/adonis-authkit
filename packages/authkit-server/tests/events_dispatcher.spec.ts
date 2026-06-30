@@ -9,6 +9,7 @@ import {
   resolveEvents,
   buildWebhookBody,
   signWebhookBody,
+  redactAuditEventForDiagnostics,
 } from "../src/events/dispatcher.js";
 import type { AuditEvent, AuditSink } from "../src/audit/audit_sink.js";
 import { fakeAccountStore } from "./bootstrap.js";
@@ -203,6 +204,46 @@ test.group("events/dispatcher — composeAuditSink", () => {
     });
     // não deve lançar
     await sink.record({ type: "login.success", email: "a@b.c" });
+  });
+
+  test("redactAuditEventForDiagnostics remove email/ip/metadata, mantém type+ids", ({
+    assert,
+  }) => {
+    const redacted = redactAuditEventForDiagnostics({
+      type: "login.success",
+      accountId: "acc-1",
+      actorId: "admin-1",
+      clientId: "app1",
+      email: "a@b.c",
+      ip: "1.2.3.4",
+      metadata: { oldEmail: "old@b.c", reason: "x" },
+    });
+    assert.deepEqual(redacted, {
+      type: "login.success",
+      accountId: "acc-1",
+      actorId: "admin-1",
+      clientId: "app1",
+    });
+    // garantia explícita: chaves de PII ausentes (não apenas null/undefined).
+    assert.notProperty(redacted, "email");
+    assert.notProperty(redacted, "ip");
+    assert.notProperty(redacted, "metadata");
+  });
+
+  test("webhook continua recebendo o evento COMPLETO (só diagnostics é redigido)", ({
+    assert,
+  }) => {
+    // O ramo de webhook usa buildWebhookBody (não a projeção de diagnostics):
+    // integrações que o host habilita explicitamente seguem com os dados completos.
+    const body = buildWebhookBody({
+      type: "login.success",
+      accountId: "acc-1",
+      email: "a@b.c",
+      ip: "1.2.3.4",
+    });
+    const parsed = JSON.parse(body);
+    assert.equal(parsed.email, "a@b.c");
+    assert.equal(parsed.ip, "1.2.3.4");
   });
 
   test("helpers buildWebhookBody/signWebhookBody são consistentes", ({

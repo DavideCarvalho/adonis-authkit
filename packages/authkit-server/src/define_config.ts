@@ -938,6 +938,25 @@ export interface AuthServerConfigInput {
    *   resto do cascade roda async.
    */
   accountLifecycle?: { durable?: boolean };
+  /**
+   * Integração OPT-IN com `@adonisjs/auth`. authkit-server autentica a área de
+   * conta (`/account/*`) com sua PRÓPRIA sessão (`ACCOUNT_SESSION_KEY`, via
+   * `@adonisjs/session` diretamente) — nunca chamou `@adonisjs/auth` em lugar
+   * nenhum, então `ctx.auth.user`/`middleware.auth()`/Bouncer's
+   * `() => ctx.auth.user` ficavam sempre `undefined` num host que os use.
+   *
+   * Quando `adonisAuth.guard` é setado, `AccountSessionController#login`/`logout`
+   * TAMBÉM chamam `ctx.auth.use(guard).login(account)`/`.logout()` do guard
+   * indicado — em paralelo ao cookie bespoke do authkit, que continua sendo a
+   * fonte de verdade das rotas do próprio authkit. Requer um user provider
+   * plugado nesse guard em `config/auth.ts` — veja {@link authkitUserProvider}.
+   *
+   * Default (ausente): comportamento de sempre, sem tocar em `ctx.auth`.
+   * Degrada limpo mesmo sem `@adonisjs/auth` instalado (peer opcional): o
+   * código só acessa `ctx.auth` quando esta opção está setada E a propriedade
+   * existe no ctx (host com `@adonisjs/auth` de fato inicializado).
+   */
+  adonisAuth?: { guard: string };
 }
 
 export interface ResolvedServerConfig {
@@ -1026,6 +1045,8 @@ export interface ResolvedServerConfig {
   accountLifecycle: { durable: boolean };
   /** Keys de `auth_settings` travadas por terem sido definidas no defineConfig. */
   lockedSettingKeys: string[];
+  /** Integração opt-in com `@adonisjs/auth` (ausente = não integrado; comportamento de sempre). */
+  adonisAuth?: { guard: string };
 }
 
 const UNITS: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
@@ -1240,6 +1261,8 @@ export function defineConfig(config: AuthServerConfigInput) {
         lockedSettingKeys: deriveLockedSettingKeys(
           config as Record<string, any>,
         ),
+        // Opt-in: ausente = authkit nunca toca `ctx.auth` (comportamento de sempre).
+        adonisAuth: config.adonisAuth,
       };
     },
   );

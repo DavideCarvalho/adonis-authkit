@@ -47,6 +47,7 @@ import { AdminSessionsService } from '../admin_sessions_service.js'
 import { enrichSessionsWithContext } from '../session_context.js'
 import { PasswordPolicyError } from '../../password/password_manager.js'
 import { resolveRuntimeSettings } from '../runtime_settings.js'
+import { syncAdonisAuthLogout } from '../adonis_auth_sync.js'
 import {
   resolveEffectiveEmailChange,
   resolveEffectivePasswordHistory,
@@ -637,6 +638,7 @@ export default class AccountApiController {
     // Encerrar a sessão Adonis do console (logout global do self-service).
     ctx.session.forget(ACCOUNT_SESSION_KEY)
     await ctx.session.regenerate()
+    await syncAdonisAuthLogout(ctx, cfg)
 
     return { ok: true, signedOut: true, ...result }
   }

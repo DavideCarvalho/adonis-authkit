@@ -7,6 +7,7 @@ import { notifyLoginSuccess } from '../login_notify.js'
 import { markSudo } from '../sudo_mode.js'
 import { accountHome } from '../account_home.js'
 import { resolveRuntimeSettings } from '../runtime_settings.js'
+import { syncAdonisAuthLogin, syncAdonisAuthLogout } from '../adonis_auth_sync.js'
 
 /**
  * Valida um valor de `return_to` recebido da query-string ou de um campo hidden.
@@ -101,12 +102,18 @@ export default class AccountSessionController {
     ctx.session.put(ACCOUNT_SESSION_KEY, acc.id)
     // Login com senha = confirmação de identidade → marca sudo (graça a partir do login).
     markSudo(ctx)
+    // Opt-in: sincroniza ctx.auth.use(cfg.adonisAuth.guard) com a mesma conta —
+    // no-op sem `adonisAuth` configurado ou sem @adonisjs/auth inicializado.
+    await syncAdonisAuthLogin(ctx, cfg, acc)
     await notifyLoginSuccess(ctx, cfg, { accountId: acc.id, email, ip })
     // Redireciona pro destino original (validado), ou cai no accountHome configurado.
     return ctx.response.redirect(returnTo ?? accountHome(cfg))
   }
 
   async logout(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server')
+    const cfg = service.config
+
     // M6: não basta `forget(ACCOUNT_SESSION_KEY)` — sobravam na sessão
     // `authkit_sudo_at` (sudo), `authkit_last_seen` e qualquer outro estado
     // sensível, com o session id INALTERADO. Regenerar a sessão troca o id E
@@ -115,6 +122,8 @@ export default class AccountSessionController {
     // (belt-and-braces) caso o store de sessão não suporte regenerate.
     ctx.session.forget(ACCOUNT_SESSION_KEY)
     await ctx.session.regenerate()
+    // Opt-in: espelha o logout no guard de @adonisjs/auth (ver adonisAuth em define_config.ts).
+    await syncAdonisAuthLogout(ctx, cfg)
     return ctx.response.redirect('/account/login')
   }
 }

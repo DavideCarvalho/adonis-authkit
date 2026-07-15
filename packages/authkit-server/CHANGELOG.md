@@ -1,5 +1,31 @@
 # @adonis-agora/authkit-server
 
+## 0.35.0
+
+### Minor Changes
+
+- c3e0309: Add optional `@adonisjs/auth` integration. `authkitUserProvider()` plugs authkit's own `accountStore` into `@adonisjs/auth`'s `sessionGuard()` (for `config/auth.ts`), and a new `adonisAuth: { guard: '...' }` option in `config/authkit.ts` makes `AccountSessionController#login`/`logout` (and the other self-service logout endpoints) also call `ctx.auth.use(guard).login()/.logout()` — so `ctx.auth.user`, `middleware.auth()`, and Bouncer's `() => ctx.auth.user` now work for apps built on authkit. Fully opt-in and additive: `ctx.auth` is never touched unless both the guard is configured in `config/authkit.ts` and `@adonisjs/auth` is actually installed and initialized.
+
+### Patch Changes
+
+- 2d55d68: Fail fast and loudly at boot when `config/app.ts` is missing `appKey`, instead of only surfacing a `RuntimeException` lazily the first time something resolves the `authkit.server` binding (which could otherwise be silently swallowed by the keystore-reload poller/key-rotation scheduler's fail-safe `.catch(() => null)`, or surface as an unexplained 500 on the first `/account/*` request).
+- 25ef01f: Default `render` to `edgeRenderer()` when `config/authkit.ts` omits it. Previously `render` had no runtime default: every `/account/*` and `/auth/interaction/*` request would throw `TypeError: render is not a function` (a 500 with no explanation) the moment a controller called `cfg.render!(...)`.
+- 70f5721: Ship peer dependencies as ranges instead of exact versions
+
+  `peerDependencies` pointed at the pinned `adonis`/`frontend` catalogs, and pnpm
+  inlines a catalog's literal value at publish time — so every published peer came
+  out exact. `@adonis-agora/authkit-server@0.34.1` on npm requires
+  `"@adonisjs/core": "7.3.3"`, which no app on 7.3.5 can satisfy;
+  `@adonis-agora/authkit-react@0.13.0` requires `"react": "19.2.6"`, which locks
+  out every consumer not on that exact patch.
+
+  Peers now resolve from three new range-only catalogs (`adonisPeers`,
+  `frontendPeers`, `miscPeers`). Dependencies keep the pinned catalogs — a pin is
+  right for reproducible installs and wrong for consumer compatibility, and the
+  two were sharing one source.
+
+  No source or runtime behaviour changes.
+
 ## 0.34.1
 
 ### Patch Changes

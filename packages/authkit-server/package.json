@@ -64,6 +64,7 @@
     "@adonis-agora/durable": "^0.2.0",
     "@adonis-agora/telescope": "^0.1.0",
     "@adonisjs/ally": "catalog:adonisPeers",
+    "@adonisjs/auth": "catalog:adonisPeers",
     "@adonisjs/core": "catalog:adonisPeers",
     "@adonisjs/drive": "catalog:adonisPeers",
     "@adonisjs/lock": "catalog:adonisPeers",
@@ -84,6 +85,9 @@
       "optional": true
     },
     "@adonisjs/ally": {
+      "optional": true
+    },
+    "@adonisjs/auth": {
       "optional": true
     },
     "@adonisjs/drive": {
@@ -111,6 +115,7 @@
     "@adonis-agora/durable": "^0.2.0",
     "@adonis-agora/telescope": "^0.1.0",
     "@adonisjs/ally": "catalog:adonis",
+    "@adonisjs/auth": "catalog:adonis",
     "@adonisjs/core": "catalog:adonis",
     "@adonisjs/drive": "catalog:adonis",
     "@adonisjs/lucid": "catalog:adonis",

@@ -12,15 +12,17 @@
  * side-effect comum permaneceria no JS emitido e quebraria o boot de hosts sem o
  * peer opcional `@adonisjs/ally` (social login) com ERR_MODULE_NOT_FOUND.
  *
- * - `@adonisjs/session/session_middleware`     → `HttpContext.session`
- * - `@adonisjs/shield/shield_middleware`        → `HttpRequest.csrfToken`
- * - `@adonisjs/ally/ally_provider`              → `HttpContext.ally` (peer opcional)
- * - `@adonisjs/core/providers/vinejs_provider`  → `HttpRequest.validateUsing`
+ * - `@adonisjs/session/session_middleware`         → `HttpContext.session`
+ * - `@adonisjs/shield/shield_middleware`            → `HttpRequest.csrfToken`
+ * - `@adonisjs/ally/ally_provider`                  → `HttpContext.ally` (peer opcional)
+ * - `@adonisjs/core/providers/vinejs_provider`      → `HttpRequest.validateUsing`
+ * - `@adonisjs/auth/initialize_auth_middleware`     → `HttpContext.auth` (peer opcional)
  */
 import type {} from '@adonisjs/session/session_middleware'
 import type {} from '@adonisjs/shield/shield_middleware'
 import type {} from '@adonisjs/ally/ally_provider'
 import type {} from '@adonisjs/core/providers/vinejs_provider'
+import type {} from '@adonisjs/auth/initialize_auth_middleware'
 
 /**
  * Identificador NÃO-SENSÍVEL da API key admin que autenticou a request (R6),

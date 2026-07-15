@@ -66,6 +66,7 @@ catalogs:
   # Only peerDependencies may point here.
   adonisPeers:
     "@adonisjs/ally": "^6.3.0"
+    "@adonisjs/auth": "^10.1.0"
     "@adonisjs/core": "^7.3.3"
     "@adonisjs/drive": "^4.0.0"
     "@adonisjs/lock": "^2.1.0"

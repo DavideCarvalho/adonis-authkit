@@ -37,6 +37,7 @@ import {
 } from "../runtime_toggles.js";
 import { dispatchSecurityNotice } from "../security_notice_service.js";
 import { requireSudo } from "../sudo_mode.js";
+import { syncAdonisAuthLogout } from "../adonis_auth_sync.js";
 
 /** Resolve os password history settings em runtime (fail-safe). */
 async function resolvePasswordHistorySettings(ctx: HttpContext) {
@@ -253,6 +254,7 @@ export default class AccountSecurityController {
 
     // Encerra a sessão e leva ao login com a mensagem de sucesso.
     ctx.session.forget(ACCOUNT_SESSION_KEY);
+    await syncAdonisAuthLogout(ctx, cfg);
     ctx.session.flash(
       "accountDeleted",
       translate(cfg.messages, "account.delete.deleted"),

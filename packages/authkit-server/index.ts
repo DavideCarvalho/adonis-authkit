@@ -334,3 +334,9 @@ export type {
   SudoModeSetting,
   ResolvedSudoModeSetting,
 } from './src/host/sudo_mode.js'
+
+// @adonisjs/auth integration (opt-in) — user provider for config/auth.ts's
+// sessionGuard(), backed by authkit's own accountStore. Pair with
+// `adonisAuth: { guard: '...' }` in config/authkit.ts so the account console's
+// login/logout also sync ctx.auth. See src/host/adonis_auth_user_provider.ts.
+export { authkitUserProvider } from './src/host/adonis_auth_user_provider.js'

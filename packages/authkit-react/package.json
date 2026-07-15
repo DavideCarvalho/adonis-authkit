@@ -43,10 +43,10 @@
     "test": "node --import=@poppinss/ts-exec bin/test.ts"
   },
   "peerDependencies": {
-    "@inertiajs/react": "catalog:frontend",
-    "@tanstack/react-query": "catalog:frontend",
-    "react": "catalog:frontend",
-    "react-dom": "catalog:frontend"
+    "@inertiajs/react": "catalog:frontendPeers",
+    "@tanstack/react-query": "catalog:frontendPeers",
+    "react": "catalog:frontendPeers",
+    "react-dom": "catalog:frontendPeers"
   },
   "dependencies": {
     "@adonis-agora/authkit-core": "workspace:*"

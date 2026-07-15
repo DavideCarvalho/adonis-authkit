@@ -16,6 +16,7 @@ import { KeystoreCodec } from '../src/keys/keystore_codec.js'
 import { loadEncryptionService } from '../src/keys/keystore_crypto.js'
 import type { AccountStore } from '../src/accounts/account_store.js'
 import type { PatStore } from '../src/pat/pat_store.js'
+import { resolveAppKey } from '../src/host/app_key.js'
 
 declare module '@adonisjs/core/types' {
   interface ContainerBindings {
@@ -30,6 +31,21 @@ export default class AuthkitServerProvider {
   constructor(protected app: ApplicationService) {}
 
   async boot() {
+    // EAGER + LOUD (fail-fast): se o host configurou `config/authkit.ts`, a
+    // `appKey` é indispensável — o oidc-provider a usa para assinar TODOS os
+    // cookies (keygrip). Antes, essa validação só rodava dentro do factory
+    // lazy do `authkit.server` (registrado abaixo): sem nada que resolvesse o
+    // binding no boot, o app subia normalmente e o erro só aparecia (a) na
+    // 1ª request que tocasse uma rota do authkit, como um 500 sem contexto
+    // fora do modo dev, OU (b) nunca, porque `#startKeystoreReloadPoll`/
+    // `#startKeyRotationScheduler` engolem qualquer erro do `container.make`
+    // via `.catch(() => null)`. Validar aqui, fora do try/catch fail-safe
+    // abaixo, propaga o erro para `app.boot()` e derruba o boot do processo
+    // com a mensagem certa — em vez de um 500 misterioso depois.
+    if (this.app.config.get('authkit')) {
+      resolveAppKey(this.app)
+    }
+
     // Config locks: trava as settings definidas explicitamente no defineConfig
     // (config vence em runtime; a UI/Admin API não pode alterá-las). Fail-safe:
     // qualquer erro → sem locks (comportamento legado).
@@ -94,22 +110,12 @@ export default class AuthkitServerProvider {
         )
       }
 
-      // `app.appKey` pode ser uma string crua ou um `Secret` do AdonisJS (config/app.ts
-      // expõe `export const appKey = new Secret(env.get('APP_KEY'))`). O oidc-provider
-      // assina cookies via keygrip e exige uma string — então liberamos o Secret aqui.
-      // Sem isso, a chave chegaria como objeto/undefined e o fluxo de authorize quebraria
-      // (keygrip: "key argument must be of type string ...").
-      const rawAppKey = this.app.config.get<unknown>('app.appKey')
-      const appKey =
-        rawAppKey && typeof (rawAppKey as any).release === 'function'
-          ? (rawAppKey as any).release()
-          : (rawAppKey as string)
-      if (!appKey || typeof appKey !== 'string') {
-        throw new RuntimeException(
-          'APP_KEY ausente: defina `export const appKey = new Secret(env.get(\'APP_KEY\'))` em config/app.ts. ' +
-            'O @adonis-agora/authkit-server precisa dele para assinar os cookies do oidc-provider.'
-        )
-      }
+      // `app.appKey` pode ser uma string crua ou um `Secret` do AdonisJS — ver
+      // `resolveAppKey` para o porquê e para a mensagem de erro (agora também
+      // validada EAGER no `boot()`, acima; mantida aqui para o caso raro de
+      // alguém resolver `authkit.server` diretamente sem passar pelo boot do
+      // provider, ex.: testes unitários do binding).
+      const appKey = resolveAppKey(this.app)
       const metrics = await this.app.container.make('authkit.metrics')
 
       const jwksInput = config.jwksConfig

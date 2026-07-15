@@ -63,15 +63,15 @@
   "peerDependencies": {
     "@adonis-agora/durable": "^0.2.0",
     "@adonis-agora/telescope": "^0.1.0",
-    "@adonisjs/ally": "catalog:adonis",
-    "@adonisjs/core": "catalog:adonis",
-    "@adonisjs/drive": "catalog:adonis",
-    "@adonisjs/lock": "catalog:adonis",
-    "@adonisjs/lucid": "catalog:adonis",
-    "@adonisjs/redis": "catalog:adonis",
-    "@adonisjs/session": "catalog:adonis",
-    "@adonisjs/shield": "catalog:adonis",
-    "edge.js": "catalog:"
+    "@adonisjs/ally": "catalog:adonisPeers",
+    "@adonisjs/core": "catalog:adonisPeers",
+    "@adonisjs/drive": "catalog:adonisPeers",
+    "@adonisjs/lock": "catalog:adonisPeers",
+    "@adonisjs/lucid": "catalog:adonisPeers",
+    "@adonisjs/redis": "catalog:adonisPeers",
+    "@adonisjs/session": "catalog:adonisPeers",
+    "@adonisjs/shield": "catalog:adonisPeers",
+    "edge.js": "catalog:miscPeers"
   },
   "peerDependenciesMeta": {
     "@adonis-agora/durable": {

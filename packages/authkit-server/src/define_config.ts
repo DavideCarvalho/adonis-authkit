@@ -48,6 +48,7 @@ import {
 } from "./host/bot_protection.js";
 import type { ResolveGeo } from "./host/geo.js";
 import { deriveLockedSettingKeys } from "./host/config_locks.js";
+import { edgeRenderer } from "./host/renderers/edge_renderer.js";
 
 export { adapters };
 export type { AuthAccount };
@@ -795,7 +796,12 @@ export interface AuthServerConfigInput {
    * Hosts que preferem mandar o usuário direto pro app podem apontar pra rota deles.
    */
   accountHome?: string;
-  /** Renderer de páginas do host (Inertia ou Edge). */
+  /**
+   * Renderer de páginas do host (Inertia ou Edge). Default (quando omitido):
+   * {@link edgeRenderer}. Sem isso, TODA request a `/account/*` e
+   * `/auth/interaction/*` estourava um 500 sem explicação — `render` era
+   * `undefined` e o controller chamava `render(ctx, ...)` diretamente.
+   */
   render?: AuthHostRenderer;
   /** Configuração de branding por cliente. */
   branding?: BrandingConfig;
@@ -1169,7 +1175,14 @@ export function defineConfig(config: AuthServerConfigInput) {
         accountStore: config.accountStore,
         patStore: config.patStore,
         mountPath: config.mountPath ?? "/oidc",
-        render: config.render,
+        // Default de runtime: sem isso, `render` ficava `undefined` e TODA
+        // request a `/account/*`/`/auth/interaction/*` estourava um 500 sem
+        // contexto (os controllers fazem `cfg.render!(...)`). `edgeRenderer()`
+        // só usa `ctx.view` quando de fato invocado por uma request — não
+        // importa `edge.js` eagerly, então é seguro construir mesmo em hosts
+        // sem o peer opcional instalado (só quebraria se a request realmente
+        // chegasse sem Edge configurado, exatamente como hoje).
+        render: config.render ?? edgeRenderer(),
         branding: config.branding,
         social: config.social,
         patIntrospectionSecret: config.patIntrospectionSecret,

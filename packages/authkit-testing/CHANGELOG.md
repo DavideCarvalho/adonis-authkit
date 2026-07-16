@@ -1,5 +1,13 @@
 # @adonis-agora/authkit-testing
 
+## 0.4.0
+
+### Minor Changes
+
+- c12bac9: Remove `hasAppRole`/`appRoles` from the fake `Authenticator` (`fakeAuthenticator`), matching the real
+  `@adonis-agora/authkit-client` surface after app-role authorization moved out of AuthKit. The fake now
+  exposes only `hasGlobalRole` (token roles). 0.x breaking.
+
 ## 0.3.0
 
 ### Minor Changes

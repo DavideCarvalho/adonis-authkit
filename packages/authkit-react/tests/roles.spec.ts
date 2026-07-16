@@ -1,10 +1,7 @@
 import { test } from '@japa/runner'
 import {
-  hasAllAppRoles,
   hasAllGlobalRoles,
-  hasAnyAppRole,
   hasAnyGlobalRole,
-  hasAppRole,
   hasGlobalRole,
 } from '../src/roles.js'
 import type { AuthUser } from '../src/types.js'
@@ -14,13 +11,6 @@ const user: AuthUser = {
   email: 'a@b.com',
   name: 'Ana',
   globalRoles: ['ADMIN', 'TEACHER'],
-  appRoles: ['EDITOR'],
-}
-
-const userNoAppRoles: AuthUser = {
-  id: 'u2',
-  email: 'c@d.com',
-  globalRoles: ['STUDENT'],
 }
 
 test.group('hasGlobalRole', () => {
@@ -71,46 +61,5 @@ test.group('hasAllGlobalRoles', () => {
 
   test('verdadeiro para lista vazia (every vacuamente verdadeiro)', ({ assert }) => {
     assert.isTrue(hasAllGlobalRoles(user, []))
-  })
-})
-
-test.group('hasAppRole', () => {
-  test('verdadeiro quando o papel de app está presente', ({ assert }) => {
-    assert.isTrue(hasAppRole(user, 'EDITOR'))
-  })
-
-  test('falso quando o papel de app está ausente', ({ assert }) => {
-    assert.isFalse(hasAppRole(user, 'VIEWER'))
-  })
-
-  test('falso quando o usuário não tem appRoles', ({ assert }) => {
-    assert.isFalse(hasAppRole(userNoAppRoles, 'EDITOR'))
-  })
-
-  test('falso para usuário nulo', ({ assert }) => {
-    assert.isFalse(hasAppRole(null, 'EDITOR'))
-  })
-})
-
-test.group('hasAnyAppRole / hasAllAppRoles', () => {
-  test('any: verdadeiro quando ao menos um bate', ({ assert }) => {
-    assert.isTrue(hasAnyAppRole(user, ['VIEWER', 'EDITOR']))
-  })
-
-  test('any: falso sem appRoles', ({ assert }) => {
-    assert.isFalse(hasAnyAppRole(userNoAppRoles, ['EDITOR']))
-  })
-
-  test('all: falso quando algum falta', ({ assert }) => {
-    assert.isFalse(hasAllAppRoles(user, ['EDITOR', 'VIEWER']))
-  })
-
-  test('all: verdadeiro quando todos batem', ({ assert }) => {
-    assert.isTrue(hasAllAppRoles(user, ['EDITOR']))
-  })
-
-  test('any/all: falso para usuário nulo', ({ assert }) => {
-    assert.isFalse(hasAnyAppRole(null, ['EDITOR']))
-    assert.isFalse(hasAllAppRoles(null, ['EDITOR']))
   })
 })

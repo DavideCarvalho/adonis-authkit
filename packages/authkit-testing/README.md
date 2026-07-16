@@ -53,20 +53,19 @@ provides one locally with no external network. You can also reuse a single
 keypair across tokens via `generateTestKeyPair()` + the `key` option, or get the
 raw public JWKS object with `jwksFromKey(key)` / `testJwks(key)`.
 
-### `fakeAuthenticator({ identity?, user?, appRoles? })`
+### `fakeAuthenticator({ identity?, user? })`
 
 Object satisfying the client's `Authenticator` surface, for injecting into
-`ctx.auth` in controller tests.
+`ctx.auth` in controller tests. O AuthKit só autentica — autorização por role é
+do `@adonis-agora/authz`, então o fake expõe só `hasGlobalRole` (roles do token).
 
 ```ts
 import { fakeAuthenticator } from '@adonis-agora/authkit-testing'
 
 const auth = fakeAuthenticator({
   identity: createTestIdentity({ globalRoles: ['ADMIN'] }),
-  appRoles: ['editor'],
 })
 auth.hasGlobalRole('ADMIN') // true
-await auth.hasAppRole('editor') // true
 ```
 
 Pass `identity: null` to simulate an anonymous request.

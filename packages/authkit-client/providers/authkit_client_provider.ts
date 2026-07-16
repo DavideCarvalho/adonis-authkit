@@ -1,13 +1,13 @@
+import type { SessionResolver } from "@adonis-agora/authkit-core";
 import { configProvider } from "@adonisjs/core";
 import { RuntimeException } from "@adonisjs/core/exceptions";
-import type { ApplicationService } from "@adonisjs/core/types";
 import type { HttpContext } from "@adonisjs/core/http";
+import type { ApplicationService } from "@adonisjs/core/types";
 import { Authenticator } from "../src/authenticator.js";
-import { refreshTokens, exchangeToken } from "../src/oidc_login.js";
 import { validateLogoutToken } from "../src/backchannel_logout.js";
 import type { ResolvedClientConfig } from "../src/define_config.js";
+import { exchangeToken, refreshTokens } from "../src/oidc_login.js";
 import type { TokenSet } from "../src/types.js";
-import type { SessionResolver } from "@adonis-agora/authkit-core";
 
 /** Margem (ms) antes do `expiresAt` em que o access token é renovado proativamente. */
 const REFRESH_SKEW_MS = 60_000;
@@ -44,9 +44,7 @@ export class AuthkitClientManager {
    * (RP-initiated) como `id_token_hint` ao redirecionar para `end_session_endpoint`.
    */
   getIdToken(ctx: HttpContext): string | undefined {
-    const tokenSet = (ctx as any).session?.get(this.config.sessionKey) as
-      | TokenSet
-      | undefined;
+    const tokenSet = (ctx as any).session?.get(this.config.sessionKey) as TokenSet | undefined;
     return tokenSet?.idToken || undefined;
   }
 
@@ -62,15 +60,12 @@ export class AuthkitClientManager {
   async maybeRefresh(ctx: HttpContext, deps: RefreshDeps = {}): Promise<void> {
     const session = (ctx as any).session;
     if (!session) return;
-    const tokenSet = session.get(this.config.sessionKey) as
-      | TokenSet
-      | undefined;
+    const tokenSet = session.get(this.config.sessionKey) as TokenSet | undefined;
     if (!tokenSet?.refreshToken) return;
 
     const now = deps.now ?? Date.now;
     // Sem expiresAt conhecido, não renova proativamente (evita refresh a cada request).
-    if (!tokenSet.expiresAt || tokenSet.expiresAt - now() > REFRESH_SKEW_MS)
-      return;
+    if (!tokenSet.expiresAt || tokenSet.expiresAt - now() > REFRESH_SKEW_MS) return;
 
     try {
       const next = await refreshTokens({
@@ -148,9 +143,7 @@ export class AuthkitClientManager {
    */
   async impersonate(ctx: HttpContext, requestedSubject: string): Promise<void> {
     const session = (ctx as any).session;
-    const current = session?.get(this.config.sessionKey) as
-      | TokenSet
-      | undefined;
+    const current = session?.get(this.config.sessionKey) as TokenSet | undefined;
     if (!current?.accessToken) {
       throw new Error("Sem sessão ativa para impersonar a partir dela");
     }
@@ -169,9 +162,7 @@ export class AuthkitClientManager {
   /** Encerra a impersonação restaurando o token set original. Retorna false se não havia impersonação. */
   async stopImpersonating(ctx: HttpContext): Promise<boolean> {
     const session = (ctx as any).session;
-    const original = session?.get(this.#impersonatorKey) as
-      | TokenSet
-      | undefined;
+    const original = session?.get(this.#impersonatorKey) as TokenSet | undefined;
     if (!original) return false;
     session.put(this.config.sessionKey, original);
     session.forget(this.#impersonatorKey);
@@ -189,11 +180,8 @@ export class AuthkitClientManager {
     return new Authenticator(ctx, {
       resolver,
       resolveUser: this.config.resolveUser,
-      resolveAppRoles: this.config.resolveAppRoles,
       getAccessToken: () => {
-        const tokenSet = (ctx as any).session?.get(sessionKey) as
-          | TokenSet
-          | undefined;
+        const tokenSet = (ctx as any).session?.get(sessionKey) as TokenSet | undefined;
         return tokenSet?.accessToken;
       },
     });
@@ -212,10 +200,7 @@ export default class AuthkitClientProvider {
   register() {
     this.app.container.singleton("authkit.client", async () => {
       const value = this.app.config.get("authkit_client");
-      const config = (await configProvider.resolve(
-        this.app,
-        value,
-      )) as ResolvedClientConfig | null;
+      const config = (await configProvider.resolve(this.app, value)) as ResolvedClientConfig | null;
       if (!config) {
         throw new RuntimeException(
           'Config inválido em "config/authkit_client.ts". Use defineConfig de @adonis-agora/authkit-client.',

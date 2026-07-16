@@ -9,14 +9,11 @@ test.group('fakeAuthenticator', () => {
   test('checagens de role e identidade funcionam', async ({ assert }) => {
     const auth = fakeAuthenticator({
       identity: createTestIdentity({ globalRoles: ['ADMIN'] }),
-      appRoles: ['editor'],
     })
 
     assert.isTrue(await auth.check())
     assert.isTrue(auth.hasGlobalRole('ADMIN'))
     assert.isFalse(auth.hasGlobalRole('OWNER'))
-    assert.isTrue(await auth.hasAppRole('editor'))
-    assert.isFalse(await auth.hasAppRole('viewer'))
     assert.equal((await auth.authenticate()).globalRoles[0], 'ADMIN')
   })
 

@@ -11,7 +11,6 @@ export interface FakeAuthenticatorLike {
   authenticate(): Promise<Identity>
   check(): Promise<boolean>
   hasGlobalRole(role: string): boolean
-  hasAppRole(role: string): Promise<boolean>
   getUser(): Promise<unknown>
 }
 
@@ -20,8 +19,6 @@ export interface FakeAuthenticatorOptions {
   identity?: Identity | null
   /** usuário de domínio retornado por `getUser()`. */
   user?: unknown
-  /** roles de app reconhecidas por `hasAppRole`. */
-  appRoles?: string[]
 }
 
 /**
@@ -31,7 +28,6 @@ export interface FakeAuthenticatorOptions {
 export function fakeAuthenticator(options: FakeAuthenticatorOptions = {}): FakeAuthenticatorLike {
   const identity: Identity | null =
     options.identity === undefined ? createTestIdentity() : options.identity
-  const appRoles = options.appRoles ?? []
   const user = 'user' in options ? options.user : identity
 
   return {
@@ -50,10 +46,6 @@ export function fakeAuthenticator(options: FakeAuthenticatorOptions = {}): FakeA
     },
     hasGlobalRole(role: string) {
       return identity?.globalRoles.includes(role) ?? false
-    },
-    async hasAppRole(role: string) {
-      if (!identity) return false
-      return appRoles.includes(role)
     },
     async getUser() {
       if (!identity) return null

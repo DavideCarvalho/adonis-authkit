@@ -1,17 +1,16 @@
-import type { Router } from '@adonisjs/core/http'
-import type { HttpContext } from '@adonisjs/core/http'
-import type { Identity } from '@adonis-agora/authkit-core'
 import { randomUUID } from 'node:crypto'
+import type { Identity } from '@adonis-agora/authkit-core'
+import type { HttpContext, Router } from '@adonisjs/core/http'
 import { buildAuthorizeUrl, buildEndSessionUrl, exchangeCode, generatePkce } from './oidc_login.js'
 
 /**
  * Mapa role → rota de redirect pós-login. `byGlobalRole` checa as roles globais do
- * IdP (claim); `byAppRole` checa `resolveAppRoles`. A primeira correspondência vence
- * (global antes de app); sem match → `default`.
+ * IdP (claim do token) — a primeira correspondência vence; sem match → `default`.
+ * Autorização por app-role/permissão saiu do AuthKit — use `@adonis-agora/authz`
+ * (ex.: no `afterLogin`) se o destino depender disso.
  */
 export interface PostLoginRedirects {
   byGlobalRole?: Record<string, string>
-  byAppRole?: Record<string, string>
   default?: string
 }
 
@@ -22,7 +21,10 @@ export interface RegisterOidcClientOptions {
    * Hook após troca de code bem-sucedida. Retorne uma STRING para redirecionar
    * para uma rota específica; retorne void para cair em `redirects`/`/`.
    */
-  afterLogin?: (ctx: HttpContext, identity: Identity | null) => Promise<string | void> | string | void
+  afterLogin?: (
+    ctx: HttpContext,
+    identity: Identity | null,
+  ) => Promise<string | void> | string | void
   /** Redirect pós-login por papel (usado quando `afterLogin` não retorna string). */
   redirects?: PostLoginRedirects
   /** Destino pós-logout. Default: origem do redirectUri + '/'. */
@@ -48,7 +50,7 @@ export interface RegisterOidcClientOptions {
  * import { registerOidcClient } from '@adonis-agora/authkit-client'
  * registerOidcClient(router, {
  *   loginMiddleware: middleware.guest(),
- *   redirects: { byGlobalRole: { ADMIN: '/admin' }, byAppRole: { ADVISOR: '/advisor' }, default: '/' },
+ *   redirects: { byGlobalRole: { ADMIN: '/admin' }, default: '/' },
  * })
  * ```
  */
@@ -115,8 +117,8 @@ export function registerOidcClient(router: Router, options: RegisterOidcClientOp
       const hook = await options.afterLogin?.(ctx, identity)
       if (typeof hook === 'string') return ctx.response.redirect(hook)
 
-      // 2) Redirect por papel: global primeiro, depois app.
-      const dest = await resolveDestination(authenticator, identity, options.redirects)
+      // 2) Redirect por role global (do token).
+      const dest = resolveDestination(identity, options.redirects)
       return ctx.response.redirect(dest)
     })
     .as('auth.callback')
@@ -153,22 +155,13 @@ export function registerOidcClient(router: Router, options: RegisterOidcClientOp
   }
 }
 
-/** Resolve o destino pós-login a partir do mapa de redirects por papel. */
-async function resolveDestination(
-  authenticator: { hasAppRole(role: string): Promise<boolean> },
-  identity: Identity | null,
-  redirects?: PostLoginRedirects
-): Promise<string> {
+/** Resolve o destino pós-login a partir do mapa de redirects por role global (do token). */
+function resolveDestination(identity: Identity | null, redirects?: PostLoginRedirects): string {
   if (!redirects) return '/'
   const globalRoles = identity?.globalRoles ?? []
   if (redirects.byGlobalRole) {
     for (const [role, path] of Object.entries(redirects.byGlobalRole)) {
       if (globalRoles.includes(role)) return path
-    }
-  }
-  if (redirects.byAppRole) {
-    for (const [role, path] of Object.entries(redirects.byAppRole)) {
-      if (await authenticator.hasAppRole(role)) return path
     }
   }
   return redirects.default ?? '/'

@@ -5,7 +5,7 @@ import type { AuthUser } from './types.js'
  * `useAuth()` e os componentes de gating delegam para estas funções.
  */
 
-/** Algoritmos genéricos compartilhados pelas variantes global/app. */
+/** Algoritmos genéricos por trás das variantes de papel global. */
 function hasRole(arr: readonly string[], role: string): boolean {
   return arr.includes(role)
 }
@@ -34,22 +34,4 @@ export function hasAnyGlobalRole(user: AuthUser | null | undefined, roles: strin
 export function hasAllGlobalRoles(user: AuthUser | null | undefined, roles: string[]): boolean {
   if (!user) return false
   return hasAllRoles(user.globalRoles, roles)
-}
-
-/** Verdadeiro se o usuário possui o papel de app informado. */
-export function hasAppRole(user: AuthUser | null | undefined, role: string): boolean {
-  if (!user || !user.appRoles) return false
-  return hasRole(user.appRoles, role)
-}
-
-/** Verdadeiro se o usuário possui ao menos um dos papéis de app informados. */
-export function hasAnyAppRole(user: AuthUser | null | undefined, roles: string[]): boolean {
-  if (!user || !user.appRoles) return false
-  return hasAnyRole(user.appRoles, roles)
-}
-
-/** Verdadeiro se o usuário possui todos os papéis de app informados. */
-export function hasAllAppRoles(user: AuthUser | null | undefined, roles: string[]): boolean {
-  if (!user || !user.appRoles) return false
-  return hasAllRoles(user.appRoles, roles)
 }

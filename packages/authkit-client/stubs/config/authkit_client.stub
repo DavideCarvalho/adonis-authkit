@@ -11,7 +11,7 @@ const authkitClientConfig = defineConfig({
   redirectUri: env.get('AUTHKIT_REDIRECT_URI'),
   resolver: resolvers.jwt({ tokenSource: 'session' }),
   // resolveUser: async (identity) => User.find(identity.userId),
-  // resolveAppRoles: async (identity) => RoleService.appRolesFor(identity.userId),
+  // Roles do app? Configure `resolveRoles` no @adonis-agora/authz (não aqui — o AuthKit só autentica).
 })
 
 export default authkitClientConfig

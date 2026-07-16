@@ -15,8 +15,9 @@ export interface CanPermissionProps {
 
 /**
  * Renderiza `children` somente se a Authz autorizar `permission` sobre
- * `resource`. Diferente de `<Can>` (que gateia em papéis globais), este
- * gateia em permissões de DB da Authz via `POST <canPath>`.
+ * `resource`. Diferente de `<Can>` de `@adonis-agora/authz-react` (que gateia
+ * em papéis/permissões via o serviço Authz), este gateia em permissões de DB
+ * da Authz via `POST <canPath>`.
  *
  * Enquanto carrega, renderiza `loadingFallback` (default `null`).
  */

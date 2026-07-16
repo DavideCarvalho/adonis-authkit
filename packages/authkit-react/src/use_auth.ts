@@ -4,7 +4,6 @@ import { AuthContext } from './provider.js'
 import {
   hasAllGlobalRoles as hasAllGlobalRolesPure,
   hasAnyGlobalRole as hasAnyGlobalRolePure,
-  hasAppRole as hasAppRolePure,
   hasGlobalRole as hasGlobalRolePure,
 } from './roles.js'
 import type { AuthSharedProps, AuthState } from './types.js'
@@ -13,7 +12,6 @@ import type { AuthSharedProps, AuthState } from './types.js'
 const UNAUTHENTICATED = {
   user: null,
   globalRoles: [] as string[],
-  appRoles: undefined as string[] | undefined,
 } satisfies AuthSharedProps['authkit']
 
 /**
@@ -41,17 +39,14 @@ export function useAuth(): AuthState {
   return useMemo<AuthState>(() => {
     const user = authkit.user ?? null
     const globalRoles = authkit.globalRoles ?? user?.globalRoles ?? []
-    const appRoles = authkit.appRoles ?? user?.appRoles ?? []
 
     return {
       user,
       isAuthenticated: user !== null,
       globalRoles,
-      appRoles,
       hasGlobalRole: (role: string) => hasGlobalRolePure(user, role),
       hasAnyGlobalRole: (roles: string[]) => hasAnyGlobalRolePure(user, roles),
       hasAllGlobalRoles: (roles: string[]) => hasAllGlobalRolesPure(user, roles),
-      hasAppRole: (role: string) => hasAppRolePure(user, role),
     }
   }, [authkit])
 }

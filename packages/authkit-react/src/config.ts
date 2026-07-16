@@ -44,7 +44,7 @@ export interface AuthkitEndpoints {
  *   Os componentes que dependem da REST surface do authkit-server
  *   (`UserProfile`, `OrganizationSwitcher`, `OrganizationProfile`,
  *   `AuthorizedApps`) degradam para `null` em vez de chamar endpoints que
- *   não existem; `SignInButton`/`SignOutButton`/`useAuth`/`Avatar`/`Can`
+ *   não existem; `SignInButton`/`SignOutButton`/`useAuth`/`Avatar`
  *   continuam funcionando normalmente.
  */
 export type AuthkitIdpMode = "authkit" | "external";

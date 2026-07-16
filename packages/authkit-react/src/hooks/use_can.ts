@@ -142,7 +142,8 @@ export async function checkCan(
 
 /**
  * Gateia em uma permissão de DB da Authz (não em papéis globais — para esses
- * use `<Can>`/`useAuth`). Consulta `POST <canPath>` (default `/authz/can`,
+ * use `hasGlobalRole`/`useAuth`, ou `<Can>` de `@adonis-agora/authz-react`).
+ * Consulta `POST <canPath>` (default `/authz/can`,
  * configurável via `AuthkitProvider`) e devolve `{ allowed, loading, error? }`,
  * com cache/dedupe em memória por (principal, permission, resource).
  *

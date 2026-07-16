@@ -10,7 +10,6 @@
  * - `name`          ← `Identity.profile?.name`
  * - `avatarUrl`     ← `Identity.profile?.avatarUrl`
  * - `globalRoles`   ← `Identity.globalRoles` (papéis globais do IdP)
- * - `appRoles`      ← `resolveAppRoles(identity)` (papéis específicos do app, opcional)
  *
  * É a fronteira de tipos entre backend e frontend: o host é livre para
  * adicionar campos extras de domínio (por isso o index signature).
@@ -22,8 +21,6 @@ export interface AuthUser {
   avatarUrl?: string
   /** papéis globais, vindos do IdP via claim de roles */
   globalRoles: string[]
-  /** papéis específicos do app (opcional; resolvidos no host) */
-  appRoles?: string[]
   /** escape hatch: o host pode anexar campos extras de domínio */
   [key: string]: unknown
 }
@@ -47,7 +44,6 @@ export interface AuthSharedProps {
   authkit: {
     user: AuthUser | null
     globalRoles: string[]
-    appRoles?: string[]
   }
   /** o Inertia `PageProps` exige index signature; o host pode ter outras props */
   [key: string]: unknown
@@ -60,9 +56,7 @@ export interface AuthState {
   user: AuthUser | null
   isAuthenticated: boolean
   globalRoles: string[]
-  appRoles: string[]
   hasGlobalRole(role: string): boolean
   hasAnyGlobalRole(roles: string[]): boolean
   hasAllGlobalRoles(roles: string[]): boolean
-  hasAppRole(role: string): boolean
 }

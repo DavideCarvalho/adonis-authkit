@@ -33,7 +33,6 @@ export default defineConfig({
       return {
         user: user ?? null,
         globalRoles: auth.identity?.globalRoles ?? [],
-        // appRoles opcional, se o host resolver papéis de app
       }
     },
   },
@@ -41,7 +40,7 @@ export default defineConfig({
 ```
 
 O objeto `user` deve corresponder ao tipo `AuthUser`:
-`{ id, email, name?, avatarUrl?, globalRoles, appRoles? }` — exatamente a saída de
+`{ id, email, name?, avatarUrl?, globalRoles }` — exatamente a saída de
 `identityToUser`/`resolveUser` do client.
 
 ## 2. No frontend: `useAuth()`
@@ -69,7 +68,7 @@ não-autenticado (`user: null`, listas vazias).
 ## 3. Componentes de gating
 
 ```tsx
-import { Authenticated, Guest, Can } from '@adonis-agora/authkit-react'
+import { Authenticated, Guest } from '@adonis-agora/authkit-react'
 
 <Authenticated fallback={<LoginButton />}>
   <Dashboard />
@@ -78,22 +77,11 @@ import { Authenticated, Guest, Can } from '@adonis-agora/authkit-react'
 <Guest>
   <MarketingBanner />
 </Guest>
-
-{/* papel global único */}
-<Can role="ADMIN">
-  <AdminPanel />
-</Can>
-
-{/* exige todos os papéis */}
-<Can roles={['ADMIN', 'BILLING']} mode="all" fallback={<NoAccess />}>
-  <BillingSettings />
-</Can>
-
-{/* papel específico do app */}
-<Can role="EDITOR" appRole>
-  <EditButton />
-</Can>
 ```
+
+Gating por papel/permissão de app (`<Can>`) migrou para
+`@adonis-agora/authz-react`, que consulta o serviço Authz em vez de depender
+de papéis de app resolvidos no host — veja a doc desse pacote.
 
 ## 4. `AuthProvider` (opcional)
 
@@ -139,7 +127,7 @@ redirecionam para o IdP. Temável via CSS vars `--authkit-*`. Veja a
 Para uso fora de componentes, as funções de papéis são exportadas e livres de React:
 
 ```ts
-import { hasGlobalRole, hasAnyGlobalRole, hasAllGlobalRoles, hasAppRole } from '@adonis-agora/authkit-react'
+import { hasGlobalRole, hasAnyGlobalRole, hasAllGlobalRoles } from '@adonis-agora/authkit-react'
 
 hasGlobalRole(user, 'ADMIN')
 hasAnyGlobalRole(user, ['ADMIN', 'TEACHER'])

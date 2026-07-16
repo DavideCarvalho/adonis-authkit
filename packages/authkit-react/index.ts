@@ -83,8 +83,6 @@ export type {
   AuthenticatedProps,
   GuestProps,
 } from "./src/components/authenticated.js";
-export { Can } from "./src/components/can.js";
-export type { CanProps } from "./src/components/can.js";
 export { CanPermission } from "./src/components/can_permission.js";
 export type { CanPermissionProps } from "./src/components/can_permission.js";
 export { useCan, checkCan, invalidateCanCache } from "./src/hooks/use_can.js";
@@ -117,9 +115,6 @@ export {
   hasGlobalRole,
   hasAnyGlobalRole,
   hasAllGlobalRoles,
-  hasAppRole,
-  hasAnyAppRole,
-  hasAllAppRoles,
 } from "./src/roles.js";
 export type { AuthUser, AuthSharedProps, AuthState } from "./src/types.js";
 

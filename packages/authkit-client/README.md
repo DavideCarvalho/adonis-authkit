@@ -26,9 +26,13 @@ router.post('/auth/logout', [OidcSessionController, 'logout'])
 ```ts
 const identity = await ctx.auth.getIdentity()   // claims OIDC validadas (ou null)
 const user = await ctx.auth.getUser()            // model do app (via resolveUser)
-ctx.auth.hasGlobalRole('ADMIN')                  // síncrono, das claims
-await ctx.auth.hasAppRole('COORDINATOR')         // via resolveAppRoles
+ctx.auth.hasGlobalRole('ADMIN')                  // síncrono, das claims (roles do token)
 ```
+
+> **Autorização por app-role saiu do AuthKit.** O AuthKit só autentica e conhece as `globalRoles` do
+> token. Roles do app (numa tabela do domínio) e permissões são do `@adonis-agora/authz` — configure
+> o seam `resolveRoles` lá. Guard de rota por role vai pra authz/Bouncer, não para o `authkit_middleware`
+> (que só exige login).
 
 ## Resolução de sessão
 `resolvers.jwt({ tokenSource })` valida o **ID token** (JWT) por JWKS:
@@ -46,10 +50,6 @@ O app lê um model Lucid local mapeado pra `auth.users` (FK cross-schema):
 resolveUser: async (identity) => {
   // FK cross-schema: app.users.auth_user_id -> auth.users.id
   return AppUser.query().where('authUserId', identity.userId).firstOrFail()
-},
-resolveAppRoles: async (identity) => {
-  const u = await AppUser.findByOrFail('authUserId', identity.userId)
-  return u.related('roles').query().then((rs) => rs.map((r) => r.name))
 },
 ```
 
@@ -69,13 +69,8 @@ import { createUserinfoResolver } from '@adonis-agora/authkit-client'
 resolveUser: createUserinfoResolver({ issuer: env.get('AUTHKIT_ISSUER') }),
 // ou: createUserinfoResolver({ userinfoEndpoint: 'https://idp/me' })
 ```
-Em ambos os casos, `resolveAppRoles` **sempre consulta o banco do próprio app**:
-```ts
-resolveAppRoles: async (identity) => {
-  const roles = await AppRole.query().where('authUserId', identity.userId)
-  return roles.map((r) => r.name)
-},
-```
+Roles do app (a tabela de roles do próprio domínio) não passam mais pelo AuthKit — configure o seam
+`resolveRoles` do `@adonis-agora/authz`, que as une às `globalRoles` do token para decidir permissão.
 
 ## Ordem de middleware (importante)
 O middleware do `@adonisjs/session` DEVE rodar ANTES do `authkit_middleware` no stack `router`

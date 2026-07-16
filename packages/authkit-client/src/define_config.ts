@@ -1,9 +1,9 @@
-import { configProvider } from "@adonisjs/core";
 import type { Identity } from "@adonis-agora/authkit-core";
-import { resolvers, type ResolverFactory } from "./resolvers/factory.js";
+import { configProvider } from "@adonisjs/core";
 import type { SessionIndex } from "./backchannel_logout.js";
-import type { RevocationStore } from "./revocation/revocation_store.js";
 import type { ResiliencePolicy } from "./http/resilient_fetch.js";
+import { type ResolverFactory, resolvers } from "./resolvers/factory.js";
+import type { RevocationStore } from "./revocation/revocation_store.js";
 
 export { resolvers };
 
@@ -32,11 +32,7 @@ export interface ClientConfigInput {
   clientSecret?: string;
   redirectUri: string;
   resolver: ResolverFactory;
-  resolveUser?: (
-    identity: Identity,
-    context: { accessToken?: string },
-  ) => Promise<unknown>;
-  resolveAppRoles?: (identity: Identity) => Promise<string[]>;
+  resolveUser?: (identity: Identity, context: { accessToken?: string }) => Promise<unknown>;
   sessionKey?: string;
   scopes?: string[];
   globalRolesClaim?: string;
@@ -70,11 +66,7 @@ export interface ResolvedClientConfig {
   clientSecret?: string;
   redirectUri: string;
   resolverFactory: ResolverFactory;
-  resolveUser?: (
-    identity: Identity,
-    context: { accessToken?: string },
-  ) => Promise<unknown>;
-  resolveAppRoles?: (identity: Identity) => Promise<string[]>;
+  resolveUser?: (identity: Identity, context: { accessToken?: string }) => Promise<unknown>;
   sessionKey: string;
   scopes: string[];
   globalRolesClaim: string;
@@ -108,15 +100,8 @@ export function defineConfig(config: ClientConfigInput) {
       redirectUri: config.redirectUri,
       resolverFactory: config.resolver,
       resolveUser: config.resolveUser,
-      resolveAppRoles: config.resolveAppRoles,
       sessionKey: config.sessionKey ?? "authkit",
-      scopes: config.scopes ?? [
-        "openid",
-        "profile",
-        "email",
-        "offline_access",
-        "roles",
-      ],
+      scopes: config.scopes ?? ["openid", "profile", "email", "offline_access", "roles"],
       globalRolesClaim: config.globalRolesClaim ?? "roles",
       onBackchannelLogout,
       sessionIndex: config.sessionIndex,

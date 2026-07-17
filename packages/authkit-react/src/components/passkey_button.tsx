@@ -4,6 +4,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePasskeyLogin } from "../hooks/use_passkey_login.js";
+import { buttonClass } from "../utils.js";
 
 export interface PasskeyButtonProps extends Omit<
   ButtonHTMLAttributes<HTMLButtonElement>,
@@ -51,9 +52,7 @@ export function PasskeyButton({
     "button",
     {
       type: "button",
-      className: ["authkit-button", "authkit-button--ghost", className]
-        .filter(Boolean)
-        .join(" "),
+      className: buttonClass("authkit-button--ghost", className),
       onClick: () => {
         void authenticate();
       },

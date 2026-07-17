@@ -91,7 +91,14 @@ export type {
 } from "./src/hooks/use_password_strength.js";
 
 // utilitários puros
-export { deriveInitials, currentUrl } from "./src/utils.js";
+export { deriveInitials, currentUrl, buttonClass } from "./src/utils.js";
+
+// URLs de interaction (builders tipados)
+export { interactionUrls, oauthRedirectUrl } from "./src/interaction/urls.js";
+export type {
+  InteractionUrls,
+  InteractionPostStep,
+} from "./src/interaction/urls.js";
 
 // Componentes de gating
 export { Authenticated, Guest } from "./src/components/authenticated.js";
@@ -121,6 +128,12 @@ export { PasswordStrengthMeter } from "./src/components/password_strength_meter.
 export type { PasswordStrengthMeterProps } from "./src/components/password_strength_meter.js";
 export { PasskeyButton } from "./src/components/passkey_button.js";
 export type { PasskeyButtonProps } from "./src/components/passkey_button.js";
+export { InteractionForm } from "./src/components/interaction_form.js";
+export type { InteractionFormProps } from "./src/components/interaction_form.js";
+export { MagicLinkButton } from "./src/components/magic_link_button.js";
+export type { MagicLinkButtonProps } from "./src/components/magic_link_button.js";
+export { OAuthButton } from "./src/components/oauth_button.js";
+export type { OAuthButtonProps } from "./src/components/oauth_button.js";
 export { OrganizationSwitcher } from "./src/components/organization_switcher.js";
 export type { OrganizationSwitcherProps } from "./src/components/organization_switcher.js";
 export { OrganizationProfile } from "./src/components/organization_profile.js";

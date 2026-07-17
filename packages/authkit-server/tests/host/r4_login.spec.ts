@@ -120,16 +120,27 @@ test.group('trusted devices (helper puro)', () => {
 
 test.group('passwordless (config resolver)', () => {
   test('defaults desligados', ({ assert }) => {
-    assert.deepEqual(resolvePasswordless(), { magicLink: false, passkeyFirst: false })
+    assert.deepEqual(resolvePasswordless(), {
+      magicLink: false,
+      passkeyFirst: false,
+      signup: false,
+    })
   })
   test('liga seletivamente', ({ assert }) => {
     assert.deepEqual(resolvePasswordless({ magicLink: true }), {
       magicLink: true,
       passkeyFirst: false,
+      signup: false,
     })
     assert.deepEqual(resolvePasswordless({ passkeyFirst: true }), {
       magicLink: false,
       passkeyFirst: true,
+      signup: false,
+    })
+    assert.deepEqual(resolvePasswordless({ signup: true }), {
+      magicLink: false,
+      passkeyFirst: false,
+      signup: true,
     })
   })
 })

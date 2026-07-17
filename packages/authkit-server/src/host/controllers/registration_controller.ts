@@ -1,8 +1,18 @@
 import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import { brandFor } from '../branding.js'
-import { signupValidator, forgotPasswordValidator, resetPasswordValidator } from '../validators.js'
-import { sendPasswordResetEmail, sendEmailVerificationEmail } from '../default_mailer.js'
+import { randomBytes } from 'node:crypto'
+import {
+  signupValidator,
+  passwordlessSignupValidator,
+  forgotPasswordValidator,
+  resetPasswordValidator,
+} from '../validators.js'
+import {
+  sendPasswordResetEmail,
+  sendEmailVerificationEmail,
+  sendMagicLinkEmail,
+} from '../default_mailer.js'
 import { translate } from '../i18n.js'
 import { PasswordPolicyError } from '../../password/password_manager.js'
 import { guardBotProtection, resolveEffectiveBotProtection } from '../bot_protection.js'
@@ -67,6 +77,7 @@ export default class AuthRegistrationController {
       uid: details.uid,
       csrfToken: ctx.request.csrfToken,
       brand,
+      passwordlessSignup: cfg.passwordless?.signup ?? false,
       botProtection: effectiveBot?.on.includes('signup') ? effectiveBot.widget : undefined,
     })
   }
@@ -122,6 +133,15 @@ export default class AuthRegistrationController {
         brand,
         botProtection: effectiveBotSignup?.widget,
       })
+    }
+
+    // Cadastro passwordless (config): só e-mail + nome. Cria conta com senha random
+    // inutilizável e envia um magic link — mesmo fluxo do login por magic link.
+    if (
+      cfg.passwordless?.signup &&
+      typeof (cfg.accountStore as any).issueMagicLinkToken === 'function'
+    ) {
+      return this.#passwordlessSignup(ctx, { cfg, brand, details })
     }
 
     const data = await ctx.request.validateUsing(signupValidator)
@@ -205,6 +225,61 @@ export default class AuthRegistrationController {
     } catch (error) {
       ctx.logger.error({ err: error, email: data.email }, 'authkit: falha ao enviar verificação de e-mail')
     }
+  }
+
+  /**
+   * Cadastro passwordless: valida e-mail + nome, cria a conta (senha random
+   * inutilizável) se ainda não existe, emite um magic link e o envia. Sempre
+   * responde "link enviado" (anti-enumeração), exista a conta ou não. Consumir o
+   * link finaliza o login pelo fluxo de magic link já existente (GET /magic).
+   */
+  async #passwordlessSignup(
+    ctx: HttpContext,
+    deps: { cfg: any; brand: any; details: any }
+  ) {
+    const { cfg, brand, details } = deps
+    const render = cfg.render!
+    const accountStore = cfg.accountStore
+    const uid = ctx.request.param('uid')
+    const data = await ctx.request.validateUsing(passwordlessSignupValidator)
+
+    // Cria a conta se ainda não existe. Senha random inutilizável: o login é 100%
+    // passwordless (mesmo precedente das contas criadas por identidade social).
+    const existing = await accountStore.findByEmail(data.email)
+    if (!existing) {
+      const created = await accountStore.create({
+        email: data.email,
+        fullName: data.fullName,
+        password: randomBytes(24).toString('hex'),
+      })
+      await cfg.audit?.record({
+        type: 'signup',
+        accountId: created.id,
+        email: data.email,
+        ip: ctx.request.ip?.() ?? null,
+        clientId: (details.params.client_id as string | undefined) ?? null,
+      })
+    }
+
+    // Emite + envia o magic link (mesma construção do login por magic link).
+    const issued = await accountStore.issueMagicLinkToken(data.email)
+    if (issued) {
+      const origin = `${ctx.request.protocol()}://${ctx.request.host()}`
+      const magicUrl = `${origin}/auth/interaction/${uid}/magic?token=${encodeURIComponent(issued.token)}`
+      if (cfg.mail?.onMagicLink) {
+        await cfg.mail.onMagicLink({ email: data.email, magicUrl, token: issued.token })
+      } else {
+        await sendMagicLinkEmail(ctx, { email: data.email, magicUrl })
+      }
+    }
+
+    // Resposta uniforme: "enviamos um link" (não vaza existência da conta).
+    return render(ctx, 'signup', {
+      uid,
+      csrfToken: ctx.request.csrfToken,
+      brand,
+      magicLinkSent: true,
+    })
   }
 
   /** GET /auth/forgot-password — tela standalone. */

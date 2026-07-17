@@ -1,5 +1,13 @@
 import vine from '@vinejs/vine'
 
+/** Cadastro passwordless: só e-mail + nome (sem senha). O login vem por magic link. */
+export const passwordlessSignupValidator = vine.compile(
+  vine.object({
+    email: vine.string().trim().email().normalizeEmail(),
+    fullName: vine.string().trim().minLength(2).maxLength(255),
+  }),
+)
+
 export const signupValidator = vine.compile(
   vine.object({
     email: vine.string().trim().email().normalizeEmail(),

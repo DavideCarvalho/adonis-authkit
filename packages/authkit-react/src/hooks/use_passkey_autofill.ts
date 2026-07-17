@@ -24,7 +24,11 @@
  * O hook é exportado do pacote principal `@adonis-agora/authkit-react`.
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef } from "react";
+import {
+  loadStartAuthentication,
+  type StartAuthenticationFn,
+} from "../passkey/authenticate.js";
 
 export interface UsePasskeyAutofillOptions {
   /**
@@ -32,28 +36,28 @@ export interface UsePasskeyAutofillOptions {
    * Deve ser o endpoint `passkey/options` do interaction controller,
    * configurado para retornar options discoverable (allowCredentials vazio).
    */
-  optionsUrl: string
+  optionsUrl: string;
   /**
    * URL para verificar a assertion de autenticação (POST, form).
    * O hook passa a assertion serializada em JSON.
    */
-  verifyUrl: string
+  verifyUrl: string;
   /**
    * Callback chamado em caso de sucesso com a assertion bruta.
    * O host decide como submeter (ex.: form submit, fetch, navigate).
    * @param assertion - JSON.stringify da PublicKeyCredential assertion.
    */
-  onSuccess: (assertion: string) => void
+  onSuccess: (assertion: string) => void;
   /**
    * CSRF token a enviar nos headers (X-CSRF-TOKEN) quando opcional.
    * Quando ausente, o fetch não inclui o header.
    */
-  csrfToken?: string
+  csrfToken?: string;
   /**
    * Se false, o hook NÃO roda mesmo com suporte disponível.
    * Default: true. Útil quando a setting passkeyAutofill está off.
    */
-  enabled?: boolean
+  enabled?: boolean;
 }
 
 /**
@@ -64,89 +68,93 @@ export interface UsePasskeyAutofillOptions {
  * disponíveis diretamente no campo que tem `autocomplete="username webauthn"`.
  */
 export function usePasskeyAutofill(options: UsePasskeyAutofillOptions): void {
-  const { optionsUrl, verifyUrl, onSuccess, csrfToken, enabled = true } = options
-  const abortRef = useRef<AbortController | null>(null)
+  const {
+    optionsUrl,
+    verifyUrl,
+    onSuccess,
+    csrfToken,
+    enabled = true,
+  } = options;
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (!enabled) return
+    if (!enabled) return;
     // SSR guard
-    if (typeof window === 'undefined' || typeof navigator === 'undefined') return
-    if (!window.PublicKeyCredential) return
+    if (typeof window === "undefined" || typeof navigator === "undefined")
+      return;
+    if (!window.PublicKeyCredential) return;
 
-    let cancelled = false
-    const ac = new AbortController()
-    abortRef.current = ac
+    let cancelled = false;
+    const ac = new AbortController();
+    abortRef.current = ac;
 
     const run = async () => {
       try {
         // 1. Detecta suporte a conditional mediation.
         const supported =
-          typeof (PublicKeyCredential as any).isConditionalMediationAvailable === 'function'
-            ? await (PublicKeyCredential as any).isConditionalMediationAvailable()
-            : false
-        if (!supported || cancelled) return
+          typeof (PublicKeyCredential as any)
+            .isConditionalMediationAvailable === "function"
+            ? await (
+                PublicKeyCredential as any
+              ).isConditionalMediationAvailable()
+            : false;
+        if (!supported || cancelled) return;
 
-        // 2. Importa @simplewebauthn/browser de forma lazy (não é dep obrigatória).
-        let startAuthentication: ((opts: any, signal?: AbortSignal) => Promise<any>) | undefined
+        // 2. Carrega startAuthentication de forma lazy (pacote local → CDN).
+        //    Compartilhado com o login explícito via passkey/authenticate.
+        let startAuthentication: StartAuthenticationFn;
         try {
-          const mod = await import(
-            // @ts-ignore — dynamic import de CDN ou pacote instalado pelo host.
-            '@simplewebauthn/browser' as string
-          )
-          startAuthentication = mod.startAuthentication
+          startAuthentication = await loadStartAuthentication();
         } catch {
-          // Fallback: tenta CDN (mesmo que o login.edge usa).
-          try {
-            const mod = await import(
-              // @ts-ignore
-              'https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@13/dist/bundle/index.js' as string
-            )
-            startAuthentication = mod.startAuthentication
-          } catch {
-            return // Sem biblioteca = sem autofill.
-          }
+          return; // Sem biblioteca = sem autofill.
         }
-        if (!startAuthentication || cancelled) return
+        if (cancelled) return;
 
         // 3. Obtém as options discoverable do servidor.
-        const headers: Record<string, string> = { 'content-type': 'application/json' }
-        if (csrfToken) headers['x-csrf-token'] = csrfToken
+        const headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        if (csrfToken) headers["x-csrf-token"] = csrfToken;
 
         const optRes = await fetch(optionsUrl, {
-          method: 'POST',
+          method: "POST",
           headers,
           body: JSON.stringify({}),
           signal: ac.signal,
-        })
-        if (!optRes.ok || cancelled) return
-        const optionsJSON = await optRes.json()
+        });
+        if (!optRes.ok || cancelled) return;
+        const optionsJSON = await optRes.json();
         // Remove flag interna (_discoverable) antes de passar ao browser.
-        delete optionsJSON._discoverable
-        if (cancelled) return
+        delete optionsJSON._discoverable;
+        if (cancelled) return;
 
         // 4. Inicia conditional mediation — o browser bloqueia aqui até o usuário
         //    selecionar uma passkey (ou o AbortController ser disparado).
         const assertion = await startAuthentication(
-          { optionsJSON, useBrowserAutofill: true, verifyBrowserAutofillInput: true },
-          ac.signal
-        )
-        if (cancelled) return
+          {
+            optionsJSON,
+            useBrowserAutofill: true,
+            verifyBrowserAutofillInput: true,
+          },
+          ac.signal,
+        );
+        if (cancelled) return;
 
         // 5. Sucesso: entrega a assertion serializada ao callback do host.
-        onSuccess(JSON.stringify(assertion))
+        onSuccess(JSON.stringify(assertion));
       } catch {
         // Fail-safe: abort, suporte ausente, erro de rede ou qualquer outra falha
         // → silêncio. O login normal (senha/passkey manual) continua disponível.
       }
-    }
+    };
 
-    void run()
+    void run();
 
     return () => {
-      cancelled = true
-      ac.abort()
-      abortRef.current = null
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, optionsUrl, verifyUrl, csrfToken])
+      cancelled = true;
+      ac.abort();
+      abortRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, optionsUrl, verifyUrl, csrfToken]);
 }

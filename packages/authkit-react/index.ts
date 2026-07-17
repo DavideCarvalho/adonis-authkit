@@ -63,6 +63,22 @@ export { jsonRequest, useResource } from "./src/hooks/use_resource.js";
 export type { ResourceState } from "./src/hooks/use_resource.js";
 export { usePasskeyAutofill } from "./src/hooks/use_passkey_autofill.js";
 export type { UsePasskeyAutofillOptions } from "./src/hooks/use_passkey_autofill.js";
+export { usePasskeyLogin } from "./src/hooks/use_passkey_login.js";
+export type {
+  UsePasskeyLoginOptions,
+  UsePasskeyLoginResult,
+} from "./src/hooks/use_passkey_login.js";
+export {
+  authenticatePasskey,
+  submitPasskeyVerification,
+  loadStartAuthentication,
+} from "./src/passkey/authenticate.js";
+export type {
+  AuthenticatePasskeyOptions,
+  SubmitPasskeyVerificationOptions,
+  PasskeyCeremonyDeps,
+  StartAuthenticationFn,
+} from "./src/passkey/authenticate.js";
 export {
   usePasswordStrength,
   heuristicScorer,
@@ -103,6 +119,8 @@ export { AuthorizedApps } from "./src/components/authorized_apps.js";
 export type { AuthorizedAppsProps } from "./src/components/authorized_apps.js";
 export { PasswordStrengthMeter } from "./src/components/password_strength_meter.js";
 export type { PasswordStrengthMeterProps } from "./src/components/password_strength_meter.js";
+export { PasskeyButton } from "./src/components/passkey_button.js";
+export type { PasskeyButtonProps } from "./src/components/passkey_button.js";
 export { OrganizationSwitcher } from "./src/components/organization_switcher.js";
 export type { OrganizationSwitcherProps } from "./src/components/organization_switcher.js";
 export { OrganizationProfile } from "./src/components/organization_profile.js";

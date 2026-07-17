@@ -36,11 +36,19 @@
             class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900" />
         </div>
 
-        <div class="mt-4">
-          <label for="password" class="mb-1 block text-sm font-medium text-gray-700">{{ t('signup.password_label') }}</label>
-          <input id="password" name="password" type="password" required minlength="8"
-            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900" />
-        </div>
+        {{-- Cadastro passwordless: sem campo de senha. O login vem por magic link. --}}
+        @if(!passwordlessSignup)
+          <div class="mt-4">
+            <label for="password" class="mb-1 block text-sm font-medium text-gray-700">{{ t('signup.password_label') }}</label>
+            <input id="password" name="password" type="password" required minlength="8"
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900" />
+          </div>
+        @end
+
+        {{-- Passwordless: confirmação de link enviado (anti-enumeração). --}}
+        @if(magicLinkSent)
+          <p class="mt-4 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">{{ t('signup.magic_link_sent') }}</p>
+        @end
 
         {{-- Bot protection: container do widget (config-trusted; HTML do host renderizado raw). --}}
         @if(botProtection && botProtection.html)

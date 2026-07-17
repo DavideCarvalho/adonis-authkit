@@ -478,11 +478,20 @@ export interface PasswordlessConfigInput {
   magicLink?: boolean;
   /** Liga o "entrar com passkey" antes da senha. Default: false. */
   passkeyFirst?: boolean;
+  /**
+   * Liga o cadastro público passwordless: o signup pede só e-mail + nome (sem
+   * senha), cria a conta com uma senha aleatória inutilizável e envia um magic
+   * link que finaliza o login (o mesmo fluxo do login por magic link). Default:
+   * false. Exige que o accountStore implemente {@link MagicLinkCapability}; sem
+   * ela o cadastro passwordless fica indisponível e o fluxo de senha segue valendo.
+   */
+  signup?: boolean;
 }
 
 export interface ResolvedPasswordlessConfig {
   magicLink: boolean;
   passkeyFirst: boolean;
+  signup: boolean;
 }
 
 export function resolvePasswordless(
@@ -491,6 +500,7 @@ export function resolvePasswordless(
   return {
     magicLink: input?.magicLink ?? false,
     passkeyFirst: input?.passkeyFirst ?? false,
+    signup: input?.signup ?? false,
   };
 }
 

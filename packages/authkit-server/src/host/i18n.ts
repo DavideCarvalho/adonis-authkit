@@ -59,6 +59,7 @@ export const DEFAULT_MESSAGES = {
   // Passwordless (login).
   "login.magic_link_button": "Email me a login link",
   "login.magic_link_sent": "If the account exists, we sent you a login link.",
+  "signup.magic_link_sent": "Check your email — we sent you a link to finish creating your account.",
   "login.passkey_button": "Sign in with a passkey",
 
   // Tela de cadastro (signup).
@@ -1080,6 +1081,7 @@ export const PT_BR_MESSAGES = {
   // Passwordless (login).
   "login.magic_link_button": "Me envie um link de login",
   "login.magic_link_sent": "Se a conta existir, enviamos um link de login.",
+  "signup.magic_link_sent": "Enviamos um link para o seu e-mail. Abra-o para concluir o cadastro.",
   "login.passkey_button": "Entrar com passkey",
 
   // Tela de cadastro (signup).

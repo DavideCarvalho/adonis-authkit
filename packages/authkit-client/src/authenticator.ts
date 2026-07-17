@@ -15,10 +15,16 @@ export interface AuthenticatorDeps {
   getAccessToken?: () => string | null | undefined;
 }
 
-export class Authenticator {
+/**
+ * Autenticador do request. O parâmetro `TUser` é o tipo do usuário do app que `resolveUser`
+ * devolve — o app o fixa via augmentation de `HttpContext.auth` (`auth: Authenticator<AppUser>`),
+ * e aí `getUser()` passa a devolver `AppUser | null` em todo call-site, sem cast. Default `unknown`
+ * mantém o comportamento anterior (nada a mudar em quem não augmenta).
+ */
+export class Authenticator<TUser = unknown> {
   #identity: Identity | null = null;
   #resolved = false;
-  #user: unknown;
+  #user: TUser | null = null;
   #userResolved = false;
 
   #recorder: MetricsRecorder;
@@ -69,12 +75,14 @@ export class Authenticator {
     return this.#identity?.globalRoles.includes(role) ?? false;
   }
 
-  async getUser(): Promise<unknown> {
+  async getUser(): Promise<TUser | null> {
     if (this.#userResolved) return this.#user;
     const identity = await this.getIdentity();
     if (identity && this.deps.resolveUser) {
       const accessToken = this.deps.getAccessToken?.() ?? undefined;
-      this.#user = await this.deps.resolveUser(identity, { accessToken });
+      // `resolveUser` é tipado `Promise<unknown>` (a lib não conhece o model do app); o `TUser`
+      // é a asserção do consumidor, feita UMA vez aqui em vez de em cada call-site de `getUser()`.
+      this.#user = (await this.deps.resolveUser(identity, { accessToken })) as TUser;
     } else {
       this.#user = null;
     }
@@ -89,7 +97,7 @@ export class Authenticator {
    * é responsabilidade do `@adonis-agora/authz` — o AuthKit só autentica.
    */
   async toSharedProps(): Promise<{
-    user: unknown;
+    user: TUser | null;
     globalRoles: string[];
   } | null> {
     const identity = await this.getIdentity();

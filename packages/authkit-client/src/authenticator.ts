@@ -1,5 +1,9 @@
 import type { Identity, SessionResolver } from "@adonis-agora/authkit-core";
-import { AUTHKIT_METRICS, type MetricsRecorder, NoopRecorder } from "@adonis-agora/authkit-core";
+import {
+  AUTHKIT_METRICS,
+  type MetricsRecorder,
+  NoopRecorder,
+} from "@adonis-agora/authkit-core";
 import type { HttpContext } from "@adonisjs/core/http";
 import { populateContext } from "./observability/context_bridge.js";
 
@@ -10,7 +14,10 @@ export interface ResolveUserContext {
 
 export interface AuthenticatorDeps {
   resolver: SessionResolver;
-  resolveUser?: (identity: Identity, context: ResolveUserContext) => Promise<unknown>;
+  resolveUser?: (
+    identity: Identity,
+    context: ResolveUserContext,
+  ) => Promise<unknown>;
   /** lê o access token do token set da sessão (opcional; usado por resolvers userinfo) */
   getAccessToken?: () => string | null | undefined;
 }
@@ -46,7 +53,10 @@ export class Authenticator<TUser = unknown> {
         this.#recorder.increment(AUTHKIT_METRICS.resolveErrors);
         throw error;
       } finally {
-        this.#recorder.record(AUTHKIT_METRICS.resolveDuration, Date.now() - start);
+        this.#recorder.record(
+          AUTHKIT_METRICS.resolveDuration,
+          Date.now() - start,
+        );
       }
       this.#resolved = true;
       // Ponte estrutural: popula o contexto do Agora quando há sessão de fato
@@ -82,12 +92,29 @@ export class Authenticator<TUser = unknown> {
       const accessToken = this.deps.getAccessToken?.() ?? undefined;
       // `resolveUser` é tipado `Promise<unknown>` (a lib não conhece o model do app); o `TUser`
       // é a asserção do consumidor, feita UMA vez aqui em vez de em cada call-site de `getUser()`.
-      this.#user = (await this.deps.resolveUser(identity, { accessToken })) as TUser;
+      this.#user = (await this.deps.resolveUser(identity, {
+        accessToken,
+      })) as TUser;
     } else {
       this.#user = null;
     }
     this.#userResolved = true;
     return this.#user;
+  }
+
+  /**
+   * O `TUser` autenticado, NÃO-nulo. Fail-closed: lança quando não há sessão (ou quando `resolveUser`
+   * não devolve usuário) — pensado para rotas atrás do middleware de auth, onde `null` seria uma
+   * rota mal-configurada, não um visitante. Espelha `authenticate()` (que devolve a `Identity`); este
+   * devolve o usuário do app. Substitui o wrapper `currentUser(auth)` que cada app reescrevia sobre
+   * `getUser()`. Para rotas que aceitam visitante, use `getUser()` (devolve `TUser | null`).
+   */
+  async getUserOrFail(): Promise<TUser> {
+    const user = await this.getUser();
+    if (user === null) {
+      throw new Error("Not authenticated: no user for the current session");
+    }
+    return user;
   }
 
   /**

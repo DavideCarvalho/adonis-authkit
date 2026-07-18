@@ -98,9 +98,9 @@ interface Identity {
 }
 ```
 
-Since **v0.3.0** all three resolvers (`jwt`, `pat`, `opaque`) populate `profile.avatarUrl`
-(from `picture`) and `sessionId` (from `sid`) — the `pat`/`opaque` paths now match `jwt`,
-so these fields are available regardless of token model. See [Resolvers](/docs/resolvers).
+All three resolvers (`jwt`, `pat`, `opaque`) populate `profile.avatarUrl`
+(from `picture`) and `sessionId` (from `sid`), so these fields are available regardless of token
+model. See [Resolvers](/docs/resolvers).
 
 ## resolveUser & resolveAppRoles
 

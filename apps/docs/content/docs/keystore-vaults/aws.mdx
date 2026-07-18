@@ -1,0 +1,149 @@
+---
+icon: Cloud
+title: AWS Secrets Manager
+description: Persist the managed JWKS signing keystore in AWS Secrets Manager with @adonis-agora/authkit-vault-aws.
+---
+
+`@adonis-agora/authkit-vault-aws` backs the [managed keystore](/docs/keystore-vaults) with
+**AWS Secrets Manager**. The private JWKS blob lives in a single secret; AWS encrypts it at
+rest with a KMS key, gates access with IAM, and records every read in CloudTrail. Your app
+nodes hold no key material on disk.
+
+## Install
+
+Install the package and its cloud SDK peer:
+
+```bash
+pnpm add @adonis-agora/authkit-vault-aws @aws-sdk/client-secrets-manager
+```
+
+<Callout type="info">
+  `@aws-sdk/client-secrets-manager` (v3+) is an **optional peer dependency**. AuthKit
+  imports it lazily, so the dependency only needs to exist when the `aws-secrets-manager`
+  driver is actually selected. A selected-but-missing SDK throws a clear install error — the
+  signing key is critical and never silently degrades.
+</Callout>
+
+## Configure
+
+Select the driver in your server config. That's the whole wiring — AuthKit lazy-loads this
+package and calls its `createKeystoreVault` factory the first time it touches the keystore:
+
+```ts title="config/authkit_server.ts"
+import { defineConfig } from '@adonis-agora/authkit-server'
+
+export default defineConfig({
+  // ...
+  jwks: {
+    source: 'managed',
+    algorithm: 'RS256',
+    store: {
+      driver: 'aws-secrets-manager',
+      secretId: 'prod/authkit/jwks',
+      region: 'us-east-1',
+    },
+  },
+})
+```
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `driver` | `'aws-secrets-manager'` | yes | Selects this package. |
+| `secretId` | `string` | yes | The secret name or full ARN holding the keystore blob. |
+| `region` | `string` | no | AWS region. Omit to use the ambient SDK/region resolution (`AWS_REGION`, instance metadata, etc.). |
+
+You do **not** have to pre-create the secret. On the first rotation/write, if the secret
+doesn't exist (`ResourceNotFoundException`), the vault calls `CreateSecret` to provision it;
+subsequent writes use `PutSecretValue` to add a new version.
+
+## Credentials & IAM
+
+The vault uses the standard AWS SDK credential chain — environment variables, shared
+config, EC2/ECS/EKS instance roles, or IRSA. No credentials go in AuthKit config. The
+execution role needs, scoped to your secret ARN:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:PutSecretValue",
+        "secretsmanager:CreateSecret"
+      ],
+      "Resource": "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/authkit/jwks-*"
+    }
+  ]
+}
+```
+
+`CreateSecret` can be dropped if you provision the secret out-of-band (Terraform, console).
+Grant `kms:Decrypt`/`kms:GenerateDataKey` on the secret's KMS key if you use a customer-managed
+key.
+
+## How it works
+
+Under the hood the package adapts Secrets Manager to AuthKit's
+[`SecretBackend` seam](/docs/keystore-vaults#the-shared-contract):
+
+- **`read()` → `GetSecretValue`** — returns `SecretString`, or `null` on
+  `ResourceNotFoundException` (so a first boot generates the key instead of crashing).
+- **`write(blob)` → `PutSecretValue`**, falling back to `CreateSecret` when the secret
+  doesn't exist yet.
+- **`head()` → `version()` → `GetSecretValue.VersionId`** — a cheap change token so
+  multi-node deployments can poll for rotations and hot-reload the JWKS without a restart.
+
+```ts
+import { createKeystoreVault } from '@adonis-agora/authkit-vault-aws'
+
+// This is what AuthKit calls internally; you can also call it directly.
+const vault = createKeystoreVault({
+  secretId: 'prod/authkit/jwks',
+  region: 'us-east-1',
+})
+
+await vault.read() // string | null
+await vault.head() // VersionId | null
+```
+
+The package's public entry point exports exactly three symbols: the
+`createKeystoreVault` factory and the two structural types shared by every vault —
+`KeystoreVaultLike` and `SecretBackend`. The AWS config shape is:
+
+```ts
+interface AwsVaultConfig {
+  /** Secret name or full ARN holding the keystore blob. */
+  secretId: string
+  /** AWS region; omit for ambient SDK resolution. */
+  region?: string
+  /** Inject a custom SecretBackend to bypass the AWS SDK (tests). */
+  backend?: SecretBackend
+}
+```
+
+## Testing without AWS
+
+Every config accepts an optional `backend` that bypasses the AWS SDK entirely, so unit
+tests never touch the network:
+
+```ts
+import { createKeystoreVault } from '@adonis-agora/authkit-vault-aws'
+
+let stored: string | null = null
+const vault = createKeystoreVault({
+  secretId: 'test',
+  backend: {
+    get: async () => stored,
+    put: async (blob) => { stored = blob },
+    version: async () => (stored ? 'v1' : null),
+  },
+})
+```
+
+<Callout type="warn">
+  Losing the secret means every token AuthKit ever signed becomes unverifiable and every
+  relying party must re-fetch a fresh JWKS. Enable Secrets Manager versioning/recovery and
+  restrict `DeleteSecret` accordingly.
+</Callout>

@@ -1,4 +1,5 @@
 ---
+icon: Send
 title: Client
 description: Wire a relying party with @adonis-agora/authkit-client.
 ---
@@ -166,6 +167,30 @@ needed.
 `@adonis-agora/resilience` is an **optional peer dependency**: without `resilience`
 configured, the client's outbound calls are a plain `fetch` (no behavior change), and the
 package never needs to be installed.
+
+### `resilientFetch` and `ResiliencePolicy`
+
+The same primitive the client uses internally is exported, so you can wrap your **own**
+outbound calls (an IdP userinfo lookup, a webhook) in the very policy you configured:
+
+```ts
+import { resilientFetch, type ResiliencePolicy } from "@adonis-agora/authkit-client";
+import { wrap, timeout, retry } from "@adonis-agora/resilience";
+
+const policy: ResiliencePolicy = wrap(timeout(2000), retry({ attempts: 3 }));
+
+// With a policy → runs inside policy.execute(() => fetch(...)).
+const res = await resilientFetch("https://idp.acme.com/oidc/userinfo", { headers }, policy);
+
+// Without a policy → a plain passthrough fetch (zero behavior change).
+const plain = await resilientFetch("https://idp.acme.com/oidc/userinfo", { headers });
+```
+
+`ResiliencePolicy` is typed **structurally** — anything with an
+`execute<T>(fn: () => Promise<T>): Promise<T>` method satisfies it — which is exactly what
+`wrap(...)` returns. That's why the client never hard-imports the resilience package: the
+duck-typed shape matches. The fourth argument (`fetchImpl`) lets tests inject a fake
+`fetch`.
 
 ## JWT access token verification
 

@@ -1,0 +1,133 @@
+---
+icon: Cloud
+title: Azure Key Vault
+description: Persist the managed JWKS signing keystore in Azure Key Vault with @adonis-agora/authkit-vault-azure.
+---
+
+`@adonis-agora/authkit-vault-azure` backs the [managed keystore](/docs/keystore-vaults) with
+**Azure Key Vault**. The private JWKS blob is stored as a Key Vault *secret*; Azure encrypts
+it at rest, gates access with Entra ID and RBAC/access policies, and logs every operation.
+Your app nodes hold no key material on disk.
+
+## Install
+
+Install the package and its two Azure SDK peers:
+
+```bash
+pnpm add @adonis-agora/authkit-vault-azure @azure/keyvault-secrets @azure/identity
+```
+
+<Callout type="info">
+  `@azure/keyvault-secrets` (v4+) and `@azure/identity` (v4+) are **optional peer
+  dependencies**, imported lazily only when the `azure-key-vault` driver is selected. A
+  selected-but-missing SDK throws a clear install error — the signing key is critical and
+  never silently degrades.
+</Callout>
+
+## Configure
+
+Select the driver in your server config. AuthKit lazy-loads this package and calls its
+`createKeystoreVault` factory the first time it touches the keystore:
+
+```ts title="config/authkit_server.ts"
+import { defineConfig } from '@adonis-agora/authkit-server'
+
+export default defineConfig({
+  // ...
+  jwks: {
+    source: 'managed',
+    algorithm: 'RS256',
+    store: {
+      driver: 'azure-key-vault',
+      vaultUrl: 'https://acme-authkit.vault.azure.net',
+      secretName: 'authkit-jwks',
+    },
+  },
+})
+```
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `driver` | `'azure-key-vault'` | yes | Selects this package. |
+| `vaultUrl` | `string` | yes | The vault URI, e.g. `https://<name>.vault.azure.net`. |
+| `secretName` | `string` | yes | Name of the secret holding the keystore blob. |
+
+The secret does not need to exist beforehand — the first `write` calls `setSecret`, which
+creates it (and adds a new version on every subsequent rotation).
+
+## Credentials & RBAC
+
+Authentication uses `DefaultAzureCredential` from `@azure/identity`, so it resolves through
+the standard Azure chain: environment variables, managed identity (App Service, AKS
+workload identity, VM), Azure CLI, and so on. No secrets go in AuthKit config.
+
+The identity needs **Get** and **Set** on secrets. With Key Vault RBAC, the
+`Key Vault Secrets Officer` role covers both (a read-only `Secrets User` is not enough,
+because AuthKit writes on rotation). With the legacy access-policy model, grant a secret
+access policy with `get` and `set` permissions.
+
+## How it works
+
+The package adapts Key Vault to AuthKit's
+[`SecretBackend` seam](/docs/keystore-vaults#the-shared-contract):
+
+- **`read()` → `getSecret(secretName)`** — returns the secret `value`, or `null` when the
+  secret doesn't exist yet (HTTP 404 / `SecretNotFound`), so a first boot generates the key
+  instead of crashing.
+- **`write(blob)` → `setSecret(secretName, blob)`** — creates or versions the secret.
+- **`head()` → `version()` → `getSecret().properties.version`** — a cheap change token so
+  multi-node deployments poll for rotations and hot-reload the JWKS without a restart.
+
+```ts
+import { createKeystoreVault } from '@adonis-agora/authkit-vault-azure'
+
+// This is what AuthKit calls internally; you can also call it directly.
+const vault = createKeystoreVault({
+  vaultUrl: 'https://acme-authkit.vault.azure.net',
+  secretName: 'authkit-jwks',
+})
+
+await vault.read() // string | null
+await vault.head() // version | null
+```
+
+The package's public entry point exports exactly three symbols: the `createKeystoreVault`
+factory plus the two structural types shared by every vault — `KeystoreVaultLike` and
+`SecretBackend`. The Azure config shape is:
+
+```ts
+interface AzureVaultConfig {
+  /** Vault URI, e.g. https://<name>.vault.azure.net */
+  vaultUrl: string
+  /** Secret name holding the keystore blob. */
+  secretName: string
+  /** Inject a custom SecretBackend to bypass the Azure SDK (tests). */
+  backend?: SecretBackend
+}
+```
+
+## Testing without Azure
+
+Pass an optional `backend` to bypass the Azure SDK entirely, so unit tests never touch the
+network:
+
+```ts
+import { createKeystoreVault } from '@adonis-agora/authkit-vault-azure'
+
+let stored: string | null = null
+const vault = createKeystoreVault({
+  vaultUrl: 'https://test.vault.azure.net',
+  secretName: 'authkit-jwks',
+  backend: {
+    get: async () => stored,
+    put: async (blob) => { stored = blob },
+    version: async () => (stored ? 'v1' : null),
+  },
+})
+```
+
+<Callout type="warn">
+  Losing the secret means every token AuthKit ever signed becomes unverifiable and every
+  relying party must re-fetch a fresh JWKS. Enable Key Vault soft-delete and purge
+  protection so a deleted secret is recoverable.
+</Callout>

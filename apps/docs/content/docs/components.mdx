@@ -1,4 +1,5 @@
 ---
+icon: Blocks
 title: React Components
 description: Pre-built, themeable components — SignInButton, SignOutButton, UserButton, UserProfile, AuthorizedApps, Avatar, PasswordStrengthMeter, OrganizationSwitcher, OrganizationProfile.
 ---
@@ -184,6 +185,153 @@ inline controls to invite members, change roles, and remove members.
 ```tsx
 <OrganizationProfile orgId={activeOrg.id} />
 ```
+
+## InteractionForm
+
+The composable primitive behind the login-page buttons. It renders a
+`<form method="POST">` pointing at the right AuthKit interaction endpoint (resolved from the
+`uid` via `interactionUrls`, so you never hand-concatenate `/auth/interaction/...`) plus the
+hidden `_csrf` field — you own the fields and the styling inside it. Use it directly when
+you want full control of a step's form; the pre-built buttons below are built on top of it.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `uid` | `string` | — | The interaction `uid` (rendered by `authkit-server` into the login view). |
+| `step` | `'identifier' \| 'login' \| 'magic'` | — | Which POST endpoint to submit to. |
+| `csrfToken` | `string` | — | Becomes the hidden `_csrf` field. |
+| `basePath` | `string` | `'/auth/interaction'` | Mount prefix, if you changed it server-side. |
+| `children` | `ReactNode` | — | Your fields and submit button. |
+| `...rest` | `FormHTMLAttributes` | — | Forwarded to the `<form>` (minus `method`/`action`). |
+
+```tsx
+import { InteractionForm } from '@adonis-agora/authkit-react'
+
+// Password step — the app owns the inputs and layout.
+<InteractionForm uid={uid} step="login" csrfToken={csrfToken}>
+  <input type="email" name="email" autoComplete="username" />
+  <input type="password" name="password" autoComplete="current-password" />
+  <button type="submit" className="authkit-button authkit-button--primary">Sign in</button>
+</InteractionForm>
+```
+
+## MagicLinkButton
+
+A drop-in magic-link button: an `InteractionForm` targeting the `magic` step with a single
+submit button. Themeable via `className` (merged with `authkit-button`) and `children`.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `uid` | `string` | — | The interaction `uid`. |
+| `csrfToken` | `string` | — | CSRF token for the form. |
+| `basePath` | `string` | `'/auth/interaction'` | Mount prefix, if changed. |
+| `children` | `ReactNode` | `'Enviar link de login'` | Button label. |
+| `...rest` | `ButtonHTMLAttributes` | — | Forwarded to the `<button>` (minus `type`). |
+
+```tsx
+<MagicLinkButton uid={uid} csrfToken={csrfToken}>Email me a login link</MagicLinkButton>
+```
+
+## OAuthButton
+
+A drop-in social-login link. Because the OAuth redirect is a full-page navigation, this
+renders an `<a>` (not a JS button) pointing at the provider's redirect URL
+(`/{basePath}/{provider}/redirect/{uid}`). It's intentionally generic — pass the provider's
+icon/label as `children` and style it with `className`.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `provider` | `string` | — | OAuth provider, e.g. `'google'`, `'github'`. |
+| `uid` | `string` | — | The interaction `uid`. |
+| `basePath` | `string` | `'/auth'` | OAuth mount prefix, if changed. |
+| `children` | `ReactNode` | `Entrar com {Provider}` | Button content (icon + label). |
+| `...rest` | `AnchorHTMLAttributes` | — | Forwarded to the `<a>` (minus `href`). |
+
+```tsx
+<OAuthButton provider="google" uid={uid}>
+  <GoogleIcon /> Continue with Google
+</OAuthButton>
+```
+
+## PasskeyButton
+
+A drop-in passkey login button — the "does-everything" tier over the `usePasskeyLogin`
+hook (see [WebAuthn / passkeys](/docs/webauthn)). It renders the button, runs the
+WebAuthn ceremony on click (`options` → browser prompt → full-page `verify` POST), disables
+itself while busy, and shows an inline error on failure. Reach for the hook directly when
+you need full control of the flow.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `optionsUrl` | `string` | — | The interaction `passkey/options` endpoint (POST). |
+| `verifyUrl` | `string` | — | The interaction `passkey/verify` endpoint (full-page POST). |
+| `csrfToken` | `string?` | — | Sent as `x-csrf-token` on options and `_csrf` on verify. |
+| `children` | `ReactNode` | `'Entrar com passkey'` | Button label. |
+| `errorContent` | `ReactNode` | default message | Shown on failure. Pass `null` to disable (handle errors yourself). |
+| `className` | `string` | — | Merged with `authkit-button`. |
+| `...rest` | `ButtonHTMLAttributes` | — | Forwarded to the `<button>` (minus `onClick`). |
+
+```tsx
+import { interactionUrls } from '@adonis-agora/authkit-react'
+
+const urls = interactionUrls(uid)
+<PasskeyButton
+  optionsUrl={urls.passkeyOptions}
+  verifyUrl={urls.passkeyVerify}
+  csrfToken={csrfToken}
+>
+  Sign in with a passkey
+</PasskeyButton>
+```
+
+## CanPermission
+
+Renders its `children` only when AuthKit's authz service grants `permission` (optionally on
+a `resource`), via `POST <canPath>`. Built on the [`useCan`](/docs/react#6-headless-hooks)
+hook.
+
+<Callout type="info">
+  This gates on **database-backed permissions** evaluated by the authz service. It's
+  distinct from `<Can>` in `@adonis-agora/authz-react`, which gates on the roles/permissions
+  already carried in the client's auth state. Use `CanPermission` when the decision needs a
+  server round-trip (e.g. per-resource ownership).
+</Callout>
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `permission` | `string` | — | The permission to check, e.g. `posts.update`. |
+| `resource` | `string?` | — | Optional resource the permission is evaluated against. |
+| `children` | `ReactNode` | — | Rendered when allowed. |
+| `loadingFallback` | `ReactNode` | `null` | Rendered while the check is in flight. |
+| `fallback` | `ReactNode` | `null` | Rendered when denied. |
+
+```tsx
+<CanPermission permission="posts.update" resource={post.id} fallback={<ReadOnlyBadge />}>
+  <EditPostButton post={post} />
+</CanPermission>
+```
+
+## KeyRotation
+
+An admin panel for the JWKS signing key: current key age, the rotation policy and ETA of
+the next rotation, and a **Rotate now** button (with an option to retire old keys
+immediately). It reads and mutates through the admin query hooks, so it must live inside an
+`AuthkitClientProvider` **and** a `QueryClientProvider` — the [admin console](/docs/admin-console)
+already provides both.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `className` | `string` | — | Appended to `authkit-card authkit-keys`. |
+
+```tsx
+import { KeyRotation } from '@adonis-agora/authkit-react'
+
+function KeysPanel() {
+  return <KeyRotation />
+}
+```
+
+See [Signing key rotation](/docs/security#signing-key-rotation) for what rotation does
+server-side and the equivalent `authkit:keys:rotate` command.
 
 ## Theming
 

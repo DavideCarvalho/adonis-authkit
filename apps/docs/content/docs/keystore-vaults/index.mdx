@@ -1,0 +1,180 @@
+---
+icon: Vault
+title: Keystore vaults
+description: Back the managed JWKS signing keystore with AWS Secrets Manager, Azure Key Vault, or GCP Secret Manager — one driver line, one companion package.
+---
+
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+
+When AuthKit runs with a **managed** JWKS (`jwks: { source: 'managed' }`), it generates
+the RS256/ES256 signing key on first boot, persists the **private** keystore, and rotates
+it on demand. *Where* that private keystore lives is the single most security-sensitive
+storage decision in the whole system — anyone who can read it can mint tokens your relying
+parties will trust.
+
+The built-in drivers (`file`, `drive`, `lucid`, `redis`, `hashicorp-vault`) cover most
+deployments. The three **keystore vault** packages documented here go one step further and
+put the keystore inside a managed cloud secrets service, so the blob is encrypted at rest,
+access is IAM-gated and audited, and no application node ever holds the key on its own
+disk:
+
+| Package | Backend | Driver |
+| --- | --- | --- |
+| [`@adonis-agora/authkit-vault-aws`](/docs/keystore-vaults/aws) | AWS Secrets Manager | `aws-secrets-manager` |
+| [`@adonis-agora/authkit-vault-azure`](/docs/keystore-vaults/azure) | Azure Key Vault | `azure-key-vault` |
+| [`@adonis-agora/authkit-vault-gcp`](/docs/keystore-vaults/gcp) | GCP Secret Manager | `gcp-secret-manager` |
+
+<Callout type="info">
+  These packages only matter when the JWKS is **managed**. If you supply keys inline
+  (`jwks: { source: 'jwks', keys: [...] }`) or hand AuthKit a pre-existing `jwks_uri`, there
+  is no private keystore to persist and no vault to configure.
+</Callout>
+
+## How it fits together
+
+You never call the vault package directly. You select it with a `driver` in your server
+config, and AuthKit's keystore layer lazy-loads the companion package and calls its
+`createKeystoreVault(config)` factory the first time it touches the keystore:
+
+```ts title="config/authkit_server.ts"
+import { defineConfig } from '@adonis-agora/authkit-server'
+
+export default defineConfig({
+  // ...
+  jwks: {
+    source: 'managed',
+    algorithm: 'RS256',
+    store: {
+      driver: 'aws-secrets-manager',
+      secretId: 'prod/authkit/jwks',
+      region: 'us-east-1',
+    },
+  },
+})
+```
+
+The resolution path is:
+
+<Steps>
+
+<Step>
+**Config → driver.** `resolveKeystoreVault` reads `store.driver`, maps it to the companion
+package (`aws-secrets-manager → @adonis-agora/authkit-vault-aws`), and wraps it in a
+`LazyExternalVault` that defers the actual `import()` until the first read/write.
+</Step>
+
+<Step>
+**First keystore I/O → lazy import.** On the first read (config resolution, before
+`start()`), the lazy vault imports the companion package and calls its exported
+`createKeystoreVault(store)` with the whole `store` object. Extra fields like `driver` are
+ignored; each package reads only the keys it needs (`secretId`/`region`, `vaultUrl`/`secretName`,
+or `name`).
+</Step>
+
+<Step>
+**Missing package → clear error.** The signing key is critical, so a selected-but-not-installed
+driver never silently degrades — it throws
+`AuthKit keystore: instale o package @adonis-agora/authkit-vault-aws para usar este driver.`
+Install the companion package and its cloud SDK peer.
+</Step>
+
+</Steps>
+
+## The shared contract
+
+All three packages implement the same tiny interface — the structural shape AuthKit's
+server expects from any keystore vault:
+
+```ts
+/** What createKeystoreVault returns — the shape authkit-server's keystore consumes. */
+export interface KeystoreVaultLike {
+  /** Read the persisted keystore blob, or null if it doesn't exist yet. */
+  read(): Promise<string | null>
+  /** Persist (create-or-update) the keystore blob. */
+  write(blob: string): Promise<void>
+  /** Cheap change token (version/etag) for the live-reload poller. Optional. */
+  head?(): Promise<string | null>
+}
+```
+
+Under the hood each factory composes a small, injectable **`SecretBackend`** seam so the
+cloud SDK calls are isolated and unit-testable without any live cloud:
+
+```ts
+/** get/put/version — the minimal cloud-secret surface each package adapts to. */
+export interface SecretBackend {
+  get(): Promise<string | null>
+  put(blob: string): Promise<void>
+  version?(): Promise<string | null>
+}
+```
+
+`createKeystoreVault(config)` returns a `KeystoreVaultLike` whose `read`/`write` delegate to
+`backend.get`/`backend.put`, and whose `head()` prefers `backend.version()` (a cheap version
+id) falling back to a full `get()`. You can pass your own `backend` in the config to bypass
+the cloud SDK entirely — handy for tests or a bespoke transport:
+
+```ts
+import { createKeystoreVault } from '@adonis-agora/authkit-vault-aws'
+
+const vault = createKeystoreVault({
+  secretId: 'prod/authkit/jwks',
+  backend: {
+    async get() {
+      /* return the blob from wherever you like */
+      return null
+    },
+    async put(blob) {
+      /* persist it */
+    },
+    async version() {
+      return 'v1'
+    },
+  },
+})
+```
+
+<Callout type="info">
+  **Why `head()` matters.** When several nodes run the same IdP, one node rotating the key
+  writes a new blob to the vault. The others poll `head()` (a cheap version/etag check) and
+  reload the JWKS in place when it changes — no restart, no shared filesystem. That's why
+  each backend implements a `version()` that returns the secret's version id rather than the
+  whole payload.
+</Callout>
+
+## Encryption at rest
+
+AuthKit can also encrypt the keystore blob with your `APP_KEY` before persisting it
+(`jwks.encrypt`). The default is **backend-aware**: `file` and `drive` default to `on`
+(the blob would otherwise be readable on disk), while real secret vaults default to `off`
+because the backend already encrypts at rest and gates access with IAM. Set `encrypt: true`
+explicitly if you want defense-in-depth (app-layer encryption *and* the vault's own):
+
+```ts
+jwks: {
+  source: 'managed',
+  encrypt: true, // APP_KEY-encrypt the blob before it reaches the vault
+  store: { driver: 'gcp-secret-manager', name: 'projects/acme/secrets/authkit-jwks' },
+}
+```
+
+## Rotation
+
+Rotation is identical regardless of the backend — the vault is just where the blob lands.
+Run the command (or the [Key Rotation](/docs/components#keyrotation) admin panel) and the
+new key is written straight to the cloud secret:
+
+```bash
+node ace authkit:keys:rotate           # keep last 2 keys (grace period)
+node ace authkit:keys:rotate --retire  # keep only the new key
+```
+
+See [Signing key rotation](/docs/security#signing-key-rotation) for the full flag reference.
+
+Pick your cloud to continue:
+
+<Cards>
+  <Card title="AWS Secrets Manager" href="/docs/keystore-vaults/aws" />
+  <Card title="Azure Key Vault" href="/docs/keystore-vaults/azure" />
+  <Card title="GCP Secret Manager" href="/docs/keystore-vaults/gcp" />
+</Cards>

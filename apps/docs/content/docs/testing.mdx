@@ -1,0 +1,224 @@
+---
+icon: FlaskConical
+title: Testing
+description: Test auth flows in your host app without booting an IdP — mint real signed ID tokens with a local JWKS, fake ctx.auth, fake the account store, and build valid identities.
+---
+
+`@adonis-agora/authkit-testing` gives **host apps** the helpers they need to test
+authentication end-to-end without standing up a real Identity Provider. It can mint
+**real** RS256-signed ID tokens validated by an in-process JWKS, fake the `ctx.auth`
+authenticator for controller tests, fake the account store, and build valid `Identity`
+objects. It carries no runtime dependency on the server or client packages — the surfaces
+it fakes are reproduced structurally — so it stays a lightweight dev dependency.
+
+## Install
+
+```bash
+pnpm add -D @adonis-agora/authkit-testing
+```
+
+Everything is exported from the package root:
+
+```ts
+import {
+  createTestIdentity,
+  mintTestIdToken,
+  generateTestKeyPair,
+  serveJwks,
+  jwksFromKey,
+  testJwks,
+  fakeAuthenticator,
+  fakeAccountStore,
+} from '@adonis-agora/authkit-testing'
+```
+
+## `createTestIdentity(overrides?)`
+
+Returns a fully-populated [`Identity`](/docs/client#the-identity) with sane defaults
+(`userId`, `email`, empty `globalRoles`, a `profile`, a `sessionId`, and one-hour
+`issuedAt`/`expiresAt` timestamps). Override any field:
+
+```ts
+const admin = createTestIdentity({
+  userId: 'user-42',
+  email: 'jane@acme.dev',
+  globalRoles: ['ADMIN'],
+})
+```
+
+Use it anywhere you need a valid identity without going through a real token exchange —
+most often to feed [`fakeAuthenticator`](#fakeauthenticator) below.
+
+## `fakeAuthenticator(options?)`
+
+Builds an object that satisfies the client's `Authenticator` surface — exactly what
+`ctx.auth` exposes — so controller tests can inject a logged-in (or anonymous) user without
+resolving real tokens.
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `identity` | `Identity \| null` | `createTestIdentity()` | The resolved identity. Pass `null` to simulate an anonymous request. |
+| `user` | `unknown` | the identity | The domain user returned by `getUser()`. |
+
+The fake implements `getIdentity()`, the `identity` getter, `authenticate()` (throws when
+anonymous), `check()`, `getUser()`, and `hasGlobalRole(role)`:
+
+```ts
+import { test } from '@japa/runner'
+import { fakeAuthenticator, createTestIdentity } from '@adonis-agora/authkit-testing'
+import { ShowProfileController } from '#controllers/show_profile_controller'
+
+test('returns the current user profile', async ({ assert }) => {
+  const auth = fakeAuthenticator({
+    identity: createTestIdentity({ email: 'jane@acme.dev', globalRoles: ['ADMIN'] }),
+  })
+
+  const ctx = { auth } as any // your HttpContext test double
+  const result = await new ShowProfileController().handle(ctx)
+
+  assert.equal(result.email, 'jane@acme.dev')
+  assert.isTrue(auth.hasGlobalRole('ADMIN'))
+})
+```
+
+<Callout type="info">
+  AuthKit only **authenticates** — role-based **authorization** lives in
+  [`@adonis-agora/authz`](https://github.com/DavideCarvalho/adonis-authz). The fake exposes
+  `hasGlobalRole` (roles carried on the token) but nothing more; test policy decisions with
+  the authz package's own helpers.
+</Callout>
+
+## `fakeAccountStore(options?)`
+
+A capability-aware fake `AccountStore`. The core methods (`findById`, `verifyCredentials`,
+`findByEmail`, `create`, provider-identity linking, password-reset/email-verification
+tokens, `listAccounts`, `setGlobalRoles`) are always present. MFA, passkeys, and
+account-security capabilities are **opt-in** so you can exercise the server's `supportsMfa`
+/ `supportsPasskeys` / `supportsAccountSecurity` type guards.
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `account` | `FakeAuthAccount` | `{ id: 'u1', email: 'a@b.com', globalRoles: ['ADMIN'] }` | Fixed account returned by `findById`/`findByEmail`/`verifyCredentials`. |
+| `withMfa` | `boolean` | `false` | Adds `getMfaState`/`enableMfa`/`disableMfa` (`supportsMfa → true`). |
+| `withPasskeys` | `boolean` | `false` | Adds `listPasskeys`/`registerPasskey`/`deletePasskey`. |
+| `withAccountSecurity` | `boolean` | `false` | Adds `changePassword`/`requestEmailChange`/`confirmEmailChange`. |
+| `overrides` | `Record<string, unknown>` | `{}` | Replace any individual method. |
+
+```ts
+import { fakeAccountStore } from '@adonis-agora/authkit-testing'
+
+const store = fakeAccountStore({
+  account: { id: 'u1', email: 'jane@acme.dev', globalRoles: ['ADMIN'] },
+  withMfa: true,
+  overrides: {
+    // e.g. force the "not found" branch for one test
+    findById: async () => null,
+  },
+})
+```
+
+## Minting real ID tokens
+
+For resolver-level tests you want a **real** signed JWT and a JWKS that validates it —
+not a mock. `mintTestIdToken` produces both.
+
+### `mintTestIdToken(options)`
+
+Mints an RS256-signed JWT and returns `{ token, key, jwks }`.
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `issuer` | `string` | — | `iss` claim — must match the resolver's `issuer`. |
+| `clientId` | `string` | — | `aud` claim — must match the resolver's `clientId`/`audience`. |
+| `claims` | `Record<string, unknown>` | `{ sub, email }` | Extra claims / overrides (e.g. `sub`, `roles`). |
+| `key` | `TestKeyPair` | freshly generated | Reuse a keypair across tokens. |
+| `expiresInSeconds` | `number` | `3600` | Token lifetime. |
+
+### `serveJwks(jwks)`
+
+The [`JwtResolver`](/docs/resolvers) uses `createRemoteJWKSet`, so it needs a **URL**.
+`serveJwks` boots a throwaway in-process HTTP server that serves your JWKS at
+`GET /.well-known/jwks.json` and returns `{ jwksUri, server, close }` — no external network,
+no IdP.
+
+```ts
+import { test } from '@japa/runner'
+import { mintTestIdToken, serveJwks } from '@adonis-agora/authkit-testing'
+import { resolvers } from '@adonis-agora/authkit-client'
+
+test.group('jwt resolver', (group) => {
+  test('resolves a valid token into an identity', async ({ assert, cleanup }) => {
+    // 1. Mint a real signed token + the public JWKS that validates it.
+    const { token, jwks } = await mintTestIdToken({
+      issuer: 'https://idp.test',
+      clientId: 'my-app',
+      claims: { sub: 'user-42', email: 'jane@test.dev', roles: ['ADMIN'] },
+    })
+
+    // 2. Serve the JWKS locally so the resolver can fetch it.
+    const served = await serveJwks(jwks)
+    cleanup(() => served.close())
+
+    // 3. Build the resolver against that jwks_uri. Read the token from the
+    //    Authorization header so we can drive it with a plain ctx double.
+    const factory = resolvers.jwt({ jwksUri: served.jwksUri, tokenSource: 'bearer' })
+    const resolver = await factory.resolver({
+      issuer: 'https://idp.test',
+      clientId: 'my-app',
+      sessionKey: 'authkit',
+      globalRolesClaim: 'roles',
+    })
+
+    // 4. Resolve through an HttpContext double carrying the bearer token.
+    const ctx = {
+      request: { header: () => `Bearer ${token}` },
+    } as any
+    const identity = await resolver.resolve(ctx)
+
+    assert.equal(identity?.userId, 'user-42')
+    assert.deepEqual(identity?.globalRoles, ['ADMIN'])
+  })
+})
+```
+
+`resolvers.jwt(...).resolver(ctx)` returns a `SessionResolver` whose `resolve(httpCtx)`
+pulls the raw token from the request (session `idToken` by default, or the
+`Authorization: Bearer` header with `tokenSource: 'bearer'`), verifies it against the
+served JWKS, and builds the `Identity`.
+
+<Callout type="warn">
+  Always `close()` the served JWKS in your test teardown (`cleanup(...)` /
+  `group.teardown(...)`). Each `serveJwks` call binds a fresh ephemeral port; leaving them
+  open leaks sockets across the suite.
+</Callout>
+
+### Reusing a keypair
+
+Generate one keypair and sign many tokens with it, or pull the raw public JWKS without
+minting a token:
+
+```ts
+import { generateTestKeyPair, mintTestIdToken, jwksFromKey } from '@adonis-agora/authkit-testing'
+
+const key = await generateTestKeyPair() // stable kid across tokens
+
+const alice = await mintTestIdToken({ issuer, clientId, key, claims: { sub: 'alice' } })
+const bob = await mintTestIdToken({ issuer, clientId, key, claims: { sub: 'bob' } })
+
+const jwks = await jwksFromKey(key) // public JWKS that validates both
+```
+
+`testJwks(key)` is an alias of `jwksFromKey(key)`; both return `{ keys: JWK[] }` ready to
+feed `serveJwks` or a local `createLocalJWKSet`.
+
+## API summary
+
+| Export | Kind | Purpose |
+| --- | --- | --- |
+| `createTestIdentity` | function | Build a valid `Identity` with overrides. |
+| `fakeAuthenticator` | function | Fake `ctx.auth` for controller tests. |
+| `fakeAccountStore` | function | Capability-aware fake `AccountStore`. |
+| `mintTestIdToken` | function | Real RS256 JWT + validating JWKS. |
+| `generateTestKeyPair` | function | Extractable RS256 keypair with a stable `kid`. |
+| `serveJwks` | function | In-process JWKS HTTP endpoint (`jwksUri`, `close`). |
+| `jwksFromKey` / `testJwks` | function | Public JWKS object from a keypair. |

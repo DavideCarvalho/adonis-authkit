@@ -1,0 +1,139 @@
+---
+icon: Cloud
+title: GCP Secret Manager
+description: Persist the managed JWKS signing keystore in Google Cloud Secret Manager with @adonis-agora/authkit-vault-gcp.
+---
+
+`@adonis-agora/authkit-vault-gcp` backs the [managed keystore](/docs/keystore-vaults) with
+**Google Cloud Secret Manager**. The private JWKS blob is stored as a secret; each rotation
+adds a new secret *version*. Google encrypts it at rest, gates access with IAM, and logs
+access in Cloud Audit Logs. Your app nodes hold no key material on disk.
+
+## Install
+
+Install the package and its cloud SDK peer:
+
+```bash
+pnpm add @adonis-agora/authkit-vault-gcp @google-cloud/secret-manager
+```
+
+<Callout type="info">
+  `@google-cloud/secret-manager` (v5+) is an **optional peer dependency**, imported lazily
+  only when the `gcp-secret-manager` driver is selected. A selected-but-missing SDK throws a
+  clear install error — the signing key is critical and never silently degrades.
+</Callout>
+
+## Configure
+
+Select the driver in your server config. AuthKit lazy-loads this package and calls its
+`createKeystoreVault` factory the first time it touches the keystore:
+
+```ts title="config/authkit_server.ts"
+import { defineConfig } from '@adonis-agora/authkit-server'
+
+export default defineConfig({
+  // ...
+  jwks: {
+    source: 'managed',
+    algorithm: 'RS256',
+    store: {
+      driver: 'gcp-secret-manager',
+      name: 'projects/acme-123/secrets/authkit-jwks',
+    },
+  },
+})
+```
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `driver` | `'gcp-secret-manager'` | yes | Selects this package. |
+| `name` | `string` | yes | The secret resource name, `projects/{project}/secrets/{secret}`. AuthKit reads `${name}/versions/latest` and adds versions under `name`. |
+
+<Callout type="warn">
+  Unlike the AWS and Azure vaults, this package does **not** auto-create the secret — it
+  only adds versions to an existing one (`addSecretVersion`). Create the secret container
+  once before first boot:
+
+  ```bash
+  gcloud secrets create authkit-jwks --replication-policy=automatic --project=acme-123
+  ```
+</Callout>
+
+## Credentials & IAM
+
+Authentication uses Application Default Credentials (ADC) — the metadata server on GKE/Cloud
+Run/GCE, `GOOGLE_APPLICATION_CREDENTIALS`, or `gcloud auth application-default login` in
+development. No credentials go in AuthKit config.
+
+The service account needs to read the latest version and add new versions. The predefined
+`roles/secretmanager.secretVersionManager` covers `addSecretVersion` and
+`accessSecretVersion`; grant it on the secret (least privilege) or the project:
+
+```bash
+gcloud secrets add-iam-policy-binding authkit-jwks \
+  --project=acme-123 \
+  --member="serviceAccount:app@acme-123.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretVersionManager"
+```
+
+## How it works
+
+The package adapts Secret Manager to AuthKit's
+[`SecretBackend` seam](/docs/keystore-vaults#the-shared-contract):
+
+- **`read()` → `accessSecretVersion({ name: '${name}/versions/latest' })`** — decodes the
+  payload bytes to a UTF-8 string, or returns `null` when the secret has no versions yet
+  (gRPC code `5 = NOT_FOUND`), so a first boot generates the key instead of crashing.
+- **`write(blob)` → `addSecretVersion`** — adds a new version under the secret container.
+- **`head()` → `version()` → the latest version's resource `name`** — a cheap change token
+  so multi-node deployments poll for rotations and hot-reload the JWKS without a restart.
+
+```ts
+import { createKeystoreVault } from '@adonis-agora/authkit-vault-gcp'
+
+// This is what AuthKit calls internally; you can also call it directly.
+const vault = createKeystoreVault({
+  name: 'projects/acme-123/secrets/authkit-jwks',
+})
+
+await vault.read() // string | null
+await vault.head() // latest version resource name | null
+```
+
+The package's public entry point exports exactly three symbols: the `createKeystoreVault`
+factory plus the two structural types shared by every vault — `KeystoreVaultLike` and
+`SecretBackend`. The GCP config shape is:
+
+```ts
+interface GcpVaultConfig {
+  /** Secret resource name: projects/{project}/secrets/{secret} */
+  name: string
+  /** Inject a custom SecretBackend to bypass the GCP SDK (tests). */
+  backend?: SecretBackend
+}
+```
+
+## Testing without GCP
+
+Pass an optional `backend` to bypass the GCP SDK entirely, so unit tests never touch the
+network:
+
+```ts
+import { createKeystoreVault } from '@adonis-agora/authkit-vault-gcp'
+
+let stored: string | null = null
+const vault = createKeystoreVault({
+  name: 'projects/test/secrets/authkit-jwks',
+  backend: {
+    get: async () => stored,
+    put: async (blob) => { stored = blob },
+    version: async () => (stored ? 'projects/test/secrets/authkit-jwks/versions/1' : null),
+  },
+})
+```
+
+<Callout type="warn">
+  Losing the secret means every token AuthKit ever signed becomes unverifiable and every
+  relying party must re-fetch a fresh JWKS. Secret Manager keeps prior versions — avoid
+  `destroy`-ing versions still within your JWKS grace window.
+</Callout>

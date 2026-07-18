@@ -36,6 +36,7 @@
   "exports": {
     ".": "./build/index.js",
     "./types": "./build/index.js",
+    "./services/main": "./build/services/main.js",
     "./authkit_client_provider": "./build/providers/authkit_client_provider.js",
     "./authkit_middleware": "./build/src/middleware/authkit_middleware.js",
     "./backchannel_revocation_middleware": "./build/src/middleware/backchannel_revocation_middleware.js",

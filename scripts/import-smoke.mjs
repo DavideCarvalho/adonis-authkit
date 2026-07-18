@@ -31,15 +31,18 @@ const PACKAGES = [
 const ENTRYPOINT_ONLY = new Set(['packages/authkit-react/build'])
 
 /**
- * Diretórios de assets de browser dentro do build — bundles Vite da SPA do
- * console referenciam `document`/`window` e não devem ser importados em Node.
+ * Diretórios que NÃO devem ser importados a frio em Node:
+ * - `ui-dist`: bundles Vite da SPA do console (referenciam `document`/`window`).
+ * - `services`: acessores `services/main` (convenção Adonis, como `@adonisjs/lucid/services/db`)
+ *   rodam `await app.booted()` no top-level, então só funcionam dentro de um app booted —
+ *   importar a frio quebra por falta de app, não por bug de empacotamento.
  */
-const BROWSER_DIRS = new Set(['ui-dist'])
+const SKIP_DIRS = new Set(['ui-dist', 'services'])
 
 async function walk(dir) {
   const out = []
   for (const entry of await readdir(dir)) {
-    if (BROWSER_DIRS.has(entry)) continue
+    if (SKIP_DIRS.has(entry)) continue
     const full = join(dir, entry)
     const s = await stat(full)
     if (s.isDirectory()) out.push(...(await walk(full)))

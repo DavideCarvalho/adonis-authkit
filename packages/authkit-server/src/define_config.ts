@@ -505,6 +505,51 @@ export function resolvePasswordless(
 }
 
 /**
+ * Fixa métodos de login PELO ARQUIVO DE CONFIG, com PRIORIDADE sobre o runtime
+ * setting `auth_methods` (o inverso do default — normalmente o runtime manda).
+ *
+ * Cada campo declarado aqui é AUTORITATIVO: o console admin não sobrescreve em
+ * runtime (a UI mostra o toggle travado, "definido no config"). Campos omitidos
+ * continuam controlados pelo runtime → default por capability.
+ *
+ * Guards preservados no resolver:
+ *   - Fixar um método em `true` só o liga se a CAPACIDADE existir (ex.: `magicLink: true`
+ *     sem store capaz continua oculto). Fixar em `false` é sempre respeitado.
+ *   - Fail-safe all-off: se pins + runtime zerarem TODOS os métodos, volta ao default
+ *     (nunca trancar todo mundo pra fora).
+ *
+ * @example
+ * // Login sem senha (magic-link + passkey), travado pelo config — sem comando por ambiente:
+ * authMethods: { password: false }
+ */
+export interface AuthMethodsConfigInput {
+  /** Fixa o login por senha. */
+  password?: boolean;
+  /** Fixa o login por magic link (respeitando a capacidade do store). */
+  magicLink?: boolean;
+  /** Fixa o "entrar com passkey" (respeitando a capacidade do store). */
+  passkey?: boolean;
+  /** Fixa o link "esqueci a senha" (só aparece com senha ligada, de qualquer forma). */
+  forgotPassword?: boolean;
+}
+
+/** authMethods resolvido: só os campos que o config FIXOU (os demais ficam a cargo do runtime). */
+export type ResolvedAuthMethodsConfig = AuthMethodsConfigInput;
+
+/** Normaliza o input: mantém só os campos booleanos declarados (os pins). */
+export function resolveAuthMethodsConfig(
+  input?: AuthMethodsConfigInput,
+): ResolvedAuthMethodsConfig {
+  if (!input) return {};
+  const out: ResolvedAuthMethodsConfig = {};
+  if (typeof input.password === "boolean") out.password = input.password;
+  if (typeof input.magicLink === "boolean") out.magicLink = input.magicLink;
+  if (typeof input.passkey === "boolean") out.passkey = input.passkey;
+  if (typeof input.forgotPassword === "boolean") out.forgotPassword = input.forgotPassword;
+  return out;
+}
+
+/**
  * Política de login por senha/identidade. Hoje cobre `requireVerifiedEmail`:
  * quando ligado, TODO fluxo de login que materializa uma sessão (login por senha,
  * magic link e passkey-first) rejeita contas cujo e-mail ainda NÃO foi verificado,
@@ -882,6 +927,12 @@ export interface AuthServerConfigInput {
    */
   passwordless?: PasswordlessConfigInput;
   /**
+   * Fixa métodos de login pelo arquivo de config, com PRIORIDADE sobre o runtime
+   * setting `auth_methods`. Cada campo declarado trava o método (o console admin não
+   * sobrescreve). Default: `{}` (tudo controlado pelo runtime). Ver {@link AuthMethodsConfigInput}.
+   */
+  authMethods?: AuthMethodsConfigInput;
+  /**
    * Política de login (hoje: `requireVerifiedEmail`). Default: tudo desligado.
    * `requireVerifiedEmail` é capability-probed (precisa de `isEmailVerified` no store).
    */
@@ -1028,6 +1079,8 @@ export interface ResolvedServerConfig {
   botProtection?: ResolvedBotProtectionConfig;
   /** Passwordless resolvido (default tudo desligado). */
   passwordless: ResolvedPasswordlessConfig;
+  /** Métodos de login fixados pelo config (prioridade sobre runtime; default `{}`). */
+  authMethods: ResolvedAuthMethodsConfig;
   /** Política de login resolvida (requireVerifiedEmail; default desligado). */
   login: ResolvedLoginConfig;
   /** Configuração de cadastro público resolvida (enabled; default true). */
@@ -1249,6 +1302,7 @@ export function defineConfig(config: AuthServerConfigInput) {
         trustedDevices: resolveTrustedDevices(config.trustedDevices),
         botProtection: resolveBotProtection(config.botProtection),
         passwordless: resolvePasswordless(config.passwordless),
+        authMethods: resolveAuthMethodsConfig(config.authMethods),
         login: resolveLogin(config.login),
         registration: resolveRegistration(config.registration),
         accessTokens: resolveAccessTokens(config.issuer, config.accessTokens),

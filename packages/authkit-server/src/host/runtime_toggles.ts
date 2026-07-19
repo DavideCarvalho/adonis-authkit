@@ -286,6 +286,39 @@ export interface AuthMethodsCapabilities {
   magicLinkCapable?: boolean
   /** Passkey-first disponível (config.passwordless.passkeyFirst && store tem passkeys). */
   passkeyCapable?: boolean
+  /**
+   * Pins vindos do ARQUIVO DE CONFIG (`cfg.authMethods`): têm PRIORIDADE sobre o
+   * runtime setting `auth_methods`. Cada campo presente sobrescreve o valor resolvido
+   * do setting. Ligar respeita as capacidades (magicLink/passkey só ligam se capable);
+   * desligar é sempre respeitado. Campos ausentes seguem controlados pelo runtime.
+   */
+  configOverrides?: AuthMethodsConfigOverride
+}
+
+/** Métodos que o config pode FIXAR (prioridade sobre runtime). Só os campos declarados travam. */
+export interface AuthMethodsConfigOverride {
+  password?: boolean
+  magicLink?: boolean
+  passkey?: boolean
+  forgotPassword?: boolean
+}
+
+/**
+ * Quais métodos estão TRAVADOS pelo config (para a UI admin mostrar o toggle
+ * desabilitado com "definido no arquivo de config"). É só a lista de campos
+ * booleanos presentes em `configOverrides`.
+ */
+export function configLockedAuthMethods(
+  configOverrides?: AuthMethodsConfigOverride
+): Array<keyof AuthMethodsConfigOverride> {
+  if (!configOverrides) return []
+  const keys: Array<keyof AuthMethodsConfigOverride> = [
+    'password',
+    'magicLink',
+    'passkey',
+    'forgotPassword',
+  ]
+  return keys.filter((k) => typeof configOverrides[k] === 'boolean')
 }
 
 /**
@@ -311,6 +344,7 @@ export async function resolveEffectiveAuthMethods(
     configuredSocialProviders = [],
     magicLinkCapable = false,
     passkeyCapable = false,
+    configOverrides,
   } = capabilities
 
   // Defaults derivados do config/capabilities.
@@ -323,55 +357,66 @@ export async function resolveEffectiveAuthMethods(
     passkeyAutofill: passkeyCapable, // on por default quando passkey disponível
   }
 
+  // 1) Runtime setting sobre os defaults (setting ausente/inválida → só defaults).
   const raw = await settings.getSetting(SETTING_KEYS.AUTH_METHODS)
-  if (raw === null || raw === undefined) return configDefaults
-  if (typeof raw !== 'object' || Array.isArray(raw)) return configDefaults // shape inválida
+  const s: AuthMethodsSetting =
+    raw !== null && raw !== undefined && typeof raw === 'object' && !Array.isArray(raw)
+      ? (raw as AuthMethodsSetting)
+      : {}
 
-  const s = raw as AuthMethodsSetting
-
-  // Aplica campo a campo, com fallback ao default quando o campo está ausente.
-  const passwordEnabled = typeof s.password === 'boolean' ? s.password : configDefaults.password
-  const magicLinkEnabled = typeof s.magicLink === 'boolean' ? s.magicLink : configDefaults.magicLink
-  const passkeyEnabled = typeof s.passkey === 'boolean' ? s.passkey : configDefaults.passkey
+  let password = typeof s.password === 'boolean' ? s.password : configDefaults.password
+  let magicLink = typeof s.magicLink === 'boolean' ? s.magicLink : configDefaults.magicLink
+  let passkey = typeof s.passkey === 'boolean' ? s.passkey : configDefaults.passkey
 
   // Social: interseção com os providers do config (setting não pode ligar o que não existe).
-  let socialEnabled: string[]
-  if (Array.isArray(s.social)) {
-    socialEnabled = s.social.filter((p) => configuredSocialProviders.includes(p))
-  } else {
-    socialEnabled = configDefaults.social
+  const social = Array.isArray(s.social)
+    ? s.social.filter((p) => configuredSocialProviders.includes(p))
+    : configDefaults.social
+
+  // 2) Pins do config: PRIORIDADE sobre o setting. Ligar respeita a capacidade;
+  //    desligar sempre vale. `password` não tem guard de capacidade.
+  if (configOverrides) {
+    if (typeof configOverrides.password === 'boolean') password = configOverrides.password
+    if (typeof configOverrides.magicLink === 'boolean')
+      magicLink = configOverrides.magicLink && magicLinkCapable
+    if (typeof configOverrides.passkey === 'boolean')
+      passkey = configOverrides.passkey && passkeyCapable
   }
 
-  // forgotPassword: derivado automaticamente — sem senha NUNCA existe esqueci-senha.
-  const forgotPasswordEnabled =
-    passwordEnabled && (typeof s.forgotPassword === 'boolean' ? s.forgotPassword : true)
+  // forgotPassword: derivado — sem senha NUNCA existe esqueci-senha. O pin/setting só
+  // pode DESLIGAR (nunca ligar sem senha). Precedência: pin do config > setting > default(on).
+  const forgotPasswordRequested =
+    typeof configOverrides?.forgotPassword === 'boolean'
+      ? configOverrides.forgotPassword
+      : typeof s.forgotPassword === 'boolean'
+        ? s.forgotPassword
+        : true
+  const forgotPassword = password && forgotPasswordRequested
 
   // passkeyAutofill: só faz sentido quando passkey está ligado.
-  const passkeyAutofillEnabled =
-    passkeyEnabled &&
+  const passkeyAutofill =
+    passkey &&
     (typeof s.passkeyAutofill === 'boolean' ? s.passkeyAutofill : configDefaults.passkeyAutofill)
 
   const resolved: ResolvedAuthMethods = {
-    password: passwordEnabled,
-    magicLink: magicLinkEnabled,
-    passkey: passkeyEnabled,
-    social: socialEnabled,
-    forgotPassword: forgotPasswordEnabled,
-    passkeyAutofill: passkeyAutofillEnabled,
+    password,
+    magicLink,
+    passkey,
+    social,
+    forgotPassword,
+    passkeyAutofill,
   }
 
-  // FAIL-SAFE all-off: se todos ficaram false/vazio, volta ao config derivado.
+  // FAIL-SAFE all-off: se pins + setting zerarem TODOS os métodos, volta ao config derivado
+  // (nunca deixar a tela sem método / trancar todo mundo pra fora).
   const allOff =
-    !resolved.password &&
-    !resolved.magicLink &&
-    !resolved.passkey &&
-    resolved.social.length === 0
+    !resolved.password && !resolved.magicLink && !resolved.passkey && resolved.social.length === 0
   if (allOff) {
     // eslint-disable-next-line no-console
     console.warn(
-      '[authkit] auth_methods setting deixou todos os métodos desligados — ' +
+      '[authkit] auth_methods (config pins + setting) deixou todos os métodos desligados — ' +
         'revertendo para os defaults do config (fail-safe). ' +
-        'Verifique a setting auth_methods no console admin.'
+        'Verifique cfg.authMethods e a setting auth_methods no console admin.'
     )
     return configDefaults
   }

@@ -17,6 +17,7 @@ import {
   resolveEffectiveRequireVerifiedEmail,
   resolveEffectiveMaintenanceMode,
   resolveEffectiveAuthMethods,
+  configLockedAuthMethods,
   SETTING_KEYS,
 } from '../../src/host/runtime_toggles.js'
 
@@ -381,5 +382,92 @@ test.group('resolveEffectiveAuthMethods', () => {
     assert.isTrue(result.passkey)
     assert.deepEqual(result.social, ['google'])
     assert.isTrue(result.forgotPassword)
+  })
+})
+
+// ---------- config pins (cfg.authMethods) — PRIORIDADE sobre o runtime setting ----------
+
+test.group('resolveEffectiveAuthMethods — config pins', () => {
+  test('config pin { password: false } wins over setting { password: true }', async ({ assert }) => {
+    const s = settings(fakeDb({ auth_methods: { password: true } }))
+    const result = await resolveEffectiveAuthMethods(s, {
+      magicLinkCapable: true, // evita fail-safe all-off
+      configOverrides: { password: false },
+    })
+    // Sem o pin, o setting mandaria password=true. O config ganha.
+    assert.isFalse(result.password)
+    assert.isTrue(result.magicLink)
+  })
+
+  test('config pin { password: false } wins with no setting (entre-textos: magic-link-first)', async ({
+    assert,
+  }) => {
+    const s = settings(noTableDb())
+    const result = await resolveEffectiveAuthMethods(s, {
+      magicLinkCapable: true,
+      configOverrides: { password: false },
+    })
+    assert.isFalse(result.password)
+    assert.isTrue(result.magicLink) // capability liga o magic link pela config default
+    assert.isFalse(result.forgotPassword) // derivado: sem senha, sem esqueci-senha
+  })
+
+  test('config pin { password: false } derives forgotPassword off even if setting turns it on', async ({
+    assert,
+  }) => {
+    const s = settings(fakeDb({ auth_methods: { password: true, forgotPassword: true } }))
+    const result = await resolveEffectiveAuthMethods(s, {
+      magicLinkCapable: true,
+      configOverrides: { password: false },
+    })
+    assert.isFalse(result.password)
+    assert.isFalse(result.forgotPassword)
+  })
+
+  test('config pin { magicLink: true } but NOT capable → magicLink stays off (capability guard)', async ({
+    assert,
+  }) => {
+    const s = settings(noTableDb())
+    const result = await resolveEffectiveAuthMethods(s, {
+      magicLinkCapable: false,
+      configOverrides: { magicLink: true },
+    })
+    // O pin do config respeita a capacidade (diferente do setting, que ignora).
+    assert.isFalse(result.magicLink)
+    assert.isTrue(result.password) // password não foi mexido
+  })
+
+  test('config pin { passkey: true } but NOT capable → passkey stays off (capability guard)', async ({
+    assert,
+  }) => {
+    const s = settings(noTableDb())
+    const result = await resolveEffectiveAuthMethods(s, {
+      passkeyCapable: false,
+      configOverrides: { passkey: true },
+    })
+    assert.isFalse(result.passkey)
+  })
+
+  test('fail-safe: pin { password: false } but NO other method capable → reverts to defaults (no lockout)', async ({
+    assert,
+  }) => {
+    const s = settings(noTableDb())
+    const result = await resolveEffectiveAuthMethods(s, {
+      magicLinkCapable: false,
+      passkeyCapable: false,
+      configOverrides: { password: false },
+    })
+    // Todos os métodos ficariam off → fail-safe volta pros defaults (password on).
+    assert.isTrue(result.password)
+  })
+
+  test('configLockedAuthMethods lists only the declared boolean fields', ({ assert }) => {
+    assert.deepEqual(configLockedAuthMethods({ password: false }), ['password'])
+    assert.deepEqual(configLockedAuthMethods({ password: false, magicLink: true }).sort(), [
+      'magicLink',
+      'password',
+    ])
+    assert.deepEqual(configLockedAuthMethods(undefined), [])
+    assert.deepEqual(configLockedAuthMethods({}), [])
   })
 })

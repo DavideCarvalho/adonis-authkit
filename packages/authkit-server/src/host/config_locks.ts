@@ -30,6 +30,10 @@ export function deriveLockedSettingKeys(config: Record<string, any>): string[] {
     if (present) locked.push(key)
   }
   add(config.registration !== undefined, SETTING_KEYS.REGISTRATION)
+  // authMethods no config trava a key inteira `auth_methods`: os métodos passam a ser
+  // controlados pelo arquivo (via cfg.authMethods → configOverrides no resolver) e a UI
+  // desabilita os toggles com "definido via defineConfig".
+  add(config.authMethods !== undefined, SETTING_KEYS.AUTH_METHODS)
   add(config.login?.requireVerifiedEmail !== undefined, SETTING_KEYS.REQUIRE_VERIFIED_EMAIL)
   add(config.lockout !== undefined, SETTING_KEYS.LOCKOUT)
   add(config.rateLimit !== undefined, SETTING_KEYS.RATE_LIMIT)

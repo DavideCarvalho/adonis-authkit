@@ -19,6 +19,7 @@ test.group('config_locks / deriveLockedSettingKeys', () => {
   test('mapeia campos explícitos do config para as setting keys', ({ assert }) => {
     const locked = deriveLockedSettingKeys({
       registration: { enabled: false },
+      authMethods: { password: false },
       lockout: { enabled: true },
       ttl: { accessToken: 900 },
       login: { requireVerifiedEmail: true },
@@ -26,11 +27,18 @@ test.group('config_locks / deriveLockedSettingKeys', () => {
     })
     assert.includeMembers(locked, [
       SETTING_KEYS.REGISTRATION,
+      SETTING_KEYS.AUTH_METHODS,
       SETTING_KEYS.LOCKOUT,
       SETTING_KEYS.TOKEN_TTL,
       SETTING_KEYS.REQUIRE_VERIFIED_EMAIL,
       SETTING_KEYS.ADMIN_IMPERSONATION,
     ])
+  })
+
+  test('authMethods no config trava a key auth_methods', ({ assert }) => {
+    assert.include(deriveLockedSettingKeys({ authMethods: { password: false } }), SETTING_KEYS.AUTH_METHODS)
+    // authMethods ausente → não trava (UI/runtime controla).
+    assert.notInclude(deriveLockedSettingKeys({}), SETTING_KEYS.AUTH_METHODS)
   })
 
   test('campos ausentes não travam (UI controla)', ({ assert }) => {

@@ -29,10 +29,12 @@ export type {
 } from './src/define_config.js'
 export { resolveAdmin, resolveAdminApi, resolveWebauthn, resolveDynamicRegistration } from './src/define_config.js'
 export type { WebauthnConfigInput, ResolvedWebauthnConfig } from './src/define_config.js'
-export { resolvePasswordless, resolveLogin } from './src/define_config.js'
+export { resolvePasswordless, resolveLogin, resolveAuthMethodsConfig } from './src/define_config.js'
 export type {
   PasswordlessConfigInput,
   ResolvedPasswordlessConfig,
+  AuthMethodsConfigInput,
+  ResolvedAuthMethodsConfig,
   LoginConfigInput,
   ResolvedLoginConfig,
 } from './src/define_config.js'
@@ -300,6 +302,8 @@ export {
   resolveEffectiveRegistration,
   resolveEffectiveRequireVerifiedEmail,
   resolveEffectiveMaintenanceMode,
+  resolveEffectiveAuthMethods,
+  configLockedAuthMethods,
 } from './src/host/runtime_toggles.js'
 export type {
   SettingKey,
@@ -307,6 +311,10 @@ export type {
   RequireVerifiedEmailSetting,
   MaintenanceModeSetting,
   ResolvedMaintenanceMode,
+  AuthMethodsSetting,
+  ResolvedAuthMethods,
+  AuthMethodsCapabilities,
+  AuthMethodsConfigOverride,
 } from './src/host/runtime_toggles.js'
 export { resolveRegistration } from './src/define_config.js'
 export type {

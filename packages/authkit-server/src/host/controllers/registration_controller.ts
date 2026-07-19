@@ -302,6 +302,7 @@ export default class AuthRegistrationController {
     const authMethods = await resolveEffectiveAuthMethods(runtimeSettings, {
       configuredSocialProviders: cfg.social?.providers ?? [],
       magicLinkCapable: cfg.passwordless?.magicLink && typeof (cfg.accountStore as any).issueMagicLinkToken === 'function',
+      configOverrides: cfg.authMethods,
     })
     if (!authMethods.forgotPassword) {
       return ctx.response.notFound({ error: translate(cfg.messages, 'errors.not_found') })
@@ -334,6 +335,7 @@ export default class AuthRegistrationController {
     const authMethods = await resolveEffectiveAuthMethods(runtimeSettings, {
       configuredSocialProviders: cfg.social?.providers ?? [],
       magicLinkCapable: cfg.passwordless?.magicLink && typeof (cfg.accountStore as any).issueMagicLinkToken === 'function',
+      configOverrides: cfg.authMethods,
     })
     if (!authMethods.forgotPassword) {
       return ctx.response.notFound({ error: translate(cfg.messages, 'errors.not_found') })

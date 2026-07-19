@@ -115,6 +115,7 @@ export default class AuthInteractionController {
       configuredSocialProviders,
       magicLinkCapable: magicLinkCapableConfig,
       passkeyCapable: false, // passkey-first depends on account — resolved in step 2
+      configOverrides: cfg.authMethods,
     })
 
     if (!email) {

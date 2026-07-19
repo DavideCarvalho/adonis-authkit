@@ -367,6 +367,35 @@ Each hook receives the ready-built URL plus the raw `token` (in case you build y
 link). Hooks are best-effort — a throw is swallowed and never breaks the request. The
 `onMagicLink` hook only fires when [passwordless magic link](/docs/passwordless) is enabled.
 
+### Dedicated sender (`mail.from`)
+
+<Callout>Added in `@adonis-agora/authkit-server` 0.41.0.</Callout>
+
+When you rely on the **default** emails (no `onX` hook) — reset, verification, magic link,
+and the security alerts (new device/login, password changed, MFA toggled) — AuthKit needs a
+`from` address. It resolves in this order:
+
+1. `mail.from` here (AuthKit config) — highest priority;
+2. the host's global `from` in `config/mail.ts`;
+3. whatever `@adonisjs/mail` defaults to.
+
+Set `mail.from` to give auth mail its **own** sender — e.g. a security address distinct from
+your app's general `from` — without touching `config/mail.ts`:
+
+```ts title="config/authkit.ts"
+export default defineConfig({
+  // ...
+  mail: {
+    // string "Name <email>" or { address, name }
+    from: 'Acme Security <no-reply-auth@acme.com>',
+  },
+})
+```
+
+With no `from` anywhere, the envelope `MAIL FROM` is empty and strict providers (e.g. Resend)
+reject the message with `550 Invalid from`. `mail.from` only affects AuthKit's **default**
+emails — your custom `onX` hooks build their own `from`.
+
 ## Custom account store
 
 The `accountStore` is AuthKit's primary identity contract — it's where the IdP looks up and

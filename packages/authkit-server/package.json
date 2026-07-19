@@ -38,6 +38,7 @@
   "exports": {
     ".": "./build/index.js",
     "./types": "./build/index.js",
+    "./services/main": "./build/services/main.js",
     "./durable": "./build/src/host/durable/index.js",
     "./telescope": "./build/src/observability/telescope/index.js",
     "./authkit_server_provider": "./build/providers/authkit_server_provider.js",

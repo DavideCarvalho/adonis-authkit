@@ -82,6 +82,7 @@ catalogs:
     "react-dom": "^19.2.6"
 
   miscPeers:
+    "@vinejs/vine": "^4.3.0"
     "edge.js": "^6.5.1"
 
   adonis:

@@ -1,5 +1,6 @@
 import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
+import type { ResolvedServerConfig } from '../../define_config.js'
 import { brandFor, isFirstParty } from '../branding.js'
 import { translate } from '../i18n.js'
 import { attemptPasswordLogin, isEmailUnverifiedBlock } from '../login_attempt.js'
@@ -47,6 +48,24 @@ const MFA_PENDING_KEY = 'authkit_mfa_pending'
 const PASSKEY_AUTH_CHALLENGE_KEY = 'authkit_passkey_auth_challenge'
 
 export default class AuthInteractionController {
+  /**
+   * Métodos de login efetivos (com os pins do `cfg.authMethods`) para QUALQUER render do
+   * passo login. Sem isto, os re-renders (erro de senha, magic link enviado, lockout…) mandam
+   * `authMethods` undefined → a view volta ao default (senha ligada), ignorando a config.
+   * `passkeyFirst` depende da conta (resolvido no fluxo principal); aqui cobrimos senha + magic link.
+   */
+  async #loginMethods(ctx: HttpContext, cfg: ResolvedServerConfig) {
+    const runtimeSettings = await getRuntimeSettings(ctx)
+    const magicLinkCapableConfig = cfg.passwordless.magicLink && supportsMagicLink(cfg.accountStore)
+    const authMethods = await resolveEffectiveAuthMethods(runtimeSettings, {
+      configuredSocialProviders: cfg.social?.providers ?? [],
+      magicLinkCapable: magicLinkCapableConfig,
+      passkeyCapable: false,
+      configOverrides: cfg.authMethods,
+    })
+    return { authMethods, magicLinkAvailable: authMethods.magicLink && magicLinkCapableConfig }
+  }
+
   async show(ctx: HttpContext) {
     const service = await ctx.containerResolver.make('authkit.server')
     const cfg = service.config
@@ -227,6 +246,7 @@ export default class AuthInteractionController {
         ? { fullName: found.name ?? null, globalRoles: found.globalRoles ?? [] }
         : null
       return render(ctx, 'login', {
+        ...(await this.#loginMethods(ctx, cfg)),
         uid: ctx.request.param('uid'),
         csrfToken: ctx.request.csrfToken,
         step: 'password',
@@ -267,6 +287,7 @@ export default class AuthInteractionController {
         ? { fullName: found.name ?? null, globalRoles: found.globalRoles ?? [] }
         : null
       return render(ctx, 'login', {
+        ...(await this.#loginMethods(ctx, cfg)),
         uid: ctx.request.param('uid'),
         csrfToken: ctx.request.csrfToken,
         step: 'password',
@@ -694,6 +715,7 @@ export default class AuthInteractionController {
 
     // Resposta uniforme (não vaza existência de conta).
     return render(ctx, 'login', {
+      ...(await this.#loginMethods(ctx, cfg)),
       uid,
       csrfToken: ctx.request.csrfToken,
       step: 'password',
@@ -739,6 +761,7 @@ export default class AuthInteractionController {
       })
       const render = cfg.render!
       return render(ctx, 'login', {
+        ...(await this.#loginMethods(ctx, cfg)),
         uid,
         csrfToken: ctx.request.csrfToken,
         step: 'password',

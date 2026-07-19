@@ -329,6 +329,20 @@ export {
 } from './src/host/console_session.js'
 export { ACCOUNT_SESSION_KEY } from './src/host/middleware/account_auth.js'
 
+// Session impersonation — RP-side glue that routes through the IdP's RFC 8693
+// token-exchange (the IdP validates the admin role + audits). See
+// src/host/impersonation_session.ts.
+export {
+  rememberAccessToken,
+  startImpersonation,
+  impersonationState,
+  stopImpersonation,
+} from './src/host/impersonation_session.js'
+export type {
+  StartImpersonationParams,
+  ImpersonationState,
+} from './src/host/impersonation_session.js'
+
 // Sudo mode — helpers for host controllers that require step-up authentication.
 export {
   SUDO_SESSION_KEY,

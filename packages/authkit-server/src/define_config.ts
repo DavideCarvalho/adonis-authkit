@@ -164,6 +164,16 @@ export interface MailHooks {
     /** Metadados extras (ex.: oldEmail/newEmail para email_changed). */
     metadata?: Record<string, string>;
   }) => Promise<void>;
+  /**
+   * Remetente (`from`) dos e-mails que a PRÓPRIA lib envia (alertas de novo acesso/
+   * dispositivo, reset de senha, verificação, magic link default, avisos de segurança).
+   * Tem PRIORIDADE sobre o `from` global do `config/mail.ts` do host — permite que o auth
+   * use um remetente próprio (ex.: `Segurança <no-reply-auth@dominio>`) sem trocar o
+   * remetente dos e-mails gerais do app. Quando ausente, cai no `config.mail.from` do host
+   * e, por fim, no default do @adonisjs/mail. Não afeta os hooks customizados (onMagicLink
+   * etc.): nesses o host monta o próprio `from`.
+   */
+  from?: string | { address: string; name?: string };
 }
 
 /** Bucket de rate-limit: pontos (requests) permitidos por janela de duração. */

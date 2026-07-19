@@ -158,4 +158,95 @@ test.group('default_mailer', (group) => {
     const err = logger.calls.find((c) => c.level === 'error')
     assert.exists(err)
   })
+
+  /** Stub de @adonisjs/mail que captura cada mensagem enviada em `sent`. */
+  function captureMailStub(sent: any[]) {
+    return {
+      send: async (cb: any) => {
+        const message: any = {
+          _from: undefined,
+          from(v: any) {
+            this._from = v
+            return this
+          },
+          to() {
+            return this
+          },
+          subject() {
+            return this
+          },
+          html() {
+            return this
+          },
+          text() {
+            return this
+          },
+        }
+        cb(message)
+        sent.push(message)
+      },
+    }
+  }
+
+  /** ctx com `containerResolver.app.config.get` devolvendo as configs `authkit`/`mail`. */
+  function fakeCtxWithConfig(logger: any, configs: Record<string, any>) {
+    return {
+      logger,
+      containerResolver: {
+        app: { config: { get: (key: string) => configs[key] } },
+      },
+    } as any
+  }
+
+  test('from: o `mail.from` do authkit tem prioridade sobre o `mail.from` do host', async ({
+    assert,
+  }) => {
+    const sent: any[] = []
+    __setMailLoaderForTests(() => Promise.resolve(captureMailStub(sent)))
+
+    const ctx = fakeCtxWithConfig(fakeLogger(), {
+      authkit: { mail: { from: 'Auth <no-reply-auth@host>' } },
+      mail: { from: 'App <no-reply@host>' },
+    })
+    await sendPasswordResetEmail(ctx, {
+      email: 'a@b.com',
+      resetUrl: 'https://host/auth/reset-password?token=x',
+    })
+
+    assert.lengthOf(sent, 1)
+    assert.equal(sent[0]._from, 'Auth <no-reply-auth@host>')
+  })
+
+  test('from: cai no `mail.from` do host quando o authkit não define', async ({ assert }) => {
+    const sent: any[] = []
+    __setMailLoaderForTests(() => Promise.resolve(captureMailStub(sent)))
+
+    const ctx = fakeCtxWithConfig(fakeLogger(), {
+      authkit: { mail: {} },
+      mail: { from: 'App <no-reply@host>' },
+    })
+    await sendPasswordResetEmail(ctx, {
+      email: 'a@b.com',
+      resetUrl: 'https://host/auth/reset-password?token=x',
+    })
+
+    assert.lengthOf(sent, 1)
+    assert.equal(sent[0]._from, 'App <no-reply@host>')
+  })
+
+  test('from: sem `from` em lugar nenhum, não chama message.from (deixa o @adonisjs/mail decidir)', async ({
+    assert,
+  }) => {
+    const sent: any[] = []
+    __setMailLoaderForTests(() => Promise.resolve(captureMailStub(sent)))
+
+    const ctx = fakeCtxWithConfig(fakeLogger(), { authkit: { mail: {} }, mail: {} })
+    await sendPasswordResetEmail(ctx, {
+      email: 'a@b.com',
+      resetUrl: 'https://host/auth/reset-password?token=x',
+    })
+
+    assert.lengthOf(sent, 1)
+    assert.isUndefined(sent[0]._from)
+  })
 })

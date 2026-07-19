@@ -62,18 +62,24 @@ export function __setMailLoaderForTests(fn: (() => Promise<MailService | null>) 
  */
 function defaultFrom(ctx: HttpContext): { address: string; name?: string } | string | undefined {
   try {
-    // Alcançamos a config de `mail` do HOST via o resolver do container. Esse
-    // formato é específico do app (a lib não conhece o shape da config de mail
-    // nem `containerResolver.app` é público), então tipamos apenas ESTE acesso
-    // como `unknown`/cast estreito — não o `HttpContext` inteiro.
+    // Alcançamos as configs do HOST via o resolver do container. Esse formato é
+    // específico do app (a lib não conhece o shape das configs nem `containerResolver.app`
+    // é público), então tipamos apenas ESTE acesso como `unknown`/cast estreito — não o
+    // `HttpContext` inteiro.
     const resolver = ctx.containerResolver as unknown as {
-      app?: { config?: { get?: (key: string) => { from?: unknown } | undefined } }
+      app?: { config?: { get?: (key: string) => { from?: unknown; mail?: { from?: unknown } } | undefined } }
     }
-    const cfg = resolver.app?.config?.get?.('mail')
-    const from = cfg?.from as { address: string; name?: string } | string | undefined
-    if (from) return from
+    const get = resolver.app?.config?.get
+    type FromValue = { address: string; name?: string } | string | undefined
+    // 1) `from` específico do authkit (defineConfig({ mail: { from } })) — PRIORIDADE:
+    // permite que o auth use um remetente próprio, diferente do e-mail geral do app.
+    const authkitFrom = get?.('authkit')?.mail?.from as FromValue
+    if (authkitFrom) return authkitFrom
+    // 2) `from` global do host (config/mail.ts).
+    const hostFrom = get?.('mail')?.from as FromValue
+    if (hostFrom) return hostFrom
   } catch {
-    // sem config de mail resolvível — deixa o @adonisjs/mail decidir.
+    // sem config resolvível — deixa o @adonisjs/mail decidir.
   }
   return undefined
 }

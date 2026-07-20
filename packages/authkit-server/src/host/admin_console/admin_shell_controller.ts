@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { extname } from 'node:path'
 import type { HttpContext } from '@adonisjs/core/http'
 import { getAdminPrefix } from '../admin_prefix.js'
+import { resolveAccountRoles } from '../account_roles.js'
 
 // ─── Shell HTML cache ─────────────────────────────────────────────────────────
 
@@ -132,7 +133,7 @@ export default class AdminShellController {
         currentUser = {
           id: account.id,
           email: account.email,
-          roles: account.globalRoles ?? [],
+          roles: await resolveAccountRoles(cfg, account),
         }
       }
     }

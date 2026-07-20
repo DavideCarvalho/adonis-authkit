@@ -13,6 +13,10 @@ function fakeCtx(opts: {
   adminRoles?: string[]
   adminEnabled?: boolean
   requestUrl?: string
+  resolveTokenRoles?: (
+    account: { id: string; email: string; globalRoles?: string[] },
+    context: unknown,
+  ) => string[] | Promise<string[]>
 }) {
   const redirects: string[] = []
   let notFoundCalled = false
@@ -35,6 +39,7 @@ function fakeCtx(opts: {
           accountStore: {
             findById: async (_id: string) => opts.account ?? null,
           },
+          resolveTokenRoles: opts.resolveTokenRoles,
         },
       }),
     },
@@ -116,6 +121,38 @@ test.group('adminGuard', () => {
     assert.isFalse(nextCalled)
     assert.isTrue(notFound())
     assert.lengthOf(redirects, 0)
+  })
+
+  test('resolveTokenRoles governa o acesso — app-admin (sem globalRoles) entra no console', async ({
+    assert,
+  }) => {
+    const { ctx, redirects } = fakeCtx({
+      sessionUserId: 'u5',
+      account: { id: 'u5', email: 'e@x.com', globalRoles: [] },
+      resolveTokenRoles: async () => ['ADMIN'],
+    })
+    let nextCalled = false
+    await adminGuard(ctx, async () => {
+      nextCalled = true
+    })
+    assert.isTrue(nextCalled)
+    assert.lengthOf(redirects, 0)
+  })
+
+  test('resolveTokenRoles é autoritativo — globalRoles ADMIN não basta se o hook não devolve ADMIN', async ({
+    assert,
+  }) => {
+    const { ctx, redirects } = fakeCtx({
+      sessionUserId: 'u6',
+      account: { id: 'u6', email: 'f@x.com', globalRoles: ['ADMIN'] },
+      resolveTokenRoles: async () => ['VIEWER'],
+    })
+    let nextCalled = false
+    await adminGuard(ctx, async () => {
+      nextCalled = true
+    })
+    assert.isFalse(nextCalled)
+    assert.deepEqual(redirects, ['/account/security'])
   })
 
   test('conta sem roles → rejeitado', async ({ assert }) => {

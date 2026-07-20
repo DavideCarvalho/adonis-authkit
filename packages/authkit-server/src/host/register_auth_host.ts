@@ -4,6 +4,7 @@ import { resolveRateLimit } from '../define_config.js'
 import { createAuthThrottles } from './rate_limit.js'
 import { ACCOUNT_SESSION_KEY } from './middleware/account_auth.js'
 import { accountHome } from './account_home.js'
+import { resolveAccountRoles } from './account_roles.js'
 import { adminApiGuard } from './admin_api/admin_api_guard.js'
 import {
   setAdminPrefix,
@@ -122,7 +123,10 @@ export const adminGuard = async (ctx: any, next: () => Promise<void>) => {
   }
   const allowed = cfg.admin.roles as string[]
   const account = await cfg.accountStore.findById(accountId)
-  const roles = account?.globalRoles ?? []
+  // Resolve roles through the host's role authority (`resolveTokenRoles`) when set — the same source
+  // the token claim is minted from — so an app-role admin reaches the console. Falls back to the
+  // account's stored `globalRoles` when no hook is configured.
+  const roles = account ? await resolveAccountRoles(cfg, account) : []
   const isAdmin = roles.some((r: string) => allowed.includes(r))
   if (!isAdmin) {
     // Evita vazar a existência do console admin: redireciona para o accountHome

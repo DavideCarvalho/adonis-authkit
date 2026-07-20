@@ -1,5 +1,6 @@
 import { errors } from 'oidc-provider'
 import type { AuditSink } from '../audit/audit_sink.js'
+import type { AuthAccount } from '../accounts/account_store.js'
 
 const TOKEN_EXCHANGE = 'urn:ietf:params:oauth:grant-type:token-exchange'
 const ACCESS_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:access_token'
@@ -14,6 +15,19 @@ export interface TokenExchangeAccount {
 export interface TokenExchangeDeps {
   findAccount: (sub: string) => Promise<TokenExchangeAccount | null>
   globalRolesClaim: string
+  /**
+   * Resolves the global-roles claim at token-mint time. When omitted, falls back to
+   * `target.globalRoles ?? []` (unchanged behavior). Mirrors the mint-time hook used
+   * by the authorization-code flow so impersonated tokens source roles from the same
+   * authority (e.g. @adonis-agora/authz) or custom store.
+   */
+  resolveTokenRoles?: (
+    account: AuthAccount,
+    context: {
+      clientId?: string
+      activeOrg?: { orgId: string; orgSlug: string; orgRole: string } | null
+    },
+  ) => string[] | Promise<string[]>
   adminRole?: string
   /**
    * Resource indicators (RFC 8707) suportados pelo provider. Quando o pedido traz
@@ -119,13 +133,22 @@ export function registerTokenExchange(provider: any, deps: TokenExchangeDeps): v
     const at = new provider.AccessToken({ accountId: target.id, client, scope })
     const accessToken = await at.save()
 
+    // Token exchange is not tied to a browser session, so there is no active org
+    // context here — roles are resolved for the impersonated target with clientId only.
+    const roles = deps.resolveTokenRoles
+      ? await deps.resolveTokenRoles(target as AuthAccount, {
+          clientId: client?.clientId,
+          activeOrg: null,
+        })
+      : (target.globalRoles ?? [])
+
     const idToken = new provider.IdToken(
       {
         sub: target.id,
         email: target.email,
         email_verified: true,
         name: target.name,
-        [deps.globalRolesClaim]: target.globalRoles ?? [],
+        [deps.globalRolesClaim]: roles,
       },
       { ctx }
     )

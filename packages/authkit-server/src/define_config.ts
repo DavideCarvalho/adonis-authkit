@@ -847,6 +847,20 @@ export interface AuthServerConfigInput {
   ttl?: TtlConfig;
   /** Nome da CLAIM (não do scope) onde os papéis globais são emitidos. Default: 'roles'. */
   globalRolesClaim?: string;
+  /**
+   * Resolves the global-roles claim at token-mint time. Return the roles to embed
+   * in the `<globalRolesClaim>` claim for a first-party client. Lets the host source
+   * roles from an external authority (e.g. @adonis-agora/authz) or a custom store
+   * instead of the account's stored `globalRoles`. Default when omitted:
+   * `account.globalRoles ?? []` (unchanged behavior).
+   */
+  resolveTokenRoles?: (
+    account: AuthAccount,
+    context: {
+      clientId?: string;
+      activeOrg?: { orgId: string; orgSlug: string; orgRole: string } | null;
+    },
+  ) => string[] | Promise<string[]>;
   cookieKeys?: string[];
   observability?: ObservabilityConfig;
   /** Contrato primário de identidade. Deriva findAccount/verifyCredentials do provider. */
@@ -1048,6 +1062,17 @@ export interface ResolvedServerConfig {
     session: number;
   };
   globalRolesClaim: string;
+  /**
+   * Resolves the global-roles claim at token-mint time (first-party only). When
+   * omitted, the mint falls back to `account.globalRoles ?? []` (unchanged behavior).
+   */
+  resolveTokenRoles?: (
+    account: AuthAccount,
+    context: {
+      clientId?: string;
+      activeOrg?: { orgId: string; orgSlug: string; orgRole: string } | null;
+    },
+  ) => string[] | Promise<string[]>;
   cookieKeys: string[];
   observability: ObservabilityConfig;
   findAccount: (sub: string) => Promise<AuthAccount | null>;
@@ -1256,6 +1281,7 @@ export function defineConfig(config: AuthServerConfigInput) {
           session: toSeconds(config.ttl?.session, 604800),
         },
         globalRolesClaim: config.globalRolesClaim ?? "roles",
+        resolveTokenRoles: config.resolveTokenRoles,
         cookieKeys: config.cookieKeys ?? [],
         observability: config.observability ?? {},
         findAccount: (sub: string) => config.accountStore.findById(sub),

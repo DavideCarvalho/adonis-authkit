@@ -131,7 +131,9 @@ export class OidcService {
               }
               // roles/org_* são dados de autorização interna: só para first-party.
               if (firstParty) {
-                base[config.globalRolesClaim] = user.globalRoles ?? []
+                base[config.globalRolesClaim] = config.resolveTokenRoles
+                  ? await config.resolveTokenRoles(user, { clientId, activeOrg })
+                  : (user.globalRoles ?? [])
                 // Emite claims de org somente quando há uma org ativa na sessão.
                 if (activeOrg) {
                   base['org_id'] = activeOrg.orgId
@@ -152,6 +154,7 @@ export class OidcService {
     registerTokenExchange(provider, {
       findAccount: config.findAccount,
       globalRolesClaim: config.globalRolesClaim,
+      resolveTokenRoles: config.resolveTokenRoles,
       // Resource indicators (RFC 8707) suportados: o `audience` default + cada
       // resource declarado. Usado para validar `audience`/`resource` no pedido de
       // token-exchange — alvos fora desta lista são rejeitados (invalid_target).

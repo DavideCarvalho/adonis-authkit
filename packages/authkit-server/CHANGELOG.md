@@ -1,5 +1,11 @@
 # @adonis-agora/authkit-server
 
+## 0.43.0
+
+### Minor Changes
+
+- 304722c: Add a pluggable `resolveTokenRoles` hook to source the global-roles claim from an external authority (e.g. `@adonis-agora/authz`) or a custom store at token-mint time. Applies to both the authorization-code flow (first-party only) and token exchange. Default unchanged (`account.globalRoles`).
+
 ## 0.42.0
 
 ### Minor Changes

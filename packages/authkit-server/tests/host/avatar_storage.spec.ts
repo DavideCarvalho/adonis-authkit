@@ -1,12 +1,17 @@
 import { test } from '@japa/runner'
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Edge } from 'edge.js'
 import {
   storeAvatar,
+  deleteAvatar,
   isDriveAvailable,
+  isAvatarUploadSupported,
   AvatarUploadError,
   __setDriveLoaderForTests,
+  __setMediaLoaderForTests,
 } from '../../src/host/avatar_storage.js'
 import { resolveUploads } from '../../src/define_config.js'
 import { DEFAULT_MESSAGES, translate } from '../../src/host/i18n.js'
@@ -58,6 +63,38 @@ function fakeFile(over: Partial<{ extname: string; size: number; recorded: strin
   }
 }
 
+/**
+ * Módulo media fake em memória: registra as chamadas de store/remove e devolve
+ * uma URL previsível. `available` controla o `isSingleFileStoreAvailable`.
+ */
+function fakeMedia(over: { available?: boolean } = {}) {
+  const stores: Array<{
+    ownerType: string
+    ownerId: string
+    collection: string
+    fileName: string
+    mimeType: string
+    contents: Buffer
+  }> = []
+  const removes: Array<{ ownerType: string; ownerId: string; collection: string }> = []
+  return {
+    stores,
+    removes,
+    module: {
+      async isSingleFileStoreAvailable() {
+        return over.available ?? true
+      },
+      async storeSingleFile(input: (typeof stores)[number]) {
+        stores.push(input)
+        return { url: `https://media.test/${input.ownerType}/${input.ownerId}/${input.collection}`, thumbUrl: null }
+      },
+      async removeSingleFile(input: (typeof removes)[number]) {
+        removes.push(input)
+      },
+    },
+  }
+}
+
 const ctx = {} as any
 const msgs = {
   extname: translate({ ...DEFAULT_MESSAGES }, 'account.profile.avatar_invalid_type'),
@@ -67,6 +104,7 @@ const msgs = {
 test.group('avatar_storage', (group) => {
   group.each.teardown(() => {
     __setDriveLoaderForTests(undefined)
+    __setMediaLoaderForTests(undefined)
   })
 
   test('armazena avatar via drive do app e retorna URL pública', async ({ assert }) => {
@@ -152,6 +190,155 @@ test.group('avatar_storage', (group) => {
     const url = await storeAvatar(ctx, cfg, file as any, 'acc-1', msgs)
     assert.isNull(url)
     assert.isFalse(await isDriveAvailable())
+  })
+
+  test("storage 'auto' com media presente → roteia para o media (store)", async ({ assert }) => {
+    const media = fakeMedia()
+    __setMediaLoaderForTests(() => Promise.resolve(media.module))
+    // drive também presente para provar que o media tem prioridade no 'auto'.
+    __setDriveLoaderForTests(() => Promise.resolve(fakeDrive().service))
+
+    // Bytes reais no tmpPath (o backend media lê via fs.readFile).
+    const tmpPath = join(tmpdir(), `authkit-avatar-${Date.now()}.png`)
+    writeFileSync(tmpPath, Buffer.from('fake-png-bytes'))
+
+    const cfg = resolveUploads()
+    const file = { ...fakeFile(), tmpPath, type: 'image/png' }
+    const url = await storeAvatar(ctx, cfg, file as any, 'acc-42', msgs)
+
+    // URL do media foi usada, não a do drive.
+    assert.equal(url, 'https://media.test/AuthAccount/acc-42/avatar')
+    assert.lengthOf(media.stores, 1)
+    const call = media.stores[0]
+    assert.equal(call.ownerType, 'AuthAccount')
+    assert.equal(call.ownerId, 'acc-42')
+    assert.equal(call.collection, 'avatar')
+    assert.equal(call.fileName, 'avatar.png')
+    assert.equal(call.mimeType, 'image/png')
+    assert.equal(call.contents.toString(), 'fake-png-bytes')
+  })
+
+  test("storage 'auto' com media presente → roteia para o media (delete)", async ({ assert }) => {
+    const media = fakeMedia()
+    __setMediaLoaderForTests(() => Promise.resolve(media.module))
+    __setDriveLoaderForTests(() => Promise.resolve(fakeDrive().service))
+
+    const cfg = resolveUploads()
+    const ok = await deleteAvatar(cfg, 'acc-7', 'https://media.test/AuthAccount/acc-7/avatar')
+
+    assert.isTrue(ok)
+    assert.lengthOf(media.removes, 1)
+    assert.deepEqual(media.removes[0], {
+      ownerType: 'AuthAccount',
+      ownerId: 'acc-7',
+      collection: 'avatar',
+    })
+  })
+
+  test("storage 'auto' sem media (loader null) → cai no drive builtin", async ({ assert }) => {
+    const drive = fakeDrive()
+    __setMediaLoaderForTests(() => Promise.resolve(null))
+    __setDriveLoaderForTests(() => Promise.resolve(drive.service))
+
+    const cfg = resolveUploads()
+    const file = fakeFile()
+    const url = await storeAvatar(ctx, cfg, file as any, 'acc-1', msgs)
+
+    assert.include(url!, 'https://cdn.test/authkit/avatars/acc-1-')
+    assert.lengthOf(file.moves, 1)
+  })
+
+  test("storage 'auto' com media presente mas store indisponível → cai no drive builtin", async ({
+    assert,
+  }) => {
+    const media = fakeMedia({ available: false })
+    const drive = fakeDrive()
+    __setMediaLoaderForTests(() => Promise.resolve(media.module))
+    __setDriveLoaderForTests(() => Promise.resolve(drive.service))
+
+    const cfg = resolveUploads()
+    const file = fakeFile()
+    const url = await storeAvatar(ctx, cfg, file as any, 'acc-1', msgs)
+
+    // Media não usável → builtin; nenhum store no media.
+    assert.include(url!, 'https://cdn.test/authkit/avatars/acc-1-')
+    assert.lengthOf(media.stores, 0)
+  })
+
+  test("storage 'builtin' com media presente → ainda usa o drive builtin", async ({ assert }) => {
+    const media = fakeMedia()
+    const drive = fakeDrive()
+    __setMediaLoaderForTests(() => Promise.resolve(media.module))
+    __setDriveLoaderForTests(() => Promise.resolve(drive.service))
+
+    const cfg = resolveUploads({ avatars: { storage: 'builtin' } })
+    const file = fakeFile()
+    const url = await storeAvatar(ctx, cfg, file as any, 'acc-1', msgs)
+
+    assert.include(url!, 'https://cdn.test/authkit/avatars/acc-1-')
+    assert.lengthOf(media.stores, 0)
+  })
+
+  test("storage 'media' sem o pacote (loader null) → degrada para null", async ({ assert }) => {
+    __setMediaLoaderForTests(() => Promise.resolve(null))
+    __setDriveLoaderForTests(() => Promise.resolve(fakeDrive().service))
+
+    const cfg = resolveUploads({ avatars: { storage: 'media' } })
+    const file = fakeFile()
+    const url = await storeAvatar(ctx, cfg, file as any, 'acc-1', msgs)
+
+    // 'media' NÃO cai no drive — degrada para URL (null).
+    assert.isNull(url)
+  })
+
+  test('config de uploads resolve os defaults do seam de media', ({ assert }) => {
+    const cfg = resolveUploads()
+    assert.equal(cfg.avatars.storage, 'auto')
+    assert.equal(cfg.avatars.collection, 'avatar')
+    assert.equal(cfg.avatars.ownerType, 'AuthAccount')
+    assert.equal(cfg.avatars.directory, 'authkit/avatars')
+    assert.equal(cfg.avatars.maxSizeMb, 5)
+
+    const custom = resolveUploads({
+      avatars: { storage: 'media', collection: 'pfp', ownerType: 'Profile' },
+    })
+    assert.equal(custom.avatars.storage, 'media')
+    assert.equal(custom.avatars.collection, 'pfp')
+    assert.equal(custom.avatars.ownerType, 'Profile')
+  })
+
+  test("isAvatarUploadSupported: auto + media disponível + drive ausente → true", async ({
+    assert,
+  }) => {
+    const media = fakeMedia()
+    __setMediaLoaderForTests(() => Promise.resolve(media.module))
+    __setDriveLoaderForTests(() => Promise.resolve(null))
+
+    const cfg = resolveUploads()
+    assert.isTrue(await isAvatarUploadSupported(cfg))
+  })
+
+  test("isAvatarUploadSupported: builtin + drive ausente → false", async ({ assert }) => {
+    // media presente para provar que 'builtin' NÃO o consulta.
+    __setMediaLoaderForTests(() => Promise.resolve(fakeMedia().module))
+    __setDriveLoaderForTests(() => Promise.resolve(null))
+
+    const cfg = resolveUploads({ avatars: { storage: 'builtin' } })
+    assert.isFalse(await isAvatarUploadSupported(cfg))
+  })
+
+  test("storage 'builtin' sem drive + ext inválida → retorna null (NÃO lança)", async ({
+    assert,
+  }) => {
+    // Backend resolvido PRIMEIRO: sem drive → degrada para null antes de validar.
+    __setDriveLoaderForTests(() => Promise.resolve(null))
+    __setMediaLoaderForTests(() => Promise.resolve(null))
+
+    const cfg = resolveUploads({ avatars: { storage: 'builtin' } })
+    const file = fakeFile({ extname: 'gif' })
+
+    const url = await storeAvatar(ctx, cfg, file as any, 'acc-1', msgs)
+    assert.isNull(url)
   })
 
   test('view mostra input de arquivo quando avatarUploadSupported', async ({ assert }) => {

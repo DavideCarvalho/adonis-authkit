@@ -63,6 +63,7 @@
   },
   "peerDependencies": {
     "@adonis-agora/durable": "^0.2.0",
+    "@adonis-agora/media": "^0.1.0",
     "@adonis-agora/telescope": "^0.1.0",
     "@adonisjs/ally": "catalog:adonisPeers",
     "@adonisjs/auth": "catalog:adonisPeers",
@@ -78,6 +79,9 @@
   },
   "peerDependenciesMeta": {
     "@adonis-agora/durable": {
+      "optional": true
+    },
+    "@adonis-agora/media": {
       "optional": true
     },
     "@adonis-agora/telescope": {

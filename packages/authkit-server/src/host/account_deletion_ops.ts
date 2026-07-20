@@ -159,12 +159,13 @@ export async function removeFromOrgs(
   };
 }
 
-/** 7) Apaga o avatar no drive (best-effort, fail-safe). */
+/** 7) Apaga o avatar no backend ativo (drive OU media; best-effort, fail-safe). */
 export async function deleteAccountAvatar(
   cfg: ResolvedServerConfig,
+  accountId: string,
   avatarUrl: string | null,
 ): Promise<{ avatarDeleted: boolean }> {
-  const avatarDeleted = await deleteAvatar(cfg.uploads, avatarUrl);
+  const avatarDeleted = await deleteAvatar(cfg.uploads, accountId, avatarUrl);
   return { avatarDeleted };
 }
 

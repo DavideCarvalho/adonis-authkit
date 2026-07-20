@@ -20,7 +20,7 @@ import {
 } from "../default_mailer.js";
 import {
   storeAvatar,
-  isDriveAvailable,
+  isAvatarUploadSupported,
   AvatarUploadError,
 } from "../avatar_storage.js";
 import { translate } from "../i18n.js";
@@ -97,8 +97,8 @@ export default class AccountSecurityController {
       csrfToken: ctx.request.csrfToken,
       supported: supportsAccountSecurity(cfg.accountStore),
       profileSupported: supportsProfile(cfg.accountStore),
-      // Só mostramos o input de arquivo se o drive do app estiver disponível.
-      avatarUploadSupported: await isDriveAvailable(),
+      // Só mostramos o input de arquivo se ALGUM backend (drive OU media) puder armazenar.
+      avatarUploadSupported: await isAvatarUploadSupported(cfg.uploads),
       email: account?.email ?? "",
       name: account?.name ?? "",
       avatarUrl: account?.avatarUrl ?? "",

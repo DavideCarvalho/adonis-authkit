@@ -55,7 +55,7 @@ import {
 import { dispatchSecurityNotice } from '../security_notice_service.js'
 import { requireSudo, isSudoActive, SUDO_MODE_DEFAULTS, resolveEffectiveSudoMode } from '../sudo_mode.js'
 import { translate } from '../i18n.js'
-import { storeAvatar, isDriveAvailable, AvatarUploadError } from '../avatar_storage.js'
+import { storeAvatar, isAvatarUploadSupported, AvatarUploadError } from '../avatar_storage.js'
 import {
   sendEmailChangeConfirmationEmail,
   sendEmailChangeNoticeEmail,
@@ -164,7 +164,7 @@ export default class AccountApiController {
         passkeysSupported: supportsPasskeys(cfg.accountStore),
         orgsSupported: supportsOrganizations(cfg.accountStore),
         tokensSupported: !!cfg.patStore,
-        avatarUploadSupported: await isDriveAvailable(),
+        avatarUploadSupported: await isAvatarUploadSupported(cfg.uploads),
         sessionsSupported: new AdminSessionsService(service).canList,
       },
     }

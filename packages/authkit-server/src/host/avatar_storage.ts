@@ -327,6 +327,20 @@ async function resolveUploader(cfg: ResolvedUploadsConfig): Promise<AvatarUpload
 }
 
 /**
+ * Indica se o upload de avatar está disponível para a config dada — i.e. se ALGUM
+ * backend configurado consegue armazenar (mesma lógica de seleção do
+ * {@link resolveUploader}: `'builtin'` → drive; `'media'` → media; `'auto'` →
+ * media OU drive). Usado pelas views/controllers para decidir mostrar o input de
+ * arquivo. Best-effort: nunca lança.
+ *
+ * Substitui o antigo gate por {@link isDriveAvailable}, que escondia o input num
+ * host media-only (media presente, drive ausente) mesmo com o media capaz de armazenar.
+ */
+export async function isAvatarUploadSupported(cfg: ResolvedUploadsConfig): Promise<boolean> {
+  return (await resolveUploader(cfg)) !== null
+}
+
+/**
  * Carrega o módulo media só se ele estiver USÁVEL: pacote presente E
  * `isSingleFileStoreAvailable()` resolve `true`. Best-effort — qualquer erro → null.
  */
@@ -343,13 +357,15 @@ async function loadMediaIfUsable(): Promise<MediaModule | null> {
 /**
  * Armazena o avatar no backend ativo (drive OU media) e retorna a URL pública.
  *
- * - Valida extensão (jpg/jpeg/png/webp) e tamanho (≤ maxSizeMb) COMPARTILHADAMENTE,
- *   ANTES de escolher/entregar o backend — lança {@link AvatarUploadError} se
- *   inválido (o controller traduz/flasha).
+ * - Resolve o backend PRIMEIRO: se nenhum estiver disponível → retorna `null`
+ *   (degrada para o input de URL, feature off) SEM validar/lançar. Isso preserva o
+ *   comportamento histórico: um host sem backend nunca vê erro de validação.
+ * - Só quando há backend valida extensão (jpg/jpeg/png/webp) e tamanho
+ *   (≤ maxSizeMb) — COMPARTILHADO, antes de entregar ao backend; lança
+ *   {@link AvatarUploadError} se inválido (o controller traduz/flasha).
  * - Backend conforme `cfg.avatars.storage` (ver {@link resolveUploader}).
- * - Se nenhum backend estiver disponível → retorna `null` (degrada para URL).
  *
- * Nunca lança por causa de backend ausente; só lança em validação.
+ * Nunca lança por causa de backend ausente; só lança em validação (com backend).
  */
 export async function storeAvatar(
   ctx: HttpContext,
@@ -358,9 +374,9 @@ export async function storeAvatar(
   accountId: string,
   messages: { extname: string; size: string }
 ): Promise<string | null> {
-  const ext = validate(file, cfg, messages)
   const uploader = await resolveUploader(cfg)
   if (!uploader) return null
+  const ext = validate(file, cfg, messages)
   return uploader.store(ctx, cfg, file, accountId, ext)
 }
 

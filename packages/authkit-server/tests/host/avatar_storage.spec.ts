@@ -8,6 +8,7 @@ import {
   storeAvatar,
   deleteAvatar,
   isDriveAvailable,
+  isAvatarUploadSupported,
   AvatarUploadError,
   __setDriveLoaderForTests,
   __setMediaLoaderForTests,
@@ -304,6 +305,40 @@ test.group('avatar_storage', (group) => {
     assert.equal(custom.avatars.storage, 'media')
     assert.equal(custom.avatars.collection, 'pfp')
     assert.equal(custom.avatars.ownerType, 'Profile')
+  })
+
+  test("isAvatarUploadSupported: auto + media disponível + drive ausente → true", async ({
+    assert,
+  }) => {
+    const media = fakeMedia()
+    __setMediaLoaderForTests(() => Promise.resolve(media.module))
+    __setDriveLoaderForTests(() => Promise.resolve(null))
+
+    const cfg = resolveUploads()
+    assert.isTrue(await isAvatarUploadSupported(cfg))
+  })
+
+  test("isAvatarUploadSupported: builtin + drive ausente → false", async ({ assert }) => {
+    // media presente para provar que 'builtin' NÃO o consulta.
+    __setMediaLoaderForTests(() => Promise.resolve(fakeMedia().module))
+    __setDriveLoaderForTests(() => Promise.resolve(null))
+
+    const cfg = resolveUploads({ avatars: { storage: 'builtin' } })
+    assert.isFalse(await isAvatarUploadSupported(cfg))
+  })
+
+  test("storage 'builtin' sem drive + ext inválida → retorna null (NÃO lança)", async ({
+    assert,
+  }) => {
+    // Backend resolvido PRIMEIRO: sem drive → degrada para null antes de validar.
+    __setDriveLoaderForTests(() => Promise.resolve(null))
+    __setMediaLoaderForTests(() => Promise.resolve(null))
+
+    const cfg = resolveUploads({ avatars: { storage: 'builtin' } })
+    const file = fakeFile({ extname: 'gif' })
+
+    const url = await storeAvatar(ctx, cfg, file as any, 'acc-1', msgs)
+    assert.isNull(url)
   })
 
   test('view mostra input de arquivo quando avatarUploadSupported', async ({ assert }) => {

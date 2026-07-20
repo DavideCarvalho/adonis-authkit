@@ -176,7 +176,7 @@ export class AccountDeletionService {
     // 7) Avatar no drive (best-effort, fail-safe).
     try {
       result.avatarDeleted = (
-        await deleteAccountAvatar(cfg, snapshot.avatarUrl)
+        await deleteAccountAvatar(cfg, accountId, snapshot.avatarUrl)
       ).avatarDeleted;
     } catch {
       /* best-effort */

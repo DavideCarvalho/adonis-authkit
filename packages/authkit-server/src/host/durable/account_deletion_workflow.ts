@@ -165,7 +165,7 @@ export function defineAccountDeletionWorkflow(
     // 7) Avatar no drive.
     result.avatarDeleted = (
       await ctx.step("delete.avatar", async () =>
-        deleteAccountAvatar((await deps.oidc()).config, snapshot.avatarUrl),
+        deleteAccountAvatar((await deps.oidc()).config, accountId, snapshot.avatarUrl),
       )
     ).avatarDeleted;
 

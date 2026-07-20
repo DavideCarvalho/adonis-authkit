@@ -367,10 +367,21 @@ export function resolveDeviceFlow(
  */
 export interface UploadsConfigInput {
   avatars?: {
-    /** Disk do `@adonisjs/drive` a usar. Default: o disk DEFAULT do app. */
+    /**
+     * Backend de storage do avatar. Default: `'auto'` (media se
+     * `@adonis-agora/media` estiver presente/configurado, senão o drive builtin).
+     * `'builtin'` força o `@adonisjs/drive`; `'media'` força o media (degrada para
+     * o input de URL se indisponível).
+     */
+    storage?: "auto" | "builtin" | "media";
+    /** Disk do `@adonisjs/drive` a usar (backend builtin). Default: o disk DEFAULT do app. */
     disk?: string;
-    /** Diretório/prefixo das chaves. Default: 'authkit/avatars'. */
+    /** Diretório/prefixo das chaves (backend builtin). Default: 'authkit/avatars'. */
     directory?: string;
+    /** Collection single-file do media (backend media). Default: 'avatar'. */
+    collection?: string;
+    /** ownerType do media (backend media). Default: 'AuthAccount'. */
+    ownerType?: string;
     /** Tamanho máximo em MB. Default: 5. */
     maxSizeMb?: number;
   };
@@ -378,9 +389,15 @@ export interface UploadsConfigInput {
 
 export interface ResolvedUploadsConfig {
   avatars: {
-    /** Disk explícito; `undefined` = disk DEFAULT do app. */
+    /** Backend ativo (default 'auto'). */
+    storage: "auto" | "builtin" | "media";
+    /** Disk explícito; `undefined` = disk DEFAULT do app (backend builtin). */
     disk?: string;
     directory: string;
+    /** Collection single-file do media (backend media). */
+    collection: string;
+    /** ownerType do media (backend media). */
+    ownerType: string;
     maxSizeMb: number;
   };
 }
@@ -390,8 +407,11 @@ export function resolveUploads(
 ): ResolvedUploadsConfig {
   return {
     avatars: {
+      storage: input?.avatars?.storage ?? "auto",
       disk: input?.avatars?.disk,
       directory: input?.avatars?.directory ?? "authkit/avatars",
+      collection: input?.avatars?.collection ?? "avatar",
+      ownerType: input?.avatars?.ownerType ?? "AuthAccount",
       maxSizeMb: input?.avatars?.maxSizeMb ?? 5,
     },
   };

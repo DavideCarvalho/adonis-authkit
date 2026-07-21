@@ -15,6 +15,7 @@ import {
 import { resolveRuntimeSettings } from './runtime_settings.js'
 import { resolveEffectiveSessionPolicy } from './runtime_toggles.js'
 import { getAuthHostConfig } from './auth_host_config.js'
+import { setAccountLoginUrl, getAccountLoginUrl } from './account_login_url.js'
 import {
   completeSudo,
   fail,
@@ -84,16 +85,25 @@ async function checkAndRefreshIdle(ctx: any): Promise<boolean> {
  * @internal
  */
 function buildLoginRedirect(ctx: any, extra?: string): string {
+  // Destino configurável (`accountLoginUrl`): default `/account/login`, mas um
+  // host que desmontou a tela de login (`account: { login: false }`) aponta para
+  // a própria rota de login dele (ex.: `/login`). Ver `account_login_url.ts`.
+  const loginUrl = getAccountLoginUrl()
   const url = ctx.request?.url?.() ?? ''
   const qs = ctx.request?.parsedUrl?.search ?? ''
   const dest = qs ? `${url}${qs}` : url
   // Só inclui return_to quando há um caminho real (não vazio, não é o próprio login).
-  if (dest && dest !== '/' && !dest.startsWith('/account/login')) {
+  if (dest && dest !== '/' && !dest.startsWith(loginUrl)) {
     const encoded = encodeURIComponent(dest)
-    const base = extra ? `/account/login?${extra}&return_to=${encoded}` : `/account/login?return_to=${encoded}`
+    const sep = loginUrl.includes('?') ? '&' : '?'
+    const base = extra
+      ? `${loginUrl}${sep}${extra}&return_to=${encoded}`
+      : `${loginUrl}${sep}return_to=${encoded}`
     return base
   }
-  return extra ? `/account/login?${extra}` : '/account/login'
+  if (!extra) return loginUrl
+  const sep = loginUrl.includes('?') ? '&' : '?'
+  return `${loginUrl}${sep}${extra}`
 }
 
 /**
@@ -118,9 +128,11 @@ const accountGuard = async (ctx: any, next: () => Promise<void>) => {
  * Guard do console admin (B6). Como o `accountGuard`, é uma closure inline (forma
  * confiável do `.use()` num grupo). Exige:
  *   0. `config.admin.enabled` ligado (senão → 404; ver nota de flag-drift abaixo);
- *   1. sessão de conta ativa (senão → /account/login);
+ *   1. sessão de conta ativa (senão → `accountLoginUrl`, default /account/login);
  *   2. a conta logada com pelo menos UMA das `config.admin.roles` nas roles globais
- *      (senão → /account/tokens, evitando vazar a existência do /admin).
+ *      (senão → `accountHome(cfg)`, default /account/security — NÃO revela a
+ *      existência do /admin, e cai numa tela que o host controla via `accountHome`;
+ *      se a tela default estiver desmontada, aponte `config.accountHome` para uma montada).
  * As roles permitidas são resolvidas em runtime do `authkit.server` (config lazy).
  */
 export const adminGuard = async (ctx: any, next: () => Promise<void>) => {
@@ -248,6 +260,69 @@ export interface AuthHostOptions {
    * Ausente → `[password(), passkey()]`.
    */
   sudoMethods?: SudoMethod[]
+  /**
+   * Montagem por tela do console de conta (`/account/*`). Espelha o padrão
+   * `admin`/`adminApi`: a decisão de MONTAR cada grupo de rotas é tomada em
+   * tempo de registro, antes de o config (lazy) resolver.
+   *
+   * - Ausente → tudo montado (back-compat total).
+   * - `false` → NENHUMA tela do console de conta é montada (as rotas sudo
+   *   `/account/confirm` e a JSON API `/account/api/*` continuam — são
+   *   infraestrutura, não telas navegáveis).
+   * - objeto → montagem seletiva; cada flag ausente default `true`.
+   *   - `login`    → `/account/login`, `/account/logout` (a porta por senha do console).
+   *   - `tokens`   → `/account/tokens*` (Personal Access Tokens).
+   *   - `orgs`     → `/account/orgs*` (multi-tenancy, incl. o accept de convite público).
+   *   - `security` → `/account/security*` + `/account/email/confirm` (perfil, senha, troca de e-mail, export/LGPD, deleção).
+   *   - `mfa`      → `/account/mfa*` (TOTP + passkeys).
+   *   - `apps`     → `/account/apps*` (grants de consentimento OIDC).
+   *
+   * NOTA (flag-drift): como `admin`/`adminApi`, estas flags controlam apenas se
+   * as ROTAS existem; o comportamento em runtime continua vindo do config
+   * resolvido. Mantenha em sincronia — os guards são a rede de segurança.
+   *
+   * ⚠️ Ao desmontar `login`, os redirects internos de "faça login"
+   * (`accountGuard`, `adminGuard`, `AccountAuthMiddleware`, `consoleLoginUrl()`,
+   * a view `otp-unlock`) apontariam para uma rota inexistente — passe
+   * `accountLoginUrl` com a rota de login do host (ex.: `'/login'`).
+   *
+   * @example
+   * // Console passwordless: só segurança + MFA, login delegado ao OIDC do host.
+   * registerAuthHost(router, {
+   *   account: { login: false, tokens: false, orgs: false },
+   *   accountLoginUrl: '/login',
+   * })
+   */
+  account?: false | AccountScreensOptions
+  /**
+   * Destino do redirect de "não-autenticado → faça login" do console de conta.
+   * Default `/account/login`. Aponte para a rota de login do host quando a tela
+   * `account/login` da lib estiver desmontada (`account: { login: false }`).
+   *
+   * Usado por TODOS os pontos de redirect/link de login: `accountGuard`,
+   * `adminGuard`, `AccountAuthMiddleware`, `consoleLoginUrl()`, os fallbacks dos
+   * controllers de conta e a view `otp-unlock`. Ver `account_login_url.ts`.
+   */
+  accountLoginUrl?: string
+}
+
+/**
+ * Flags de montagem por tela do console de conta. Cada campo ausente é `true`
+ * (montado). Ver {@link AuthHostOptions.account}.
+ */
+export interface AccountScreensOptions {
+  /** Tela de login por senha do console (`/account/login`, `/account/logout`). */
+  login?: boolean
+  /** Personal Access Tokens (`/account/tokens*`). */
+  tokens?: boolean
+  /** Organizations / multi-tenancy (`/account/orgs*`). */
+  orgs?: boolean
+  /** Perfil, senha, troca de e-mail, export/LGPD e deleção (`/account/security*`). */
+  security?: boolean
+  /** MFA — TOTP + passkeys (`/account/mfa*`). */
+  mfa?: boolean
+  /** Apps com acesso / grants de consentimento OIDC (`/account/apps*`). */
+  apps?: boolean
 }
 
 const C = {
@@ -303,6 +378,29 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
   const social = opts.social ?? hostCfg?.social
   const adminOpt = opts.admin ?? (hostCfg?.adminEnabled ? true : undefined)
   const adminApiOpt = opts.adminApi ?? (hostCfg?.adminApiEnabled ? true : undefined)
+
+  // Destino do redirect de "faça login" — persiste no singleton de processo para
+  // que os guards (closures de tempo de registro), o middleware, os controllers e
+  // as views leiam o mesmo valor. Só quando a opção foi passada (senão fica o
+  // default `/account/login` do singleton — back-compat).
+  if (opts.accountLoginUrl !== undefined) {
+    setAccountLoginUrl(opts.accountLoginUrl)
+  }
+
+  // Montagem por tela do console de conta. `undefined` → tudo montado;
+  // `false` → nada; objeto → cada flag ausente default `true`.
+  const accountOpt = opts.account
+  const mountScreen = (key: keyof AccountScreensOptions): boolean => {
+    if (accountOpt === false) return false
+    if (accountOpt && typeof accountOpt === 'object') return accountOpt[key] !== false
+    return true
+  }
+  const mountLogin = mountScreen('login')
+  const mountTokens = mountScreen('tokens')
+  const mountOrgs = mountScreen('orgs')
+  const mountSecurity = mountScreen('security')
+  const mountMfa = mountScreen('mfa')
+  const mountApps = mountScreen('apps')
 
   // Throttles opt-in (anti-brute-force). `undefined` quando rate-limit desligado.
   const resolvedRateLimit =
@@ -380,57 +478,77 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
   withIntrospection(router.post('/authkit/pat/introspect', [C.patIntrospection, 'handle']))
 
   // Organizations — invitation accept (sem guard: controller lida com não-autenticado).
-  router.get('/account/orgs/invitations/:token/accept', [C.accountOrgs, 'showAcceptInvitation'])
-  router.post('/account/orgs/invitations/:token/accept', [C.accountOrgs, 'acceptInvitation'])
+  // Parte da tela `orgs`: desmontada junto (sem multi-tenancy, não há convite a aceitar).
+  if (mountOrgs) {
+    router.get('/account/orgs/invitations/:token/accept', [C.accountOrgs, 'showAcceptInvitation'])
+    router.post('/account/orgs/invitations/:token/accept', [C.accountOrgs, 'acceptInvitation'])
+  }
 
   // Console de conta (login de sessão do IdP + gerência de PAT).
-  router.get('/account/login', [C.accountSession, 'show'])
-  // L6: throttle por IP no login/logout do console de conta (anti-brute-force),
-  // alinhado com as demais rotas de credencial (interaction, forgot, reset).
-  withLogin(router.post('/account/login', [C.accountSession, 'login']))
-  withLogin(router.post('/account/logout', [C.accountSession, 'logout']))
+  // Tela `login` desmontável: hosts passwordless delegam ao OIDC próprio e
+  // apontam `accountLoginUrl` para a rota de login deles.
+  if (mountLogin) {
+    router.get('/account/login', [C.accountSession, 'show'])
+    // L6: throttle por IP no login/logout do console de conta (anti-brute-force),
+    // alinhado com as demais rotas de credencial (interaction, forgot, reset).
+    withLogin(router.post('/account/login', [C.accountSession, 'login']))
+    withLogin(router.post('/account/logout', [C.accountSession, 'logout']))
+  }
 
   // Confirmação de troca de e-mail (standalone, GET-only — consome o token do link;
-  // pode ser aberta em outro dispositivo, então NÃO exige sessão).
-  router.get('/account/email/confirm', [C.accountSecurity, 'confirmEmail'])
+  // pode ser aberta em outro dispositivo, então NÃO exige sessão). Parte da tela
+  // `security` (o terminal do fluxo de troca de e-mail).
+  if (mountSecurity) {
+    router.get('/account/email/confirm', [C.accountSecurity, 'confirmEmail'])
+  }
 
   // Rotas de tokens protegidas por AccountAuthMiddleware (redireciona para /account/login se não autenticado).
   router
     .group(() => {
-      router.get('/account/tokens', [C.accountTokens, 'index'])
-      router.post('/account/tokens', [C.accountTokens, 'store'])
-      router.post('/account/tokens/:id/revoke', [C.accountTokens, 'destroy'])
+      // Personal Access Tokens (tela `tokens`).
+      if (mountTokens) {
+        router.get('/account/tokens', [C.accountTokens, 'index'])
+        router.post('/account/tokens', [C.accountTokens, 'store'])
+        router.post('/account/tokens/:id/revoke', [C.accountTokens, 'destroy'])
+      }
 
-      // Segurança da conta: trocar senha + solicitar troca de e-mail + perfil.
-      router.get('/account/security', [C.accountSecurity, 'index'])
-      router.post('/account/security/password', [C.accountSecurity, 'changePassword'])
-      router.post('/account/security/email', [C.accountSecurity, 'changeEmail'])
-      router.post('/account/security/email/cancel', [C.accountSecurity, 'cancelEmailChange'])
-      router.post('/account/security/profile', [C.accountSecurity, 'updateProfile'])
-      // LGPD/GDPR: export de dados (portabilidade) + deleção self-service (danger zone).
-      // O export carrega o throttle de login (anti-abuso) quando o rate-limit existe.
-      withLogin(router.get('/account/security/export', [C.accountSecurity, 'exportData']))
-      router.post('/account/security/delete', [C.accountSecurity, 'deleteAccount'])
-      // Trusted devices: limpa o cookie de confiança DESTE navegador.
-      router.post('/account/security/trusted-devices/revoke', [
-        C.accountSecurity,
-        'revokeTrustedDevices',
-      ])
+      // Segurança da conta: trocar senha + solicitar troca de e-mail + perfil (tela `security`).
+      if (mountSecurity) {
+        router.get('/account/security', [C.accountSecurity, 'index'])
+        router.post('/account/security/password', [C.accountSecurity, 'changePassword'])
+        router.post('/account/security/email', [C.accountSecurity, 'changeEmail'])
+        router.post('/account/security/email/cancel', [C.accountSecurity, 'cancelEmailChange'])
+        router.post('/account/security/profile', [C.accountSecurity, 'updateProfile'])
+        // LGPD/GDPR: export de dados (portabilidade) + deleção self-service (danger zone).
+        // O export carrega o throttle de login (anti-abuso) quando o rate-limit existe.
+        withLogin(router.get('/account/security/export', [C.accountSecurity, 'exportData']))
+        router.post('/account/security/delete', [C.accountSecurity, 'deleteAccount'])
+        // Trusted devices: limpa o cookie de confiança DESTE navegador.
+        router.post('/account/security/trusted-devices/revoke', [
+          C.accountSecurity,
+          'revokeTrustedDevices',
+        ])
+      }
 
-      // Apps com acesso (consentimento): lista os grants da conta + revogação por client.
-      router.get('/account/apps', [C.accountApps, 'index'])
-      router.post('/account/apps/:clientId/revoke', [C.accountApps, 'revoke'])
+      // Apps com acesso (consentimento): lista os grants da conta + revogação por client (tela `apps`).
+      if (mountApps) {
+        router.get('/account/apps', [C.accountApps, 'index'])
+        router.post('/account/apps/:clientId/revoke', [C.accountApps, 'revoke'])
+      }
 
-      // MFA / TOTP (enrollment, confirmação, disable).
-      router.get('/account/mfa', [C.accountMfa, 'index'])
-      router.post('/account/mfa/enroll', [C.accountMfa, 'enroll'])
-      router.post('/account/mfa/confirm', [C.accountMfa, 'confirm'])
-      router.post('/account/mfa/disable', [C.accountMfa, 'disable'])
+      // MFA — TOTP + passkeys (tela `mfa`).
+      if (mountMfa) {
+        // MFA / TOTP (enrollment, confirmação, disable).
+        router.get('/account/mfa', [C.accountMfa, 'index'])
+        router.post('/account/mfa/enroll', [C.accountMfa, 'enroll'])
+        router.post('/account/mfa/confirm', [C.accountMfa, 'confirm'])
+        router.post('/account/mfa/disable', [C.accountMfa, 'disable'])
 
-      // MFA / WebAuthn (passkeys): registro (begin/finish) + remoção.
-      router.post('/account/mfa/passkeys/options', [C.accountMfa, 'passkeyRegisterOptions'])
-      router.post('/account/mfa/passkeys/verify', [C.accountMfa, 'passkeyRegisterVerify'])
-      router.post('/account/mfa/passkeys/:id/remove', [C.accountMfa, 'passkeyRemove'])
+        // MFA / WebAuthn (passkeys): registro (begin/finish) + remoção.
+        router.post('/account/mfa/passkeys/options', [C.accountMfa, 'passkeyRegisterOptions'])
+        router.post('/account/mfa/passkeys/verify', [C.accountMfa, 'passkeyRegisterVerify'])
+        router.post('/account/mfa/passkeys/:id/remove', [C.accountMfa, 'passkeyRemove'])
+      }
 
       // Sudo mode (confirm identity): o GET lista os métodos; cada método
       // registra suas próprias rotas de verificação (SPI `SudoMethod`).
@@ -474,19 +592,22 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
       // handlers aceitam exatamente isto.
       setMountedSudoMethods(sudoMethodsToMount)
 
-      // Organizations (multi-tenancy) — sempre montadas; controller retorna 404/403 sem tabelas.
-      router.get('/account/orgs', [C.accountOrgs, 'index'])
-      router.post('/account/orgs', [C.accountOrgs, 'store'])
-      router.post('/account/orgs/deactivate', [C.accountOrgs, 'deactivate'])
-      router.post('/account/orgs/:id/activate', [C.accountOrgs, 'activate'])
-      router.post('/account/orgs/:id/leave', [C.accountOrgs, 'leave'])
-      router.post('/account/orgs/:id/invite', [C.accountOrgs, 'invite'])
-      router.post('/account/orgs/:id/members/:accountId/remove', [C.accountOrgs, 'removeMember'])
-      router.post('/account/orgs/:id/invitations/:invId/revoke', [C.accountOrgs, 'revokeInvitation'])
-      // JSON endpoints for React hooks (authkit-react).
-      router.get('/account/orgs/json', [C.accountOrgs, 'listJson'])
-      router.get('/account/orgs/invitations/json', [C.accountOrgs, 'listInvitationsJson'])
-      router.get('/account/orgs/:id/json', [C.accountOrgs, 'showJson'])
+      // Organizations (multi-tenancy) — tela `orgs`. Montadas por default;
+      // controller retorna 404/403 sem tabelas (capability-probed).
+      if (mountOrgs) {
+        router.get('/account/orgs', [C.accountOrgs, 'index'])
+        router.post('/account/orgs', [C.accountOrgs, 'store'])
+        router.post('/account/orgs/deactivate', [C.accountOrgs, 'deactivate'])
+        router.post('/account/orgs/:id/activate', [C.accountOrgs, 'activate'])
+        router.post('/account/orgs/:id/leave', [C.accountOrgs, 'leave'])
+        router.post('/account/orgs/:id/invite', [C.accountOrgs, 'invite'])
+        router.post('/account/orgs/:id/members/:accountId/remove', [C.accountOrgs, 'removeMember'])
+        router.post('/account/orgs/:id/invitations/:invId/revoke', [C.accountOrgs, 'revokeInvitation'])
+        // JSON endpoints for React hooks (authkit-react).
+        router.get('/account/orgs/json', [C.accountOrgs, 'listJson'])
+        router.get('/account/orgs/invitations/json', [C.accountOrgs, 'listInvitationsJson'])
+        router.get('/account/orgs/:id/json', [C.accountOrgs, 'showJson'])
+      }
 
       // ─── Account self-service JSON API (authkit-react TanStack hooks) ─────
       // ⚠️ ORDER MATTERS: fixed-segment routes before parameterised ones.

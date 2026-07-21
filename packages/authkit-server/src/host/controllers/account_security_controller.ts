@@ -1,6 +1,7 @@
 import "../augmentations.js";
 import type { HttpContext } from "@adonisjs/core/http";
 import { ACCOUNT_SESSION_KEY } from "../middleware/account_auth.js";
+import { getAccountLoginUrl } from "../account_login_url.js";
 import {
   supportsAccountSecurity,
   supportsAccountDeletion,
@@ -198,7 +199,7 @@ export default class AccountSecurityController {
 
     const account = await store.findById(userId);
     if (!account) {
-      return ctx.response.redirect("/account/login");
+      return ctx.response.redirect(getAccountLoginUrl());
     }
 
     const { currentPassword, confirmEmail } = await ctx.request.validateUsing(
@@ -259,7 +260,7 @@ export default class AccountSecurityController {
       "accountDeleted",
       translate(cfg.messages, "account.delete.deleted"),
     );
-    return ctx.response.redirect("/account/login");
+    return ctx.response.redirect(getAccountLoginUrl());
   }
 
   /**

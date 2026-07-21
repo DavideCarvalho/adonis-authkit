@@ -97,13 +97,17 @@ test.group('edge views (lib-owned)', () => {
   test('account/tokens.edge tem @each(token in tokens) e rota de revogação', ({ assert }) => {
     const content = read('account/tokens.edge');
     assert.include(content, '@each(token in tokens)');
-    assert.include(content, '/account/tokens/{{ token.id }}/revoke');
+    // Path da tela agora é configurável (`accountPaths`); o fallback preserva o
+    // default `/account/tokens` e o action-subpath `/{id}/revoke` é fixo.
+    assert.include(content, "/account/tokens' }}/{{ token.id }}/revoke");
   });
 
   test('account/security.edge expõe os forms de senha e e-mail com CSRF', ({ assert }) => {
     const content = read('account/security.edge');
-    assert.include(content, 'action="/account/security/password"');
-    assert.include(content, 'action="/account/security/email"');
+    // Path da tela configurável (`accountPaths`) com fallback ao default; os
+    // action-subpaths `/password` e `/email` são fixos.
+    assert.include(content, "/account/security' }}/password");
+    assert.include(content, "/account/security' }}/email");
     assert.include(content, 'name="currentPassword"');
     assert.include(content, 'name="newPassword"');
     assert.include(content, 'name="newEmail"');

@@ -2,6 +2,7 @@ import '../augmentations.js';
 import type { HttpContext } from '@adonisjs/core/http';
 import { supportsOrganizations } from '../../accounts/account_store.js';
 import { getAccountLoginUrl } from '../account_login_url.js';
+import { accountPath } from '../account_paths.js';
 import {
   ACTIVE_ORG_COOKIE,
   ACTIVE_ORG_COOKIE_TTL,
@@ -86,7 +87,7 @@ export default class AccountOrgsController {
 
     const name = request.input('name', '').trim();
     const slug = request.input('slug', '').trim();
-    if (!name || !slug) return response.redirect('/account/orgs');
+    if (!name || !slug) return response.redirect(accountPath('orgs'));
 
     try {
       await store.createOrg!({ name, slug, ownerAccountId: accountId });
@@ -94,7 +95,7 @@ export default class AccountOrgsController {
     } catch {
       // slug duplicado ou outro erro — redireciona sem mensagem de erro específica
     }
-    return response.redirect('/account/orgs');
+    return response.redirect(accountPath('orgs'));
   }
 
   /** POST /account/orgs/:id/activate — define org ativa (valida membership). */
@@ -109,10 +110,10 @@ export default class AccountOrgsController {
 
     const orgId = params.id;
     const membership = await store.getOrgMembership!(orgId, accountId);
-    if (!membership) return response.redirect('/account/orgs');
+    if (!membership) return response.redirect(accountPath('orgs'));
 
     const org = await store.findOrgById!(orgId);
-    if (!org) return response.redirect('/account/orgs');
+    if (!org) return response.redirect(accountPath('orgs'));
 
     // Grava cookie de org ativa
     const cookieValue = encodeActiveOrgCookie({
@@ -133,7 +134,7 @@ export default class AccountOrgsController {
       accountId,
       metadata: { orgId, orgSlug: org.slug },
     });
-    return response.redirect('/account/orgs');
+    return response.redirect(accountPath('orgs'));
   }
 
   /** POST /account/orgs/deactivate — remove org ativa. */
@@ -145,7 +146,7 @@ export default class AccountOrgsController {
 
     ctx.response.clearCookie(ACTIVE_ORG_COOKIE, { path: '/' });
     await cfg.audit?.record({ type: 'organization.deactivated', accountId });
-    return response.redirect('/account/orgs');
+    return response.redirect(accountPath('orgs'));
   }
 
   /** POST /account/orgs/:id/leave — sai da org (verifica last_owner). */
@@ -166,7 +167,7 @@ export default class AccountOrgsController {
         metadata: { orgId: params.id, self: true },
       });
     }
-    return response.redirect('/account/orgs');
+    return response.redirect(accountPath('orgs'));
   }
 
   /** POST /account/orgs/:id/invite — convida membro por e-mail. */
@@ -187,7 +188,7 @@ export default class AccountOrgsController {
 
     const email = request.input('email', '').trim();
     const role = request.input('role', 'member').trim();
-    if (!email) return response.redirect('/account/orgs');
+    if (!email) return response.redirect(accountPath('orgs'));
 
     // H4: valida o role contra o catálogo efetivo de roles da org (runtime →
     // config → defaults). Role fora do catálogo é rejeitada (não cria convite).
@@ -226,7 +227,7 @@ export default class AccountOrgsController {
     // Dispara e-mail via mail hook (best-effort)
     if (cfg.mail?.onOrgInvitation) {
       const org = await store.findOrgById!(params.id);
-      const acceptUrl = `${ctx.request.protocol()}://${ctx.request.host()}/account/orgs/invitations/${token}/accept`;
+      const acceptUrl = `${ctx.request.protocol()}://${ctx.request.host()}${accountPath('orgs')}/invitations/${token}/accept`;
       try {
         await cfg.mail.onOrgInvitation({
           email,
@@ -247,7 +248,7 @@ export default class AccountOrgsController {
       accountId,
       metadata: { orgId: params.id, email, role },
     });
-    return response.redirect('/account/orgs');
+    return response.redirect(accountPath('orgs'));
   }
 
   /** GET /account/orgs/invitations/:token/accept — mostra tela de aceite. */
@@ -264,7 +265,9 @@ export default class AccountOrgsController {
     if (!accountId) {
       // Não logado: redireciona para login (configurável) com return URL
       const loginUrl = getAccountLoginUrl();
-      const returnTo = encodeURIComponent(`/account/orgs/invitations/${params.token}/accept`);
+      const returnTo = encodeURIComponent(
+        `${accountPath('orgs')}/invitations/${params.token}/accept`,
+      );
       const sep = loginUrl.includes('?') ? '&' : '?';
       return response.redirect(`${loginUrl}${sep}returnTo=${returnTo}`);
     }
@@ -298,7 +301,7 @@ export default class AccountOrgsController {
 
     const tokenHash = createHash('sha256').update(params.token).digest('hex');
     const invitation = await store.findInvitationByTokenHash!(tokenHash);
-    if (!invitation) return response.redirect('/account/orgs');
+    if (!invitation) return response.redirect(accountPath('orgs'));
 
     const result = await store.acceptInvitation!(invitation.id, accountId);
     if (result.ok) {
@@ -308,7 +311,7 @@ export default class AccountOrgsController {
         metadata: { orgId: invitation.organizationId, invitationId: invitation.id },
       });
     }
-    return response.redirect('/account/orgs');
+    return response.redirect(accountPath('orgs'));
   }
 
   /** POST /account/orgs/:id/members/:accountId/remove */
@@ -337,7 +340,7 @@ export default class AccountOrgsController {
         metadata: { orgId: params.id, targetAccountId: params.accountId },
       });
     }
-    return response.redirect('/account/orgs');
+    return response.redirect(accountPath('orgs'));
   }
 
   /** POST /account/orgs/:id/invitations/:invId/revoke */
@@ -365,7 +368,7 @@ export default class AccountOrgsController {
       actorId,
       metadata: { orgId: params.id, invitationId: params.invId },
     });
-    return response.redirect('/account/orgs');
+    return response.redirect(accountPath('orgs'));
   }
 
   // ──────────────────────────────────────────────────────────────────────────

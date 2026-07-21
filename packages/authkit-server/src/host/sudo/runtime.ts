@@ -1,6 +1,7 @@
 import type { HttpContext, Router } from '@adonisjs/core/http';
 import type { ResolvedServerConfig } from '../../define_config.js';
 import { accountHome } from '../account_home.js';
+import { accountPath } from '../account_paths.js';
 import { validateReturnTo } from '../controllers/account_session_controller.js';
 import { translate } from '../i18n.js';
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js';
@@ -337,7 +338,7 @@ export async function completeSudo(c: SudoContext, methodId: string): Promise<un
 export async function fail(c: SudoContext, messageKey: string): Promise<unknown> {
   c.ctx.session.flash('confirmError', translate(c.cfg.messages, messageKey));
   const qs = c.returnTo ? `?return_to=${encodeURIComponent(c.returnTo)}` : '';
-  return c.ctx.response.redirect(`/account/confirm${qs}`);
+  return c.ctx.response.redirect(`${accountPath('confirm')}${qs}`);
 }
 
 /**

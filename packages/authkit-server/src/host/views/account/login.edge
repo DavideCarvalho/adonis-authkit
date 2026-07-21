@@ -3,7 +3,7 @@
 @include('authkit::partials/styles')
 </head>
 <body class="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-  <form method="POST" action="/account/login"
+  <form method="POST" action="{{ accountPaths?.login ?? '/account/login' }}"
     class="w-full max-w-sm rounded-2xl bg-white p-8 shadow-xl ring-1 ring-black/5">
     <input type="hidden" name="_csrf" value="{{ csrfToken }}">
     @if(returnTo)

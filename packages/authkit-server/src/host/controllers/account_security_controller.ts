@@ -10,6 +10,7 @@ import { PasswordPolicyError } from '../../password/password_manager.js';
 import { AccountDeletionService } from '../account_deletion_service.js';
 import { AccountExportService } from '../account_export_service.js';
 import { getAccountLoginUrl } from '../account_login_url.js';
+import { accountPath } from '../account_paths.js';
 import { AdminSessionsService } from '../admin_sessions_service.js';
 import { syncAdonisAuthLogout } from '../adonis_auth_sync.js';
 import { AvatarUploadError, isAvatarUploadSupported, storeAvatar } from '../avatar_storage.js';
@@ -139,7 +140,7 @@ export default class AccountSecurityController {
         ip: ctx.request.ip?.() ?? null,
       });
       ctx.session.flash('exportRequested', translate(cfg.messages, 'account.export.requested'));
-      return ctx.response.redirect('/account/security');
+      return ctx.response.redirect(accountPath('security'));
     }
 
     // Caminho SÍNCRONO de sempre (byte-idêntico): download inline do JSON.
@@ -175,7 +176,7 @@ export default class AccountSecurityController {
 
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string;
     if (!supportsAccountDeletion(store)) {
-      return ctx.response.redirect('/account/security');
+      return ctx.response.redirect(accountPath('security'));
     }
 
     // Sudo mode gate (defesa em profundidade — confirmação inline continua abaixo).
@@ -205,7 +206,7 @@ export default class AccountSecurityController {
         'deleteError',
         translate(cfg.messages, 'account.delete.invalid_confirmation'),
       );
-      return ctx.response.redirect('/account/security');
+      return ctx.response.redirect(accountPath('security'));
     }
 
     const actor = {
@@ -260,7 +261,7 @@ export default class AccountSecurityController {
       'trustedDevicesRevoked',
       translate(cfg.messages, 'account.security.trusted_devices_revoked'),
     );
-    return ctx.response.redirect('/account/security');
+    return ctx.response.redirect(accountPath('security'));
   }
 
   /** POST /account/security/profile — atualiza nome + avatar do próprio perfil. */
@@ -271,7 +272,7 @@ export default class AccountSecurityController {
 
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string;
     if (!supportsProfile(store)) {
-      return ctx.response.redirect('/account/security');
+      return ctx.response.redirect(accountPath('security'));
     }
 
     const { name, avatarUrl } = await ctx.request.validateUsing(updateProfileValidator);
@@ -298,7 +299,7 @@ export default class AccountSecurityController {
       } catch (error) {
         if (error instanceof AvatarUploadError) {
           ctx.session.flash('securityError', error.message);
-          return ctx.response.redirect('/account/security');
+          return ctx.response.redirect(accountPath('security'));
         }
         throw error;
       }
@@ -318,7 +319,7 @@ export default class AccountSecurityController {
       metadata: { via },
     });
     ctx.session.flash('profileUpdated', translate(cfg.messages, 'account.profile.updated'));
-    return ctx.response.redirect('/account/security');
+    return ctx.response.redirect(accountPath('security'));
   }
 
   async changePassword(ctx: HttpContext) {
@@ -328,7 +329,7 @@ export default class AccountSecurityController {
 
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string;
     if (!supportsAccountSecurity(store)) {
-      return ctx.response.redirect('/account/security');
+      return ctx.response.redirect(accountPath('security'));
     }
 
     // Sudo mode gate (defesa em profundidade — a verificação de senha ATUAL continua abaixo).
@@ -343,7 +344,7 @@ export default class AccountSecurityController {
     const verified = account ? await store.verifyCredentials(account.email, currentPassword) : null;
     if (!verified) {
       ctx.session.flash('securityError', translate(cfg.messages, 'errors.invalid_credentials'));
-      return ctx.response.redirect('/account/security');
+      return ctx.response.redirect(accountPath('security'));
     }
 
     // Verificação de histórico de senhas (disallow_password_reuse).
@@ -364,7 +365,7 @@ export default class AccountSecurityController {
               count: histSettings.count,
             }),
           );
-          return ctx.response.redirect('/account/security');
+          return ctx.response.redirect(accountPath('security'));
         }
         // Grava o hash ATUAL no histórico antes de trocar.
         // O hash atual está na linha do DB — buscamos via store.findById + raw model.
@@ -382,7 +383,7 @@ export default class AccountSecurityController {
       // Política de senha violada → flash com a regra e volta à tela de segurança.
       if (error instanceof PasswordPolicyError) {
         ctx.session.flash('securityError', translate(cfg.messages, error.key, error.params));
-        return ctx.response.redirect('/account/security');
+        return ctx.response.redirect(accountPath('security'));
       }
       throw error;
     }
@@ -433,7 +434,7 @@ export default class AccountSecurityController {
       'passwordChanged',
       translate(cfg.messages, 'account.security.password_changed'),
     );
-    return ctx.response.redirect('/account/security');
+    return ctx.response.redirect(accountPath('security'));
   }
 
   async changeEmail(ctx: HttpContext) {
@@ -443,7 +444,7 @@ export default class AccountSecurityController {
 
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string;
     if (!supportsAccountSecurity(store)) {
-      return ctx.response.redirect('/account/security');
+      return ctx.response.redirect(accountPath('security'));
     }
 
     // Sudo mode gate.
@@ -458,7 +459,7 @@ export default class AccountSecurityController {
         'securityError',
         translate(cfg.messages, 'account.security.email_change_disabled'),
       );
-      return ctx.response.redirect('/account/security');
+      return ctx.response.redirect(accountPath('security'));
     }
 
     const { currentPassword, newEmail } = await ctx.request.validateUsing(changeEmailValidator);
@@ -468,21 +469,21 @@ export default class AccountSecurityController {
     if (emailChangeSettings.requirePassword) {
       if (!currentPassword) {
         ctx.session.flash('securityError', translate(cfg.messages, 'errors.invalid_credentials'));
-        return ctx.response.redirect('/account/security');
+        return ctx.response.redirect(accountPath('security'));
       }
       const verified = account
         ? await store.verifyCredentials(account.email, currentPassword)
         : null;
       if (!verified) {
         ctx.session.flash('securityError', translate(cfg.messages, 'errors.invalid_credentials'));
-        return ctx.response.redirect('/account/security');
+        return ctx.response.redirect(accountPath('security'));
       }
     }
 
     const issued = await store.requestEmailChange(userId, newEmail);
     if (!issued) {
       ctx.session.flash('securityError', translate(cfg.messages, 'errors.email_taken'));
-      return ctx.response.redirect('/account/security');
+      return ctx.response.redirect(accountPath('security'));
     }
 
     await cfg.audit?.record({
@@ -493,7 +494,7 @@ export default class AccountSecurityController {
     });
 
     const origin = `${ctx.request.protocol()}://${ctx.request.host()}`;
-    const confirmUrl = `${origin}/account/email/confirm?token=${encodeURIComponent(issued.token)}`;
+    const confirmUrl = `${origin}${accountPath('emailConfirm')}?token=${encodeURIComponent(issued.token)}`;
 
     // 1. Link de confirmação → NOVO e-mail (hook onEmailChangeConfirm > onEmailVerification > default).
     if (cfg.mail?.onEmailChangeConfirm) {
@@ -535,7 +536,7 @@ export default class AccountSecurityController {
         email: newEmail,
       }),
     );
-    return ctx.response.redirect('/account/security');
+    return ctx.response.redirect(accountPath('security'));
   }
 
   /**
@@ -549,7 +550,7 @@ export default class AccountSecurityController {
 
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string;
     if (!supportsAccountSecurity(store)) {
-      return ctx.response.redirect('/account/security');
+      return ctx.response.redirect(accountPath('security'));
     }
 
     // Implementação: issuePendingToken(userId, null) limpa o token; reutilizamos
@@ -582,7 +583,7 @@ export default class AccountSecurityController {
       'emailChangeRequested',
       translate(cfg.messages, 'account.security.email_change_cancelled'),
     );
-    return ctx.response.redirect('/account/security');
+    return ctx.response.redirect(accountPath('security'));
   }
 
   /** GET /account/email/confirm?token=... — consome o token e aplica o novo e-mail. */

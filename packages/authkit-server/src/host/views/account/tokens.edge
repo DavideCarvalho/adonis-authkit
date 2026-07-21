@@ -10,9 +10,9 @@
         <h1 class="text-xl font-semibold text-gray-900">{{ t('account.tokens.title') }}</h1>
       </div>
       <div class="flex items-center gap-4">
-        <a href="/account/security" class="text-sm text-gray-500 hover:underline">{{ t('account.tokens.security') }}</a>
-        <a href="/account/apps" class="text-sm text-gray-500 hover:underline">{{ t('account.apps.title') }}</a>
-        <form method="POST" action="/account/logout">
+        <a href="{{ accountPaths?.security ?? '/account/security' }}" class="text-sm text-gray-500 hover:underline">{{ t('account.tokens.security') }}</a>
+        <a href="{{ accountPaths?.apps ?? '/account/apps' }}" class="text-sm text-gray-500 hover:underline">{{ t('account.apps.title') }}</a>
+        <form method="POST" action="{{ accountPaths?.logout ?? '/account/logout' }}">
           <input type="hidden" name="_csrf" value="{{ csrfToken }}">
           <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('account.tokens.logout') }}</button>
         </form>
@@ -30,7 +30,7 @@
       </div>
     @end
 
-    <form method="POST" action="/account/tokens"
+    <form method="POST" action="{{ accountPaths?.tokens ?? '/account/tokens' }}"
       class="mb-6 flex gap-2 rounded-xl bg-white p-4 shadow-sm ring-1 ring-black/5">
       <input type="hidden" name="_csrf" value="{{ csrfToken }}">
       <input name="name" placeholder="{{ t('account.tokens.name_placeholder') }}"
@@ -63,7 +63,7 @@
                 <p class="text-xs text-gray-400">{{ t('account.tokens.audience', { audience: token.audience }) }}</p>
               @end
             </div>
-            <form method="POST" action="/account/tokens/{{ token.id }}/revoke">
+            <form method="POST" action="{{ accountPaths?.tokens ?? '/account/tokens' }}/{{ token.id }}/revoke">
               <input type="hidden" name="_csrf" value="{{ csrfToken }}">
               <button type="submit" class="text-sm text-red-600 hover:underline">{{ t('account.tokens.revoke') }}</button>
             </form>

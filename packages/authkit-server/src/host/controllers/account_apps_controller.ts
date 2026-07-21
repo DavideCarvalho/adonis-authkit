@@ -1,5 +1,6 @@
 import '../augmentations.js';
 import type { HttpContext } from '@adonisjs/core/http';
+import { accountPath } from '../account_paths.js';
 import { AdminSessionsService } from '../admin_sessions_service.js';
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js';
 
@@ -68,6 +69,6 @@ export default class AccountAppsController {
     });
 
     ctx.session.flash('appRevoked', cfg.messages['account.apps.revoked'] ?? 'account.apps.revoked');
-    return ctx.response.redirect('/account/apps');
+    return ctx.response.redirect(accountPath('apps'));
   }
 }

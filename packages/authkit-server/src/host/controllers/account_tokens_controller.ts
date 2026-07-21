@@ -1,6 +1,7 @@
 import '../augmentations.js';
 import type { HttpContext } from '@adonisjs/core/http';
 import type { PatRecord } from '../../pat/pat_store.js';
+import { accountPath } from '../account_paths.js';
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js';
 import { resolveRuntimeSettings } from '../runtime_settings.js';
 import { requireSudo } from '../sudo_mode.js';
@@ -56,7 +57,7 @@ export default class AccountTokensController {
       ip: ctx.request.ip?.() ?? null,
       metadata: { patId: pat.id, name: pat.name },
     });
-    return ctx.response.redirect('/account/tokens');
+    return ctx.response.redirect(accountPath('tokens'));
   }
 
   async destroy(ctx: HttpContext) {
@@ -83,6 +84,6 @@ export default class AccountTokensController {
         metadata: { patId },
       });
     }
-    return ctx.response.redirect('/account/tokens');
+    return ctx.response.redirect(accountPath('tokens'));
   }
 }

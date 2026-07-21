@@ -2,6 +2,7 @@ import '../augmentations.js';
 import type { HttpContext } from '@adonisjs/core/http';
 import QRCode from 'qrcode';
 import { supportsPasskeys } from '../../accounts/account_store.js';
+import { accountPath } from '../account_paths.js';
 import { translate } from '../i18n.js';
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js';
 import { resolveRuntimeSettings } from '../runtime_settings.js';
@@ -160,7 +161,7 @@ export default class AccountMfaController {
         cfg.audit,
       );
     }
-    return ctx.response.redirect('/account/mfa');
+    return ctx.response.redirect(accountPath('mfa'));
   }
 
   /** POST /account/mfa/enroll — gera segredo pendente + QR e mostra a confirmação. */
@@ -178,7 +179,7 @@ export default class AccountMfaController {
 
     const started = await cfg.accountStore.startTotpEnrollment?.(userId);
     if (!started) {
-      return ctx.response.redirect('/account/mfa');
+      return ctx.response.redirect(accountPath('mfa'));
     }
 
     // QR renderizado server-side como data-URL e passado como prop.
@@ -241,7 +242,7 @@ export default class AccountMfaController {
     }
     // Mostra os recovery codes UMA vez (flash) e volta pro estado "ativado".
     ctx.session.flash('recoveryCodes', result.recoveryCodes ?? []);
-    return ctx.response.redirect('/account/mfa');
+    return ctx.response.redirect(accountPath('mfa'));
   }
 
   /** POST /account/mfa/disable — desliga o MFA. */
@@ -277,6 +278,6 @@ export default class AccountMfaController {
         cfg.audit,
       );
     }
-    return ctx.response.redirect('/account/mfa');
+    return ctx.response.redirect(accountPath('mfa'));
   }
 }

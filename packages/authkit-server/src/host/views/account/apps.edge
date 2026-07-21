@@ -10,16 +10,16 @@
         <h1 class="text-xl font-semibold text-gray-900">{{ t('account.apps.title') }}</h1>
         <p class="mt-1 text-sm text-gray-500">{{ t('account.apps.intro') }}</p>
       </div>
-      <form method="POST" action="/account/logout">
+      <form method="POST" action="{{ accountPaths?.logout ?? '/account/logout' }}">
         <input type="hidden" name="_csrf" value="{{ csrfToken }}">
         <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('account.apps.logout') }}</button>
       </form>
     </div>
 
     <nav class="mb-6 flex gap-4 text-sm font-medium">
-      <a href="/account/tokens" class="text-gray-500 hover:underline">{{ t('account.tokens.title') }}</a>
-      <a href="/account/security" class="text-gray-500 hover:underline">{{ t('account.security.title') }}</a>
-      <a href="/account/apps" class="text-gray-900 underline">{{ t('account.apps.title') }}</a>
+      <a href="{{ accountPaths?.tokens ?? '/account/tokens' }}" class="text-gray-500 hover:underline">{{ t('account.tokens.title') }}</a>
+      <a href="{{ accountPaths?.security ?? '/account/security' }}" class="text-gray-500 hover:underline">{{ t('account.security.title') }}</a>
+      <a href="{{ accountPaths?.apps ?? '/account/apps' }}" class="text-gray-900 underline">{{ t('account.apps.title') }}</a>
     </nav>
 
     @if(revoked)
@@ -43,7 +43,7 @@
                 <p class="text-sm font-medium text-gray-900">{{ app.name }}</p>
                 <p class="text-xs text-gray-500">{{ t('account.apps.tokens', { accessTokens: app.accessTokens, refreshTokens: app.refreshTokens }) }}</p>
               </div>
-              <form method="POST" action="/account/apps/{{ app.clientId }}/revoke"
+              <form method="POST" action="{{ accountPaths?.apps ?? '/account/apps' }}/{{ app.clientId }}/revoke"
                 onsubmit="return confirm('{{ t('account.apps.revoke_confirm') }}')">
                 <input type="hidden" name="_csrf" value="{{ csrfToken }}">
                 <button type="submit" class="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-semibold text-red-700 hover:bg-red-50">

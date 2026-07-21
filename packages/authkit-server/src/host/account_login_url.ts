@@ -23,33 +23,41 @@
  * é inicializado uma vez por processo — ideal para configuração imutável de boot.
  */
 
-const DEFAULT_ACCOUNT_LOGIN_URL = '/account/login';
+import { accountPath } from './account_paths.js';
 
-let _loginUrl: string = DEFAULT_ACCOUNT_LOGIN_URL;
+/**
+ * `undefined` = não configurado explicitamente → deriva de `accountPath('login')`
+ * (que respeita o prefixo/segmento configurados via `accountRoutes`). Default
+ * efetivo `'/account/login'` — back-compat total.
+ */
+let _loginUrl: string | undefined;
 
 /**
  * Define a URL de login do console de conta para este processo.
  * Chamado UMA VEZ por `registerAuthHost` no boot da aplicação.
  *
  * Não normaliza o path: aceita qualquer caminho interno que o host queira
- * (ex.: `'/login'`, `'/auth/entrar'`). Valor vazio/whitespace cai no default.
+ * (ex.: `'/login'`, `'/auth/entrar'`). Valor vazio/whitespace volta a derivar
+ * de `accountPath('login')`.
  *
  * @param url  Caminho de destino do redirect de não-autenticado.
  */
 export function setAccountLoginUrl(url: string): void {
   const trimmed = (url ?? '').trim();
-  _loginUrl = trimmed || DEFAULT_ACCOUNT_LOGIN_URL;
+  _loginUrl = trimmed || undefined;
 }
 
 /**
- * Retorna a URL de login do console de conta (default `'/account/login'`).
- * Usada por todo redirect/link de "faça login" da lib.
+ * Retorna a URL de login do console de conta. Sem override explícito, deriva de
+ * `accountPath('login')` (default `'/account/login'`; `'/conta/login'` com
+ * `accountRoutes: { prefix: '/conta' }`). Usada por todo redirect/link de
+ * "faça login" da lib.
  */
 export function getAccountLoginUrl(): string {
-  return _loginUrl;
+  return _loginUrl ?? accountPath('login');
 }
 
 /** Restaura o default — uso em testes (isola o singleton entre casos). */
 export function resetAccountLoginUrl(): void {
-  _loginUrl = DEFAULT_ACCOUNT_LOGIN_URL;
+  _loginUrl = undefined;
 }

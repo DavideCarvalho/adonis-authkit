@@ -1,4 +1,5 @@
 import type { HttpContext } from '@adonisjs/core/http';
+import { accountPath } from './account_paths.js';
 import type { BrandingConfig } from './branding.js';
 import { type EmailContent, renderTransactionalEmail } from './email_templates.js';
 import { type AuthMessages, type I18nConfig, resolveMessages, translate } from './i18n.js';
@@ -239,7 +240,7 @@ export async function sendNewLoginEmail(
       heading: translate(t, 'mail.new_login.heading'),
       intro,
       ctaLabel: translate(t, 'account.security.title'),
-      ctaUrl: `${origin}/account/security`,
+      ctaUrl: `${origin}${accountPath('security')}`,
       footnote: translate(t, 'mail.new_login.fallback'),
     });
     const sent = await sendEmail(ctx, data.email, content);
@@ -284,7 +285,7 @@ export async function sendNewDeviceLoginEmail(
       heading: translate(t, 'mail.new_login.heading'),
       intro: lines.join(' '),
       ctaLabel: translate(t, 'account.security.title'),
-      ctaUrl: `${origin}/account/security`,
+      ctaUrl: `${origin}${accountPath('security')}`,
       footnote: translate(t, 'mail.new_login.fallback'),
     });
     const sent = await sendEmail(ctx, data.email, content);
@@ -360,7 +361,7 @@ export async function sendEmailChangeNoticeEmail(
       heading: translate(t, 'mail.email_change_notice.heading'),
       intro: translate(t, 'mail.email_change_notice.intro', { newEmail: data.newEmail }),
       ctaLabel: translate(t, 'mail.email_change_notice.cta'),
-      ctaUrl: `${origin}/account/security`,
+      ctaUrl: `${origin}${accountPath('security')}`,
       footnote: translate(t, 'mail.email_change_notice.fallback'),
     });
     const sent = await sendEmail(ctx, data.email, content);
@@ -402,7 +403,7 @@ export async function sendEmailChangedCompletedEmail(
         newEmail: data.newEmail,
       }),
       ctaLabel: translate(t, 'mail.email_changed_completed.cta'),
-      ctaUrl: `${origin}/account/security`,
+      ctaUrl: `${origin}${accountPath('security')}`,
       footnote: translate(t, 'mail.email_changed_completed.fallback'),
     });
     const sent = await sendEmail(ctx, data.oldEmail, content);
@@ -460,7 +461,7 @@ export async function sendSecurityNoticeEmail(
       heading: translate(t, 'mail.security_notice.heading'),
       intro: intro.join(' '),
       ctaLabel: translate(t, 'account.security.title'),
-      ctaUrl: `${origin}/account/security`,
+      ctaUrl: `${origin}${accountPath('security')}`,
       footnote: translate(t, 'mail.security_notice.fallback'),
     });
     const sent = await sendEmail(ctx, data.email, content);

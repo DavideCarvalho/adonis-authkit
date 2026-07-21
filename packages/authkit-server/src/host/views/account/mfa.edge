@@ -9,7 +9,7 @@
         <div class="text-xs font-semibold uppercase tracking-widest text-gray-400">{{ t('common.brand_eyebrow') }}</div>
         <h1 class="text-xl font-semibold text-gray-900">{{ t('account.mfa.title') }}</h1>
       </div>
-      <form method="POST" action="/account/logout">
+      <form method="POST" action="{{ accountPaths?.logout ?? '/account/logout' }}">
         <input type="hidden" name="_csrf" value="{{ csrfToken }}">
         <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('account.mfa.logout') }}</button>
       </form>
@@ -46,7 +46,7 @@
           <code class="mx-auto mt-1 block w-fit break-all rounded bg-gray-100 px-3 py-2 text-sm text-gray-800">{{ secret }}</code>
         @end
 
-        <form method="POST" action="/account/mfa/confirm" class="mt-6">
+        <form method="POST" action="{{ accountPaths?.mfa ?? '/account/mfa' }}/confirm" class="mt-6">
           <input type="hidden" name="_csrf" value="{{ csrfToken }}">
           <label for="code" class="mb-1 block text-sm font-medium text-gray-700">{{ t('account.mfa.confirm_code_label') }}</label>
           <input id="code" name="code" inputmode="numeric" pattern="[0-9]*" maxlength="6" autofocus
@@ -61,7 +61,7 @@
         <p class="text-sm text-gray-700">
           {{{ t('account.mfa.enabled_html') }}}
         </p>
-        <form method="POST" action="/account/mfa/disable" class="mt-4">
+        <form method="POST" action="{{ accountPaths?.mfa ?? '/account/mfa' }}/disable" class="mt-4">
           <input type="hidden" name="_csrf" value="{{ csrfToken }}">
           <button type="submit" class="rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50">
             {{ t('account.mfa.disable') }}
@@ -73,7 +73,7 @@
         <p class="text-sm text-gray-700">
           {{ t('account.mfa.disabled_intro') }}
         </p>
-        <form method="POST" action="/account/mfa/enroll" class="mt-4">
+        <form method="POST" action="{{ accountPaths?.mfa ?? '/account/mfa' }}/enroll" class="mt-4">
           <input type="hidden" name="_csrf" value="{{ csrfToken }}">
           <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white">
             {{ t('account.mfa.enable') }}
@@ -93,7 +93,7 @@
             @each(pk in passkeys)
               <li class="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2">
                 <span class="text-sm text-gray-800">{{ pk.label ? pk.label : t('mfa.passkey.unnamed') }}</span>
-                <form method="POST" action="/account/mfa/passkeys/{{ pk.id }}/remove">
+                <form method="POST" action="{{ accountPaths?.mfa ?? '/account/mfa' }}/passkeys/{{ pk.id }}/remove">
                   <input type="hidden" name="_csrf" value="{{ csrfToken }}">
                   <button type="submit" class="text-sm text-red-600 hover:underline">{{ t('mfa.passkey.remove') }}</button>
                 </form>
@@ -124,7 +124,7 @@
         btn.disabled = true
         try {
           // 1) Opções de registro (challenge guardado na sessão server-side).
-          const optsRes = await fetch('/account/mfa/passkeys/options', {
+          const optsRes = await fetch('{{ accountPaths?.mfa ?? '/account/mfa' }}/passkeys/options', {
             method: 'POST',
             headers: { 'content-type': 'application/json', 'x-csrf-token': csrf },
             body: JSON.stringify({}),
@@ -134,7 +134,7 @@
           // 2) Cerimônia de registro no authenticator.
           const attResp = await startRegistration({ optionsJSON })
           // 3) Verifica/persiste no servidor.
-          const verifyRes = await fetch('/account/mfa/passkeys/verify', {
+          const verifyRes = await fetch('{{ accountPaths?.mfa ?? '/account/mfa' }}/passkeys/verify', {
             method: 'POST',
             headers: { 'content-type': 'application/json', 'x-csrf-token': csrf },
             body: JSON.stringify({ response: attResp }),

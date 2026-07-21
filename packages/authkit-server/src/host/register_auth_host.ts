@@ -15,6 +15,13 @@ import {
 import { resolveRuntimeSettings } from './runtime_settings.js'
 import { resolveEffectiveSessionPolicy } from './runtime_toggles.js'
 import { getAuthHostConfig } from './auth_host_config.js'
+import { completeSudo, fail } from './sudo/runtime.js'
+import {
+  SUDO_METHOD_DEFAULTS,
+  sudoContextFrom,
+  mountedSudoMethodIds,
+} from './controllers/account_confirm_controller.js'
+import type { SudoRouteHelpers } from './sudo/types.js'
 
 /** Chave da sessão Adonis que registra o timestamp da última atividade (idle timeout). */
 export const ACCOUNT_LAST_SEEN_KEY = 'authkit_last_seen'
@@ -373,11 +380,9 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
       router.post('/account/mfa/passkeys/verify', [C.accountMfa, 'passkeyRegisterVerify'])
       router.post('/account/mfa/passkeys/:id/remove', [C.accountMfa, 'passkeyRemove'])
 
-      // Sudo mode (confirm identity): GET exibe o formulário; POST verifica a senha.
+      // Sudo mode (confirm identity): o GET lista os métodos; cada método
+      // registra suas próprias rotas de verificação (SPI `SudoMethod`).
       router.get('/account/confirm', [C.accountConfirm, 'show'])
-      router.post('/account/confirm', [C.accountConfirm, 'confirm'])
-      router.post('/account/confirm/passkey/options', [C.accountConfirm, 'passkeyOptions'])
-      router.post('/account/confirm/passkey', [C.accountConfirm, 'passkeyConfirm'])
 
       // Organizations (multi-tenancy) — sempre montadas; controller retorna 404/403 sem tabelas.
       router.get('/account/orgs', [C.accountOrgs, 'index'])
@@ -426,6 +431,23 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
       router.get('/account/api/orgs/:id', [C.accountApi, 'showOrg'])
     })
     .use([accountGuard])
+
+  // Rotas próprias dos métodos de sudo. Fora do grupo com AccountAuthMiddleware
+  // apenas para os métodos que precisam ser alcançáveis por GET vindo de e-mail;
+  // cada método aplica seu próprio guard quando necessário.
+  {
+    const helpers: SudoRouteHelpers = {
+      contextFrom: sudoContextFrom,
+      completeSudo,
+      fail,
+    }
+    for (const method of SUDO_METHOD_DEFAULTS) {
+      method.register?.(router, helpers)
+      // Registra o que de fato tem rota, para o controller detectar flag-drift
+      // contra `config.sudo.methods` (que só decide o que a TELA oferece).
+      mountedSudoMethodIds.add(method.id)
+    }
+  }
 
   // Console admin (do config.admin.enabled ou opts). Protegido pelo adminGuard (sessão + role global).
   if (adminOpt) {

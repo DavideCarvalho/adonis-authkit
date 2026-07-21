@@ -73,8 +73,9 @@ export function password(): SudoMethod {
         const c = await h.contextFrom(ctx)
         const { password: submitted } = ctx.request.only(['password'])
 
-        // `c.account.email` é `string | null` no tipo do SPI (contas sem e-mail
-        // são possíveis em tese); sem e-mail não há como verificar credenciais.
+        // `c.account` é nullable (sessão viva de conta apagada → findById null)
+        // e `email` pode vir vazio de um store customizado; sem e-mail não há
+        // como verificar credenciais.
         if (!submitted || !c.account || !c.account.email) return h.fail(c, 'account.confirm.error')
 
         const ok = await c.cfg.accountStore.verifyCredentials(c.account.email, submitted)

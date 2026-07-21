@@ -25,6 +25,7 @@ import {
 import type { AccountStore, AuthAccount } from "./accounts/account_store.js";
 import type { PatStore } from "./pat/pat_store.js";
 import type { AuditSink } from "./audit/audit_sink.js";
+import type { SudoMethod } from "./host/sudo/types.js";
 import {
   composeAuditSink,
   resolveEvents,
@@ -919,6 +920,18 @@ export interface AuthServerConfigInput {
   /** Sink de auditoria (best-effort). Opcional — quando ausente, auditoria é no-op. */
   audit?: AuditSink;
   /**
+   * Métodos de confirmação de identidade (sudo mode). A ordem do array é a
+   * ordem de exibição; o último método usado com sucesso é promovido ao topo.
+   *
+   * Ausente → `[password(), passkey()]`, idêntico ao comportamento histórico.
+   *
+   * Host passwordless (autentica por OIDC/magic link) DEVE incluir ao menos um
+   * método que não exija credencial previamente cadastrada — `oidcStepUp()` ou
+   * `magicLink()` — senão o usuário fica sem caminho para exportar/excluir os
+   * próprios dados.
+   */
+  sudo?: { methods?: SudoMethod[] };
+  /**
    * Eventos/webhooks: o host observa CADA evento de auditoria via callback
    * in-process (`onEvent`) e/ou POST de webhook (`webhook`). Best-effort, nunca
    * lança para a request. Quando setado, o `audit` resolvido vira um fan-out
@@ -1116,6 +1129,8 @@ export interface ResolvedServerConfig {
   notifications: ResolvedNotificationsConfig;
   mail?: MailHooks;
   audit?: AuditSink;
+  /** Métodos de sudo configurados pelo host. Ausente → defaults do controller. */
+  sudo?: { methods?: SudoMethod[] };
   mfaIssuer: string;
   /** RP de WebAuthn resolvido (sempre presente; derivado do issuer por default). */
   webauthn: ResolvedWebauthnConfig;
@@ -1333,6 +1348,10 @@ export function defineConfig(config: AuthServerConfigInput) {
         lockout: resolveLockout(config.lockout),
         notifications: resolveNotifications(),
         mail: config.mail,
+        // Propaga os métodos de sudo para o config resolvido. Sem esta linha o
+        // campo existiria só no config de ENTRADA e `cfg.sudo` seria sempre
+        // undefined em runtime — exatamente o bug que `accountHome` tinha.
+        sudo: config.sudo,
         audit: (() => {
           // Sempre compõe o fan-out: além de onEvent/webhook (quando configurados),
           // o sink composto republica TODO evento de auditoria no barramento de

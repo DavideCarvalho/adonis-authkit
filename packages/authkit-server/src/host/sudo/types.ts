@@ -4,8 +4,19 @@ import type { ResolvedServerConfig } from '../../define_config.js'
 /** Contexto entregue a todo método de sudo. */
 export interface SudoContext {
   ctx: HttpContext
-  /** Conta logada no console. Nunca null: o accountGuard já rodou. */
-  account: { id: string; email: string | null }
+  /**
+   * Conta logada no console — carregada com `accountStore.findById`.
+   *
+   * PODE ser null. O comentário original dizia "nunca null: o accountGuard já
+   * rodou", mas o `accountGuard` (register_auth_host.ts:91) só verifica que a
+   * CHAVE de sessão existe; ele nunca carrega a conta. Sessão viva de conta
+   * apagada/anonimizada → `findById` devolve null. Todo método deve tratar.
+   *
+   * `email` é `string` (não `string | null`) porque é o que o `AccountStore`
+   * de fato garante: `findById` devolve `AuthAccount`, cujo `email: string`
+   * (accounts/account_store.ts:4). A nulidade real está no objeto, não no campo.
+   */
+  account: { id: string; email: string } | null
   accountId: string
   /** Config resolvida do authkit (accountStore, messages, audit, mail...). */
   cfg: ResolvedServerConfig

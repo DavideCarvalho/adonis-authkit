@@ -3,6 +3,10 @@ import AccountConfirmController from '../../src/host/controllers/account_confirm
 import { SUDO_SESSION_KEY } from '../../src/host/sudo_mode.js'
 import { ACCOUNT_SESSION_KEY } from '../../src/host/middleware/account_auth.js'
 import { DEFAULT_MESSAGES } from '../../src/host/i18n.js'
+import { password } from '../../src/host/sudo/methods/password.js'
+import { passkey } from '../../src/host/sudo/methods/passkey.js'
+import { completeSudo, fail } from '../../src/host/sudo/runtime.js'
+import { sudoContextFrom } from '../../src/host/controllers/account_confirm_controller.js'
 
 const ACCOUNT = { id: 'acc-1', email: 'user@example.com' }
 
@@ -77,18 +81,29 @@ function fakeConfirmCtx(opts: {
 // está pinado é o comportamento na URL, não a API interna do controller.
 // ---------------------------------------------------------------------------
 
+/** Router falso: captura os handlers que os métodos registram, por path. */
+function captureHandlers() {
+  const routes = new Map<string, (ctx: any) => Promise<unknown>>()
+  const router = { post: (p: string, h: any) => { routes.set(`POST ${p}`, h) },
+                   get: (p: string, h: any) => { routes.set(`GET ${p}`, h) } } as any
+  const helpers = { contextFrom: sudoContextFrom, completeSudo, fail }
+  password().register!(router, helpers)
+  passkey().register!(router, helpers)
+  return routes
+}
+
 async function invokeConfirmShow(ctx: any) {
   return new AccountConfirmController().show(ctx)
 }
 
 /** Equivale a `POST /account/confirm`. */
 async function invokeConfirmPassword(ctx: any) {
-  return new AccountConfirmController().confirm(ctx)
+  return captureHandlers().get('POST /account/confirm')!(ctx)
 }
 
 /** Equivale a `POST /account/confirm/passkey`. */
 async function invokeConfirmPasskey(ctx: any) {
-  return new AccountConfirmController().passkeyConfirm(ctx)
+  return captureHandlers().get('POST /account/confirm/passkey')!(ctx)
 }
 
 test.group('confirmação de identidade — comportamento pinado', () => {
@@ -187,5 +202,35 @@ test.group('confirmação de identidade — comportamento pinado', () => {
 
     assert.isUndefined(h.session[SUDO_SESSION_KEY])
     assert.isUndefined(h.session[CHALLENGE_KEY])
+  })
+})
+
+test.group('AccountConfirmController — SPI de métodos', () => {
+  test('show entrega descritores dos métodos disponíveis', async ({ assert }) => {
+    const h = fakeConfirmCtx()
+    await new AccountConfirmController().show(h.ctx)
+
+    const methods = h.rendered[0].props.methods as Array<{ id: string }>
+    assert.isArray(methods)
+    assert.include(methods.map((m) => m.id), 'password')
+  })
+
+  test('show omite password quando a conta não tem hash', async ({ assert }) => {
+    const h = fakeConfirmCtx({
+      cfg: { accountStore: { async findById() { return ACCOUNT }, async __getRawRow() { return { password: '' } } } },
+    })
+    await new AccountConfirmController().show(h.ctx)
+
+    const methods = h.rendered[0].props.methods as Array<{ id: string }>
+    assert.notInclude(methods.map((m) => m.id), 'password')
+  })
+
+  test('show sinaliza no_methods quando nada está disponível', async ({ assert }) => {
+    const h = fakeConfirmCtx({
+      cfg: { accountStore: { async findById() { return ACCOUNT }, async __getRawRow() { return { password: '' } } } },
+    })
+    await new AccountConfirmController().show(h.ctx)
+
+    assert.lengthOf(h.rendered[0].props.methods as unknown[], 0)
   })
 })

@@ -320,6 +320,9 @@ importers:
       '@adonisjs/redis':
         specifier: catalog:adonisPeers
         version: 9.2.0(@adonisjs/core@7.3.5(@adonisjs/assembler@8.4.0(typescript@6.0.3))(@vinejs/vine@4.4.0)(edge.js@6.5.1)(youch@4.1.1))
+      '@simplewebauthn/browser':
+        specifier: ^13.3.0
+        version: 13.3.0
       '@simplewebauthn/server':
         specifier: ^13.3.1
         version: 13.3.1
@@ -413,13 +416,16 @@ importers:
         version: 4.4.0
       '@vitejs/plugin-react':
         specifier: 'catalog:'
-        version: 6.0.2(vite@8.0.14(@types/node@25.9.1)(jiti@1.21.7))
+        version: 6.0.2(vite@8.0.14(@types/node@25.9.1)(esbuild@0.25.12)(jiti@1.21.7))
       better-sqlite3:
         specifier: ^11.0.0
         version: 11.10.0
       edge.js:
         specifier: 'catalog:'
         version: 6.5.1
+      esbuild:
+        specifier: 0.25.12
+        version: 0.25.12
       ioredis:
         specifier: 'catalog:'
         version: 5.4.2
@@ -452,7 +458,7 @@ importers:
         version: 6.0.3
       vite:
         specifier: 'catalog:'
-        version: 8.0.14(@types/node@25.9.1)(jiti@1.21.7)
+        version: 8.0.14(@types/node@25.9.1)(esbuild@0.25.12)(jiti@1.21.7)
 
   packages/authkit-testing:
     dependencies:
@@ -2457,6 +2463,9 @@ packages:
 
   '@shikijs/vscode-textmate@10.0.2':
     resolution: {integrity: sha512-83yeghZ2xxin3Nj8z1NMd/NCuca+gsYXswywDy5bHvwlWL8tpTQmzGeUuHd9FC3E/SBEMvzJRwWEOz5gGes9Qg==}
+
+  '@simplewebauthn/browser@13.3.0':
+    resolution: {integrity: sha512-BE/UWv6FOToAdVk0EokzkqQQDOWtNydYlY6+OrmiZ5SCNmb41VehttboTetUM3T/fr6EAFYVXjz4My2wg230rQ==}
 
   '@simplewebauthn/server@13.3.1':
     resolution: {integrity: sha512-GV/oM/qeycWn8p42JZIMJBsXWQcNFg+nJFzeQTnMA4gN8mXg0+HZFWJerHg8ZN/zlveMS3iV1wzuFpOVWS/46w==}
@@ -7814,6 +7823,8 @@ snapshots:
 
   '@shikijs/vscode-textmate@10.0.2': {}
 
+  '@simplewebauthn/browser@13.3.0': {}
+
   '@simplewebauthn/server@13.3.1':
     dependencies:
       '@hexagon/base64': 1.1.28
@@ -8244,10 +8255,10 @@ snapshots:
       normalize-url: 8.1.1
       validator: 13.15.35
 
-  '@vitejs/plugin-react@6.0.2(vite@8.0.14(@types/node@25.9.1)(jiti@1.21.7))':
+  '@vitejs/plugin-react@6.0.2(vite@8.0.14(@types/node@25.9.1)(esbuild@0.25.12)(jiti@1.21.7))':
     dependencies:
       '@rolldown/pluginutils': 1.0.1
-      vite: 8.0.14(@types/node@25.9.1)(jiti@1.21.7)
+      vite: 8.0.14(@types/node@25.9.1)(esbuild@0.25.12)(jiti@1.21.7)
 
   abstract-logging@2.0.1: {}
 
@@ -11278,7 +11289,7 @@ snapshots:
       d3-time: 3.1.0
       d3-timer: 3.0.1
 
-  vite@8.0.14(@types/node@25.9.1)(jiti@1.21.7):
+  vite@8.0.14(@types/node@25.9.1)(esbuild@0.25.12)(jiti@1.21.7):
     dependencies:
       lightningcss: 1.32.0
       picomatch: 4.0.4
@@ -11287,6 +11298,7 @@ snapshots:
       tinyglobby: 0.2.17
     optionalDependencies:
       '@types/node': 25.9.1
+      esbuild: 0.25.12
       fsevents: 2.3.3
       jiti: 1.21.7
 

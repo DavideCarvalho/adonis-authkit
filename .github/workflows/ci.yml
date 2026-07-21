@@ -43,6 +43,13 @@ jobs:
       - name: Import smoke (packaging)
         run: node scripts/import-smoke.mjs
 
+      # The WebAuthn bundle served by authkit-server is a committed artifact, so
+      # bumping @simplewebauthn/browser in the lockfile does NOT regenerate it —
+      # the package would declare one version and serve another, silently. This
+      # rebuilds it and fails if the committed file drifted from the installed dep.
+      - name: Check committed WebAuthn bundle
+        run: pnpm --filter @adonis-agora/authkit-server check:webauthn-bundle
+
       - name: Typecheck
         run: pnpm -r typecheck
 

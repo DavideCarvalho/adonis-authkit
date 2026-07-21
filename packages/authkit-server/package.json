@@ -58,6 +58,7 @@
     "build": "node scripts/build_host_css.mjs && node scripts/build_webauthn.mjs && node scripts/build_ui.mjs && tsc && node -e \"require('node:fs').cpSync('src/host/assets','build/src/host/assets',{recursive:true})\" && node -e \"require('node:fs').cpSync('stubs','build/stubs',{recursive:true,filter:(s)=>!s.endsWith('.ts')})\" && node -e \"const fs=require('node:fs');if(fs.existsSync('assets'))fs.cpSync('assets','build/assets',{recursive:true})\" && node -e \"require('node:fs').cpSync('src/host/views','build/host/views',{recursive:true})\" && node -e \"const fs=require('node:fs');fs.mkdirSync('build/host/ui',{recursive:true});fs.readdirSync('src/host/ui').filter(f=>f.endsWith('.html')).forEach(f=>fs.copyFileSync('src/host/ui/'+f,'build/host/ui/'+f))\" && node -e \"require('node:fs').copyFileSync('commands/commands.json','build/commands/commands.json')\" && node -e \"const fs=require('node:fs');fs.mkdirSync('build/password',{recursive:true});fs.copyFileSync('src/password/common_passwords.txt','build/password/common_passwords.txt')\"",
     "build:ui": "node scripts/build_ui.mjs",
     "build:webauthn": "node scripts/build_webauthn.mjs",
+    "check:webauthn-bundle": "node scripts/check_webauthn_bundle.mjs",
     "typecheck": "tsc --noEmit && node scripts/typecheck_ui.mjs",
     "test": "node --import=@poppinss/ts-exec bin/test.ts",
     "build:host-css": "node scripts/build_host_css.mjs"

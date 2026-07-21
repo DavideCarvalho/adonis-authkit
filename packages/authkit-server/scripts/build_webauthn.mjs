@@ -12,6 +12,13 @@
  * (publicado no npm) sem passo extra. O `package.json` `build` copia
  * `src/host/assets` → `build/src/host/assets` junto dos demais assets.
  *
+ * O preço de commitar um artefato é o drift: um bump do `@simplewebauthn/browser`
+ * no lockfile muda a versão DECLARADA sem regenerar o arquivo SERVIDO, e ninguém
+ * percebe. Por isso existe o `check_webauthn_bundle.mjs` — ele regenera e falha
+ * se o commitado divergir da dependência instalada. Roda no CI; não mexa neste
+ * script sem rodar `pnpm --filter @adonis-agora/authkit-server build:webauthn`
+ * e commitar o `src/host/assets/webauthn.js` resultante.
+ *
  * Usa o esbuild que já vem com o `vite` (devDependency) — é um bundle trivial,
  * não precisa da pipeline do Vite.
  */

@@ -83,9 +83,7 @@
               const supported = await PublicKeyCredential.isConditionalMediationAvailable?.()
               if (!supported) return
 
-              const { startAuthentication } = await import(
-                'https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@13/dist/bundle/index.js'
-              )
+              const { startAuthentication } = await import('/authkit/assets/webauthn.js')
               const csrf = document.querySelector('input[name="_csrf"]')?.value ?? ''
               const optRes = await fetch('/auth/interaction/{{ uid }}/passkey/options', {
                 method: 'POST',
@@ -221,7 +219,7 @@
         </button>
         <p id="passkey-error" class="mt-3 hidden text-sm text-red-600">{{ t('mfa_challenge.passkey_error') }}</p>
         <script type="module">
-          import { startAuthentication } from 'https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@13/dist/bundle/index.js'
+          import { startAuthentication } from '/authkit/assets/webauthn.js'
           const btn = document.getElementById('passkey-button')
           const errEl = document.getElementById('passkey-error')
           const csrf = document.querySelector('#passkey-form input[name="_csrf"]').value

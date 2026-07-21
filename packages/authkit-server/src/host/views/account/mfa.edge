@@ -115,7 +115,7 @@
 
   @if(passkeysSupported)
     <script type="module">
-      import { startRegistration } from 'https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@13/dist/bundle/index.js'
+      import { startRegistration } from '/authkit/assets/webauthn.js'
       const btn = document.getElementById('passkey-add')
       const errEl = document.getElementById('passkey-error')
       const csrf = '{{ csrfToken }}'

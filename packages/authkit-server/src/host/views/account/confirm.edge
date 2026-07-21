@@ -98,7 +98,7 @@
   --}}
   @if(methods && methods.some((m) => m.kind === 'webauthn'))
     <script type="module">
-      import { startAuthentication } from 'https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@13/dist/bundle/index.esm.js'
+      import { startAuthentication } from '/authkit/assets/webauthn.js'
 
       for (const block of document.querySelectorAll('[data-authkit-webauthn]')) {
         const form = block.querySelector('[data-webauthn-form]')

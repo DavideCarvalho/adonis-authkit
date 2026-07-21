@@ -263,6 +263,7 @@ const C = {
   accountMfa: () => import('./controllers/account_mfa_controller.js'),
   accountOrgs: () => import('./controllers/account_orgs_controller.js'),
   accountConfirm: () => import('./controllers/account_confirm_controller.js'),
+  webauthnAsset: () => import('./controllers/webauthn_asset_controller.js'),
   // Console React JSON API (session-authed, under {prefix}/api/*).
   consoleShell: () => import('./admin_console/admin_shell_controller.js'),
   consoleOverview: () => import('./admin_console/console_overview_controller.js'),
@@ -323,6 +324,18 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
   const withSudo = (route: any): void => {
     if (throttles) route.use([throttles.sudo])
   }
+
+  // ─── Assets estáticos do host-kit (públicos, sem autenticação) ─────────────
+  // Bundle do @simplewebauthn/browser servido pelo próprio app, no lugar do
+  // import de CDN público que as views de login/MFA/confirm faziam.
+  //
+  // Path FIXO e no topo, de propósito:
+  //  • não pode viver sob o prefixo do console admin (`admin` é opt-in) —
+  //    login.edge e mfa-challenge.edge precisam do script em qualquer host;
+  //  • sem guard, porque é carregado NA tela de login, antes de haver sessão;
+  //  • registrado ANTES do wildcard `${mount}/*` para que nenhum mountPath
+  //    agressivo (ex.: '/') consiga engolir o asset e quebrar o login.
+  router.get('/authkit/assets/webauthn.js', [C.webauthnAsset]).as('authkit.assets.webauthn')
 
   // Provider OIDC (wildcard + root) — o que registerOidcRoutes fazia.
   router.any(`${mount}/*`, [C.oidc]).as('authkit.oidc.wildcard')

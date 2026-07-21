@@ -1,0 +1,64 @@
+import type { HttpContext, Router } from '@adonisjs/core/http'
+import type { ResolvedServerConfig } from '../../define_config.js'
+
+/** Contexto entregue a todo método de sudo. */
+export interface SudoContext {
+  ctx: HttpContext
+  /** Conta logada no console. Nunca null: o accountGuard já rodou. */
+  account: { id: string; email: string | null }
+  accountId: string
+  /** Config resolvida do authkit (accountStore, messages, audit, mail...). */
+  cfg: ResolvedServerConfig
+  /** Destino pós-confirmação, já validado — só caminhos internos. */
+  returnTo: string | null
+}
+
+/** Como a tela deve renderizar o passo deste método. */
+export interface SudoMethodDescriptor {
+  /** Chave i18n do rótulo. Ex.: 'account.confirm.method.magic_link'. */
+  labelKey: string
+  /**
+   * 'form'     — a tela renderiza `fields` e dá POST em `endpoint`.
+   * 'action'   — a tela dá POST em `endpoint` sem input.
+   * 'redirect' — a tela manda o usuário para `endpoint` (fluxo externo).
+   */
+  kind: 'form' | 'action' | 'redirect'
+  endpoint: string
+  fields?: Array<{ name: string; type: 'password' | 'text'; labelKey: string }>
+}
+
+/** Helpers que o runtime entrega às rotas de um método. */
+export interface SudoRouteHelpers {
+  /** Monta o SudoContext a partir do HttpContext (resolve config, conta, returnTo). */
+  contextFrom(ctx: HttpContext): Promise<SudoContext>
+  /** ÚNICO ponto de concessão de sudo no pacote. */
+  completeSudo(c: SudoContext, methodId: string): Promise<unknown>
+  /** Flash de erro + volta pro /account/confirm preservando return_to. */
+  fail(c: SudoContext, messageKey: string): Promise<unknown>
+}
+
+/**
+ * Método de confirmação de identidade (sudo mode).
+ *
+ * REGRA CENTRAL: um método NUNCA chama `markSudo`. Ele decide apenas SE
+ * verificou; conceder é do runtime, via `completeSudo`. `markSudo` é a
+ * concessão de privilégio — espalhá-la por N métodos multiplicaria por N as
+ * chances de alguém conceder sem ter verificado.
+ */
+export interface SudoMethod {
+  /** Estável. Vai no audit (`metadata.method`) e na preferência lembrada. */
+  readonly id: string
+  /** Disponível para ESTA conta? Ex.: passkey só se houver passkey cadastrada. */
+  isAvailable(c: SudoContext): Promise<boolean>
+  /** O que a tela mostra para este método. */
+  describe(c: SudoContext): Promise<SudoMethodDescriptor>
+  /**
+   * Endpoints próprios. Opcional: métodos puramente 'redirect' (oidcStepUp)
+   * não registram nada, porque o fluxo sai do pacote.
+   *
+   * Recebe o router cru (não monta por convenção a partir do `id`) porque
+   * `password` e `passkey` precisam manter URLs legadas que uma convenção
+   * não comportaria.
+   */
+  register?(router: Router, h: SudoRouteHelpers): void
+}

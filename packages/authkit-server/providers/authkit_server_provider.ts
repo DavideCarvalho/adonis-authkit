@@ -17,6 +17,7 @@ import { loadEncryptionService } from '../src/keys/keystore_crypto.js'
 import type { AccountStore } from '../src/accounts/account_store.js'
 import type { PatStore } from '../src/pat/pat_store.js'
 import { resolveAppKey } from '../src/host/app_key.js'
+import { setBootedApp } from '../services/booted_app.js'
 
 declare module '@adonisjs/core/types' {
   interface ContainerBindings {
@@ -98,6 +99,13 @@ export default class AuthkitServerProvider {
   }
 
   register() {
+    // Entrega o app BOOTADO ao singleton de `services/main` (e ao
+    // `recordSubRevocation` do AdminSessionsService) para que nunca precisem
+    // `import`ar uma cópia de `@adonisjs/core`/`services/app` que pode não ser a
+    // que o `bin/server` bootou — dual-package hazard do core (ver
+    // `services/booted_app.ts`).
+    setBootedApp(this.app)
+
     this.app.container.singleton('authkit.server', async () => {
       const configProviderValue = this.app.config.get('authkit')
       const config = (await configProvider.resolve(

@@ -1,5 +1,5 @@
-import app from "@adonisjs/core/services/app";
 import type { OidcService } from "../src/provider/oidc_service.js";
+import { getBootedApp } from "./booted_app.js";
 
 /**
  * Acessor singleton do {@link OidcService}, seguindo a convenção `services/main` do
@@ -12,11 +12,19 @@ import type { OidcService } from "../src/provider/oidc_service.js";
  * Roda `await app.booted()` no top-level, então SÓ funciona dentro de um app
  * booted — por isso `scripts/import-smoke.mjs` pula o diretório `services`.
  *
+ * O `app` vem do {@link getBootedApp} (capturado pelo provider no `register()`), NÃO de
+ * `import app from "@adonisjs/core/services/app"`: sob pnpm este pacote pode resolver uma cópia
+ * FÍSICA de `@adonisjs/core` diferente da que o `bin/server` bootou, cujo binding de `services/app`
+ * fica `undefined` — mesmo dual-package hazard do `'lucid.db'`, aqui para o singleton do core. Ver
+ * {@link ./booted_app.js}. A instância que o provider recebe é sempre a bootada. Back-compat total:
+ * o `default` continua sendo o {@link OidcService} resolvido.
+ *
  * Dentro da própria lib continuamos resolvendo via `ctx.containerResolver.make("authkit.server")`,
  * que é o idioma das libs first-party (ver `@adonisjs/auth`, `initialize_auth_middleware`).
  */
 let service: OidcService;
 
+const app = getBootedApp();
 await app.booted(async () => {
   service = await app.container.make("authkit.server");
 });

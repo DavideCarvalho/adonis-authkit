@@ -1,6 +1,7 @@
 import type { OidcService } from '../provider/oidc_service.js'
 import type { EnumeratedArtifact, OidcAdapter } from '../adapters/adapter_contract.js'
 import type { AccountStore } from '../accounts/account_store.js'
+import { getBootedApp } from '../../services/booted_app.js'
 
 /** Uma sessão ativa do IdP (login do usuário no provider), apresentada ao admin. */
 export interface AdminSession {
@@ -90,7 +91,9 @@ export class AdminSessionsService {
    * a sessão na próxima request — INSTANTÂNEO, sem esperar o refresh token falhar.
    *
    * Best-effort: a destruição de grants/tokens acima já é a fonte da verdade; esta
-   * linha só acelera o efeito nos clients. Falha (tabela ausente) é silenciosa.
+   * linha só acelera o efeito nos clients. Falha (tabela ausente / lucid indisponível)
+   * NÃO propaga — mas NUNCA é silenciosa: é logada em `error`, porque uma revogação de
+   * sessão que não persiste é um risco de segurança que não pode ficar invisível.
    *
    * @param accountId Conta cujas sessões devem ser derrubadas (gravado em `sub`).
    * @param revokedAt Timestamp da revogação. Default: agora. A checagem do client
@@ -101,7 +104,16 @@ export class AdminSessionsService {
    */
   protected async recordSubRevocation(accountId: string, revokedAt: Date = new Date()): Promise<void> {
     try {
-      const db = (await import('@adonisjs/lucid/services/db')).default
+      // Resolve o Lucid pelo ALIAS STRING `'lucid.db'` (o mesmo idioma de
+      // `runtime_settings.ts` e do provider), NUNCA por `import('@adonisjs/lucid/services/db')`
+      // — esse resolve a CLASSE `Database` e a usa como TOKEN do container. Com duas cópias
+      // físicas do lucid na árvore do host (pins distintos ou o mesmo pin sob peer sets
+      // distintos, que o pnpm materializa em diretórios separados) os tokens-classe diferem, o
+      // `make()` falha (`Cannot construct "[class Database]"`) e a gravação era engolida em
+      // SILÊNCIO por este catch — a pior variante do bug. Um token string não pode ser
+      // duplicado. O app vem do provider (ver `services/booted_app.ts`), não de `services/app`.
+      const app = getBootedApp()
+      const db = await app.container.make('lucid.db' as any)
       const conn = this.#schemaConnection
         ? (db as any).connection(this.#schemaConnection)
         : (db as any).connection()
@@ -110,8 +122,28 @@ export class AdminSessionsService {
         sub: accountId,
         revoked_at: revokedAt,
       })
+    } catch (error) {
+      // A invalidação server-side (destruição de grants/tokens) já é a fonte da verdade, então
+      // NÃO propagamos. Mas NUNCA engolimos em silêncio: logamos em `error` para que a falha da
+      // propagação cookie-based (tabela ausente, lucid indisponível, provider não registrado)
+      // seja visível — uma revogação que não persiste é um risco de segurança invisível.
+      await this.#logRevocationFailure(accountId, error)
+    }
+  }
+
+  /**
+   * Loga (best-effort, sem nunca lançar) a falha de {@link recordSubRevocation}. Prefere o
+   * `logger` do container; se ele não puder ser resolvido (ex.: o próprio `getBootedApp()` foi o
+   * que falhou), cai em `console.error` — a falha PRECISA aparecer em algum lugar.
+   */
+  async #logRevocationFailure(accountId: string, error: unknown): Promise<void> {
+    const msg = 'authkit: falha ao gravar a revogação por sub (auth_session_revocations) — a propagação cookie-based da revogação de sessão não foi persistida'
+    try {
+      const logger = await getBootedApp().container.make('logger')
+      ;(logger as any).error({ err: error, accountId }, msg)
     } catch {
-      /* tabela ausente / lucid indisponível — a invalidação server-side ainda vale */
+      // eslint-disable-next-line no-console
+      console.error(msg, { accountId, error })
     }
   }
 

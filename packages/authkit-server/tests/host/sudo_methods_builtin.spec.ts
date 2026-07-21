@@ -17,6 +17,14 @@ test.group('sudoMethods.password', () => {
     assert.isFalse(await password().isAvailable(c))
   })
 
+  // Distinto do caso "não expõe __getRawRow": aqui o store SABE responder e diz
+  // que não há linha. Saber que não há senha é diferente de não saber, e só o
+  // segundo justifica o fallback conservador.
+  test('indisponível quando __getRawRow devolve linha nula', async ({ assert }) => {
+    const c = ctxWith({ accountStore: { async __getRawRow() { return null } } })
+    assert.isFalse(await password().isAvailable(c))
+  })
+
   test('disponível quando o store não expõe __getRawRow (fallback conservador)', async ({ assert }) => {
     const c = ctxWith({ accountStore: {} })
     assert.isTrue(await password().isAvailable(c))

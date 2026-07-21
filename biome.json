@@ -1,0 +1,67 @@
+{
+  "$schema": "https://biomejs.dev/schemas/1.9.0/schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": {
+    "ignoreUnknown": false,
+    "ignore": [
+      "dist/**",
+      "node_modules/**",
+      ".turbo/**",
+      ".next/**",
+      ".source/**",
+      "coverage/**",
+      "**/*.stub",
+      "packages/authkit-server/src/host/assets/webauthn.js"
+    ]
+  },
+  "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },
+  "javascript": {
+    "formatter": { "quoteStyle": "single", "semicolons": "always", "trailingCommas": "all" }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "complexity": { "noBannedTypes": "off", "noStaticOnlyClass": "off" },
+      "style": { "noNonNullAssertion": "off", "useImportType": "off" },
+      "suspicious": {
+        "noExplicitAny": "warn",
+        "noEmptyInterface": "off"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "include": ["**/test/**", "**/*.spec.ts", "**/*.test.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off",
+            "noAssignInExpressions": "off",
+            "noThenProperty": "off"
+          },
+          "style": { "noCommaOperator": "off" }
+        }
+      }
+    },
+    {
+      "include": [
+        "packages/authkit-server/ui/**",
+        "packages/authkit-server/stubs/**",
+        "apps/docs/**"
+      ],
+      "linter": {
+        "rules": {
+          "a11y": { "recommended": false },
+          "suspicious": {
+            "noArrayIndexKey": "off",
+            "noAssignInExpressions": "off",
+            "noMisleadingCharacterClass": "off"
+          },
+          "complexity": { "noUselessLoneBlockStatements": "off" },
+          "correctness": { "useExhaustiveDependencies": "off" }
+        }
+      }
+    }
+  ]
+}

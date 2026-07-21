@@ -443,7 +443,7 @@ Crie `packages/authkit-server/src/host/sudo/types.ts`:
 
 ```ts
 import type { HttpContext, Router } from '@adonisjs/core/http'
-import type { ResolvedAuthkitConfig } from '../../define_config.js'
+import type { ResolvedServerConfig } from '../../define_config.js'
 
 /** Contexto entregue a todo método de sudo. */
 export interface SudoContext {
@@ -452,7 +452,7 @@ export interface SudoContext {
   account: { id: string; email: string | null }
   accountId: string
   /** Config resolvida do authkit (accountStore, messages, audit, mail...). */
-  cfg: ResolvedAuthkitConfig
+  cfg: ResolvedServerConfig
   /** Destino pós-confirmação, já validado — só caminhos internos. */
   returnTo: string | null
 }
@@ -980,7 +980,7 @@ Importe o tipo no topo do arquivo:
 import type { SudoMethod } from "./host/sudo/types.js";
 ```
 
-Replique o campo no shape resolvido (`ResolvedAuthkitConfig`, perto da linha 1116):
+Replique o campo no shape resolvido (`ResolvedServerConfig`, perto da linha 1116):
 
 ```ts
   sudo?: { methods?: SudoMethod[] };
@@ -1006,7 +1006,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
 import { validateReturnTo } from './account_session_controller.js'
 import { resolveAvailableMethods, LAST_METHOD_SESSION_KEY } from '../sudo/runtime.js'
-import type { ResolvedAuthkitConfig } from '../../define_config.js'
+import type { ResolvedServerConfig } from '../../define_config.js'
 import { password } from '../sudo/methods/password.js'
 import { passkey } from '../sudo/methods/passkey.js'
 import type { SudoContext, SudoMethod } from '../sudo/types.js'
@@ -1021,7 +1021,7 @@ export const SUDO_METHOD_DEFAULTS: SudoMethod[] = [password(), passkey()]
  */
 export const mountedSudoMethodIds = new Set<string>()
 
-export function configuredSudoMethods(cfg: ResolvedAuthkitConfig): SudoMethod[] {
+export function configuredSudoMethods(cfg: ResolvedServerConfig): SudoMethod[] {
   const configured = cfg?.sudo?.methods
   return Array.isArray(configured) && configured.length ? configured : SUDO_METHOD_DEFAULTS
 }

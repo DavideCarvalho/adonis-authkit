@@ -13,6 +13,22 @@ import { requireSudo } from '../sudo_mode.js';
 const PASSKEY_REG_CHALLENGE_KEY = 'authkit_passkey_reg_challenge';
 
 /**
+ * `true` quando a requisição é uma NAVEGAÇÃO (form/browser) e não um XHR/fetch:
+ * o cliente aceita `text/html` e NÃO pede explicitamente `application/json`.
+ *
+ * Endpoints duais (JSON para o app React / redirect para o `<form>` clássico)
+ * decidem a resposta por aqui. Um `fetch` sem `Accept` explícito manda coringa
+ * (`*` + `/` + `*`) → não é navegação → JSON (mantém o comportamento de sempre
+ * da `mfa.edge`).
+ */
+function isNavigationRequest(ctx: HttpContext): boolean {
+  const accept = (ctx.request.header('accept') ?? '').toLowerCase();
+  const wantsJson = accept.includes('application/json');
+  const wantsHtml = accept.includes('text/html');
+  return wantsHtml && !wantsJson;
+}
+
+/**
  * Console de MFA da conta (atrás do account_auth middleware). Enrollment TOTP
  * com QR, confirmação com código, exibição única dos recovery codes e disable.
  */
@@ -123,6 +139,16 @@ export default class AccountMfaController {
         cfg.mail,
         cfg.audit,
       );
+    }
+    // Resposta DUAL. A cerimônia WebAuthn da tela built-in (`mfa.edge`) chama
+    // este endpoint por `fetch` e só olha `res.ok` — mas um `<form>` HTML
+    // clássico (progressive enhancement, ou host que POSTa a assertion sem JS)
+    // fica encarando o JSON `{ok:true}` cru. Navegação (o cliente ACEITA HTML e
+    // NÃO pede JSON) → redirect para a tela de MFA (respeitando `accountRoutes`);
+    // XHR/fetch → JSON de sempre. O fetch da view manda Accept coringa, então
+    // cai no ramo JSON e continua funcionando.
+    if (isNavigationRequest(ctx)) {
+      return ctx.response.redirect(accountPath('mfa'));
     }
     return { ok: true };
   }

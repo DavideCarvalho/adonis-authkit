@@ -1,5 +1,6 @@
 import type { Router } from '@adonisjs/core/http'
 import { supportsPasskeys } from '../../../accounts/account_store.js'
+import { translate } from '../../i18n.js'
 import type { SudoContext, SudoMethod, SudoRouteHelpers } from '../types.js'
 
 /** Chave de sessão do challenge — preservada do controller original. */
@@ -35,7 +36,9 @@ export function passkey(): SudoMethod {
         const c = await h.contextFrom(ctx)
         const generated = await c.cfg.accountStore.generatePasskeyAuthenticationOptions?.(c.accountId)
         if (!generated) {
-          return ctx.response.notFound({ message: 'no passkey registered' })
+          // i18n: mesma chave usada pelo controller original — hosts com catálogo
+          // customizado (ex.: pt-BR) não podem perder a mensagem localizada aqui.
+          return ctx.response.notFound({ message: translate(c.cfg.messages, 'errors.no_passkey_registered') })
         }
         ctx.session.put(CONFIRM_PASSKEY_CHALLENGE_KEY, generated.challenge)
         return generated.options

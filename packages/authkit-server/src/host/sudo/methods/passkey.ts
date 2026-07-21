@@ -8,6 +8,23 @@ import type { SudoContext, SudoMethod, SudoRouteHelpers } from '../types.js'
 export const CONFIRM_PASSKEY_CHALLENGE_KEY = 'authkit_confirm_passkey_challenge'
 
 /**
+ * Conta que PEDIU o challenge acima.
+ *
+ * Mesma exposição do magic link de sudo: a sessão sobrevive à troca de conta —
+ * o `regenerate()` do logout só troca o id do cookie e MIGRA os dados. Num
+ * navegador compartilhado, A pede o challenge, faz logout, B loga, e o
+ * challenge de A continua lá; sem esta vinculação a assertion de A seria
+ * verificada CONTRA A CONTA DE B (relevante sobretudo em `AccountStore`
+ * discoverable/usernameless, que resolve a credencial pelo `rawId`).
+ *
+ * Chave SEPARADA de propósito: o valor de `CONFIRM_PASSKEY_CHALLENGE_KEY` é
+ * uma string e isso é contratual (pinado em
+ * `tests/host/account_confirm_controller.spec.ts`), então a vinculação é
+ * aditiva em vez de mudar a forma do valor pinado.
+ */
+export const CONFIRM_PASSKEY_CHALLENGE_ACCOUNT_KEY = 'authkit_confirm_passkey_challenge_account'
+
+/**
  * Confirmação por passkey (WebAuthn).
  *
  * URLs LEGADAS preservadas: `/account/confirm/passkey/options` e
@@ -62,6 +79,8 @@ export function passkey(): SudoMethod {
         if (!generated) return deny()
 
         ctx.session.put(CONFIRM_PASSKEY_CHALLENGE_KEY, generated.challenge)
+        // Vinculação à conta emissora — ver CONFIRM_PASSKEY_CHALLENGE_ACCOUNT_KEY.
+        ctx.session.put(CONFIRM_PASSKEY_CHALLENGE_ACCOUNT_KEY, c.accountId)
         return generated.options
       })
 
@@ -79,8 +98,31 @@ export function passkey(): SudoMethod {
         // com `accountId: undefined` e chegaria a `completeSudo` sem conta.
         if (!c.account) return h.fail(c, 'account.confirm.passkey_error')
 
+        // Apaga challenge E vinculação juntos: são um par, e meio par na sessão
+        // é o começo de um estado que ninguém sabe interpretar depois.
+        const clearChallenge = () => {
+          ctx.session.forget(CONFIRM_PASSKEY_CHALLENGE_KEY)
+          ctx.session.forget(CONFIRM_PASSKEY_CHALLENGE_ACCOUNT_KEY)
+        }
+
         const challenge = ctx.session.get(CONFIRM_PASSKEY_CHALLENGE_KEY) as string | undefined
-        if (!challenge) return h.fail(c, 'account.confirm.passkey_error')
+        if (!challenge) {
+          clearChallenge()
+          return h.fail(c, 'account.confirm.passkey_error')
+        }
+
+        // VINCULAÇÃO À CONTA: quem consome o challenge tem de ser quem o pediu.
+        // "Está pendente nesta sessão" NÃO implica "é desta conta" — a sessão
+        // sobrevive ao logout+login de outra conta no mesmo navegador.
+        //
+        // `undefined` (challenge sem vinculação) é tolerado porque a forma do
+        // valor de `CONFIRM_PASSKEY_CHALLENGE_KEY` é contratual e há fixtures
+        // que escrevem só ele; o emissor deste pacote SEMPRE grava o par.
+        const boundTo = ctx.session.get(CONFIRM_PASSKEY_CHALLENGE_ACCOUNT_KEY) as string | undefined
+        if (boundTo !== undefined && boundTo !== c.accountId) {
+          clearChallenge()
+          return h.fail(c, 'account.confirm.passkey_error')
+        }
 
         const raw = ctx.request.input('response') as string | undefined
         let parsed: unknown = null
@@ -94,7 +136,7 @@ export function passkey(): SudoMethod {
           ? ((await c.cfg.accountStore.verifyPasskeyAuthentication?.(c.accountId, parsed, challenge)) ?? false)
           : false
 
-        ctx.session.forget(CONFIRM_PASSKEY_CHALLENGE_KEY)
+        clearChallenge()
         if (!ok) return h.fail(c, 'account.confirm.passkey_error')
 
         return h.completeSudo(c, 'passkey')

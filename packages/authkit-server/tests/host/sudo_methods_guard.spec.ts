@@ -176,6 +176,65 @@ test.group('sudo — handlers de passkey exigem a conta (Critical 2)', () => {
   })
 })
 
+/**
+ * VINCULAÇÃO DO CHALLENGE À CONTA EMISSORA.
+ *
+ * Mesma exposição do pendente do magic link de sudo: a sessão sobrevive ao
+ * logout — o `regenerate()` do @adonisjs/session troca o id e MIGRA os dados.
+ * Num navegador compartilhado, o challenge pedido por A continua lá depois que
+ * B loga, e sem a vinculação a assertion de A é verificada contra a conta de B.
+ */
+test.group('sudo — challenge de passkey vinculado à conta emissora (Critical)', () => {
+  const OUTRA = { id: 'acc-2', email: 'outra@example.com' }
+
+  const duasContas = {
+    async findById(id: string) {
+      if (id === ACCOUNT.id) return ACCOUNT
+      return id === OUTRA.id ? OUTRA : null
+    },
+    listPasskeys: async () => [{ id: 'pk-1' }],
+    generatePasskeyAuthenticationOptions: async () => ({ challenge: 'chal-1', options: {} }),
+    // Aceita qualquer assertion — isola a barreira sob teste da verificação
+    // WebAuthn, e é o comportamento real de um store discoverable/usernameless.
+    async verifyPasskeyAuthentication() { return true },
+  }
+
+  test('challenge pedido por A não concede sudo depois que B loga no mesmo navegador', async ({ assert }) => {
+    const h = fakeCtx({
+      input: { response: JSON.stringify({ id: 'cred' }) },
+      cfg: { accountStore: duasContas },
+    })
+    const routes = captureHandlers()
+
+    await routes.get('POST /account/confirm/passkey/options')!(h.ctx)
+    assert.equal(h.session[CONFIRM_PASSKEY_CHALLENGE_KEY], 'chal-1')
+
+    // Logout de A + login de B: o challenge de A CONTINUA na sessão.
+    h.session[ACCOUNT_SESSION_KEY] = OUTRA.id
+
+    await routes.get('POST /account/confirm/passkey')!(h.ctx)
+
+    assert.isUndefined(h.session[SUDO_SESSION_KEY])
+    assert.lengthOf(h.cfg.audit.records, 0)
+    assert.isNotNull(h.flashed.confirmError)
+    // A recusa também limpa o par challenge/vinculação.
+    assert.isUndefined(h.session[CONFIRM_PASSKEY_CHALLENGE_KEY])
+  })
+
+  test('contraprova: sem troca de conta o mesmo fluxo concede sudo', async ({ assert }) => {
+    const h = fakeCtx({
+      input: { response: JSON.stringify({ id: 'cred' }) },
+      cfg: { accountStore: duasContas },
+    })
+    const routes = captureHandlers()
+
+    await routes.get('POST /account/confirm/passkey/options')!(h.ctx)
+    await routes.get('POST /account/confirm/passkey')!(h.ctx)
+
+    assert.isNumber(h.session[SUDO_SESSION_KEY])
+  })
+})
+
 test.group('sudo — return_to em POST: corpo tem precedência (Minor 4)', () => {
   test('o corpo vence a query string no POST', async ({ assert }) => {
     const h = fakeCtx({

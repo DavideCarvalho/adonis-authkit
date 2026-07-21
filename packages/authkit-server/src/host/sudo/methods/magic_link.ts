@@ -12,6 +12,18 @@ export const SUDO_LINK_TTL_MS = 5 * 60 * 1000
 interface PendingLink {
   hash: string
   expiresAt: number
+  /**
+   * Conta que PEDIU o link.
+   *
+   * A defesa "o pendente morre no logout" é FALSA: o `regenerate()` do
+   * `@adonisjs/session` só troca o id do cookie e MIGRA os dados para o id novo.
+   * Num navegador compartilhado, A pede o link, faz logout, B loga — o
+   * `ACCOUNT_SESSION_KEY` vira B e o pendente de A sobrevive. Sem este campo, A
+   * abre o link do próprio e-mail e ganha sudo sobre a conta de B.
+   *
+   * O token, portanto, vale para UMA conta, não para um navegador.
+   */
+  accountId: string
 }
 
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex')
@@ -32,6 +44,7 @@ const sha256 = (value: string) => createHash('sha256').update(value).digest('hex
  * | validade | 5 min | mesma janela dos magic links de login |
  * | uso | único (apagado no consumo) | replay |
  * | navegador | só o mesmo (vive na sessão) | step-up é reprova de QUEM ESTÁ ALI |
+ * | conta | vinculado ao `accountId` emissor | sessão sobrevive à troca de conta |
  *
  * O "só mesmo navegador" é propriedade desejada aqui, diferente do magic link
  * de login, onde é limitação conhecida.
@@ -41,18 +54,30 @@ const sha256 = (value: string) => createHash('sha256').update(value).digest('hex
  */
 export function issueSudoLinkToken(c: SudoContext): string {
   const token = randomBytes(32).toString('hex')
-  const pending: PendingLink = { hash: sha256(token), expiresAt: Date.now() + SUDO_LINK_TTL_MS }
+  const pending: PendingLink = {
+    hash: sha256(token),
+    expiresAt: Date.now() + SUDO_LINK_TTL_MS,
+    accountId: c.accountId,
+  }
   c.ctx.session.put(SUDO_LINK_SESSION_KEY, pending)
   return token
 }
 
-/** Consome o token: single-use, expira em 5 min, comparação em tempo constante. */
+/**
+ * Consome o token: single-use, vinculado à conta emissora, expira em 5 min,
+ * comparação em tempo constante.
+ */
 export function verifySudoLinkToken(c: SudoContext, token: string): boolean {
   const pending = c.ctx.session.get(SUDO_LINK_SESSION_KEY) as PendingLink | undefined
   if (!pending) return false
 
   // Single-use: some na primeira tentativa, certa ou errada.
   c.ctx.session.forget(SUDO_LINK_SESSION_KEY)
+
+  // VINCULAÇÃO À CONTA: quem consome tem de ser quem pediu. A sessão sobrevive
+  // à troca de conta (o `regenerate()` do logout MIGRA os dados), então "está
+  // pendente nesta sessão" não implica "é desta conta". Ver `PendingLink.accountId`.
+  if (pending.accountId !== c.accountId) return false
 
   if (Date.now() > pending.expiresAt) return false
 

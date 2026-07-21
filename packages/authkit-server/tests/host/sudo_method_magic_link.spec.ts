@@ -23,11 +23,19 @@ import { SUDO_SESSION_KEY } from '../../src/host/sudo_mode.js'
 import { ACCOUNT_SESSION_KEY } from '../../src/host/middleware/account_auth.js'
 import { DEFAULT_MESSAGES } from '../../src/host/i18n.js'
 
-function ctxWith(opts: { email?: string | null; onSudoLink?: unknown; session?: Record<string, unknown> } = {}) {
+function ctxWith(
+  opts: {
+    email?: string | null
+    onSudoLink?: unknown
+    session?: Record<string, unknown>
+    accountId?: string
+  } = {}
+) {
   const session: Record<string, unknown> = { ...opts.session }
+  const accountId = opts.accountId ?? 'acc-1'
   return {
-    accountId: 'acc-1',
-    account: { id: 'acc-1', email: opts.email === undefined ? 'u@e.com' : opts.email },
+    accountId,
+    account: { id: accountId, email: opts.email === undefined ? 'u@e.com' : opts.email },
     returnTo: null,
     cfg: { mail: opts.onSudoLink ? { onSudoLink: opts.onSudoLink } : {} },
     ctx: {
@@ -60,14 +68,14 @@ test.group('sudoMethods.magicLink — disponibilidade', () => {
 test.group('sudoMethods.magicLink — token', () => {
   test('token válido é aceito uma vez', async ({ assert }) => {
     const c = ctxWith({ onSudoLink: async () => {} })
-    c._session[SUDO_LINK_SESSION_KEY] = { hash: hash('tok-1'), expiresAt: Date.now() + SUDO_LINK_TTL_MS }
+    c._session[SUDO_LINK_SESSION_KEY] = { hash: hash('tok-1'), expiresAt: Date.now() + SUDO_LINK_TTL_MS, accountId: 'acc-1' }
 
     assert.isTrue(verifySudoLinkToken(c, 'tok-1'))
   })
 
   test('token NÃO serve duas vezes', async ({ assert }) => {
     const c = ctxWith({ onSudoLink: async () => {} })
-    c._session[SUDO_LINK_SESSION_KEY] = { hash: hash('tok-1'), expiresAt: Date.now() + SUDO_LINK_TTL_MS }
+    c._session[SUDO_LINK_SESSION_KEY] = { hash: hash('tok-1'), expiresAt: Date.now() + SUDO_LINK_TTL_MS, accountId: 'acc-1' }
 
     assert.isTrue(verifySudoLinkToken(c, 'tok-1'))
     assert.isFalse(verifySudoLinkToken(c, 'tok-1'))
@@ -75,7 +83,7 @@ test.group('sudoMethods.magicLink — token', () => {
 
   test('token expirado é rejeitado', async ({ assert }) => {
     const c = ctxWith({ onSudoLink: async () => {} })
-    c._session[SUDO_LINK_SESSION_KEY] = { hash: hash('tok-1'), expiresAt: Date.now() - 1 }
+    c._session[SUDO_LINK_SESSION_KEY] = { hash: hash('tok-1'), expiresAt: Date.now() - 1, accountId: 'acc-1' }
 
     assert.isFalse(verifySudoLinkToken(c, 'tok-1'))
   })
@@ -92,6 +100,35 @@ test.group('sudoMethods.magicLink — token', () => {
     const stored = c._session[SUDO_LINK_SESSION_KEY] as { hash: string }
     assert.notInclude(JSON.stringify(stored), 'tok')
     assert.lengthOf(stored.hash, 64)
+  })
+
+})
+
+/**
+ * VINCULAÇÃO À CONTA (Critical).
+ *
+ * "O pendente morre no logout" é falso: o `regenerate()` do @adonisjs/session
+ * troca o id e MIGRA os dados. Num navegador compartilhado, o pendente de A
+ * sobrevive ao login de B.
+ */
+test.group('sudoMethods.magicLink — token vinculado à conta emissora', () => {
+  test('pendente emitido por outra conta é recusado', async ({ assert }) => {
+    const c = ctxWith({ onSudoLink: async () => {}, accountId: 'acc-2' })
+    c._session[SUDO_LINK_SESSION_KEY] = {
+      hash: hash('tok-1'),
+      expiresAt: Date.now() + SUDO_LINK_TTL_MS,
+      accountId: 'acc-1',
+    }
+
+    assert.isFalse(verifySudoLinkToken(c, 'tok-1'))
+  })
+
+  test('a emissão grava a conta que pediu', async ({ assert }) => {
+    const c = ctxWith({ onSudoLink: async () => {}, accountId: 'acc-9' })
+    issueSudoLinkToken(c)
+
+    const stored = c._session[SUDO_LINK_SESSION_KEY] as { accountId: string }
+    assert.equal(stored.accountId, 'acc-9')
   })
 })
 
@@ -286,6 +323,48 @@ test.group('sudoMethods.magicLink — handler de consumo (GET)', () => {
 
     assert.isUndefined(h.session[SUDO_SESSION_KEY])
     assert.lengthOf(h.cfg.audit.records, 0)
+  })
+
+  /**
+   * PoC do review, ponta a ponta: navegador compartilhado.
+   *
+   * A pede o link → A faz logout → B loga no mesmo navegador (a sessão migra,
+   * só o `ACCOUNT_SESSION_KEY` troca) → A abre o link do próprio e-mail. Sem a
+   * vinculação, `c.account` já é B e o sudo era concedido SOBRE A CONTA DE B.
+   */
+  test('token emitido pela conta A não concede sudo depois que B loga no mesmo navegador', async ({ assert }) => {
+    const OUTRA = { id: 'acc-2', email: 'outra@example.com' }
+    const duasContas = {
+      accountStore: {
+        async findById(id: string) {
+          if (id === ACCOUNT.id) return ACCOUNT
+          return id === OUTRA.id ? OUTRA : null
+        },
+      },
+    }
+
+    const h = fakeCtx({ cfg: duasContas })
+    const token = await issueVia(h)
+
+    // Logout de A + login de B: o pendente de A CONTINUA na sessão.
+    h.session[ACCOUNT_SESSION_KEY] = OUTRA.id
+    assert.isDefined(h.session[SUDO_LINK_SESSION_KEY])
+
+    const get = fakeCtx({ method: 'GET', params: { token }, session: h.session, cfg: h.cfg })
+    await captureHandlers().get('GET /account/confirm/magic-link/:token')!(get.ctx)
+
+    assert.isUndefined(h.session[SUDO_SESSION_KEY])
+    assert.lengthOf(h.cfg.audit.records, 0)
+  })
+
+  test('contraprova: sem troca de conta o mesmo fluxo concede sudo', async ({ assert }) => {
+    const h = fakeCtx()
+    const token = await issueVia(h)
+
+    const get = fakeCtx({ method: 'GET', params: { token }, session: h.session, cfg: h.cfg })
+    await captureHandlers().get('GET /account/confirm/magic-link/:token')!(get.ctx)
+
+    assert.isNumber(h.session[SUDO_SESSION_KEY])
   })
 
   test('sem token na rota não concede sudo', async ({ assert }) => {

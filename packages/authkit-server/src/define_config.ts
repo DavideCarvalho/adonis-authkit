@@ -25,6 +25,7 @@ import {
 import type { AccountStore, AuthAccount } from "./accounts/account_store.js";
 import type { PatStore } from "./pat/pat_store.js";
 import type { AuditSink } from "./audit/audit_sink.js";
+import type { SudoMethod } from "./host/sudo/types.js";
 import {
   composeAuditSink,
   resolveEvents,
@@ -87,6 +88,12 @@ export interface MailHooks {
     magicUrl: string;
     token: string;
   }) => Promise<void>;
+  /**
+   * Envia o link de CONFIRMAÇÃO DE IDENTIDADE (sudo). Distinto de
+   * `onMagicLink`: aquele autentica, este só concede sudo a quem já está
+   * logado. Sem este hook, `sudoMethods.magicLink()` fica indisponível.
+   */
+  onSudoLink?: (data: { email: string; sudoUrl: string }) => Promise<void>;
   /**
    * Disparado num login bem-sucedido a partir de um dispositivo NOVO (sem cookie
    * de dispositivo confiável válido para a conta). Best-effort, fire-and-forget:
@@ -211,6 +218,23 @@ export interface ResolvedRateLimitConfig {
    * apertado o suficiente para conter um ataque de força bruta por IP.
    */
   adminIp: RateLimitBucket;
+  /**
+   * Bucket das rotas dos métodos de sudo (`/account/confirm/*`). SEPARADO do
+   * `login` de propósito, mesmo tendo os MESMOS limites: os dois orçamentos
+   * respondem a perguntas diferentes.
+   *
+   * `login` conta tentativas de um usuário ANÔNIMO adivinhando credenciais.
+   * `sudo` conta reprovas de identidade de um usuário JÁ AUTENTICADO, que
+   * chegou na tela de confirmação para uma operação sensível. Compartilhar o
+   * bucket cruza os dois: quem erra a senha algumas vezes no `/account/confirm`
+   * gasta o orçamento de login do próprio IP (e passa a não conseguir logar em
+   * outra aba), e um ataque de credencial no login tranca a confirmação de quem
+   * está legitimamente logado atrás do mesmo NAT.
+   *
+   * Os limites são os mesmos do login (10/min) porque não há razão para
+   * afrouxar — o ponto é separar a CONTAGEM, não o teto.
+   */
+  sudo: RateLimitBucket;
   store?: string;
 }
 
@@ -218,10 +242,13 @@ const RATE_LIMIT_DEFAULTS: {
   login: RateLimitBucket;
   introspection: RateLimitBucket;
   adminIp: RateLimitBucket;
+  sudo: RateLimitBucket;
 } = {
   login: { points: 10, duration: "1 min" },
   introspection: { points: 60, duration: "1 min" },
   adminIp: { points: 30, duration: "1 min" },
+  // Mesmos limites do login, bucket separado — ver `ResolvedRateLimitConfig.sudo`.
+  sudo: { points: 10, duration: "1 min" },
 };
 
 export function resolveRateLimit(
@@ -233,6 +260,7 @@ export function resolveRateLimit(
     login: RATE_LIMIT_DEFAULTS.login,
     introspection: RATE_LIMIT_DEFAULTS.introspection,
     adminIp: RATE_LIMIT_DEFAULTS.adminIp,
+    sudo: RATE_LIMIT_DEFAULTS.sudo,
     store: input?.store,
   };
 }
@@ -919,6 +947,22 @@ export interface AuthServerConfigInput {
   /** Sink de auditoria (best-effort). Opcional — quando ausente, auditoria é no-op. */
   audit?: AuditSink;
   /**
+   * Métodos de confirmação de identidade (sudo mode). A ordem do array é a
+   * ordem de exibição; o último método usado com sucesso é promovido ao topo.
+   *
+   * Ausente → a lista que `registerAuthHost` MONTOU (que por sua vez cai em
+   * `[password(), passkey()]` sem `AuthHostOptions.sudoMethods`, o
+   * comportamento histórico). É a mesma resposta que os handlers dão nesse
+   * caso — "vale o que tem rota" —, e é o que impede a tela de oferecer um
+   * método sem endpoint ou de esconder um que funciona.
+   *
+   * Host passwordless (autentica por OIDC/magic link) DEVE incluir ao menos um
+   * método que não exija credencial previamente cadastrada — `oidcStepUp()` ou
+   * `magicLink()` — senão o usuário fica sem caminho para exportar/excluir os
+   * próprios dados.
+   */
+  sudo?: { methods?: SudoMethod[] };
+  /**
    * Eventos/webhooks: o host observa CADA evento de auditoria via callback
    * in-process (`onEvent`) e/ou POST de webhook (`webhook`). Best-effort, nunca
    * lança para a request. Quando setado, o `audit` resolvido vira um fan-out
@@ -1103,6 +1147,8 @@ export interface ResolvedServerConfig {
   accountStore: AccountStore;
   patStore?: PatStore;
   mountPath: string;
+  /** Destino default pós-confirmação do console (sudo mode) e demais fallbacks de conta. Default: '/account/security'. */
+  accountHome?: string;
   render?: AuthHostRenderer;
   branding?: BrandingConfig;
   social?: AuthSocialConfig;
@@ -1114,6 +1160,8 @@ export interface ResolvedServerConfig {
   notifications: ResolvedNotificationsConfig;
   mail?: MailHooks;
   audit?: AuditSink;
+  /** Métodos de sudo configurados pelo host. Ausente → defaults do controller. */
+  sudo?: { methods?: SudoMethod[] };
   mfaIssuer: string;
   /** RP de WebAuthn resolvido (sempre presente; derivado do issuer por default). */
   webauthn: ResolvedWebauthnConfig;
@@ -1315,6 +1363,7 @@ export function defineConfig(config: AuthServerConfigInput) {
         accountStore: config.accountStore,
         patStore: config.patStore,
         mountPath: config.mountPath ?? "/oidc",
+        accountHome: config.accountHome,
         // Default de runtime: sem isso, `render` ficava `undefined` e TODA
         // request a `/account/*`/`/auth/interaction/*` estourava um 500 sem
         // contexto (os controllers fazem `cfg.render!(...)`). `edgeRenderer()`
@@ -1330,6 +1379,10 @@ export function defineConfig(config: AuthServerConfigInput) {
         lockout: resolveLockout(config.lockout),
         notifications: resolveNotifications(),
         mail: config.mail,
+        // Propaga os métodos de sudo para o config resolvido. Sem esta linha o
+        // campo existiria só no config de ENTRADA e `cfg.sudo` seria sempre
+        // undefined em runtime — exatamente o bug que `accountHome` tinha.
+        sudo: config.sudo,
         audit: (() => {
           // Sempre compõe o fan-out: além de onEvent/webhook (quando configurados),
           // o sink composto republica TODO evento de auditoria no barramento de

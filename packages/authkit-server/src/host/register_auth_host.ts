@@ -15,6 +15,27 @@ import {
 import { resolveRuntimeSettings } from './runtime_settings.js'
 import { resolveEffectiveSessionPolicy } from './runtime_toggles.js'
 import { getAuthHostConfig } from './auth_host_config.js'
+import {
+  completeSudo,
+  fail,
+  guardSudoRoutes,
+  sudoContextFrom,
+  setMountedSudoMethods,
+} from './sudo/runtime.js'
+import { password as sudoPassword } from './sudo/methods/password.js'
+import { passkey as sudoPasskey } from './sudo/methods/passkey.js'
+import type { SudoMethod, SudoRouteHelpers } from './sudo/types.js'
+
+/**
+ * Métodos de sudo montados quando o host não passa `sudoMethods` —
+ * comportamento histórico (senha + passkey).
+ *
+ * PONTO ÚNICO. A tela não tem mais uma cópia desta lista: sem
+ * `config.sudo.methods`, `configuredSudoMethods` cai no que FOI MONTADO, ou
+ * seja, no resultado do `??` abaixo. Duas listas de default é como os dois
+ * lados divergiam.
+ */
+const SUDO_METHOD_DEFAULTS: SudoMethod[] = [sudoPassword(), sudoPasskey()]
 
 /** Chave da sessão Adonis que registra o timestamp da última atividade (idle timeout). */
 export const ACCOUNT_LAST_SEEN_KEY = 'authkit_last_seen'
@@ -209,6 +230,24 @@ export interface AuthHostOptions {
    * registerAuthHost(router, { mountPath: '/oidc', adminApi: { prefix: '/authkit/api' } })
    */
   adminApi?: boolean | { prefix?: string }
+  /**
+   * Métodos de sudo cujas rotas devem ser montadas. Necessário aqui (e não só
+   * no config) porque a decisão de MONTAR rotas acontece em tempo de registro,
+   * antes de o config lazy resolver — mesma razão de `social`/`admin`/`rateLimit`.
+   * Espelhe o `sudo.methods` de config/authkit.ts.
+   *
+   * SUBSTITUI os defaults, não acrescenta: a lista é do host. Quem quer manter
+   * senha/passkey ao lado do método novo os inclui explicitamente
+   * (`[sudoMethods.password(), sudoMethods.passkey(), meuMetodo()]`).
+   *
+   * Sem esta opção, `config.sudo.methods` conseguiria OFERECER um método na
+   * tela mas nunca montar seu endpoint — a opção aparece e dá 404. Falha
+   * fechada, mas é a promessa do SPI pela metade; `magicLink()` em particular
+   * não teria como ser alcançado em runtime.
+   *
+   * Ausente → `[password(), passkey()]`.
+   */
+  sudoMethods?: SudoMethod[]
 }
 
 const C = {
@@ -224,6 +263,7 @@ const C = {
   accountMfa: () => import('./controllers/account_mfa_controller.js'),
   accountOrgs: () => import('./controllers/account_orgs_controller.js'),
   accountConfirm: () => import('./controllers/account_confirm_controller.js'),
+  webauthnAsset: () => import('./controllers/webauthn_asset_controller.js'),
   // Console React JSON API (session-authed, under {prefix}/api/*).
   consoleShell: () => import('./admin_console/admin_shell_controller.js'),
   consoleOverview: () => import('./admin_console/console_overview_controller.js'),
@@ -277,6 +317,25 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
   const withIntrospection = (route: ReturnType<Router['post']>): void => {
     if (throttles) route.use([throttles.introspection])
   }
+  // Bucket PRÓPRIO das rotas de sudo. Antes elas levavam o `withLogin`, o que
+  // funcionava mas somava dois orçamentos que medem coisas diferentes: login é
+  // um anônimo adivinhando credenciais, sudo é um usuário JÁ autenticado
+  // reprovando a própria identidade. Ver `ResolvedRateLimitConfig.sudo`.
+  const withSudo = (route: any): void => {
+    if (throttles) route.use([throttles.sudo])
+  }
+
+  // ─── Assets estáticos do host-kit (públicos, sem autenticação) ─────────────
+  // Bundle do @simplewebauthn/browser servido pelo próprio app, no lugar do
+  // import de CDN público que as views de login/MFA/confirm faziam.
+  //
+  // Path FIXO e no topo, de propósito:
+  //  • não pode viver sob o prefixo do console admin (`admin` é opt-in) —
+  //    login.edge e mfa-challenge.edge precisam do script em qualquer host;
+  //  • sem guard, porque é carregado NA tela de login, antes de haver sessão;
+  //  • registrado ANTES do wildcard `${mount}/*` para que nenhum mountPath
+  //    agressivo (ex.: '/') consiga engolir o asset e quebrar o login.
+  router.get('/authkit/assets/webauthn.js', [C.webauthnAsset]).as('authkit.assets.webauthn')
 
   // Provider OIDC (wildcard + root) — o que registerOidcRoutes fazia.
   router.any(`${mount}/*`, [C.oidc]).as('authkit.oidc.wildcard')
@@ -373,11 +432,47 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
       router.post('/account/mfa/passkeys/verify', [C.accountMfa, 'passkeyRegisterVerify'])
       router.post('/account/mfa/passkeys/:id/remove', [C.accountMfa, 'passkeyRemove'])
 
-      // Sudo mode (confirm identity): GET exibe o formulário; POST verifica a senha.
+      // Sudo mode (confirm identity): o GET lista os métodos; cada método
+      // registra suas próprias rotas de verificação (SPI `SudoMethod`).
       router.get('/account/confirm', [C.accountConfirm, 'show'])
-      router.post('/account/confirm', [C.accountConfirm, 'confirm'])
-      router.post('/account/confirm/passkey/options', [C.accountConfirm, 'passkeyOptions'])
-      router.post('/account/confirm/passkey', [C.accountConfirm, 'passkeyConfirm'])
+
+      // Rotas próprias dos métodos de sudo — DENTRO do grupo com `accountGuard`.
+      // O guard não é só "tem sessão": ele roda `checkAndRefreshIdle`, que apaga
+      // a sessão vencida por idle e refresca `authkit_last_seen`. Fora do grupo,
+      // uma sessão já vencida (ainda não colhida) podia postar a senha correta e
+      // receber `markSudo` — e as rotas de sudo não refrescavam o last-seen.
+      // Nenhum método built-in é alcançável por GET vindo de e-mail: o token de
+      // sudo por magic link vive na PRÓPRIA sessão, então o usuário precisa
+      // estar logado no mesmo navegador de qualquer forma. Um método que
+      // genuinamente não puder ficar sob o guard precisa de uma decisão
+      // explícita, não de mover todos para fora.
+      const helpers: SudoRouteHelpers = {
+        contextFrom: sudoContextFrom,
+        completeSudo,
+        fail,
+      }
+      const sudoMethodsToMount = opts?.sudoMethods ?? SUDO_METHOD_DEFAULTS
+      for (const method of sudoMethodsToMount) {
+        // `guardSudoRoutes` embrulha os handlers que o método registrar, para
+        // que `config.sudo.methods` os desabilite de fato mesmo que o método
+        // não tenha checado nada por dentro. Ver o docblock lá.
+        //
+        // `withSudo` vai junto: TODA rota de um método de sudo leva o throttle
+        // do bucket de SUDO (no-op sem rate-limit). Não é adorno — o POST que
+        // emite o magic link de sudo dispara um e-mail por chamada, e o
+        // `accountGuard` sozinho só exige uma sessão viva, que o abusador tem.
+        // Aplicar aqui, no wrapper, cobre também os métodos customizados, que
+        // não teriam como pedir throttle pelo `SudoRouteHelpers`.
+        //
+        // Bucket próprio, não o de login: mesmos limites, contagem separada —
+        // errar a senha na tela de confirmação não pode gastar o orçamento de
+        // login do IP, nem vice-versa.
+        method.register?.(guardSudoRoutes(router, method.id, helpers, withSudo), helpers)
+      }
+      // A lista montada é a fonte de verdade dos DOIS lados quando o host não
+      // configura `config.sudo.methods`: a tela oferece exatamente isto, e os
+      // handlers aceitam exatamente isto.
+      setMountedSudoMethods(sudoMethodsToMount)
 
       // Organizations (multi-tenancy) — sempre montadas; controller retorna 404/403 sem tabelas.
       router.get('/account/orgs', [C.accountOrgs, 'index'])

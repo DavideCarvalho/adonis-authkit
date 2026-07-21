@@ -22,6 +22,16 @@ export interface AuthThrottles {
    * de tentativas vindas do MESMO IP independentemente de qual key foi usada (M8).
    */
   adminIp: ThrottleMiddleware
+  /**
+   * Throttle das rotas dos métodos de sudo (`/account/confirm/*`), keyed por IP
+   * como o `login` — e com os MESMOS limites — mas em bucket PRÓPRIO.
+   *
+   * A separação é o ponto: `login` mede um anônimo tentando adivinhar
+   * credenciais, `sudo` mede um usuário já autenticado reprovando a própria
+   * identidade. Ver `ResolvedRateLimitConfig.sudo` para o porquê de os dois
+   * orçamentos não poderem se consumir.
+   */
+  sudo: ThrottleMiddleware
 }
 
 /**
@@ -124,5 +134,11 @@ export function createAuthThrottles(
     adminIp: buildThrottle('authkit_admin_ip', config.adminIp, config.store, (ctx) => {
       return `admin-ip:${ctx.request.ip?.() ?? 'unknown'}`
     }),
+    // Rotas dos métodos de sudo: keyed por IP (default do HttpLimiter), igual ao
+    // login. O que separa os dois é o NOME do bucket — o limiter namespaceia a
+    // contagem por nome, então `authkit_login` e `authkit_sudo` nunca somam,
+    // mesmo vindo do mesmo IP. Sem `usingKey` próprio de propósito: inventar uma
+    // key aqui seria mudar o EIXO da contagem, e o eixo certo continua sendo o IP.
+    sudo: buildThrottle('authkit_sudo', config.sudo, config.store),
   }
 }

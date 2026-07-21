@@ -3,6 +3,11 @@ import { readFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { Edge } from 'edge.js'
 import { DEFAULT_MESSAGES, translate } from '../../src/host/i18n.js'
+import { password } from '../../src/host/sudo/methods/password.js'
+import { passkey } from '../../src/host/sudo/methods/passkey.js'
+import { magicLink } from '../../src/host/sudo/methods/magic_link.js'
+import { oidcStepUp } from '../../src/host/sudo/methods/oidc_step_up.js'
+import type { SudoContext } from '../../src/host/sudo/types.js'
 
 const dir = fileURLToPath(new URL('../../src/host/views/', import.meta.url))
 const read = (p: string) => readFileSync(dir + p, 'utf8')
@@ -15,6 +20,22 @@ function makeEdge() {
     translate({ ...DEFAULT_MESSAGES }, key, params)
   )
   return edge
+}
+
+/**
+ * `SudoContext` mínimo para chamar `describe()` dos métodos reais nos testes
+ * de render abaixo. `returnTo: null` por padrão para que `oidcStepUp` não
+ * acrescente querystring ao endpoint (a hidden `return_to` da tela é uma prop
+ * de render separada, não vem do `describe()` do método) — ver uso em cada teste.
+ */
+function fakeSudoContext(returnTo: string | null = null): SudoContext {
+  return {
+    ctx: {} as any,
+    account: { id: 'acc-1', email: 'user@example.com' },
+    accountId: 'acc-1',
+    cfg: {} as any,
+    returnTo,
+  }
 }
 
 test.group('edge views (lib-owned)', () => {
@@ -253,5 +274,225 @@ test.group('R4 login views render real (edge.js)', () => {
       html,
       translate({ ...DEFAULT_MESSAGES }, 'account.security.trusted_devices_revoke')
     )
+  })
+})
+
+test.group('account/confirm.edge (SPI de métodos de sudo)', () => {
+  // Os descritores vêm dos MÉTODOS REAIS (`describe()`), não de objetos
+  // literais soltos: se algum dos quatro métodos renomear um campo do
+  // `SudoMethodDescriptor` (ex.: `endpoint` → `url`), o valor some daqui para
+  // baixo e a asserção sobre o HTML renderizado quebra — é a mesma classe de
+  // bug que motivou reescrever esta view (props que o controller parou de
+  // mandar, e nenhum teste renderizava a view para pegar isso).
+  test('account/confirm.edge renderiza um bloco por método disponível', async ({ assert }) => {
+    const edge = makeEdge()
+    const ctx = fakeSudoContext()
+    const passwordDescriptor = { id: 'password', ...(await password().describe(ctx)) }
+    const passkeyDescriptor = { id: 'passkey', ...(await passkey().describe(ctx)) }
+    const oidcDescriptor = { id: 'oidc-step-up', ...(await oidcStepUp({ url: '/auth/step-up' }).describe(ctx)) }
+
+    const html = await edge.render('authkit::account/confirm', {
+      csrfToken: 'tok',
+      returnTo: '/account/security',
+      error: null,
+      notice: null,
+      preferredId: null,
+      methods: [passwordDescriptor, passkeyDescriptor, oidcDescriptor],
+    })
+
+    assert.include(html, 'action="/account/confirm"')
+    assert.include(html, 'name="password"')
+    assert.include(html, 'action="/account/confirm/passkey"')
+    assert.include(html, 'href="/auth/step-up"')
+    assert.include(html, 'value="/account/security"')
+  })
+
+  // 'action' (magic-link): POST simples sem `fields` — só csrf + botão. NÃO é
+  // o caso do passkey: passkey é `kind: 'webauthn'` e precisa do handshake (ver
+  // o grupo abaixo). Renderizar um método WebAuthn como "form só de submit" foi
+  // exatamente a regressão que travou o botão de passkey do template.
+  //
+  // Sem este teste, um método `kind: 'action'` nunca é exercido pela suíte: o
+  // ramo `@else` do template é o mesmo do `form`, mas com `fields` vazio ele
+  // precisa continuar montando um form válido (csrf + return_to + submit), e
+  // é justamente essa combinação que passou despercebida na quebra original
+  // (props antigas `passwordless`/`passkeyAvailable`).
+  test('account/confirm.edge renderiza método kind=action (sem fields) como form só de submit', async ({
+    assert,
+  }) => {
+    const edge = makeEdge()
+    const ctx = fakeSudoContext()
+    const magicLinkDescriptor = { id: 'magic-link', ...(await magicLink().describe(ctx)) }
+
+    const html = await edge.render('authkit::account/confirm', {
+      csrfToken: 'tok',
+      returnTo: '/account/security',
+      error: null,
+      notice: null,
+      preferredId: null,
+      methods: [magicLinkDescriptor],
+    })
+
+    assert.include(html, 'action="/account/confirm/magic-link"')
+    assert.include(html, 'name="_csrf"')
+    assert.include(html, 'value="/account/security"')
+    assert.include(html, translate({ ...DEFAULT_MESSAGES }, 'account.confirm.method.magic_link'))
+    assert.notInclude(html, 'name="password"')
+    // Um 'action' NÃO é um handshake: nada de campo `response` nem de script
+    // WebAuthn. O par com o teste do passkey abaixo é o que impede os dois
+    // kinds de voltarem a colapsar num só ramo do template.
+    assert.notInclude(html, 'name="response"')
+    assert.notInclude(html, 'startAuthentication')
+  })
+
+  /**
+   * REGRESSÃO: o botão de passkey do template embutido não pode ser um form de
+   * submit direto.
+   *
+   * O handler de `POST /account/confirm/passkey` lê `request.input('response')`
+   * e recusa quando vem vazio. Um form sem o handshake WebAuthn posta
+   * exatamente isso — o botão RENDERIZA, e falha 100% das vezes. Foi assim que
+   * a regressão passou: existia um `<form>` com action correta, e nenhuma
+   * asserção olhava para o que o torna utilizável.
+   *
+   * Por isso as asserções abaixo são sobre o MECANISMO (campo `response`,
+   * import do @simplewebauthn/browser, chamada de `startAuthentication`, o
+   * endpoint de options), não sobre a existência do bloco.
+   */
+  test('account/confirm.edge renderiza o handshake WebAuthn completo para kind=webauthn', async ({
+    assert,
+  }) => {
+    const edge = makeEdge()
+    const ctx = fakeSudoContext()
+    const passkeyDescriptor = { id: 'passkey', ...(await passkey().describe(ctx)) }
+
+    // O descritor real precisa PEDIR o handshake — se `passkey()` voltar a
+    // dizer `kind: 'action'`, a tela o renderiza como submit direto e o botão
+    // volta a falhar sempre.
+    assert.equal(passkeyDescriptor.kind, 'webauthn')
+
+    const html = await edge.render('authkit::account/confirm', {
+      csrfToken: 'tok',
+      returnTo: '/account/security',
+      error: null,
+      notice: null,
+      preferredId: null,
+      methods: [passkeyDescriptor],
+    })
+
+    // O campo que o handler lê. Sem ele o POST é inútil.
+    assert.include(html, 'name="response"')
+    assert.include(html, 'data-webauthn-response')
+    // O JS que preenche esse campo. O import é do bundle servido pelo próprio
+    // host (`/authkit/assets/webauthn.js`) — NÃO de CDN público.
+    assert.include(html, '/authkit/assets/webauthn.js')
+    assert.include(html, 'startAuthentication')
+    // O endpoint de options é DERIVADO do `action` do form, não hardcoded pelo
+    // id do método — a tela continua sem conhecer 'passkey'.
+    assert.include(html, "form.getAttribute('action') + '/options'")
+    assert.include(html, 'action="/account/confirm/passkey"')
+    // O form do handshake carrega csrf e return_to como qualquer outro.
+    assert.include(html, 'name="_csrf"')
+    assert.include(html, 'value="/account/security"')
+  })
+
+  test('account/confirm.edge não emite o script WebAuthn sem nenhum método do tipo', async ({
+    assert,
+  }) => {
+    const edge = makeEdge()
+    const ctx = fakeSudoContext()
+    const passwordDescriptor = { id: 'password', ...(await password().describe(ctx)) }
+
+    const html = await edge.render('authkit::account/confirm', {
+      csrfToken: 'tok',
+      returnTo: null,
+      error: null,
+      notice: null,
+      preferredId: null,
+      methods: [passwordDescriptor],
+    })
+
+    assert.notInclude(html, '/authkit/assets/webauthn.js')
+    assert.notInclude(html, 'data-authkit-webauthn')
+  })
+
+  test('account/confirm.edge avisa quando não há método disponível', async ({ assert }) => {
+    const edge = makeEdge()
+    const html = await edge.render('authkit::account/confirm', {
+      csrfToken: 'tok', returnTo: null, error: null, notice: null, preferredId: null, methods: [],
+    })
+    assert.include(html, translate({ ...DEFAULT_MESSAGES }, 'account.confirm.no_methods'))
+  })
+
+  // `confirmNotice` (magic_link.ts, ao enviar o link) precisa chegar à tela
+  // distinto do bloco de erro — sem isso, quem pede o link volta pra mesma
+  // tela sem nenhum feedback.
+  test('account/confirm.edge mostra o aviso (notice) visualmente distinto do erro', async ({
+    assert,
+  }) => {
+    const edge = makeEdge()
+
+    const withNotice = await edge.render('authkit::account/confirm', {
+      csrfToken: 'tok',
+      returnTo: null,
+      error: null,
+      notice: 'Enviamos um link de confirmação para o seu e-mail.',
+      preferredId: null,
+      methods: [],
+    })
+    // O marcador é o próprio `class="..."` do bloco (não só o nome da classe
+    // Tailwind), porque `partials/styles.edge` é uma folha de estilo COMPILADA
+    // e compartilhada por todas as views do pacote — ela contém a definição
+    // `.bg-red-50{...}` sempre, esteja o bloco de erro renderizado ou não.
+    assert.include(withNotice, 'Enviamos um link de confirmação para o seu e-mail.')
+    assert.include(withNotice, 'class="rounded-lg bg-blue-50')
+    assert.notInclude(withNotice, 'class="rounded-lg bg-red-50')
+
+    // Notice e error podem coexistir (ex.: aviso de link enviado numa sessão
+    // que também carrega um erro antigo) — os dois blocos continuam distintos.
+    const both = await edge.render('authkit::account/confirm', {
+      csrfToken: 'tok',
+      returnTo: null,
+      error: 'Senha incorreta.',
+      notice: 'Enviamos um link de confirmação para o seu e-mail.',
+      preferredId: null,
+      methods: [],
+    })
+    assert.include(both, 'class="rounded-lg bg-blue-50')
+    assert.include(both, 'class="rounded-lg bg-red-50')
+  })
+
+  // `preferredId` (último método usado com sucesso) precisa promover o método
+  // correspondente na tela — antes desta correção era prop morta: calculada
+  // pelo controller e nunca referenciada pela view.
+  test('account/confirm.edge destaca o método correspondente a preferredId', async ({ assert }) => {
+    const edge = makeEdge()
+    const ctx = fakeSudoContext()
+    const passwordDescriptor = { id: 'password', ...(await password().describe(ctx)) }
+    const passkeyDescriptor = { id: 'passkey', ...(await passkey().describe(ctx)) }
+    const badge = translate({ ...DEFAULT_MESSAGES }, 'account.confirm.preferred_badge')
+
+    const html = await edge.render('authkit::account/confirm', {
+      csrfToken: 'tok',
+      returnTo: null,
+      error: null,
+      notice: null,
+      preferredId: 'passkey',
+      methods: [passwordDescriptor, passkeyDescriptor],
+    })
+
+    assert.include(html, badge)
+    // Só o método preferido ganha o destaque — não os dois.
+    assert.equal(html.split(badge).length - 1, 1)
+
+    const none = await edge.render('authkit::account/confirm', {
+      csrfToken: 'tok',
+      returnTo: null,
+      error: null,
+      notice: null,
+      preferredId: null,
+      methods: [passwordDescriptor, passkeyDescriptor],
+    })
+    assert.notInclude(none, badge)
   })
 })

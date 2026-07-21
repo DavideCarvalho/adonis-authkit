@@ -16,7 +16,21 @@ export function uiStubPaths(preset: UiPreset): string[] {
     case 'headless':
       return []
     case 'edge':
-      return [] // views são donas-da-lib (disco authkit::); nada a scaffoldar
+      /**
+       * Views são donas-da-lib (disco `authkit::`); nada a scaffoldar.
+       *
+       * Quem quer customizar usa `node ace authkit:eject --views`, que copia as
+       * views REAIS de `src/host/views` — com i18n, CSRF, passkey e o CSS já
+       * compilado em `partials/styles.edge`, sem nenhuma requisição externa.
+       *
+       * Houve stubs Edge de login/consent aqui, mas nenhum caminho de código os
+       * publicava (este `case` sempre devolveu `[]`). Como código morto que
+       * mesmo assim ia no pacote, ficaram para trás do resto: carregavam o
+       * Tailwind Play CDN muito depois de as views da lib terem migrado para o
+       * CSS compilado. Foram removidos em vez de ressuscitados — o scaffold era
+       * uma duplicata inferior das views da lib (sem `_csrf`, inclusive).
+       */
+      return []
     case 'react':
       return [
         'ui/react/components/auth_shell.tsx',

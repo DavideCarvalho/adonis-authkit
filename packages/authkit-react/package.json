@@ -44,9 +44,15 @@
   },
   "peerDependencies": {
     "@inertiajs/react": "catalog:frontendPeers",
+    "@simplewebauthn/browser": "catalog:frontendPeers",
     "@tanstack/react-query": "catalog:frontendPeers",
     "react": "catalog:frontendPeers",
     "react-dom": "catalog:frontendPeers"
+  },
+  "peerDependenciesMeta": {
+    "@simplewebauthn/browser": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@adonis-agora/authkit-core": "workspace:*"

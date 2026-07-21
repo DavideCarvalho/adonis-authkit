@@ -160,3 +160,69 @@ test.group("usePasskeyLogin / PasskeyButton — exports e types", () => {
     assert.isFunction(PasskeyButton);
   });
 });
+
+test.group("loadStartAuthentication — sem CDN, falha alto", () => {
+  /**
+   * Simula o consumidor que não instalou o peer opcional: tem que estourar com a
+   * instrução de instalação, e não degradar em silêncio para um CDN. O import é
+   * injetado porque o `auto-install-peers` do pnpm instala peers opcionais no
+   * workspace — "não está instalado" não é um estado reproduzível.
+   */
+  test("throws with install instructions when the peer is missing", async ({
+    assert,
+  }) => {
+    const missing = async () => {
+      const err = new Error("Cannot find package '@simplewebauthn/browser'");
+      (err as NodeJS.ErrnoException).code = "ERR_MODULE_NOT_FOUND";
+      throw err;
+    };
+
+    let error: Error | undefined;
+    try {
+      await loadStartAuthentication(missing);
+    } catch (err) {
+      error = err as Error;
+    }
+
+    assert.instanceOf(error, Error);
+    assert.include(error!.message, "@simplewebauthn/browser");
+    assert.include(error!.message, "npm i @simplewebauthn/browser@^13");
+    // A causa original (ERR_MODULE_NOT_FOUND) fica anexada para debug.
+    assert.exists(error!.cause);
+  });
+
+  /** O caminho feliz continua devolvendo a função do módulo, sem embrulho. */
+  test("returns startAuthentication from the resolved module", async ({
+    assert,
+  }) => {
+    const startAuthentication: StartAuthenticationFn = async () => ({});
+    const resolved = await loadStartAuthentication(async () => ({
+      startAuthentication,
+    }));
+
+    assert.strictEqual(resolved, startAuthentication);
+  });
+
+  /**
+   * Barato e específico: qualquer volta do fallback de CDN quebra aqui, mesmo
+   * que o resto dos testes continue verde (eles injetam o loader).
+   */
+  test("the ceremony source has no public CDN reference", async ({ assert }) => {
+    const { readFile } = await import("node:fs/promises");
+    const source = await readFile(
+      new URL("../src/passkey/authenticate.ts", import.meta.url),
+      "utf-8",
+    );
+
+    for (const line of source.split("\n")) {
+      // Ignora as linhas de comentário que EXPLICAM por que não há CDN.
+      const code = line.trim();
+      if (code.startsWith("*") || code.startsWith("//")) continue;
+      assert.notMatch(
+        code,
+        /\/\/cdn\.|jsdelivr|unpkg\.com|cdnjs\.|esm\.sh/i,
+        `linha com CDN público no caminho de autenticação: ${line}`,
+      );
+    }
+  });
+});

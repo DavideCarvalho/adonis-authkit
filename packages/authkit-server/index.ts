@@ -346,6 +346,7 @@ export type {
 // Sudo mode — helpers for host controllers that require step-up authentication.
 export {
   SUDO_SESSION_KEY,
+  SUDO_ACCOUNT_SESSION_KEY,
   SUDO_MODE_DEFAULTS,
   requireSudo,
   isSudoActive,
@@ -356,6 +357,27 @@ export type {
   SudoModeSetting,
   ResolvedSudoModeSetting,
 } from './src/host/sudo_mode.js'
+
+// SPI de métodos de confirmação de identidade (sudo mode).
+//
+// `completeSudo` é público porque o host PRECISA chamá-lo: o `oidcStepUp` não
+// registra rotas — quem valida o grant é o callback do host, e é lá que a
+// concessão acontece. Sem exportá-lo, o host improvisaria com `markSudo` e
+// perderia o audit `sudo.confirmed`, a preferência de método e o redirect para
+// o `return_to`.
+export { sudoMethods } from './src/host/sudo/index.js'
+export { completeSudo, fail as failSudo, LAST_METHOD_SESSION_KEY } from './src/host/sudo/runtime.js'
+// Montador do `SudoContext` que `completeSudo`/`failSudo` recebem. Exportado
+// junto porque sem ele o host teria de montar o contexto na mão (resolver o
+// service do container, carregar a conta, validar o `return_to`) — e um
+// `returnTo` montado na mão é um open redirect esperando acontecer.
+export { sudoContextFrom } from './src/host/sudo/runtime.js'
+export type {
+  SudoMethod,
+  SudoContext,
+  SudoMethodDescriptor,
+  SudoRouteHelpers,
+} from './src/host/sudo/types.js'
 
 // @adonisjs/auth integration (opt-in) — user provider for config/auth.ts's
 // sessionGuard(), backed by authkit's own accountStore. Pair with

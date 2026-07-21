@@ -116,10 +116,26 @@ export default class AccountSessionController {
 
     // M6: não basta `forget(ACCOUNT_SESSION_KEY)` — sobravam na sessão
     // `authkit_sudo_at` (sudo), `authkit_last_seen` e qualquer outro estado
-    // sensível, com o session id INALTERADO. Regenerar a sessão troca o id E
-    // descarta todos os dados antigos (sudo/last-seen inclusos), destruindo de
-    // fato a sessão de privilégio. Mantemos o `forget` explícito por garantia
-    // (belt-and-braces) caso o store de sessão não suporte regenerate.
+    // sensível, com o session id INALTERADO. Regenerar troca o id do cookie,
+    // o que invalida o identificador antigo.
+    //
+    // ATENÇÃO ao que `regenerate()` NÃO faz: ele NÃO descarta os dados. O
+    // AdonisJS MIGRA o conteúdo da sessão para o id novo (é o mesmo
+    // comportamento descrito no M5 do login, e é por isso que o estado de
+    // pré-login sobrevive lá). Quem apaga estado aqui é o `forget` explícito —
+    // não o `regenerate`.
+    //
+    // Consequência de projeto: TODO dado sensível guardado na sessão precisa
+    // ser VINCULADO À CONTA que o gravou (ex.: `accountId` no pendente do
+    // magic link de sudo, na vinculação do challenge de passkey e na marca de
+    // sudo — `SUDO_ACCOUNT_SESSION_KEY`). Confiar que ele "some no logout" é
+    // falso — num navegador compartilhado ele sobrevive ao logout de A e ao
+    // login de B.
+    //
+    // A marca de sudo era a EXCEÇÃO à própria regra declarada aqui: só o
+    // timestamp, sem dono. Passou a ser vinculada — por isso este `forget`
+    // continua sendo só do `ACCOUNT_SESSION_KEY`: trocada a conta, a marca de
+    // sudo remanescente já não vale para ninguém.
     ctx.session.forget(ACCOUNT_SESSION_KEY)
     await ctx.session.regenerate()
     // Opt-in: espelha o logout no guard de @adonisjs/auth (ver adonisAuth em define_config.ts).

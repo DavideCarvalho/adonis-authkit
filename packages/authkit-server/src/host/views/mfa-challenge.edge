@@ -72,7 +72,7 @@
 
   @if(passkeyAvailable)
     <script type="module">
-      import { startAuthentication } from 'https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@13/dist/bundle/index.js'
+      import { startAuthentication } from '/authkit/assets/webauthn.js'
       const btn = document.getElementById('passkey-button')
       const errEl = document.getElementById('passkey-error')
       const csrf = document.querySelector('#passkey-form input[name="_csrf"]').value

@@ -5,8 +5,12 @@ import {
   isSudoActive,
   requireSudo,
   SUDO_SESSION_KEY,
+  SUDO_ACCOUNT_SESSION_KEY,
   SUDO_MODE_DEFAULTS,
 } from '../../src/host/sudo_mode.js'
+import { ACCOUNT_SESSION_KEY } from '../../src/host/middleware/account_auth.js'
+
+const ACCOUNT_ID = 'acc-1'
 
 // ---- helpers ----
 
@@ -19,11 +23,22 @@ function fakeSettings(val: unknown) {
   }
 }
 
-/** Contexto HTTP mínimo para testes de sessão. */
-function fakeCtx(opts: { sudoAt?: number; returnUrl?: string } = {}) {
+/**
+ * Contexto HTTP mínimo para testes de sessão.
+ *
+ * A sessão já vem com uma conta logada (`accountId`, default `ACCOUNT_ID`)
+ * porque a marca de sudo é VINCULADA à conta que a confirmou: `sudoAt` sozinho
+ * não concede nada. Use `sudoAccountId` para simular a marca de OUTRA conta.
+ */
+function fakeCtx(
+  opts: { sudoAt?: number; returnUrl?: string; accountId?: string | null; sudoAccountId?: string } = {}
+) {
   const sessionData: Record<string, unknown> = {}
+  const accountId = opts.accountId === undefined ? ACCOUNT_ID : opts.accountId
+  if (accountId !== null) sessionData[ACCOUNT_SESSION_KEY] = accountId
   if (opts.sudoAt !== undefined) {
     sessionData[SUDO_SESSION_KEY] = opts.sudoAt
+    sessionData[SUDO_ACCOUNT_SESSION_KEY] = opts.sudoAccountId ?? accountId
   }
 
   const redirectUrl: string[] = []
@@ -31,6 +46,7 @@ function fakeCtx(opts: { sudoAt?: number; returnUrl?: string } = {}) {
     session: {
       get: (key: string) => sessionData[key],
       put: (key: string, val: unknown) => { sessionData[key] = val },
+      forget: (key: string) => { delete sessionData[key] },
       _data: sessionData,
     },
     request: {
@@ -73,6 +89,32 @@ test.group('isSudoActive', () => {
     const ctx = fakeCtx({ sudoAt: now - 100 }) // quase agora
     assert.isFalse(isSudoActive(ctx as any, 0))
   })
+
+  // ---- vinculação à conta (escalação de privilégio) ----
+
+  test('sudo confirmado pela conta A NÃO vale para a conta B na mesma sessão', ({ assert }) => {
+    // A confirma o sudo e a marca fica válida para A.
+    const ctx = fakeCtx({ sudoAt: Date.now() - 1000, accountId: 'conta-a' })
+    assert.isTrue(isSudoActive(ctx as any, 15))
+
+    // A sessão troca de conta (logout de A + login de B num navegador
+    // compartilhado, ou impersonation): o `regenerate()` MIGRA os dados, então
+    // a marca de A sobrevive. Ela NÃO pode valer para B.
+    ctx.session._data[ACCOUNT_SESSION_KEY] = 'conta-b'
+    assert.isFalse(isSudoActive(ctx as any, 15))
+  })
+
+  test('marca sem vinculação é recusada (fail-closed)', ({ assert }) => {
+    // Sessão viva de antes do deploy que introduziu a vinculação: só timestamp.
+    const ctx = fakeCtx({ sudoAt: Date.now() - 1000 })
+    delete ctx.session._data[SUDO_ACCOUNT_SESSION_KEY]
+    assert.isFalse(isSudoActive(ctx as any, 15))
+  })
+
+  test('marca vinculada não vale sem conta logada', ({ assert }) => {
+    const ctx = fakeCtx({ sudoAt: Date.now() - 1000, accountId: null, sudoAccountId: 'conta-a' })
+    assert.isFalse(isSudoActive(ctx as any, 15))
+  })
 })
 
 test.group('markSudo', () => {
@@ -85,6 +127,23 @@ test.group('markSudo', () => {
     assert.isNumber(stored)
     assert.isAtLeast(stored, before)
     assert.isAtMost(stored, after)
+  })
+
+  test('vincula a marca à conta logada', ({ assert }) => {
+    const ctx = fakeCtx({ accountId: 'conta-a' })
+    markSudo(ctx as any)
+    assert.equal(ctx.session._data[SUDO_ACCOUNT_SESSION_KEY], 'conta-a')
+    assert.isTrue(isSudoActive(ctx as any, 15))
+  })
+
+  test('sem conta logada, apaga a vinculação anterior (marca órfã, recusada)', ({ assert }) => {
+    const ctx = fakeCtx({ accountId: null })
+    ctx.session._data[SUDO_ACCOUNT_SESSION_KEY] = 'dono-antigo'
+
+    markSudo(ctx as any)
+
+    assert.isUndefined(ctx.session._data[SUDO_ACCOUNT_SESSION_KEY])
+    assert.isFalse(isSudoActive(ctx as any, 15))
   })
 })
 

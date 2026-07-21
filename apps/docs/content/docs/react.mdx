@@ -334,8 +334,11 @@ function LoginForm({ uid, csrfToken }: { uid: string; csrfToken: string }) {
 - **No conditional mediation support** — `PublicKeyCredential.isConditionalMediationAvailable()` is checked before starting; exits silently on older browsers.
 - **Unmount** — the in-flight ceremony is aborted via `AbortController` automatically.
 - **Any error** — swallowed; the standard password form is always available.
-- **`@simplewebauthn/browser` absent** — the hook tries `@simplewebauthn/browser` first, then
-  falls back to the jsDelivr CDN bundle. If neither resolves, autofill is silently skipped.
+- **`@simplewebauthn/browser` absent** — `@simplewebauthn/browser` is an *optional peer
+  dependency*: install it in your app (`npm i @simplewebauthn/browser@^13`) to enable passkeys.
+  There is no CDN fallback — a public CDN in the authentication path is a third party that can
+  take over your login. Autofill is silently skipped when the package is missing (it is
+  progressive enhancement); the explicit `usePasskeyLogin` flow throws with install instructions.
 
 The server-side counterpart is the `passkeyAutofill` field in the `auth_methods` runtime
 setting (default `true` when passkeys are configured). See

@@ -5,9 +5,14 @@
  * peças daqui, então a lógica de carregamento da lib e de fetch vive num único
  * lugar.
  *
- * `@simplewebauthn/browser` NÃO é dependência da lib: é importado de forma lazy,
- * com fallback de CDN, exatamente como o `login.edge` built-in faz. Um app que
- * já tem o pacote instalado usa a versão local; os demais caem no CDN.
+ * `@simplewebauthn/browser` é uma peer dependency OPCIONAL: importada de forma
+ * lazy, do próprio app. Não há fallback de CDN — este pacote é bundleado pelo
+ * consumidor, então servir um asset (o que o `authkit-server` faz para as views
+ * built-in) não faz sentido aqui, e puxar um terceiro em runtime no caminho de
+ * autenticação é pior do que parece: comprometer o CDN é comprometer o login, e
+ * a degradação seria silenciosa (nenhum erro de build, só um request externo que
+ * ninguém vê). Sem o pacote instalado, a cerimônia falha alto — ver
+ * `loadStartAuthentication`.
  */
 
 /**
@@ -23,27 +28,47 @@ export type StartAuthenticationFn = (
   signal?: AbortSignal,
 ) => Promise<unknown>;
 
-const CDN_URL =
-  "https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@13/dist/bundle/index.js";
+/**
+ * Import do peer opcional, isolado numa função só para virar um ponto de injeção:
+ * é o único jeito de testar o caminho "pacote ausente" sem depender de ele estar
+ * (ou não) instalado no workspace — o `auto-install-peers` do pnpm instala peers
+ * opcionais, então "não está lá" não é um estado reproduzível.
+ */
+async function importWebAuthnBrowser(): Promise<{
+  startAuthentication: StartAuthenticationFn;
+}> {
+  return await import(
+    // @ts-ignore — import dinâmico do pacote instalado pelo host (peer opcional).
+    "@simplewebauthn/browser" as string
+  );
+}
 
 /**
- * Carrega `startAuthentication` de forma lazy: tenta o pacote instalado no app
- * e, se não existir, cai no bundle do CDN. Lança se nenhum resolver — o chamador
- * decide o que fazer (o autofill silencia; o login explícito reporta falha).
+ * Carrega `startAuthentication` de forma lazy, do `@simplewebauthn/browser`
+ * instalado pelo app. Se o pacote não estiver lá, lança com a instrução exata
+ * de instalação em vez de buscar um substituto na rede — o chamador decide o que
+ * fazer (o autofill silencia; o login explícito reporta falha).
+ *
+ * @param importModule Só para teste — chamadores normais omitem.
  */
-export async function loadStartAuthentication(): Promise<StartAuthenticationFn> {
+export async function loadStartAuthentication(
+  importModule: typeof importWebAuthnBrowser = importWebAuthnBrowser,
+): Promise<StartAuthenticationFn> {
   try {
-    const mod = await import(
-      // @ts-ignore — import dinâmico do pacote instalado pelo host (peer opcional).
-      "@simplewebauthn/browser" as string
-    );
+    const mod = await importModule();
     return mod.startAuthentication;
-  } catch {
-    const mod = await import(
-      // @ts-ignore — fallback de CDN (mesmo bundle que o login.edge usa).
-      CDN_URL as string
+  } catch (cause) {
+    throw new Error(
+      "@adonis-agora/authkit-react: o login por passkey requer o pacote " +
+        "`@simplewebauthn/browser`, que não foi encontrado. Instale-o no seu app " +
+        "(`npm i @simplewebauthn/browser@^13`) — ele é uma peer dependency " +
+        "opcional, e não uma dependência direta, porque quem faz o bundle do " +
+        "frontend é o seu app: embutir uma segunda cópia da lib duplicaria o " +
+        "código e brigaria com a versão que você já usa. Este pacote também não " +
+        "cai num CDN público: isso colocaria um terceiro dentro do caminho de " +
+        "autenticação, em silêncio.",
+      { cause },
     );
-    return mod.startAuthentication;
   }
 }
 

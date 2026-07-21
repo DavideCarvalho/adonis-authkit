@@ -68,8 +68,23 @@ export function issueSudoLinkToken(c: SudoContext): string {
  * comparação em tempo constante.
  */
 export function verifySudoLinkToken(c: SudoContext, token: string): boolean {
-  const pending = c.ctx.session.get(SUDO_LINK_SESSION_KEY) as PendingLink | undefined
-  if (!pending) return false
+  const pending = c.ctx.session.get(SUDO_LINK_SESSION_KEY) as Partial<PendingLink> | undefined
+
+  // GUARD DE FORMA, antes de qualquer uso dos campos. A sessão é um saco de
+  // JSON: um valor com outra forma (versão antiga do pacote, host que escreveu
+  // na chave, store corrompido) tinha duas consequências ruins —
+  //   1. `Buffer.from(undefined, 'hex')` → TypeError → 500;
+  //   2. `Date.now() > undefined` é `false` → FAIL-OPEN: o token nunca expira.
+  // Forma errada é recusa, não exceção e muito menos passe livre.
+  if (
+    typeof pending?.hash !== 'string' ||
+    typeof pending?.expiresAt !== 'number' ||
+    typeof pending?.accountId !== 'string'
+  ) {
+    // Lixo na chave não pode ficar lá bloqueando/confundindo a próxima emissão.
+    c.ctx.session.forget(SUDO_LINK_SESSION_KEY)
+    return false
+  }
 
   // Single-use: some na primeira tentativa, certa ou errada.
   c.ctx.session.forget(SUDO_LINK_SESSION_KEY)

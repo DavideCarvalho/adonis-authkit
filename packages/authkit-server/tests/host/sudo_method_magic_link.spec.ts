@@ -102,6 +102,39 @@ test.group('sudoMethods.magicLink — token', () => {
     assert.lengthOf(stored.hash, 64)
   })
 
+  /**
+   * ANTI-BRUTE-FORCE. Os outros testes de uso único reusam o token CERTO, o que
+   * não distingue "queimou no consumo" de "queimou no acerto". A propriedade
+   * real é: a PRIMEIRA tentativa queima o pendente, mesmo errada. Sem ela,
+   * quem tem a sessão (mas não o e-mail) pode chutar o token à vontade.
+   */
+  test('uma tentativa ERRADA queima o pendente — o token certo depois já não vale', async ({ assert }) => {
+    const c = ctxWith({ onSudoLink: async () => {} })
+    c._session[SUDO_LINK_SESSION_KEY] = {
+      hash: hash('tok-certo'),
+      expiresAt: Date.now() + SUDO_LINK_TTL_MS,
+      accountId: 'acc-1',
+    }
+
+    assert.isFalse(verifySudoLinkToken(c, 'tok-errado'))
+    assert.isFalse(verifySudoLinkToken(c, 'tok-certo'))
+  })
+
+  /**
+   * O TTL só era exercitado por pendentes montados à mão pelos testes — ou
+   * seja, a emissão podia parar de gravar `expiresAt` sem ninguém notar.
+   */
+  test('a emissão grava a expiração em Date.now() + SUDO_LINK_TTL_MS', async ({ assert }) => {
+    const c = ctxWith({ onSudoLink: async () => {} })
+    const antes = Date.now()
+    issueSudoLinkToken(c)
+    const depois = Date.now()
+
+    const stored = c._session[SUDO_LINK_SESSION_KEY] as { expiresAt: number }
+    assert.isNumber(stored.expiresAt)
+    assert.isAtLeast(stored.expiresAt, antes + SUDO_LINK_TTL_MS)
+    assert.isAtMost(stored.expiresAt, depois + SUDO_LINK_TTL_MS)
+  })
 })
 
 /**
@@ -130,6 +163,34 @@ test.group('sudoMethods.magicLink — token vinculado à conta emissora', () => 
     const stored = c._session[SUDO_LINK_SESSION_KEY] as { accountId: string }
     assert.equal(stored.accountId, 'acc-9')
   })
+})
+
+/**
+ * GUARD DE FORMA. O valor na chave de sessão é JSON vindo de um store: pode
+ * estar com outra forma (versão anterior do pacote, host que escreveu ali,
+ * dado truncado). Sem guard, `Buffer.from(undefined, 'hex')` lança (500) e,
+ * pior, `Date.now() > undefined` é `false` — o token nunca expiraria.
+ */
+test.group('sudoMethods.magicLink — pendente com forma inesperada', () => {
+  const casos: Array<[string, unknown]> = [
+    ['objeto vazio', {}],
+    ['sem hash', { expiresAt: Date.now() + SUDO_LINK_TTL_MS, accountId: 'acc-1' }],
+    ['sem expiresAt (seria fail-open: nunca expira)', { hash: hash('tok-1'), accountId: 'acc-1' }],
+    ['sem accountId', { hash: hash('tok-1'), expiresAt: Date.now() + SUDO_LINK_TTL_MS }],
+    ['expiresAt como string', { hash: hash('tok-1'), expiresAt: `${Date.now() + 1000}`, accountId: 'acc-1' }],
+    ['valor escalar na chave', 'tok-1'],
+  ]
+
+  for (const [nome, valor] of casos) {
+    test(`recusa sem lançar — ${nome}`, async ({ assert }) => {
+      const c = ctxWith({ onSudoLink: async () => {} })
+      c._session[SUDO_LINK_SESSION_KEY] = valor
+
+      assert.isFalse(verifySudoLinkToken(c, 'tok-1'))
+      // Forma errada também é lixo: não pode ficar na sessão.
+      assert.isUndefined(c._session[SUDO_LINK_SESSION_KEY])
+    })
+  }
 })
 
 const ACCOUNT = { id: 'acc-1', email: 'user@example.com' }

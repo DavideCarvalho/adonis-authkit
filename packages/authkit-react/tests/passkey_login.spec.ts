@@ -160,3 +160,51 @@ test.group("usePasskeyLogin / PasskeyButton — exports e types", () => {
     assert.isFunction(PasskeyButton);
   });
 });
+
+test.group("loadStartAuthentication — sem CDN, falha alto", () => {
+  /**
+   * O `@simplewebauthn/browser` é peer OPCIONAL e não está instalado neste
+   * workspace, então este teste exercita exatamente o caminho do consumidor que
+   * esqueceu de instalar: tem que estourar com a instrução de instalação, e não
+   * degradar em silêncio para um CDN.
+   */
+  test("throws with install instructions when the peer is missing", async ({
+    assert,
+  }) => {
+    let error: Error | undefined;
+    try {
+      await loadStartAuthentication();
+    } catch (err) {
+      error = err as Error;
+    }
+
+    assert.instanceOf(error, Error);
+    assert.include(error!.message, "@simplewebauthn/browser");
+    assert.include(error!.message, "npm i @simplewebauthn/browser@^13");
+    // A causa original (ERR_MODULE_NOT_FOUND) fica anexada para debug.
+    assert.exists(error!.cause);
+  });
+
+  /**
+   * Barato e específico: qualquer volta do fallback de CDN quebra aqui, mesmo
+   * que o resto dos testes continue verde (eles injetam o loader).
+   */
+  test("the ceremony source has no public CDN reference", async ({ assert }) => {
+    const { readFile } = await import("node:fs/promises");
+    const source = await readFile(
+      new URL("../src/passkey/authenticate.ts", import.meta.url),
+      "utf-8",
+    );
+
+    for (const line of source.split("\n")) {
+      // Ignora as linhas de comentário que EXPLICAM por que não há CDN.
+      const code = line.trim();
+      if (code.startsWith("*") || code.startsWith("//")) continue;
+      assert.notMatch(
+        code,
+        /\/\/cdn\.|jsdelivr|unpkg\.com|cdnjs\.|esm\.sh/i,
+        `linha com CDN público no caminho de autenticação: ${line}`,
+      );
+    }
+  });
+});

@@ -100,7 +100,7 @@ export function usePasskeyAutofill(options: UsePasskeyAutofillOptions): void {
             : false;
         if (!supported || cancelled) return;
 
-        // 2. Carrega startAuthentication de forma lazy (pacote local → CDN).
+        // 2. Carrega startAuthentication de forma lazy (peer opcional do app).
         //    Compartilhado com o login explícito via passkey/authenticate.
         let startAuthentication: StartAuthenticationFn;
         try {

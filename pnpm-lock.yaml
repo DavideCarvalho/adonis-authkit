@@ -105,6 +105,10 @@ catalogs:
     typescript:
       specifier: 6.0.3
       version: 6.0.3
+  frontendPeers:
+    '@simplewebauthn/browser':
+      specifier: ^13.3.0
+      version: 13.3.0
 
 importers:
 
@@ -241,6 +245,9 @@ importers:
       '@adonis-agora/authkit-core':
         specifier: workspace:*
         version: link:../authkit-core
+      '@simplewebauthn/browser':
+        specifier: catalog:frontendPeers
+        version: 13.3.0
     devDependencies:
       '@adonisjs/tsconfig':
         specifier: catalog:adonis

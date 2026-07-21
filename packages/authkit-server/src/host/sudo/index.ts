@@ -33,3 +33,11 @@ import { magicLink } from './methods/magic_link.js'
 export const sudoMethods = { password, passkey, oidcStepUp, magicLink }
 
 export type { SudoMethod, SudoContext, SudoMethodDescriptor, SudoRouteHelpers } from './types.js'
+
+/**
+ * Montagem do `SudoContext` a partir do `HttpContext`. Reexportado aqui por
+ * simetria com `sudoMethods` e os tipos: quem escreve um método (ou a rota de
+ * callback do `oidcStepUp`) precisa dos três, e não deveria ter de importar de
+ * `controllers/account_confirm_controller.js` para pegar um.
+ */
+export { sudoContextFrom } from '../controllers/account_confirm_controller.js'

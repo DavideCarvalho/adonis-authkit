@@ -17,9 +17,20 @@ test.group('sudoMethods.password', () => {
     assert.isFalse(await password().isAvailable(c))
   })
 
-  test('indisponível quando o store não expõe __getRawRow', async ({ assert }) => {
+  test('disponível quando o store não expõe __getRawRow (fallback conservador)', async ({ assert }) => {
     const c = ctxWith({ accountStore: {} })
-    assert.isFalse(await password().isAvailable(c))
+    assert.isTrue(await password().isAvailable(c))
+  })
+
+  test('disponível quando o store expõe __getRawRow e lança (fallback conservador)', async ({ assert }) => {
+    const c = ctxWith({
+      accountStore: {
+        async __getRawRow() {
+          throw new Error('boom')
+        },
+      },
+    })
+    assert.isTrue(await password().isAvailable(c))
   })
 
   test('descreve um form com o campo password', async ({ assert }) => {

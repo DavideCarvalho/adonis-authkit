@@ -20,15 +20,40 @@ export function password(): SudoMethod {
   return {
     id: 'password',
 
+    /**
+     * Fallback conservador herdado de `isPasswordless` (o original em
+     * `account_confirm_controller.ts`): sem informação, assumimos que a conta
+     * TEM senha.
+     *
+     * `__getRawRow` não faz parte do contrato público de `AccountStore` — é um
+     * escape hatch interno do store Lucid (mesmo cast usado em outros pontos do
+     * pacote, ex.: account_security_controller.ts). Um `AccountStore` do SPI
+     * (o público-alvo deste método) não é obrigado a implementá-lo. Se
+     * tratássemos "não sei" como indisponível, um store customizado sem esse
+     * escape hatch perderia o método `password` mesmo com `verifyCredentials`
+     * funcionando — e, sem passkey também, o usuário fica sem nenhum método e
+     * travado fora do sudo mode. Por isso os três casos abaixo:
+     *
+     * - `__getRawRow` ausente (`undefined`) → disponível (não sabemos, não escondemos).
+     * - Presente e devolve hash não-vazio → disponível.
+     * - Presente e devolve hash vazio/nulo (ou linha nula) → indisponível (sabemos que não há senha).
+     * - Lança exceção → disponível (mesmo espírito conservador: não sabemos).
+     *
+     * Esconder o método é sempre pior que mostrá-lo: uma opção visível que
+     * falha é recuperável (o usuário tenta e escolhe outra); uma opção
+     * escondida não é nem descobrível.
+     */
     async isAvailable(c: SudoContext) {
+      const getRawRow = (c.cfg.accountStore as any).__getRawRow
+      if (typeof getRawRow !== 'function') return true
+
       try {
-        // `__getRawRow` não faz parte do contrato público de `AccountStore` (é um
-        // escape hatch interno do store Lucid) — mesmo cast usado nos demais
-        // pontos do pacote que a consomem (ex.: account_security_controller.ts).
-        const row = await (c.cfg.accountStore as any).__getRawRow?.(c.accountId)
+        const row = await getRawRow.call(c.cfg.accountStore, c.accountId)
+        // Store expõe a função e respondeu (linha nula ou hash vazio/nulo): sabemos
+        // que não há senha → indisponível.
         return Boolean(row?.password)
       } catch {
-        return false
+        return true
       }
     },
 

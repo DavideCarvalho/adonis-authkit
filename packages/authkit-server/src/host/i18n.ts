@@ -796,6 +796,7 @@ export const DEFAULT_MESSAGES = {
   "account.confirm.method.oidc_step_up": "Sign in again to confirm",
   "account.confirm.magic_link_sent": "We sent a confirmation link to your email. It expires in 5 minutes.",
   "account.confirm.no_methods": "No confirmation method is available for this account. Contact support.",
+  "account.confirm.preferred_badge": "Used last time",
 
   // Admin settings — sudo_mode card.
   "admin.settings.sudo_mode_section": "Sudo mode (identity confirmation)",
@@ -1816,6 +1817,7 @@ export const PT_BR_MESSAGES = {
   "account.confirm.method.oidc_step_up": "Entrar de novo para confirmar",
   "account.confirm.magic_link_sent": "Enviamos um link de confirmação para o seu e-mail. Ele expira em 5 minutos.",
   "account.confirm.no_methods": "Nenhum método de confirmação está disponível para esta conta. Fale com o suporte.",
+  "account.confirm.preferred_badge": "Usado da última vez",
 
   // Admin settings — sudo_mode card (pt-BR).
   "admin.settings.sudo_mode_section": "Modo sudo (confirmação de identidade)",

@@ -3,6 +3,11 @@ import { readFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { Edge } from 'edge.js'
 import { DEFAULT_MESSAGES, translate } from '../../src/host/i18n.js'
+import { password } from '../../src/host/sudo/methods/password.js'
+import { passkey } from '../../src/host/sudo/methods/passkey.js'
+import { magicLink } from '../../src/host/sudo/methods/magic_link.js'
+import { oidcStepUp } from '../../src/host/sudo/methods/oidc_step_up.js'
+import type { SudoContext } from '../../src/host/sudo/types.js'
 
 const dir = fileURLToPath(new URL('../../src/host/views/', import.meta.url))
 const read = (p: string) => readFileSync(dir + p, 'utf8')
@@ -15,6 +20,22 @@ function makeEdge() {
     translate({ ...DEFAULT_MESSAGES }, key, params)
   )
   return edge
+}
+
+/**
+ * `SudoContext` mínimo para chamar `describe()` dos métodos reais nos testes
+ * de render abaixo. `returnTo: null` por padrão para que `oidcStepUp` não
+ * acrescente querystring ao endpoint (a hidden `return_to` da tela é uma prop
+ * de render separada, não vem do `describe()` do método) — ver uso em cada teste.
+ */
+function fakeSudoContext(returnTo: string | null = null): SudoContext {
+  return {
+    ctx: {} as any,
+    account: { id: 'acc-1', email: 'user@example.com' },
+    accountId: 'acc-1',
+    cfg: {} as any,
+    returnTo,
+  }
 }
 
 test.group('edge views (lib-owned)', () => {
@@ -257,22 +278,31 @@ test.group('R4 login views render real (edge.js)', () => {
 })
 
 test.group('account/confirm.edge (SPI de métodos de sudo)', () => {
+  // Os descritores vêm dos MÉTODOS REAIS (`describe()`), não de objetos
+  // literais soltos: se algum dos quatro métodos renomear um campo do
+  // `SudoMethodDescriptor` (ex.: `endpoint` → `url`), o valor some daqui para
+  // baixo e a asserção sobre o HTML renderizado quebra — é a mesma classe de
+  // bug que motivou reescrever esta view (props que o controller parou de
+  // mandar, e nenhum teste renderizava a view para pegar isso).
   test('account/confirm.edge renderiza um bloco por método disponível', async ({ assert }) => {
     const edge = makeEdge()
+    const ctx = fakeSudoContext()
+    const passwordDescriptor = { id: 'password', ...(await password().describe(ctx)) }
+    const passkeyDescriptor = { id: 'passkey', ...(await passkey().describe(ctx)) }
+    const oidcDescriptor = { id: 'oidc-step-up', ...(await oidcStepUp({ url: '/auth/step-up' }).describe(ctx)) }
+
     const html = await edge.render('authkit::account/confirm', {
       csrfToken: 'tok',
       returnTo: '/account/security',
       error: null,
+      notice: null,
       preferredId: null,
-      methods: [
-        { id: 'password', kind: 'form', endpoint: '/account/confirm', labelKey: 'account.confirm.method.password',
-          fields: [{ name: 'password', type: 'password', labelKey: 'account.confirm.password_label' }] },
-        { id: 'oidc-step-up', kind: 'redirect', endpoint: '/auth/step-up', labelKey: 'account.confirm.method.oidc_step_up' },
-      ],
+      methods: [passwordDescriptor, passkeyDescriptor, oidcDescriptor],
     })
 
     assert.include(html, 'action="/account/confirm"')
     assert.include(html, 'name="password"')
+    assert.include(html, 'action="/account/confirm/passkey"')
     assert.include(html, 'href="/auth/step-up"')
     assert.include(html, 'value="/account/security"')
   })
@@ -287,14 +317,16 @@ test.group('account/confirm.edge (SPI de métodos de sudo)', () => {
     assert,
   }) => {
     const edge = makeEdge()
+    const ctx = fakeSudoContext()
+    const magicLinkDescriptor = { id: 'magic-link', ...(await magicLink().describe(ctx)) }
+
     const html = await edge.render('authkit::account/confirm', {
       csrfToken: 'tok',
       returnTo: '/account/security',
       error: null,
+      notice: null,
       preferredId: null,
-      methods: [
-        { id: 'magic-link', kind: 'action', endpoint: '/account/confirm/magic-link', labelKey: 'account.confirm.method.magic_link' },
-      ],
+      methods: [magicLinkDescriptor],
     })
 
     assert.include(html, 'action="/account/confirm/magic-link"')
@@ -307,8 +339,80 @@ test.group('account/confirm.edge (SPI de métodos de sudo)', () => {
   test('account/confirm.edge avisa quando não há método disponível', async ({ assert }) => {
     const edge = makeEdge()
     const html = await edge.render('authkit::account/confirm', {
-      csrfToken: 'tok', returnTo: null, error: null, preferredId: null, methods: [],
+      csrfToken: 'tok', returnTo: null, error: null, notice: null, preferredId: null, methods: [],
     })
     assert.include(html, translate({ ...DEFAULT_MESSAGES }, 'account.confirm.no_methods'))
+  })
+
+  // `confirmNotice` (magic_link.ts, ao enviar o link) precisa chegar à tela
+  // distinto do bloco de erro — sem isso, quem pede o link volta pra mesma
+  // tela sem nenhum feedback.
+  test('account/confirm.edge mostra o aviso (notice) visualmente distinto do erro', async ({
+    assert,
+  }) => {
+    const edge = makeEdge()
+
+    const withNotice = await edge.render('authkit::account/confirm', {
+      csrfToken: 'tok',
+      returnTo: null,
+      error: null,
+      notice: 'Enviamos um link de confirmação para o seu e-mail.',
+      preferredId: null,
+      methods: [],
+    })
+    // O marcador é o próprio `class="..."` do bloco (não só o nome da classe
+    // Tailwind), porque `partials/styles.edge` é uma folha de estilo COMPILADA
+    // e compartilhada por todas as views do pacote — ela contém a definição
+    // `.bg-red-50{...}` sempre, esteja o bloco de erro renderizado ou não.
+    assert.include(withNotice, 'Enviamos um link de confirmação para o seu e-mail.')
+    assert.include(withNotice, 'class="rounded-lg bg-blue-50')
+    assert.notInclude(withNotice, 'class="rounded-lg bg-red-50')
+
+    // Notice e error podem coexistir (ex.: aviso de link enviado numa sessão
+    // que também carrega um erro antigo) — os dois blocos continuam distintos.
+    const both = await edge.render('authkit::account/confirm', {
+      csrfToken: 'tok',
+      returnTo: null,
+      error: 'Senha incorreta.',
+      notice: 'Enviamos um link de confirmação para o seu e-mail.',
+      preferredId: null,
+      methods: [],
+    })
+    assert.include(both, 'class="rounded-lg bg-blue-50')
+    assert.include(both, 'class="rounded-lg bg-red-50')
+  })
+
+  // `preferredId` (último método usado com sucesso) precisa promover o método
+  // correspondente na tela — antes desta correção era prop morta: calculada
+  // pelo controller e nunca referenciada pela view.
+  test('account/confirm.edge destaca o método correspondente a preferredId', async ({ assert }) => {
+    const edge = makeEdge()
+    const ctx = fakeSudoContext()
+    const passwordDescriptor = { id: 'password', ...(await password().describe(ctx)) }
+    const passkeyDescriptor = { id: 'passkey', ...(await passkey().describe(ctx)) }
+    const badge = translate({ ...DEFAULT_MESSAGES }, 'account.confirm.preferred_badge')
+
+    const html = await edge.render('authkit::account/confirm', {
+      csrfToken: 'tok',
+      returnTo: null,
+      error: null,
+      notice: null,
+      preferredId: 'passkey',
+      methods: [passwordDescriptor, passkeyDescriptor],
+    })
+
+    assert.include(html, badge)
+    // Só o método preferido ganha o destaque — não os dois.
+    assert.equal(html.split(badge).length - 1, 1)
+
+    const none = await edge.render('authkit::account/confirm', {
+      csrfToken: 'tok',
+      returnTo: null,
+      error: null,
+      notice: null,
+      preferredId: null,
+      methods: [passwordDescriptor, passkeyDescriptor],
+    })
+    assert.notInclude(none, badge)
   })
 })

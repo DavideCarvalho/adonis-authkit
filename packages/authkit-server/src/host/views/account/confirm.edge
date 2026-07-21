@@ -8,6 +8,10 @@
       <div class="mx-auto w-full space-y-6">
         <h1 class="text-xl font-semibold text-gray-900">{{ t('account.confirm.title') }}</h1>
 
+        @if(notice)
+          <div class="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-800 ring-1 ring-blue-200">{{ notice }}</div>
+        @end
+
         @if(error)
           <div class="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800 ring-1 ring-red-200">{{ error }}</div>
         @end
@@ -18,7 +22,10 @@
           </div>
         @else
           @each(method in methods)
-            <div class="rounded-lg border border-gray-200 p-4">
+            <div class="rounded-lg border p-4 {{ method.id === preferredId ? 'border-gray-900 ring-1 ring-gray-900' : 'border-gray-200' }}">
+              @if(method.id === preferredId)
+                <p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">{{ t('account.confirm.preferred_badge') }}</p>
+              @end
               @if(method.kind === 'redirect')
                 <a href="{{ method.endpoint }}"
                    class="block w-full rounded-lg bg-gray-900 py-2 text-center text-sm font-medium text-white hover:bg-gray-700">

@@ -28,8 +28,9 @@ export const CONFIRM_PASSKEY_CHALLENGE_ACCOUNT_KEY = 'authkit_confirm_passkey_ch
  * Confirmação por passkey (WebAuthn).
  *
  * URLs LEGADAS preservadas: `/account/confirm/passkey/options` e
- * `/account/confirm/passkey`. O JS embutido em `confirm.edge:52,59` chama esses
- * paths literalmente.
+ * `/account/confirm/passkey`. Hosts externos e telas customizadas (fora deste
+ * pacote) dependem desses paths — trocá-los quebraria essas integrações sem
+ * que o pacote tenha como saber ou migrar por elas.
  */
 export function passkey(): SudoMethod {
   return {

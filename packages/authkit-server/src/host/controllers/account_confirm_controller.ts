@@ -102,6 +102,10 @@ export default class AccountConfirmController {
       csrfToken: ctx.request.csrfToken,
       returnTo: c.returnTo,
       error: ctx.session.flashMessages.get('confirmError') ?? null,
+      // `confirmNotice` é flashado por `magic_link.ts` ao enviar o link (já
+      // traduzido, mesmo padrão de `confirmError`). Sem repassar aqui, quem
+      // pede o link volta para a tela sem nenhum feedback de que o e-mail saiu.
+      notice: ctx.session.flashMessages.get('confirmNotice') ?? null,
       methods,
       preferredId: ctx.session.get(LAST_METHOD_SESSION_KEY) ?? null,
     })

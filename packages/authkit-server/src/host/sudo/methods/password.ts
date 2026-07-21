@@ -5,10 +5,12 @@ import type { SudoContext, SudoMethod, SudoRouteHelpers } from '../types.js'
 /**
  * Confirmação por senha — o método histórico.
  *
- * URL LEGADA: registra `POST /account/confirm` (não `/account/confirm/password`),
- * porque `src/host/views/account/confirm.edge:21` posta nesse path literal.
- * É também a razão de `register` receber o router cru em vez de o runtime
- * montar por convenção a partir do `id`.
+ * URL LEGADA: registra `POST /account/confirm` (não `/account/confirm/password`)
+ * porque hosts externos e telas customizadas (fora deste pacote) dependem
+ * desse path histórico — trocá-lo quebraria essas integrações sem que o
+ * pacote tenha como saber ou migrar por elas. É também a razão de `register`
+ * receber o router cru em vez de o runtime montar por convenção a partir do
+ * `id`.
  *
  * LIMITAÇÃO CONHECIDA de `isAvailable`: ele responde "a conta tem hash?", não
  * "o usuário conhece a senha?". Host que cria contas passwordless gravando um

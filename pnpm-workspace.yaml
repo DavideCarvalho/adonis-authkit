@@ -3,7 +3,7 @@ packages:
   - "apps/*"
 
 allowBuilds:
-  '@biomejs/biome': set this to true or false
+  '@biomejs/biome': true
   '@swc/core': true
   better-sqlite3: true
   esbuild: true

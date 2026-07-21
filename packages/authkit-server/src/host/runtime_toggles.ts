@@ -79,7 +79,7 @@ export interface RegistrationSetting {
  * retornar null, usamos configDefault.
  */
 export async function resolveEffectiveRegistration(
-  configDefault,
+  configDefault: boolean,
   settings: SettingsCapability,
 ): Promise<boolean> {
   const raw = await settings.getSetting(SETTING_KEYS.REGISTRATION);
@@ -127,7 +127,7 @@ export interface ResolvedRequireVerifiedEmail {
  *   - setting ausente/inválido/erro → usa configDefault.
  */
 export async function resolveEffectiveRequireVerifiedEmail(
-  configDefault,
+  configDefault: boolean,
   settings: SettingsCapability,
 ): Promise<boolean> {
   const raw = await settings.getSetting(SETTING_KEYS.REQUIRE_VERIFIED_EMAIL);
@@ -145,7 +145,7 @@ export async function resolveEffectiveRequireVerifiedEmail(
  * FAIL-SAFE: qualquer erro → `{ enabled: configDefault, graceDays: 0 }`.
  */
 export async function resolveEffectiveRequireVerifiedEmailFull(
-  configDefault,
+  configDefault: boolean,
   settings: SettingsCapability,
 ): Promise<ResolvedRequireVerifiedEmail> {
   try {

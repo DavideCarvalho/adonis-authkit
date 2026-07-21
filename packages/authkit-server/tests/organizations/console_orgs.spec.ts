@@ -622,7 +622,11 @@ test.group('ConsoleOrgsController', (group) => {
     const src = readFileSync(join(__dirname, '../../src/host/register_auth_host.ts'), 'utf8');
 
     const idxStore = src.indexOf("consoleOrgs, 'store'");
-    const idxInvitations = src.indexOf("consoleOrgs, 'revokeInvitation'");
+    // Regex (não indexOf) porque o formatter pode quebrar essa call em
+    // múltiplas linhas quando o argumento não cabe no lineWidth — o
+    // `consoleOrgs,` e o `'revokeInvitation'` deixam de ser contíguos.
+    const invitationsMatch = src.match(/consoleOrgs,\s*\n?\s*'revokeInvitation'/);
+    const idxInvitations = invitationsMatch?.index ?? -1;
     const idxCatchAll = src.indexOf('authkit_console_shell');
 
     // Todos os endpoints de orgs existem no arquivo.

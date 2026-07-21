@@ -68,6 +68,11 @@ export function usePasskeyAutofill(options: UsePasskeyAutofillOptions): void {
   const { optionsUrl, verifyUrl, onSuccess, csrfToken, enabled = true } = options;
   const abortRef = useRef<AbortController | null>(null);
 
+  // verifyUrl não é lido no efeito (a verificação é feita pelo host dentro de
+  // onSuccess), mas segue listado na dependency array por ser parte da
+  // options públicas do hook — biome-ignore em vez de remover, pra não voltar
+  // a ficar unused no destructure acima.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: verifyUrl não é lido no efeito, ver comentário acima
   useEffect(() => {
     if (!enabled) return;
     // SSR guard
@@ -142,5 +147,5 @@ export function usePasskeyAutofill(options: UsePasskeyAutofillOptions): void {
       ac.abort();
       abortRef.current = null;
     };
-  }, [enabled, optionsUrl, onSuccess, csrfToken]);
+  }, [enabled, optionsUrl, verifyUrl, onSuccess, csrfToken]);
 }

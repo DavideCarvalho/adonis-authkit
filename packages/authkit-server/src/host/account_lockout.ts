@@ -1,5 +1,5 @@
-import type { AuditSink } from '../audit/audit_sink.js'
-import type { ResolvedLockoutConfig } from '../define_config.js'
+import type { AuditSink } from '../audit/audit_sink.js';
+import type { ResolvedLockoutConfig } from '../define_config.js';
 
 /**
  * Bloqueio progressivo de conta (anti-brute-force keyed por EMAIL, não por IP).
@@ -17,9 +17,9 @@ import type { ResolvedLockoutConfig } from '../define_config.js'
  */
 
 /** Service do `@adonisjs/limiter` resolvido preguiçosamente. `any` de propósito (peer/opt-in). */
-type LimiterService = any
+type LimiterService = any;
 
-let limiterServicePromise: Promise<LimiterService | null> | undefined
+let limiterServicePromise: Promise<LimiterService | null> | undefined;
 
 /**
  * Importa o service do limiter do HOST de forma preguiçosa e fail-safe (mesmo
@@ -27,12 +27,12 @@ let limiterServicePromise: Promise<LimiterService | null> | undefined
  */
 async function loadLimiter(): Promise<LimiterService | null> {
   if (!limiterServicePromise) {
-    const specifier = '@adonisjs/limiter/services/main'
+    const specifier = '@adonisjs/limiter/services/main';
     limiterServicePromise = import(specifier)
       .then((mod) => (mod as any).default ?? null)
-      .catch(() => null)
+      .catch(() => null);
   }
-  return limiterServicePromise
+  return limiterServicePromise;
 }
 
 /**
@@ -40,18 +40,18 @@ async function loadLimiter(): Promise<LimiterService | null> {
  * @internal
  */
 export function __setLockoutLimiterLoaderForTests(
-  fn: (() => Promise<LimiterService | null>) | undefined
+  fn: (() => Promise<LimiterService | null>) | undefined,
 ): void {
   if (fn) {
-    limiterServicePromise = fn()
+    limiterServicePromise = fn();
   } else {
-    limiterServicePromise = undefined
+    limiterServicePromise = undefined;
   }
 }
 
 /** Normaliza o email para virar chave estável (lowercase + trim). */
 function normalizeEmail(email: string | undefined | null): string {
-  return (email ?? '').trim().toLowerCase()
+  return (email ?? '').trim().toLowerCase();
 }
 
 /**
@@ -60,22 +60,22 @@ function normalizeEmail(email: string | undefined | null): string {
  * limitada a `maxLockoutSec`. `lockCount` é 1-based (1 = primeiro lock).
  */
 export function computeLockoutSec(lockCount: number, cfg: ResolvedLockoutConfig): number {
-  const n = Math.max(1, lockCount)
-  const grown = cfg.baseLockoutSec * 2 ** (n - 1)
-  return Math.min(grown, cfg.maxLockoutSec)
+  const n = Math.max(1, lockCount);
+  const grown = cfg.baseLockoutSec * 2 ** (n - 1);
+  return Math.min(grown, cfg.maxLockoutSec);
 }
 
 /** Resultado de uma checagem de bloqueio. */
 export interface LockState {
-  locked: boolean
+  locked: boolean;
   /** Segundos até a conta destravar (presente quando `locked`). */
-  retryAfterSec?: number
+  retryAfterSec?: number;
 }
 
 /** Contexto opcional de auditoria para o evento `account.locked`. */
 export interface LockoutAuditContext {
-  sink?: AuditSink
-  ip?: string | null
+  sink?: AuditSink;
+  ip?: string | null;
 }
 
 /**
@@ -87,13 +87,13 @@ export class AccountLockout {
   constructor(private cfg: ResolvedLockoutConfig) {}
 
   private failKey(email: string) {
-    return `authkit_lockout_fail:${email}`
+    return `authkit_lockout_fail:${email}`;
   }
   private lockKey(email: string) {
-    return `authkit_lockout:${email}`
+    return `authkit_lockout:${email}`;
   }
   private countKey(email: string) {
-    return `authkit_lockout_count:${email}`
+    return `authkit_lockout_count:${email}`;
   }
 
   /**
@@ -101,14 +101,14 @@ export class AccountLockout {
    * desligado por config — assim o caminho de no-op é o mesmo.
    */
   private async limiter(): Promise<LimiterService | null> {
-    if (!this.cfg.enabled) return null
-    return loadLimiter()
+    if (!this.cfg.enabled) return null;
+    return loadLimiter();
   }
 
   /** Store de contagem de falhas (janela deslizante de `windowSec`). */
   private failStore(limiter: LimiterService) {
-    const opts = { requests: this.cfg.maxAttempts, duration: this.cfg.windowSec }
-    return this.cfg.store ? limiter.use(this.cfg.store, opts) : limiter.use(opts)
+    const opts = { requests: this.cfg.maxAttempts, duration: this.cfg.windowSec };
+    return this.cfg.store ? limiter.use(this.cfg.store, opts) : limiter.use(opts);
   }
 
   /**
@@ -116,8 +116,8 @@ export class AccountLockout {
    * um tempo para o backoff progressivo crescer entre locks sucessivos).
    */
   private countStore(limiter: LimiterService) {
-    const opts = { requests: 1_000_000, duration: this.cfg.maxLockoutSec * 4 }
-    return this.cfg.store ? limiter.use(this.cfg.store, opts) : limiter.use(opts)
+    const opts = { requests: 1_000_000, duration: this.cfg.maxLockoutSec * 4 };
+    return this.cfg.store ? limiter.use(this.cfg.store, opts) : limiter.use(opts);
   }
 
   /**
@@ -125,25 +125,25 @@ export class AccountLockout {
    * com a duração progressiva; `isBlocked`/`availableIn` consultam o estado.
    */
   private lockStore(limiter: LimiterService) {
-    const opts = { requests: 1, duration: this.cfg.maxLockoutSec }
-    return this.cfg.store ? limiter.use(this.cfg.store, opts) : limiter.use(opts)
+    const opts = { requests: 1, duration: this.cfg.maxLockoutSec };
+    return this.cfg.store ? limiter.use(this.cfg.store, opts) : limiter.use(opts);
   }
 
   /** `true`/retryAfter quando a conta está bloqueada. Fail-safe: `{ locked: false }`. */
   async isLocked(email: string): Promise<LockState> {
-    const key = normalizeEmail(email)
-    if (!key) return { locked: false }
-    const limiter = await this.limiter()
-    if (!limiter) return { locked: false }
+    const key = normalizeEmail(email);
+    if (!key) return { locked: false };
+    const limiter = await this.limiter();
+    if (!limiter) return { locked: false };
     try {
-      const store = this.lockStore(limiter)
-      const blocked = await store.isBlocked(this.lockKey(key))
-      if (!blocked) return { locked: false }
-      const retryAfterSec = await store.availableIn(this.lockKey(key))
-      return { locked: true, retryAfterSec }
+      const store = this.lockStore(limiter);
+      const blocked = await store.isBlocked(this.lockKey(key));
+      if (!blocked) return { locked: false };
+      const retryAfterSec = await store.availableIn(this.lockKey(key));
+      return { locked: true, retryAfterSec };
     } catch {
       // Falha do limiter NUNCA derruba o login — degrada para "não bloqueado".
-      return { locked: false }
+      return { locked: false };
     }
   }
 
@@ -153,37 +153,37 @@ export class AccountLockout {
    * Emite `account.locked` UMA vez (na transição), não a cada tentativa bloqueada.
    */
   async recordFailure(email: string, audit?: LockoutAuditContext): Promise<void> {
-    const key = normalizeEmail(email)
-    if (!key) return
-    const limiter = await this.limiter()
-    if (!limiter) return
+    const key = normalizeEmail(email);
+    if (!key) return;
+    const limiter = await this.limiter();
+    if (!limiter) return;
     try {
       // Se já está bloqueada, não conta de novo nem reemite o evento.
-      const lockStore = this.lockStore(limiter)
-      if (await lockStore.isBlocked(this.lockKey(key))) return
+      const lockStore = this.lockStore(limiter);
+      if (await lockStore.isBlocked(this.lockKey(key))) return;
 
-      const failStore = this.failStore(limiter)
-      const res = await failStore.increment(this.failKey(key))
+      const failStore = this.failStore(limiter);
+      const res = await failStore.increment(this.failKey(key));
       // `consumed` = falhas acumuladas na janela. Bloqueia ao atingir o teto.
-      const consumed = res?.consumed ?? 0
-      if (consumed < this.cfg.maxAttempts) return
+      const consumed = res?.consumed ?? 0;
+      if (consumed < this.cfg.maxAttempts) return;
 
       // Transição para bloqueado: incrementa a contagem de locks e calcula o TTL.
-      const countStore = this.countStore(limiter)
-      const countRes = await countStore.increment(this.countKey(key))
-      const lockCount = countRes?.consumed ?? 1
-      const lockoutSec = computeLockoutSec(lockCount, this.cfg)
+      const countStore = this.countStore(limiter);
+      const countRes = await countStore.increment(this.countKey(key));
+      const lockCount = countRes?.consumed ?? 1;
+      const lockoutSec = computeLockoutSec(lockCount, this.cfg);
 
-      await lockStore.block(this.lockKey(key), lockoutSec)
+      await lockStore.block(this.lockKey(key), lockoutSec);
       // Zera o contador de falhas (a contagem recomeça após o lock).
-      await failStore.delete(this.failKey(key))
+      await failStore.delete(this.failKey(key));
 
       await audit?.sink?.record({
         type: 'account.locked',
         email: key,
         ip: audit?.ip ?? null,
         metadata: { lockCount, lockoutSec },
-      })
+      });
     } catch {
       // Best-effort: nunca propaga erro do limiter para o caminho da request.
     }
@@ -195,13 +195,13 @@ export class AccountLockout {
    * expira naturalmente pela janela longa do `countStore`.
    */
   async clearFailures(email: string): Promise<void> {
-    const key = normalizeEmail(email)
-    if (!key) return
-    const limiter = await this.limiter()
-    if (!limiter) return
+    const key = normalizeEmail(email);
+    if (!key) return;
+    const limiter = await this.limiter();
+    if (!limiter) return;
     try {
-      await this.failStore(limiter).delete(this.failKey(key))
-      await this.lockStore(limiter).delete(this.lockKey(key))
+      await this.failStore(limiter).delete(this.failKey(key));
+      await this.lockStore(limiter).delete(this.lockKey(key));
     } catch {
       // no-op fail-safe
     }
@@ -210,5 +210,5 @@ export class AccountLockout {
 
 /** Fabrica o helper de lockout a partir da config resolvida. */
 export function createAccountLockout(cfg: ResolvedLockoutConfig): AccountLockout {
-  return new AccountLockout(cfg)
+  return new AccountLockout(cfg);
 }

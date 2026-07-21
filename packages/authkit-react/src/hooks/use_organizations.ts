@@ -1,30 +1,30 @@
-import { useAuthkitConfig } from '../config.js'
-import { useResource, type ResourceState } from './use_resource.js'
+import { useAuthkitConfig } from '../config.js';
+import { type ResourceState, useResource } from './use_resource.js';
 
 export interface OrgEntry {
-  id: string
-  name: string
-  slug: string
-  logoUrl: string | null
-  role: string
-  isActive: boolean
-  [key: string]: unknown
+  id: string;
+  name: string;
+  slug: string;
+  logoUrl: string | null;
+  role: string;
+  isActive: boolean;
+  [key: string]: unknown;
 }
 
 export interface UseOrganizationsResult extends ResourceState<OrgEntry[]> {
   /** ID da org ativa (null = personal account). */
-  activeOrgId: string | null
+  activeOrgId: string | null;
   /** true quando o feature está habilitado no servidor. */
-  supported: boolean
+  supported: boolean;
   actions: {
-    refetch(): Promise<void>
-  }
+    refetch(): Promise<void>;
+  };
 }
 
 interface OrgsResponse {
-  supported: boolean
-  activeOrgId: string | null
-  orgs: OrgEntry[]
+  supported: boolean;
+  activeOrgId: string | null;
+  orgs: OrgEntry[];
 }
 
 /**
@@ -32,11 +32,11 @@ interface OrgsResponse {
  * o endpoint configurado via `endpoints.orgs`). SSR-safe (só busca no cliente).
  */
 export function useOrganizations(): UseOrganizationsResult {
-  const config = useAuthkitConfig()
+  const config = useAuthkitConfig();
   const { data, loading, error, refetch } = useResource<OrgsResponse>(
     config.endpoints.orgs,
-    config.csrfToken
-  )
+    config.csrfToken,
+  );
 
   return {
     data: data?.orgs ?? null,
@@ -45,5 +45,5 @@ export function useOrganizations(): UseOrganizationsResult {
     activeOrgId: data?.activeOrgId ?? null,
     supported: data?.supported ?? true,
     actions: { refetch },
-  }
+  };
 }

@@ -1,15 +1,9 @@
-import {
-  createElement,
-  type ButtonHTMLAttributes,
-  type ReactNode,
-} from "react";
-import { InteractionForm } from "./interaction_form.js";
-import { buttonClass } from "../utils.js";
+import { type ButtonHTMLAttributes, type ReactNode, createElement } from 'react';
+import { buttonClass } from '../utils.js';
+import { InteractionForm } from './interaction_form.js';
 
-export interface MagicLinkButtonProps extends Omit<
-  ButtonHTMLAttributes<HTMLButtonElement>,
-  "type"
-> {
+export interface MagicLinkButtonProps
+  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'type'> {
   /** O `uid` da interaction. */
   uid: string;
   /** CSRF token. */
@@ -29,18 +23,18 @@ export function MagicLinkButton({
   uid,
   csrfToken,
   basePath,
-  children = "Enviar link de login",
+  children = 'Enviar link de login',
   className,
   ...rest
 }: MagicLinkButtonProps) {
   return createElement(
     InteractionForm,
-    { uid, step: "magic", csrfToken, basePath },
+    { uid, step: 'magic', csrfToken, basePath },
     createElement(
-      "button",
+      'button',
       {
-        type: "submit",
-        className: buttonClass("authkit-button--ghost", className),
+        type: 'submit',
+        className: buttonClass('authkit-button--ghost', className),
         ...rest,
       },
       children,

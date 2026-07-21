@@ -1,6 +1,3 @@
-import { configProvider } from "@adonisjs/core";
-import type { ApplicationService } from "@adonisjs/core/types";
-import type { HttpContext } from "@adonisjs/core/http";
 import type {
   AccessTokenFormat,
   AccessTokensConfig,
@@ -9,47 +6,35 @@ import type {
   KeystoreStoreConfig,
   ObservabilityConfig,
   TtlConfig,
-} from "@adonis-agora/authkit-core";
-import { generateJwks } from "./keys/jwks_manager.js";
+} from '@adonis-agora/authkit-core';
+import { configProvider } from '@adonisjs/core';
+import type { HttpContext } from '@adonisjs/core/http';
+import type { ApplicationService } from '@adonisjs/core/types';
+import type { AccountStore, AuthAccount } from './accounts/account_store.js';
+import { type AdapterFactory, type OidcAdapterClass, adapters } from './adapters/factory.js';
+import type { AuditSink } from './audit/audit_sink.js';
+import { type EventsConfigInput, composeAuditSink, resolveEvents } from './events/dispatcher.js';
 import {
-  KeystoreManager,
-  resolveKeystoreVault,
-} from "./keys/keystore_manager.js";
-import { KeystoreCodec } from "./keys/keystore_codec.js";
-import { loadEncryptionService } from "./keys/keystore_crypto.js";
-import {
-  adapters,
-  type AdapterFactory,
-  type OidcAdapterClass,
-} from "./adapters/factory.js";
-import type { AccountStore, AuthAccount } from "./accounts/account_store.js";
-import type { PatStore } from "./pat/pat_store.js";
-import type { AuditSink } from "./audit/audit_sink.js";
-import type { SudoMethod } from "./host/sudo/types.js";
-import {
-  composeAuditSink,
-  resolveEvents,
-  type EventsConfigInput,
-} from "./events/dispatcher.js";
-import type { BrandingConfig } from "./host/branding.js";
-import {
-  resolveMessages,
-  type AuthMessages,
-  type I18nConfig,
-} from "./host/i18n.js";
-import {
-  resolveTrustedDevices,
-  type ResolvedTrustedDevicesConfig,
-  type TrustedDevicesConfigInput,
-} from "./host/trusted_device.js";
-import {
-  resolveBotProtection,
   type BotProtectionConfigInput,
   type ResolvedBotProtectionConfig,
-} from "./host/bot_protection.js";
-import type { ResolveGeo } from "./host/geo.js";
-import { deriveLockedSettingKeys } from "./host/config_locks.js";
-import { edgeRenderer } from "./host/renderers/edge_renderer.js";
+  resolveBotProtection,
+} from './host/bot_protection.js';
+import type { BrandingConfig } from './host/branding.js';
+import { deriveLockedSettingKeys } from './host/config_locks.js';
+import type { ResolveGeo } from './host/geo.js';
+import { type AuthMessages, type I18nConfig, resolveMessages } from './host/i18n.js';
+import { edgeRenderer } from './host/renderers/edge_renderer.js';
+import type { SudoMethod } from './host/sudo/types.js';
+import {
+  type ResolvedTrustedDevicesConfig,
+  type TrustedDevicesConfigInput,
+  resolveTrustedDevices,
+} from './host/trusted_device.js';
+import { generateJwks } from './keys/jwks_manager.js';
+import { KeystoreCodec } from './keys/keystore_codec.js';
+import { loadEncryptionService } from './keys/keystore_crypto.js';
+import { KeystoreManager, resolveKeystoreVault } from './keys/keystore_manager.js';
+import type { PatStore } from './pat/pat_store.js';
 
 export { adapters };
 export type { AuthAccount };
@@ -159,12 +144,12 @@ export interface MailHooks {
   onSecurityNotice?: (data: {
     account: { id: string; email: string };
     kind:
-      | "password_changed"
-      | "mfa_enabled"
-      | "mfa_disabled"
-      | "passkey_added"
-      | "passkey_removed"
-      | "email_changed";
+      | 'password_changed'
+      | 'mfa_enabled'
+      | 'mfa_disabled'
+      | 'passkey_added'
+      | 'passkey_removed'
+      | 'email_changed';
     ip?: string | null;
     userAgent?: string | null;
     timestamp: string;
@@ -244,16 +229,14 @@ const RATE_LIMIT_DEFAULTS: {
   adminIp: RateLimitBucket;
   sudo: RateLimitBucket;
 } = {
-  login: { points: 10, duration: "1 min" },
-  introspection: { points: 60, duration: "1 min" },
-  adminIp: { points: 30, duration: "1 min" },
+  login: { points: 10, duration: '1 min' },
+  introspection: { points: 60, duration: '1 min' },
+  adminIp: { points: 30, duration: '1 min' },
   // Mesmos limites do login, bucket separado — ver `ResolvedRateLimitConfig.sudo`.
-  sudo: { points: 10, duration: "1 min" },
+  sudo: { points: 10, duration: '1 min' },
 };
 
-export function resolveRateLimit(
-  input?: RateLimitConfigInput,
-): ResolvedRateLimitConfig {
+export function resolveRateLimit(input?: RateLimitConfigInput): ResolvedRateLimitConfig {
   const enabled = input?.enabled ?? true;
   return {
     enabled,
@@ -287,9 +270,7 @@ export interface ResolvedLockoutConfig {
   store?: string;
 }
 
-export function resolveLockout(
-  input?: LockoutConfigInput,
-): ResolvedLockoutConfig {
+export function resolveLockout(input?: LockoutConfigInput): ResolvedLockoutConfig {
   return {
     enabled: true,
     maxAttempts: 5,
@@ -354,9 +335,9 @@ export function resolveDynamicRegistration(
   const management = input?.management ?? false;
   if (management && !enabled) {
     throw new Error(
-      "authkit: dynamicRegistration.management (RFC 7592) requer " +
-        "dynamicRegistration.enabled: true (RFC 7591). Habilite o registro dinâmico " +
-        "ou desligue o management.",
+      'authkit: dynamicRegistration.management (RFC 7592) requer ' +
+        'dynamicRegistration.enabled: true (RFC 7591). Habilite o registro dinâmico ' +
+        'ou desligue o management.',
     );
   }
   return {
@@ -381,9 +362,7 @@ export interface ResolvedDeviceFlowConfig {
   enabled: boolean;
 }
 
-export function resolveDeviceFlow(
-  input?: DeviceFlowConfigInput,
-): ResolvedDeviceFlowConfig {
+export function resolveDeviceFlow(input?: DeviceFlowConfigInput): ResolvedDeviceFlowConfig {
   return { enabled: input?.enabled ?? false };
 }
 
@@ -401,7 +380,7 @@ export interface UploadsConfigInput {
      * `'builtin'` força o `@adonisjs/drive`; `'media'` força o media (degrada para
      * o input de URL se indisponível).
      */
-    storage?: "auto" | "builtin" | "media";
+    storage?: 'auto' | 'builtin' | 'media';
     /** Disk do `@adonisjs/drive` a usar (backend builtin). Default: o disk DEFAULT do app. */
     disk?: string;
     /** Diretório/prefixo das chaves (backend builtin). Default: 'authkit/avatars'. */
@@ -418,7 +397,7 @@ export interface UploadsConfigInput {
 export interface ResolvedUploadsConfig {
   avatars: {
     /** Backend ativo (default 'auto'). */
-    storage: "auto" | "builtin" | "media";
+    storage: 'auto' | 'builtin' | 'media';
     /** Disk explícito; `undefined` = disk DEFAULT do app (backend builtin). */
     disk?: string;
     directory: string;
@@ -430,16 +409,14 @@ export interface ResolvedUploadsConfig {
   };
 }
 
-export function resolveUploads(
-  input?: UploadsConfigInput,
-): ResolvedUploadsConfig {
+export function resolveUploads(input?: UploadsConfigInput): ResolvedUploadsConfig {
   return {
     avatars: {
-      storage: input?.avatars?.storage ?? "auto",
+      storage: input?.avatars?.storage ?? 'auto',
       disk: input?.avatars?.disk,
-      directory: input?.avatars?.directory ?? "authkit/avatars",
-      collection: input?.avatars?.collection ?? "avatar",
-      ownerType: input?.avatars?.ownerType ?? "AuthAccount",
+      directory: input?.avatars?.directory ?? 'authkit/avatars',
+      collection: input?.avatars?.collection ?? 'avatar',
+      ownerType: input?.avatars?.ownerType ?? 'AuthAccount',
       maxSizeMb: input?.avatars?.maxSizeMb ?? 5,
     },
   };
@@ -488,8 +465,7 @@ export interface ResolvedParConfig {
 export function resolvePar(input?: ParConfigInput): ResolvedParConfig {
   return {
     enabled: input?.enabled ?? false,
-    requirePushedAuthorizationRequests:
-      input?.requirePushedAuthorizationRequests ?? false,
+    requirePushedAuthorizationRequests: input?.requirePushedAuthorizationRequests ?? false,
   };
 }
 
@@ -513,7 +489,7 @@ export interface ResolvedStepUpConfig {
 }
 
 export function resolveStepUp(input?: StepUpConfigInput): ResolvedStepUpConfig {
-  const mfaAcr = input?.mfaAcr ?? "urn:authkit:mfa";
+  const mfaAcr = input?.mfaAcr ?? 'urn:authkit:mfa';
   // Garante que o mfaAcr esteja sempre na lista anunciada como suportada.
   const acrValues = Array.from(new Set([...(input?.acrValues ?? []), mfaAcr]));
   return { acrValues, mfaAcr };
@@ -552,9 +528,7 @@ export interface ResolvedPasswordlessConfig {
   signup: boolean;
 }
 
-export function resolvePasswordless(
-  input?: PasswordlessConfigInput,
-): ResolvedPasswordlessConfig {
+export function resolvePasswordless(input?: PasswordlessConfigInput): ResolvedPasswordlessConfig {
   return {
     magicLink: input?.magicLink ?? false,
     passkeyFirst: input?.passkeyFirst ?? false,
@@ -600,10 +574,10 @@ export function resolveAuthMethodsConfig(
 ): ResolvedAuthMethodsConfig {
   if (!input) return {};
   const out: ResolvedAuthMethodsConfig = {};
-  if (typeof input.password === "boolean") out.password = input.password;
-  if (typeof input.magicLink === "boolean") out.magicLink = input.magicLink;
-  if (typeof input.passkey === "boolean") out.passkey = input.passkey;
-  if (typeof input.forgotPassword === "boolean") out.forgotPassword = input.forgotPassword;
+  if (typeof input.password === 'boolean') out.password = input.password;
+  if (typeof input.magicLink === 'boolean') out.magicLink = input.magicLink;
+  if (typeof input.passkey === 'boolean') out.passkey = input.passkey;
+  if (typeof input.forgotPassword === 'boolean') out.forgotPassword = input.forgotPassword;
   return out;
 }
 
@@ -651,9 +625,7 @@ export interface ResolvedRegistrationConfig {
   enabled: boolean;
 }
 
-export function resolveRegistration(
-  input?: RegistrationConfigInput,
-): ResolvedRegistrationConfig {
+export function resolveRegistration(input?: RegistrationConfigInput): ResolvedRegistrationConfig {
   return {
     enabled: input?.enabled ?? true,
   };
@@ -693,9 +665,9 @@ export function resolveAccessTokens(
   issuer: string,
   input?: AccessTokensConfig,
 ): ResolvedAccessTokensConfig {
-  const format: AccessTokenFormat = input?.format ?? "opaque";
+  const format: AccessTokenFormat = input?.format ?? 'opaque';
   const audience = input?.audience ?? issuer;
-  const resources: ResolvedAccessTokensConfig["resources"] = {};
+  const resources: ResolvedAccessTokensConfig['resources'] = {};
 
   for (const [indicator, rc] of Object.entries(input?.resources ?? {})) {
     resources[indicator] = {
@@ -706,10 +678,8 @@ export function resolveAccessTokens(
     };
   }
 
-  const anyResourceJwt = Object.values(resources).some(
-    (r) => r.format === "jwt",
-  );
-  const anyJwt = format === "jwt" || anyResourceJwt;
+  const anyResourceJwt = Object.values(resources).some((r) => r.format === 'jwt');
+  const anyJwt = format === 'jwt' || anyResourceJwt;
 
   return { format, audience, anyJwt, resources };
 }
@@ -736,7 +706,7 @@ export interface ResolvedAdminConfig {
 export function resolveAdmin(input?: AdminConfigInput): ResolvedAdminConfig {
   return {
     enabled: input?.enabled ?? false,
-    roles: input?.roles && input.roles.length > 0 ? input.roles : ["ADMIN"],
+    roles: input?.roles && input.roles.length > 0 ? input.roles : ['ADMIN'],
     impersonation: false,
   };
 }
@@ -758,7 +728,7 @@ export interface AdminApiConfigInput {
    * `AUTHKIT_ADMIN_API_KEY` (uma ou várias, separadas por vírgula). Elimina o
    * spread condicional `...(env.get('AUTHKIT_ADMIN_API_KEY') ? {...} : {})`.
    */
-  apiKeys?: string[] | "env";
+  apiKeys?: string[] | 'env';
 }
 
 export interface ResolvedAdminApiConfig {
@@ -768,17 +738,14 @@ export interface ResolvedAdminApiConfig {
 
 /** Lê API keys de `AUTHKIT_ADMIN_API_KEY` (uma ou várias, separadas por vírgula). */
 function adminApiKeysFromEnv(): string[] {
-  return (process.env.AUTHKIT_ADMIN_API_KEY ?? "")
-    .split(",")
+  return (process.env.AUTHKIT_ADMIN_API_KEY ?? '')
+    .split(',')
     .map((key) => key.trim())
     .filter(Boolean);
 }
 
-export function resolveAdminApi(
-  input?: AdminApiConfigInput,
-): ResolvedAdminApiConfig {
-  const apiKeys =
-    input?.apiKeys === "env" ? adminApiKeysFromEnv() : (input?.apiKeys ?? []);
+export function resolveAdminApi(input?: AdminApiConfigInput): ResolvedAdminApiConfig {
+  const apiKeys = input?.apiKeys === 'env' ? adminApiKeysFromEnv() : (input?.apiKeys ?? []);
   return {
     // Default inteligente: liga quando há key resolvida (a menos que enabled:false explícito).
     enabled: input?.enabled ?? apiKeys.length > 0,
@@ -805,7 +772,7 @@ export interface OrganizationsConfigInput {
    * emite org_id/org_slug/org_role da org ativa da sessão via cookie assinado.
    * Default: 'active'.
    */
-  claimStrategy?: "active";
+  claimStrategy?: 'active';
 }
 
 export interface ResolvedOrganizationsConfig {
@@ -814,7 +781,7 @@ export interface ResolvedOrganizationsConfig {
   roles: string[];
   allowSelfCreate: boolean;
   invitationTtlHours: number;
-  claimStrategy: "active";
+  claimStrategy: 'active';
 }
 
 export function resolveOrganizations(
@@ -822,10 +789,10 @@ export function resolveOrganizations(
 ): ResolvedOrganizationsConfig {
   return {
     enabled: input?.enabled,
-    roles: ["owner", "admin", "member"],
+    roles: ['owner', 'admin', 'member'],
     allowSelfCreate: false,
     invitationTtlHours: 168,
-    claimStrategy: input?.claimStrategy ?? "active",
+    claimStrategy: input?.claimStrategy ?? 'active',
   };
 }
 
@@ -858,8 +825,8 @@ export function resolveWebauthn(
   fallbackName: string,
   input?: WebauthnConfigInput,
 ): ResolvedWebauthnConfig {
-  let host = "localhost";
-  let origin = "http://localhost";
+  let host = 'localhost';
+  let origin = 'http://localhost';
   try {
     const url = new URL(issuer);
     host = url.hostname;
@@ -891,7 +858,7 @@ export interface AuthServerConfigInput {
    * persistido em arquivo (`tmp/authkit_jwks.json`) p/ dev. Elimina o ternário
    * env-aware que todo app escrevia.
    */
-  jwks: JwksConfig | "auto";
+  jwks: JwksConfig | 'auto';
   ttl?: TtlConfig;
   /** Nome da CLAIM (não do scope) onde os papéis globais são emitidos. Default: 'roles'. */
   globalRolesClaim?: string;
@@ -1140,10 +1107,7 @@ export interface ResolvedServerConfig {
   cookieKeys: string[];
   observability: ObservabilityConfig;
   findAccount: (sub: string) => Promise<AuthAccount | null>;
-  verifyCredentials: (
-    email: string,
-    password: string,
-  ) => Promise<{ id: string } | null>;
+  verifyCredentials: (email: string, password: string) => Promise<{ id: string } | null>;
   accountStore: AccountStore;
   patStore?: PatStore;
   mountPath: string;
@@ -1217,12 +1181,9 @@ export interface ResolvedServerConfig {
 
 const UNITS: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
 
-export function toSeconds(
-  value: string | number | undefined,
-  fallback: number,
-): number {
+export function toSeconds(value: string | number | undefined, fallback: number): number {
   if (value === undefined) return fallback;
-  if (typeof value === "number") return value;
+  if (typeof value === 'number') return value;
   const m = /^(\d+)\s*([smhd])$/.exec(value.trim());
   if (!m) throw new Error(`TTL inválido: ${value}`);
   return Number(m[1]) * UNITS[m[2]];
@@ -1235,208 +1196,183 @@ export function toSeconds(
  * internamente — encrypt OFF para não duplo-encriptar.
  */
 export function defaultEncryptForStore(store: KeystoreStoreConfig): boolean {
-  if (typeof store === "string") return true;
-  return ["file", "drive", "lucid", "redis"].includes((store as any).driver);
+  if (typeof store === 'string') return true;
+  return ['file', 'drive', 'lucid', 'redis'].includes((store as any).driver);
 }
 
 /**
  * Mensagem de aviso quando `jwks: 'auto'` cai no fallback de disco (sem
  * AUTHKIT_JWKS): a chave privada será persistida em arquivo. `null` = sem aviso.
  */
-export function jwksAutoFallbackWarning(
-  storePath: string | null,
-): string | null {
+export function jwksAutoFallbackWarning(storePath: string | null): string | null {
   if (!storePath) return null;
-  return (
-    `AuthKit: jwks 'auto' caiu no fallback de disco (${storePath}) — a chave privada de ` +
-    `assinatura será persistida em arquivo. Para produção, defina AUTHKIT_JWKS ` +
-    `(secret manager) ou configure jwks.store explicitamente.`
-  );
+  return `AuthKit: jwks 'auto' caiu no fallback de disco (${storePath}) — a chave privada de assinatura será persistida em arquivo. Para produção, defina AUTHKIT_JWKS (secret manager) ou configure jwks.store explicitamente.`;
 }
 
 export function defineConfig(config: AuthServerConfigInput) {
-  return configProvider.create(
-    async (app: ApplicationService): Promise<ResolvedServerConfig> => {
-      const AdapterClass = await config.adapter.resolver(app);
+  return configProvider.create(async (app: ApplicationService): Promise<ResolvedServerConfig> => {
+    const AdapterClass = await config.adapter.resolver(app);
 
-      // `jwks: 'auto'` → resolve env-aware: AUTHKIT_JWKS inline, senão managed em arquivo.
-      const jwksConfig: JwksConfig =
-        config.jwks === "auto"
-          ? process.env.AUTHKIT_JWKS
-            ? {
-                source: "jwks",
-                keys: JSON.parse(process.env.AUTHKIT_JWKS).keys,
-              }
-            : {
-                source: "managed",
-                algorithm: "RS256",
-                store: "tmp/authkit_jwks.json",
-              }
-          : config.jwks;
+    // `jwks: 'auto'` → resolve env-aware: AUTHKIT_JWKS inline, senão managed em arquivo.
+    const jwksConfig: JwksConfig =
+      config.jwks === 'auto'
+        ? process.env.AUTHKIT_JWKS
+          ? {
+              source: 'jwks',
+              keys: JSON.parse(process.env.AUTHKIT_JWKS).keys,
+            }
+          : {
+              source: 'managed',
+              algorithm: 'RS256',
+              store: 'tmp/authkit_jwks.json',
+            }
+        : config.jwks;
 
-      if (config.jwks === "auto" && !process.env.AUTHKIT_JWKS) {
-        const warning = jwksAutoFallbackWarning(
-          (jwksConfig as { store?: string }).store ?? null,
-        );
-        if (warning) {
-          await app.container
-            .make("logger")
-            .then((l: any) => l?.warn(warning))
-            .catch(() => {});
-        }
-      }
-
-      const storeCfg = (jwksConfig as { store?: any }).store;
-      if (
-        jwksConfig.source === "managed" &&
-        storeCfg &&
-        typeof storeCfg === "object" &&
-        storeCfg.driver === "redis"
-      ) {
+    if (config.jwks === 'auto' && !process.env.AUTHKIT_JWKS) {
+      const warning = jwksAutoFallbackWarning((jwksConfig as { store?: string }).store ?? null);
+      if (warning) {
         await app.container
-          .make("logger")
-          .then((l: any) =>
-            l?.warn(
-              'AuthKit: keystore no driver "redis" — garanta PERSISTÊNCIA (RDB/AOF). Num Redis cache-only, um flush apaga o keystore e invalida todos os tokens.',
-            ),
-          )
+          .make('logger')
+          .then((l: any) => l?.warn(warning))
           .catch(() => {});
       }
+    }
 
-      let jwks: { keys: Record<string, any>[] };
-      if (jwksConfig.source === "managed") {
-        const alg = jwksConfig.algorithm ?? "RS256";
-        if (jwksConfig.store) {
-          const vault = resolveKeystoreVault(jwksConfig.store as any, {
-            makePath: (p) => app.makePath(p),
-            container: app.container,
-          });
-          const encrypt =
-            jwksConfig.encrypt ??
-            defaultEncryptForStore(jwksConfig.store as any);
-          const enc = encrypt ? await loadEncryptionService() : undefined;
-          const manager = new KeystoreManager(
-            vault,
-            new KeystoreCodec({ encrypt, enc }),
-            alg,
-          );
-          const store = await manager.ensure();
-          // Remove o metadado interno `iat` antes de entregar ao oidc-provider.
-          jwks = { keys: store.keys.map(({ iat: _iat, ...jwk }) => jwk) };
-        } else {
-          jwks = await generateJwks(alg);
-        }
+    const storeCfg = (jwksConfig as { store?: any }).store;
+    if (
+      jwksConfig.source === 'managed' &&
+      storeCfg &&
+      typeof storeCfg === 'object' &&
+      storeCfg.driver === 'redis'
+    ) {
+      await app.container
+        .make('logger')
+        .then((l: any) =>
+          l?.warn(
+            'AuthKit: keystore no driver "redis" — garanta PERSISTÊNCIA (RDB/AOF). Num Redis cache-only, um flush apaga o keystore e invalida todos os tokens.',
+          ),
+        )
+        .catch(() => {});
+    }
+
+    let jwks: { keys: Record<string, any>[] };
+    if (jwksConfig.source === 'managed') {
+      const alg = jwksConfig.algorithm ?? 'RS256';
+      if (jwksConfig.store) {
+        const vault = resolveKeystoreVault(jwksConfig.store as any, {
+          makePath: (p) => app.makePath(p),
+          container: app.container,
+        });
+        const encrypt = jwksConfig.encrypt ?? defaultEncryptForStore(jwksConfig.store as any);
+        const enc = encrypt ? await loadEncryptionService() : undefined;
+        const manager = new KeystoreManager(vault, new KeystoreCodec({ encrypt, enc }), alg);
+        const store = await manager.ensure();
+        // Remove o metadado interno `iat` antes de entregar ao oidc-provider.
+        jwks = { keys: store.keys.map(({ iat: _iat, ...jwk }) => jwk) };
       } else {
-        jwks = { keys: jwksConfig.keys ?? [] };
+        jwks = await generateJwks(alg);
       }
+    } else {
+      jwks = { keys: jwksConfig.keys ?? [] };
+    }
 
-      // #9: mfaIssuer efetivo — top-level do defineConfig vence; senão o do lucidAccountStore; senão default.
-      const effectiveMfaIssuer =
-        config.mfaIssuer ??
-        ((config.accountStore as any)?.__mfaIssuer as string | undefined) ??
-        "AuthKit";
+    // #9: mfaIssuer efetivo — top-level do defineConfig vence; senão o do lucidAccountStore; senão default.
+    const effectiveMfaIssuer =
+      config.mfaIssuer ??
+      ((config.accountStore as any)?.__mfaIssuer as string | undefined) ??
+      'AuthKit';
 
-      return {
-        issuer: config.issuer,
-        AdapterClass,
-        clients: config.clients ?? [],
-        jwks: jwks as { keys: Record<string, any>[] },
-        jwksConfig,
-        ttl: {
-          accessToken: toSeconds(config.ttl?.accessToken, 900),
-          refreshToken: toSeconds(config.ttl?.refreshToken, 2592000),
-          idToken: toSeconds(config.ttl?.idToken, 900),
-          session: toSeconds(config.ttl?.session, 604800),
-        },
-        globalRolesClaim: config.globalRolesClaim ?? "roles",
-        resolveTokenRoles: config.resolveTokenRoles,
-        cookieKeys: config.cookieKeys ?? [],
-        observability: config.observability ?? {},
-        findAccount: (sub: string) => config.accountStore.findById(sub),
-        verifyCredentials: async (email: string, password: string) => {
-          const acc = await config.accountStore.verifyCredentials(
-            email,
-            password,
-          );
-          return acc ? { id: acc.id } : null;
-        },
-        accountStore: config.accountStore,
-        patStore: config.patStore,
-        mountPath: config.mountPath ?? "/oidc",
-        accountHome: config.accountHome,
-        // Default de runtime: sem isso, `render` ficava `undefined` e TODA
-        // request a `/account/*`/`/auth/interaction/*` estourava um 500 sem
-        // contexto (os controllers fazem `cfg.render!(...)`). `edgeRenderer()`
-        // só usa `ctx.view` quando de fato invocado por uma request — não
-        // importa `edge.js` eagerly, então é seguro construir mesmo em hosts
-        // sem o peer opcional instalado (só quebraria se a request realmente
-        // chegasse sem Edge configurado, exatamente como hoje).
-        render: config.render ?? edgeRenderer(),
-        branding: config.branding,
-        social: config.social,
-        patIntrospectionSecret: config.patIntrospectionSecret,
-        rateLimit: resolveRateLimit(config.rateLimit),
-        lockout: resolveLockout(config.lockout),
-        notifications: resolveNotifications(),
-        mail: config.mail,
-        // Propaga os métodos de sudo para o config resolvido. Sem esta linha o
-        // campo existiria só no config de ENTRADA e `cfg.sudo` seria sempre
-        // undefined em runtime — exatamente o bug que `accountHome` tinha.
-        sudo: config.sudo,
-        audit: (() => {
-          // Sempre compõe o fan-out: além de onEvent/webhook (quando configurados),
-          // o sink composto republica TODO evento de auditoria no barramento de
-          // diagnostics do Agora (best-effort, zero-config, no-op sem o slot).
-          const events = resolveEvents(config.events);
-          return composeAuditSink(config.audit, events ?? {});
-        })(),
-        // #9: reusa mfaIssuer/webauthn declarados no lucidAccountStore quando o
-        // top-level não os fornece — consumidor declara UMA vez. Top-level ainda vence.
-        mfaIssuer: effectiveMfaIssuer,
-        webauthn: resolveWebauthn(
-          config.issuer,
-          effectiveMfaIssuer,
-          config.webauthn ??
-            ((config.accountStore as any)
-              ?.__webauthn as typeof config.webauthn),
-        ),
-        dynamicRegistration: resolveDynamicRegistration(
-          config.dynamicRegistration,
-        ),
-        deviceFlow: resolveDeviceFlow(config.deviceFlow),
-        uploads: resolveUploads(config.uploads),
-        dpop: resolveDpop(config.dpop),
-        par: resolvePar(config.par),
-        stepUp: resolveStepUp(config.stepUp),
-        trustedDevices: resolveTrustedDevices(config.trustedDevices),
-        botProtection: resolveBotProtection(config.botProtection),
-        passwordless: resolvePasswordless(config.passwordless),
-        authMethods: resolveAuthMethodsConfig(config.authMethods),
-        login: resolveLogin(config.login),
-        registration: resolveRegistration(config.registration),
-        accessTokens: resolveAccessTokens(config.issuer, config.accessTokens),
-        admin: resolveAdmin(config.admin),
-        adminApi: resolveAdminApi(config.adminApi),
-        organizations: resolveOrganizations(config.organizations),
-        resolveGeo: config.resolveGeo,
-        messages: resolveMessages(config.i18n),
-        locale: config.i18n?.locale ?? "pt-BR",
-        schema: {
-          autoManage: config.schema?.autoManage !== false,
-          connection: config.schema?.connection,
-        },
-        // OPT-IN: default false → caminho síncrono de sempre (byte-idêntico).
-        accountLifecycle: {
-          durable: config.accountLifecycle?.durable === true,
-        },
-        // Keys de auth_settings travadas porque foram definidas no defineConfig:
-        // config vence e a UI/Admin API não pode alterá-las (ver host/config_locks.ts).
-        lockedSettingKeys: deriveLockedSettingKeys(
-          config as Record<string, any>,
-        ),
-        // Opt-in: ausente = authkit nunca toca `ctx.auth` (comportamento de sempre).
-        adonisAuth: config.adonisAuth,
-      };
-    },
-  );
+    return {
+      issuer: config.issuer,
+      AdapterClass,
+      clients: config.clients ?? [],
+      jwks: jwks as { keys: Record<string, any>[] },
+      jwksConfig,
+      ttl: {
+        accessToken: toSeconds(config.ttl?.accessToken, 900),
+        refreshToken: toSeconds(config.ttl?.refreshToken, 2592000),
+        idToken: toSeconds(config.ttl?.idToken, 900),
+        session: toSeconds(config.ttl?.session, 604800),
+      },
+      globalRolesClaim: config.globalRolesClaim ?? 'roles',
+      resolveTokenRoles: config.resolveTokenRoles,
+      cookieKeys: config.cookieKeys ?? [],
+      observability: config.observability ?? {},
+      findAccount: (sub: string) => config.accountStore.findById(sub),
+      verifyCredentials: async (email: string, password: string) => {
+        const acc = await config.accountStore.verifyCredentials(email, password);
+        return acc ? { id: acc.id } : null;
+      },
+      accountStore: config.accountStore,
+      patStore: config.patStore,
+      mountPath: config.mountPath ?? '/oidc',
+      accountHome: config.accountHome,
+      // Default de runtime: sem isso, `render` ficava `undefined` e TODA
+      // request a `/account/*`/`/auth/interaction/*` estourava um 500 sem
+      // contexto (os controllers fazem `cfg.render!(...)`). `edgeRenderer()`
+      // só usa `ctx.view` quando de fato invocado por uma request — não
+      // importa `edge.js` eagerly, então é seguro construir mesmo em hosts
+      // sem o peer opcional instalado (só quebraria se a request realmente
+      // chegasse sem Edge configurado, exatamente como hoje).
+      render: config.render ?? edgeRenderer(),
+      branding: config.branding,
+      social: config.social,
+      patIntrospectionSecret: config.patIntrospectionSecret,
+      rateLimit: resolveRateLimit(config.rateLimit),
+      lockout: resolveLockout(config.lockout),
+      notifications: resolveNotifications(),
+      mail: config.mail,
+      // Propaga os métodos de sudo para o config resolvido. Sem esta linha o
+      // campo existiria só no config de ENTRADA e `cfg.sudo` seria sempre
+      // undefined em runtime — exatamente o bug que `accountHome` tinha.
+      sudo: config.sudo,
+      audit: (() => {
+        // Sempre compõe o fan-out: além de onEvent/webhook (quando configurados),
+        // o sink composto republica TODO evento de auditoria no barramento de
+        // diagnostics do Agora (best-effort, zero-config, no-op sem o slot).
+        const events = resolveEvents(config.events);
+        return composeAuditSink(config.audit, events ?? {});
+      })(),
+      // #9: reusa mfaIssuer/webauthn declarados no lucidAccountStore quando o
+      // top-level não os fornece — consumidor declara UMA vez. Top-level ainda vence.
+      mfaIssuer: effectiveMfaIssuer,
+      webauthn: resolveWebauthn(
+        config.issuer,
+        effectiveMfaIssuer,
+        config.webauthn ?? ((config.accountStore as any)?.__webauthn as typeof config.webauthn),
+      ),
+      dynamicRegistration: resolveDynamicRegistration(config.dynamicRegistration),
+      deviceFlow: resolveDeviceFlow(config.deviceFlow),
+      uploads: resolveUploads(config.uploads),
+      dpop: resolveDpop(config.dpop),
+      par: resolvePar(config.par),
+      stepUp: resolveStepUp(config.stepUp),
+      trustedDevices: resolveTrustedDevices(config.trustedDevices),
+      botProtection: resolveBotProtection(config.botProtection),
+      passwordless: resolvePasswordless(config.passwordless),
+      authMethods: resolveAuthMethodsConfig(config.authMethods),
+      login: resolveLogin(config.login),
+      registration: resolveRegistration(config.registration),
+      accessTokens: resolveAccessTokens(config.issuer, config.accessTokens),
+      admin: resolveAdmin(config.admin),
+      adminApi: resolveAdminApi(config.adminApi),
+      organizations: resolveOrganizations(config.organizations),
+      resolveGeo: config.resolveGeo,
+      messages: resolveMessages(config.i18n),
+      locale: config.i18n?.locale ?? 'pt-BR',
+      schema: {
+        autoManage: config.schema?.autoManage !== false,
+        connection: config.schema?.connection,
+      },
+      // OPT-IN: default false → caminho síncrono de sempre (byte-idêntico).
+      accountLifecycle: {
+        durable: config.accountLifecycle?.durable === true,
+      },
+      // Keys de auth_settings travadas porque foram definidas no defineConfig:
+      // config vence e a UI/Admin API não pode alterá-las (ver host/config_locks.ts).
+      lockedSettingKeys: deriveLockedSettingKeys(config as Record<string, any>),
+      // Opt-in: ausente = authkit nunca toca `ctx.auth` (comportamento de sempre).
+      adonisAuth: config.adonisAuth,
+    };
+  });
 }

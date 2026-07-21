@@ -10,7 +10,7 @@
  * `onDiagnostic('authkit', …)`) registra quando presente. Nada aqui pode lançar
  * para dentro do caminho de auth.
  */
-const EMIT_SLOT = Symbol.for("@agora/diagnostics:emit");
+const EMIT_SLOT = Symbol.for('@agora/diagnostics:emit');
 
 type EmitFn = (lib: string, event: string, payload: unknown) => void;
 
@@ -21,10 +21,8 @@ type EmitFn = (lib: string, event: string, payload: unknown) => void;
  */
 export function emitDiagnostic(event: string, payload: unknown): void {
   try {
-    const emit = (globalThis as Record<symbol, unknown>)[EMIT_SLOT] as
-      | EmitFn
-      | undefined;
-    emit?.("authkit", event, payload);
+    const emit = (globalThis as Record<symbol, unknown>)[EMIT_SLOT] as EmitFn | undefined;
+    emit?.('authkit', event, payload);
   } catch {
     // best-effort: a ponte de diagnostics nunca quebra o caminho de auth.
   }

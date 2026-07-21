@@ -1,5 +1,11 @@
-import { useCallback } from 'react'
-import { useQueryState, useQueryStates, parseAsInteger, parseAsString, parseAsStringLiteral } from 'nuqs'
+import {
+  parseAsInteger,
+  parseAsString,
+  parseAsStringLiteral,
+  useQueryState,
+  useQueryStates,
+} from 'nuqs';
+import { useCallback } from 'react';
 
 export const ROUTES = [
   'overview',
@@ -11,9 +17,9 @@ export const ROUTES = [
   'audit',
   'keys',
   'settings',
-] as const
+] as const;
 
-export type Route = (typeof ROUTES)[number]
+export type Route = (typeof ROUTES)[number];
 
 /**
  * Roteamento e estado de rota do console via nuqs (query params na URL).
@@ -29,8 +35,8 @@ export type Route = (typeof ROUTES)[number]
 export function useRouter() {
   const [route, setView] = useQueryState(
     'view',
-    parseAsStringLiteral(ROUTES).withDefault('overview')
-  )
+    parseAsStringLiteral(ROUTES).withDefault('overview'),
+  );
 
   // Filtros compartilhados entre páginas — declarados aqui só para poder
   // limpá-los numa transição de rota. Cada página continua dona dos seus.
@@ -40,15 +46,15 @@ export function useRouter() {
     user: parseAsString,
     org: parseAsString,
     type: parseAsString,
-  })
+  });
 
   const navigate = useCallback(
     (r: Route) => {
-      void setView(r === 'overview' ? null : r)
-      void clearFilters({ page: null, q: null, user: null, org: null, type: null })
+      void setView(r === 'overview' ? null : r);
+      void clearFilters({ page: null, q: null, user: null, org: null, type: null });
     },
-    [setView, clearFilters]
-  )
+    [setView, clearFilters],
+  );
 
-  return { route, navigate }
+  return { route, navigate };
 }

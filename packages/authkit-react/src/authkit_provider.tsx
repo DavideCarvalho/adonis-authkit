@@ -1,17 +1,17 @@
-import { createElement, type ReactNode } from 'react'
-import { AuthContext } from './provider.js'
-import { AuthkitConfigContext, resolveConfig, type AuthkitConfig } from './config.js'
-import type { AuthSharedProps } from './types.js'
+import { type ReactNode, createElement } from 'react';
+import { type AuthkitConfig, AuthkitConfigContext, resolveConfig } from './config.js';
+import { AuthContext } from './provider.js';
+import type { AuthSharedProps } from './types.js';
 
 export interface AuthkitProviderProps {
   /** config de URLs/endpoints; defaults apontam para as rotas do host-kit */
-  config?: AuthkitConfig
+  config?: AuthkitConfig;
   /**
    * valor de auth opcional. Se omitido, `useAuth()` lê da shared-prop
    * `authkit` do Inertia (`usePage().props.authkit`).
    */
-  value?: AuthSharedProps['authkit']
-  children: ReactNode
+  value?: AuthSharedProps['authkit'];
+  children: ReactNode;
 }
 
 /**
@@ -26,10 +26,10 @@ export interface AuthkitProviderProps {
  * ```
  */
 export function AuthkitProvider({ config, value, children }: AuthkitProviderProps) {
-  const resolved = resolveConfig(config)
-  const tree = createElement(AuthkitConfigContext.Provider, { value: resolved }, children)
+  const resolved = resolveConfig(config);
+  const tree = createElement(AuthkitConfigContext.Provider, { value: resolved }, children);
   if (value !== undefined) {
-    return createElement(AuthContext.Provider, { value }, tree)
+    return createElement(AuthContext.Provider, { value }, tree);
   }
-  return tree
+  return tree;
 }

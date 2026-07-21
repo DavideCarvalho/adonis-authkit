@@ -1,23 +1,28 @@
-import React, { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  useOrgsQueryOptions,
-  useOrgQueryOptions,
-  useCreateOrgMutationOptions,
-  useUpdateOrgMutationOptions,
-  useDeleteOrgMutationOptions,
   authkitKeys,
-} from '@adonis-agora/authkit-react'
-import { Drawer } from '../components/Drawer'
-import { Pagination } from '../components/Pagination'
-import { QueryBoundary } from '../components/QueryBoundary'
-import { SkeletonPanelTable, SkeletonDrawerSection } from '../components/Skeleton'
-import { UserPicker, PickedUserChip, type PickedUser } from '../components/UserPicker'
-import { useToast } from '../lib/toast'
-import { AddMemberSection, InviteSection, MemberRow, InvitationRow } from './org_members.containers'
-import { OrgSettingsSection } from './org_settings.containers'
+  useCreateOrgMutationOptions,
+  useDeleteOrgMutationOptions,
+  useOrgQueryOptions,
+  useOrgsQueryOptions,
+  useUpdateOrgMutationOptions,
+} from '@adonis-agora/authkit-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { Drawer } from '../components/Drawer';
+import { Pagination } from '../components/Pagination';
+import { QueryBoundary } from '../components/QueryBoundary';
+import { SkeletonDrawerSection, SkeletonPanelTable } from '../components/Skeleton';
+import { type PickedUser, PickedUserChip, UserPicker } from '../components/UserPicker';
+import { useToast } from '../lib/toast';
+import {
+  AddMemberSection,
+  InvitationRow,
+  InviteSection,
+  MemberRow,
+} from './org_members.containers';
+import { OrgSettingsSection } from './org_settings.containers';
 
-const PER_PAGE = 20
+const PER_PAGE = 20;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -27,54 +32,63 @@ function slugify(s: string) {
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+    .replace(/^-+|-+$/g, '');
 }
 
 // ── CreateOrgModal ────────────────────────────────────────────────────────────
 
 interface CreateOrgModalProps {
-  open: boolean
-  onClose: () => void
-  onCreated: () => void
+  open: boolean;
+  onClose: () => void;
+  onCreated: () => void;
 }
 
 export function CreateOrgModal({ open, onClose, onCreated }: CreateOrgModalProps) {
-  const toast = useToast()
-  const queryClient = useQueryClient()
-  const [name, setName] = useState('')
-  const [slug, setSlug] = useState('')
-  const [slugTouched, setSlugTouched] = useState(false)
-  const [owner, setOwner] = useState<PickedUser | null>(null)
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [owner, setOwner] = useState<PickedUser | null>(null);
 
-  const createMutation = useMutation(useCreateOrgMutationOptions())
+  const createMutation = useMutation(useCreateOrgMutationOptions());
 
   function handleNameChange(v: string) {
-    setName(v)
-    if (!slugTouched) setSlug(slugify(v))
+    setName(v);
+    if (!slugTouched) setSlug(slugify(v));
   }
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!name.trim() || !slug.trim() || !owner) return
+    e.preventDefault();
+    if (!name.trim() || !slug.trim() || !owner) return;
     try {
-      await createMutation.mutateAsync({ name: name.trim(), slug: slug.trim(), ownerAccountId: owner.id })
-      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.orgs() })
-      toast.success('Organization created')
-      setName(''); setSlug(''); setOwner(null); setSlugTouched(false)
-      onCreated()
+      await createMutation.mutateAsync({
+        name: name.trim(),
+        slug: slug.trim(),
+        ownerAccountId: owner.id,
+      });
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.orgs() });
+      toast.success('Organization created');
+      setName('');
+      setSlug('');
+      setOwner(null);
+      setSlugTouched(false);
+      onCreated();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create organization')
+      toast.error(err instanceof Error ? err.message : 'Failed to create organization');
     }
   }
 
-  if (!open) return null
+  if (!open) return null;
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <span>New Organization</span>
-          <button className="icon-btn" onClick={onClose}>✕</button>
+          <button className="icon-btn" onClick={onClose}>
+            ✕
+          </button>
         </div>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
@@ -92,7 +106,10 @@ export function CreateOrgModal({ open, onClose, onCreated }: CreateOrgModalProps
             <input
               className="input"
               value={slug}
-              onChange={(e) => { setSlug(e.target.value); setSlugTouched(true) }}
+              onChange={(e) => {
+                setSlug(e.target.value);
+                setSlugTouched(true);
+              }}
               placeholder="acme-inc"
               required
             />
@@ -106,7 +123,9 @@ export function CreateOrgModal({ open, onClose, onCreated }: CreateOrgModalProps
             )}
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
-            <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+            <button type="button" className="btn btn-ghost" onClick={onClose}>
+              Cancel
+            </button>
             <button type="submit" className="btn btn-primary" disabled={createMutation.isPending}>
               {createMutation.isPending ? 'Creating…' : 'Create'}
             </button>
@@ -114,50 +133,66 @@ export function CreateOrgModal({ open, onClose, onCreated }: CreateOrgModalProps
         </form>
       </div>
     </div>
-  )
+  );
 }
 
 // ── OrgsTableContainer ────────────────────────────────────────────────────────
 
 interface OrgsTableContainerProps {
-  search: string
-  page: number
-  onPage: (p: number) => void
-  onSelectOrg: (id: string) => void
-  onUnavailable: () => void
-  onCreateClick: () => void
+  search: string;
+  page: number;
+  onPage: (p: number) => void;
+  onSelectOrg: (id: string) => void;
+  onUnavailable: () => void;
+  onCreateClick: () => void;
 }
 
-export function OrgsTableContainer({ search, page, onPage, onSelectOrg, onUnavailable, onCreateClick }: OrgsTableContainerProps) {
-  const [checkedUnavailable, setCheckedUnavailable] = useState(false)
+export function OrgsTableContainer({
+  search,
+  page,
+  onPage,
+  onSelectOrg,
+  onUnavailable,
+  onCreateClick,
+}: OrgsTableContainerProps) {
+  const [checkedUnavailable, setCheckedUnavailable] = useState(false);
 
   const { data, isLoading, error, refetch } = useQuery({
     ...useOrgsQueryOptions(),
     retry: (failureCount, err: unknown) => {
-      if (err && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 404) {
+      if (
+        err &&
+        typeof err === 'object' &&
+        'status' in err &&
+        (err as { status: number }).status === 404
+      ) {
         if (!checkedUnavailable) {
-          setCheckedUnavailable(true)
-          onUnavailable()
+          setCheckedUnavailable(true);
+          onUnavailable();
         }
-        return false
+        return false;
       }
-      return failureCount < 1
+      return failureCount < 1;
     },
-  })
+  });
 
-  const allOrgs = data?.data ?? []
+  const allOrgs = data?.data ?? [];
   const filtered = search
     ? allOrgs.filter(
         (o) =>
           o.name.toLowerCase().includes(search.toLowerCase()) ||
-          o.slug.toLowerCase().includes(search.toLowerCase())
+          o.slug.toLowerCase().includes(search.toLowerCase()),
       )
-    : allOrgs
-  const total = filtered.length
-  const orgs = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+    : allOrgs;
+  const total = filtered.length;
+  const orgs = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
-  const isNotFound = error && typeof error === 'object' && 'status' in error && (error as { status: number }).status === 404
-  const displayError = error && !isNotFound ? error : undefined
+  const isNotFound =
+    error &&
+    typeof error === 'object' &&
+    'status' in error &&
+    (error as { status: number }).status === 404;
+  const displayError = error && !isNotFound ? error : undefined;
 
   return (
     <div className="panel">
@@ -197,11 +232,19 @@ export function OrgsTableContainer({ search, page, onPage, onSelectOrg, onUnavai
               <tbody>
                 {orgs.map((o) => (
                   <tr key={o.id} onClick={() => onSelectOrg(o.id)}>
-                    <td><b>{o.name}</b></td>
-                    <td><span className="code">{o.slug}</span></td>
-                    <td><span className="mono text-sm">{o.memberCount ?? '—'}</span></td>
                     <td>
-                      <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--faint)' }}>
+                      <b>{o.name}</b>
+                    </td>
+                    <td>
+                      <span className="code">{o.slug}</span>
+                    </td>
+                    <td>
+                      <span className="mono text-sm">{o.memberCount ?? '—'}</span>
+                    </td>
+                    <td>
+                      <span
+                        style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--faint)' }}
+                      >
                         {o.createdAt ? new Date(o.createdAt).toLocaleDateString() : '—'}
                       </span>
                     </td>
@@ -216,36 +259,39 @@ export function OrgsTableContainer({ search, page, onPage, onSelectOrg, onUnavai
         )}
       </QueryBoundary>
     </div>
-  )
+  );
 }
 
 // ── EditOrgSection ────────────────────────────────────────────────────────────
 
 interface EditOrgSectionProps {
-  orgId: string
-  currentName: string
-  currentLogoUrl: string | null
-  onDone: () => void
+  orgId: string;
+  currentName: string;
+  currentLogoUrl: string | null;
+  onDone: () => void;
 }
 
 function EditOrgSection({ orgId, currentName, currentLogoUrl, onDone }: EditOrgSectionProps) {
-  const toast = useToast()
-  const queryClient = useQueryClient()
-  const [name, setName] = useState(currentName)
-  const [logoUrl, setLogoUrl] = useState(currentLogoUrl ?? '')
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const [name, setName] = useState(currentName);
+  const [logoUrl, setLogoUrl] = useState(currentLogoUrl ?? '');
 
-  const updateMutation = useMutation(useUpdateOrgMutationOptions(orgId))
+  const updateMutation = useMutation(useUpdateOrgMutationOptions(orgId));
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+    e.preventDefault();
     try {
-      await updateMutation.mutateAsync({ name: name.trim() || undefined, logoUrl: logoUrl.trim() || null })
-      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.orgs() })
-      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.org(orgId) })
-      toast.success('Organization updated')
-      onDone()
+      await updateMutation.mutateAsync({
+        name: name.trim() || undefined,
+        logoUrl: logoUrl.trim() || null,
+      });
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.orgs() });
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.org(orgId) });
+      toast.success('Organization updated');
+      onDone();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update organization')
+      toast.error(err instanceof Error ? err.message : 'Failed to update organization');
     }
   }
 
@@ -257,44 +303,55 @@ function EditOrgSection({ orgId, currentName, currentLogoUrl, onDone }: EditOrgS
       </div>
       <div>
         <label className="field-label">Logo URL</label>
-        <input className="input" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://…" />
+        <input
+          className="input"
+          value={logoUrl}
+          onChange={(e) => setLogoUrl(e.target.value)}
+          placeholder="https://…"
+        />
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
-        <button type="submit" className="btn btn-primary btn-sm" disabled={updateMutation.isPending}>
+        <button
+          type="submit"
+          className="btn btn-primary btn-sm"
+          disabled={updateMutation.isPending}
+        >
           {updateMutation.isPending ? 'Saving…' : 'Save'}
         </button>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={onDone}>Cancel</button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onDone}>
+          Cancel
+        </button>
       </div>
     </form>
-  )
+  );
 }
 
 // ── OrgDetailContent ──────────────────────────────────────────────────────────
 
 interface OrgDetailContentProps {
-  orgId: string
-  onDeleted: () => void
+  orgId: string;
+  onDeleted: () => void;
 }
 
 function OrgDetailContent({ orgId, onDeleted }: OrgDetailContentProps) {
-  const toast = useToast()
-  const queryClient = useQueryClient()
-  const { data: detail, isLoading, error, refetch } = useQuery(useOrgQueryOptions(orgId))
-  const [editing, setEditing] = useState(false)
-  const [addingMember, setAddingMember] = useState(false)
-  const [inviting, setInviting] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const { data: detail, isLoading, error, refetch } = useQuery(useOrgQueryOptions(orgId));
+  const [editing, setEditing] = useState(false);
+  const [addingMember, setAddingMember] = useState(false);
+  const [inviting, setInviting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const deleteMutation = useMutation(useDeleteOrgMutationOptions(orgId))
+  const deleteMutation = useMutation(useDeleteOrgMutationOptions(orgId));
 
   async function handleDelete() {
     try {
-      await deleteMutation.mutateAsync()
-      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.orgs() })
-      toast.success('Organization deleted')
-      onDeleted()
+      await deleteMutation.mutateAsync();
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.orgs() });
+      toast.success('Organization deleted');
+      onDeleted();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete organization')
+      toast.error(err instanceof Error ? err.message : 'Failed to delete organization');
     }
   }
 
@@ -307,13 +364,26 @@ function OrgDetailContent({ orgId, onDeleted }: OrgDetailContentProps) {
     >
       {detail && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
           {/* ── Info / Edit ── */}
           <div>
-            <div style={{ fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--faint)', fontWeight: 600, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div
+              style={{
+                fontSize: 10.5,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                color: 'var(--faint)',
+                fontWeight: 600,
+                marginBottom: 8,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
               <span>Info</span>
               {!editing && (
-                <button className="btn btn-ghost btn-sm" onClick={() => setEditing(true)}>Edit</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => setEditing(true)}>
+                  Edit
+                </button>
               )}
             </div>
             {editing ? (
@@ -335,10 +405,24 @@ function OrgDetailContent({ orgId, onDeleted }: OrgDetailContentProps) {
 
           {/* ── Members ── */}
           <div>
-            <div style={{ fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--faint)', fontWeight: 600, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div
+              style={{
+                fontSize: 10.5,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                color: 'var(--faint)',
+                fontWeight: 600,
+                marginBottom: 8,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
               <span>Members ({detail.members.length})</span>
               {!addingMember && (
-                <button className="btn btn-ghost btn-sm" onClick={() => setAddingMember(true)}>+ Add</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => setAddingMember(true)}>
+                  + Add
+                </button>
               )}
             </div>
             {addingMember && (
@@ -353,10 +437,24 @@ function OrgDetailContent({ orgId, onDeleted }: OrgDetailContentProps) {
 
           {/* ── Pending Invitations ── */}
           <div>
-            <div style={{ fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--faint)', fontWeight: 600, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div
+              style={{
+                fontSize: 10.5,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                color: 'var(--faint)',
+                fontWeight: 600,
+                marginBottom: 8,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
               <span>Pending Invitations ({detail.pendingInvitations.length})</span>
               {!inviting && (
-                <button className="btn btn-ghost btn-sm" onClick={() => setInviting(true)}>+ Invite</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => setInviting(true)}>
+                  + Invite
+                </button>
               )}
             </div>
             {inviting && (
@@ -377,7 +475,16 @@ function OrgDetailContent({ orgId, onDeleted }: OrgDetailContentProps) {
 
           {/* ── Danger Zone ── */}
           <div style={{ borderTop: '1px solid var(--line)', paddingTop: 16 }}>
-            <div style={{ fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--danger, #e53e3e)', fontWeight: 600, marginBottom: 8 }}>
+            <div
+              style={{
+                fontSize: 10.5,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                color: 'var(--danger, #e53e3e)',
+                fontWeight: 600,
+                marginBottom: 8,
+              }}
+            >
               Danger Zone
             </div>
             {confirmDelete ? (
@@ -390,7 +497,9 @@ function OrgDetailContent({ orgId, onDeleted }: OrgDetailContentProps) {
                 >
                   {deleteMutation.isPending ? 'Deleting…' : 'Yes, delete'}
                 </button>
-                <button className="btn btn-ghost btn-sm" onClick={() => setConfirmDelete(false)}>Cancel</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => setConfirmDelete(false)}>
+                  Cancel
+                </button>
               </div>
             ) : (
               <button className="btn btn-danger btn-sm" onClick={() => setConfirmDelete(true)}>
@@ -401,37 +510,37 @@ function OrgDetailContent({ orgId, onDeleted }: OrgDetailContentProps) {
         </div>
       )}
     </QueryBoundary>
-  )
+  );
 }
 
 // ── OrgDetailDrawer ───────────────────────────────────────────────────────────
 
 interface OrgDetailDrawerProps {
-  orgId: string
-  onClose: () => void
+  orgId: string;
+  onClose: () => void;
 }
 
 export function OrgDetailDrawer({ orgId, onClose }: OrgDetailDrawerProps) {
-  const { data: detail } = useQuery(useOrgQueryOptions(orgId))
+  const { data: detail } = useQuery(useOrgQueryOptions(orgId));
 
   return (
     <Drawer open={true} onClose={onClose} title={detail?.name ?? 'Organization'}>
       <OrgDetailContent orgId={orgId} onDeleted={onClose} />
     </Drawer>
-  )
+  );
 }
 
 // ── Re-export count for page header ──────────────────────────────────────────
 
 export function useOrgsTotal(search: string) {
-  const { data } = useQuery(useOrgsQueryOptions())
-  const allOrgs = data?.data ?? []
+  const { data } = useQuery(useOrgsQueryOptions());
+  const allOrgs = data?.data ?? [];
   const filtered = search
     ? allOrgs.filter(
         (o) =>
           o.name.toLowerCase().includes(search.toLowerCase()) ||
-          o.slug.toLowerCase().includes(search.toLowerCase())
+          o.slug.toLowerCase().includes(search.toLowerCase()),
       )
-    : allOrgs
-  return filtered.length
+    : allOrgs;
+  return filtered.length;
 }

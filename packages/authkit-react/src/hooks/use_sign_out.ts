@@ -1,9 +1,9 @@
-import { useCallback } from 'react'
-import { useAuthkitConfig, buildAuthUrl } from '../config.js'
+import { useCallback } from 'react';
+import { buildAuthUrl, useAuthkitConfig } from '../config.js';
 
 export interface SignOutOptions {
   /** para onde ir após o logout */
-  returnTo?: string
+  returnTo?: string;
 }
 
 /**
@@ -11,13 +11,13 @@ export interface SignOutOptions {
  * (acrescentando `returnTo` se houver).
  */
 export function useSignOut() {
-  const config = useAuthkitConfig()
+  const config = useAuthkitConfig();
   const signOut = useCallback(
     (opts?: SignOutOptions) => {
-      const url = buildAuthUrl(config.logoutUrl, opts?.returnTo)
-      if (typeof window !== 'undefined') window.location.assign(url)
+      const url = buildAuthUrl(config.logoutUrl, opts?.returnTo);
+      if (typeof window !== 'undefined') window.location.assign(url);
     },
-    [config.logoutUrl]
-  )
-  return { signOut }
+    [config.logoutUrl],
+  );
+  return { signOut };
 }

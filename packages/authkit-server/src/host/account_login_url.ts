@@ -23,9 +23,9 @@
  * é inicializado uma vez por processo — ideal para configuração imutável de boot.
  */
 
-const DEFAULT_ACCOUNT_LOGIN_URL = '/account/login'
+const DEFAULT_ACCOUNT_LOGIN_URL = '/account/login';
 
-let _loginUrl: string = DEFAULT_ACCOUNT_LOGIN_URL
+let _loginUrl: string = DEFAULT_ACCOUNT_LOGIN_URL;
 
 /**
  * Define a URL de login do console de conta para este processo.
@@ -37,8 +37,8 @@ let _loginUrl: string = DEFAULT_ACCOUNT_LOGIN_URL
  * @param url  Caminho de destino do redirect de não-autenticado.
  */
 export function setAccountLoginUrl(url: string): void {
-  const trimmed = (url ?? '').trim()
-  _loginUrl = trimmed || DEFAULT_ACCOUNT_LOGIN_URL
+  const trimmed = (url ?? '').trim();
+  _loginUrl = trimmed || DEFAULT_ACCOUNT_LOGIN_URL;
 }
 
 /**
@@ -46,10 +46,10 @@ export function setAccountLoginUrl(url: string): void {
  * Usada por todo redirect/link de "faça login" da lib.
  */
 export function getAccountLoginUrl(): string {
-  return _loginUrl
+  return _loginUrl;
 }
 
 /** Restaura o default — uso em testes (isola o singleton entre casos). */
 export function resetAccountLoginUrl(): void {
-  _loginUrl = DEFAULT_ACCOUNT_LOGIN_URL
+  _loginUrl = DEFAULT_ACCOUNT_LOGIN_URL;
 }

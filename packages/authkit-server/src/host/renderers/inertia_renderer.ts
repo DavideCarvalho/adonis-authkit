@@ -1,6 +1,6 @@
-import type { HttpContext } from '@adonisjs/core/http'
-import { DEFAULT_MESSAGES, type AuthMessages } from '../i18n.js'
-import { renderEdgeView } from './edge_renderer.js'
+import type { HttpContext } from '@adonisjs/core/http';
+import { type AuthMessages, DEFAULT_MESSAGES } from '../i18n.js';
+import { renderEdgeView } from './edge_renderer.js';
 
 /**
  * Resolve o catálogo de mensagens ativo a partir do `authkit.server`. Defensivo:
@@ -9,13 +9,13 @@ import { renderEdgeView } from './edge_renderer.js'
  */
 async function resolveMessagesFromCtx(ctx: HttpContext): Promise<AuthMessages> {
   try {
-    const service = await (ctx as any).containerResolver?.make?.('authkit.server')
-    const messages = service?.config?.messages as AuthMessages | undefined
-    if (messages) return messages
+    const service = await (ctx as any).containerResolver?.make?.('authkit.server');
+    const messages = service?.config?.messages as AuthMessages | undefined;
+    if (messages) return messages;
   } catch {
     // sem container/serviço — usa o default
   }
-  return { ...DEFAULT_MESSAGES }
+  return { ...DEFAULT_MESSAGES };
 }
 
 /**
@@ -26,7 +26,7 @@ export interface InertiaRendererOptions {
    * Prefixo das páginas no diretório `inertia/pages/` do host.
    * Ex.: `'authkit'` → a view `login` mapeia para `inertia/pages/authkit/login.tsx`.
    */
-  prefix: string
+  prefix: string;
 
   /**
    * Lista de nomes de view que o host criou como páginas React (allowlist).
@@ -58,7 +58,7 @@ export interface InertiaRendererOptions {
    *   ],
    * })
    */
-  views?: AuthkitScreen[]
+  views?: AuthkitScreen[];
 }
 
 /**
@@ -84,7 +84,7 @@ export type AuthkitScreen =
   | 'account/orgs'
   | 'account/confirm'
   | 'account/email-confirmed'
-  | (string & {})
+  | (string & {});
 
 /**
  * Renderer do seam para hosts Inertia/React.
@@ -163,18 +163,18 @@ export type AuthkitScreen =
  * | `messages` | `AuthMessages` | Catálogo de mensagens i18n. |
  */
 export function inertiaRenderer(opts: InertiaRendererOptions) {
-  const allowed = opts.views ? new Set(opts.views) : null
+  const allowed = opts.views ? new Set(opts.views) : null;
 
   return async (ctx: HttpContext, view: string, props: Record<string, unknown>) => {
     // Allowlist: se `views` foi fornecido e a view não está na lista,
     // usa o fallback Edge silenciosamente (evita SSR crash por página inexistente no host).
     if (allowed !== null && !allowed.has(view)) {
-      return renderEdgeView(ctx, view, props)
+      return renderEdgeView(ctx, view, props);
     }
 
     // Happy path: view vai ao Inertia.
     // `messages` vai como shared prop para as páginas React traduzirem.
-    const messages = await resolveMessagesFromCtx(ctx)
-    return (ctx as any).inertia.render(`${opts.prefix}/${view}`, { ...props, messages })
-  }
+    const messages = await resolveMessagesFromCtx(ctx);
+    return (ctx as any).inertia.render(`${opts.prefix}/${view}`, { ...props, messages });
+  };
 }

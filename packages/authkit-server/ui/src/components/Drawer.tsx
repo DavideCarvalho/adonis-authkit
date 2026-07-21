@@ -1,21 +1,23 @@
-import React, { useEffect } from 'react'
+import React, { useEffect } from 'react';
 
 interface DrawerProps {
-  open: boolean
-  onClose: () => void
-  title: string
-  children: React.ReactNode
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
 }
 
 export function Drawer({ open, onClose, title, children }: DrawerProps) {
   useEffect(() => {
-    if (!open) return
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [open, onClose])
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [open, onClose]);
 
-  if (!open) return null
+  if (!open) return null;
 
   return (
     <>
@@ -32,5 +34,5 @@ export function Drawer({ open, onClose, title, children }: DrawerProps) {
         <div className="drawer-body">{children}</div>
       </div>
     </>
-  )
+  );
 }

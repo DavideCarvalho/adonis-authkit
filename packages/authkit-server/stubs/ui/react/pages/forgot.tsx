@@ -1,10 +1,10 @@
-{{{
-  exports({ to: app.makePath('inertia/pages/authkit/forgot.tsx') })
-}}}
-import AuthShell from '../../components/auth_shell'
+{
+  exports({ to: app.makePath('inertia/pages/authkit/forgot.tsx') });
+}
+import AuthShell from '../../components/auth_shell';
 
 const inputClass =
-  'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-transparent focus:ring-2 focus:ring-gray-800'
+  'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-transparent focus:ring-2 focus:ring-gray-800';
 
 export default function AuthkitForgot({ csrfToken, sent }: { csrfToken: string; sent?: boolean }) {
   if (sent) {
@@ -15,7 +15,7 @@ export default function AuthkitForgot({ csrfToken, sent }: { csrfToken: string; 
           Se o e-mail existir, enviaremos instruções de redefinição.
         </p>
       </AuthShell>
-    )
+    );
   }
 
   return (
@@ -40,5 +40,5 @@ export default function AuthkitForgot({ csrfToken, sent }: { csrfToken: string; 
         </button>
       </form>
     </AuthShell>
-  )
+  );
 }

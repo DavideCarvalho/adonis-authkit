@@ -1,4 +1,4 @@
-import type { AuthSocialConfig, ResolvedRateLimitConfig } from '../define_config.js'
+import type { AuthSocialConfig, ResolvedRateLimitConfig } from '../define_config.js';
 
 /**
  * Bits de routing do config resolvido que o `registerAuthHost` precisa em tempo de
@@ -9,26 +9,26 @@ import type { AuthSocialConfig, ResolvedRateLimitConfig } from '../define_config
  * Module-level porque o IdP é um por processo (mesmo padrão de config_locks).
  */
 export interface AuthHostRuntimeConfig {
-  mountPath: string
-  social?: AuthSocialConfig
-  rateLimit: ResolvedRateLimitConfig
-  adminEnabled: boolean
-  adminApiEnabled: boolean
+  mountPath: string;
+  social?: AuthSocialConfig;
+  rateLimit: ResolvedRateLimitConfig;
+  adminEnabled: boolean;
+  adminApiEnabled: boolean;
 }
 
-let stashed: AuthHostRuntimeConfig | undefined
+let stashed: AuthHostRuntimeConfig | undefined;
 
 /** Stash dos bits de routing (chamado no boot do provider). */
 export function setAuthHostConfig(config: AuthHostRuntimeConfig): void {
-  stashed = config
+  stashed = config;
 }
 
 /** Lê os bits de routing stashados; undefined se o boot ainda não rodou (fallback p/ opts/defaults). */
 export function getAuthHostConfig(): AuthHostRuntimeConfig | undefined {
-  return stashed
+  return stashed;
 }
 
 /** Limpa o stash — uso em testes. */
 export function resetAuthHostConfig(): void {
-  stashed = undefined
+  stashed = undefined;
 }

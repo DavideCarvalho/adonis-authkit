@@ -1,7 +1,7 @@
-import { BaseModel, column } from '@adonisjs/lucid/orm'
-import type { NormalizeConstructor } from '@adonisjs/core/types/helpers'
-import { DateTime } from 'luxon'
-import { jsonColumn } from './json_column.js'
+import type { NormalizeConstructor } from '@adonisjs/core/types/helpers';
+import { BaseModel, column } from '@adonisjs/lucid/orm';
+import { DateTime } from 'luxon';
+import { jsonColumn } from './json_column.js';
 
 /**
  * Instância composta pelo mixin {@link withWebauthnCredential}. Representa uma
@@ -14,22 +14,23 @@ import { jsonColumn } from './json_column.js'
  */
 export interface WebauthnCredentialRow {
   /** Conta dona desta credencial (→ auth.users). */
-  accountId: string
+  accountId: string;
   /** Chave pública COSE em base64url (texto). */
-  publicKey: string
+  publicKey: string;
   /** Signature counter (anti-replay); atualizado a cada autenticação. */
-  counter: number
+  counter: number;
   /** Transports reportados (ex.: ['internal','hybrid']); null = desconhecido. */
-  transports: string[] | null
+  transports: string[] | null;
   /** Rótulo legível opcional (ex.: nome do dispositivo). */
-  label: string | null
-  createdAt: DateTime
-  updatedAt: DateTime
+  label: string | null;
+  createdAt: DateTime;
+  updatedAt: DateTime;
 }
 
-export type WebauthnCredentialClass<Model extends NormalizeConstructor<typeof BaseModel>> = Model & {
-  new (...args: any[]): WebauthnCredentialRow
-}
+export type WebauthnCredentialClass<Model extends NormalizeConstructor<typeof BaseModel>> =
+  Model & {
+    new (...args: any[]): WebauthnCredentialRow;
+  };
 
 /**
  * Mixin de credenciais WebAuthn / passkey. Adiciona as colunas
@@ -40,37 +41,37 @@ export type WebauthnCredentialClass<Model extends NormalizeConstructor<typeof Ba
  */
 export function withWebauthnCredential() {
   return <Model extends NormalizeConstructor<typeof BaseModel>>(
-    superclass: Model
+    superclass: Model,
   ): WebauthnCredentialClass<Model> => {
     class WebauthnCredentialMixin extends superclass {
       @column()
-      declare accountId: string
+      declare accountId: string;
 
       @column()
-      declare publicKey: string
+      declare publicKey: string;
 
       @column()
-      declare counter: number
+      declare counter: number;
 
       // Array vazio também grava null; consume lida com valores pré-desserializados (Postgres json/jsonb).
       @column(
         jsonColumn<string[] | null>({
           fallback: null,
           treatEmptyArrayAsEmpty: true,
-        })
+        }),
       )
-      declare transports: string[] | null
+      declare transports: string[] | null;
 
       @column()
-      declare label: string | null
+      declare label: string | null;
 
       @column.dateTime({ autoCreate: true })
-      declare createdAt: DateTime
+      declare createdAt: DateTime;
 
       @column.dateTime({ autoCreate: true, autoUpdate: true })
-      declare updatedAt: DateTime
+      declare updatedAt: DateTime;
     }
 
-    return WebauthnCredentialMixin as unknown as WebauthnCredentialClass<Model>
-  }
+    return WebauthnCredentialMixin as unknown as WebauthnCredentialClass<Model>;
+  };
 }

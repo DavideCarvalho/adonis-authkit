@@ -1,12 +1,12 @@
-import { createElement, type ButtonHTMLAttributes, type ReactNode } from 'react'
-import { useSignOut, type SignOutOptions } from '../hooks/use_sign_out.js'
-import { useAuth } from '../use_auth.js'
+import { type ButtonHTMLAttributes, type ReactNode, createElement } from 'react';
+import { type SignOutOptions, useSignOut } from '../hooks/use_sign_out.js';
+import { useAuth } from '../use_auth.js';
 
 export interface SignOutButtonProps
   extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick'> {
-  children?: ReactNode
+  children?: ReactNode;
   /** para onde ir após o logout */
-  returnTo?: string
+  returnTo?: string;
 }
 
 /** Botão de logout. Renderiza nada quando não autenticado. */
@@ -16,10 +16,10 @@ export function SignOutButton({
   className,
   ...rest
 }: SignOutButtonProps) {
-  const { signOut } = useSignOut()
-  const { isAuthenticated } = useAuth()
-  if (!isAuthenticated) return null
-  const opts: SignOutOptions | undefined = returnTo ? { returnTo } : undefined
+  const { signOut } = useSignOut();
+  const { isAuthenticated } = useAuth();
+  if (!isAuthenticated) return null;
+  const opts: SignOutOptions | undefined = returnTo ? { returnTo } : undefined;
   return createElement(
     'button',
     {
@@ -28,6 +28,6 @@ export function SignOutButton({
       onClick: () => signOut(opts),
       ...rest,
     },
-    children
-  )
+    children,
+  );
 }

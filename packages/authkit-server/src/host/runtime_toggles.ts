@@ -12,7 +12,7 @@
  *   - `maintenance_mode`     → MaintenanceModeSetting
  */
 
-import type { SettingsCapability } from './runtime_settings.js'
+import type { SettingsCapability } from './runtime_settings.js';
 
 // ---------------------------------------------------------------------------
 // Known setting keys registry
@@ -46,9 +46,9 @@ export const SETTING_KEYS = {
   SUDO_MODE: 'sudo_mode',
   ACCOUNT_EXPIRATION: 'account_expiration',
   KEY_ROTATION: 'key_rotation',
-} as const
+} as const;
 
-export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]
+export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS];
 
 // ---------------------------------------------------------------------------
 // 1. registration setting
@@ -62,7 +62,7 @@ export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]
  * funcionando — eles NÃO passam por este guard.
  */
 export interface RegistrationSetting {
-  enabled: boolean
+  enabled: boolean;
 }
 
 /**
@@ -79,15 +79,15 @@ export interface RegistrationSetting {
  * retornar null, usamos configDefault.
  */
 export async function resolveEffectiveRegistration(
-  configDefault: boolean = true,
-  settings: SettingsCapability
+  configDefault,
+  settings: SettingsCapability,
 ): Promise<boolean> {
-  const raw = await settings.getSetting(SETTING_KEYS.REGISTRATION)
-  if (raw === null || raw === undefined) return configDefault
+  const raw = await settings.getSetting(SETTING_KEYS.REGISTRATION);
+  if (raw === null || raw === undefined) return configDefault;
   if (typeof raw !== 'object' || typeof (raw as any).enabled !== 'boolean') {
-    return configDefault // shape inválida → fallback
+    return configDefault; // shape inválida → fallback
   }
-  return (raw as RegistrationSetting).enabled
+  return (raw as RegistrationSetting).enabled;
 }
 
 // ---------------------------------------------------------------------------
@@ -105,16 +105,16 @@ export async function resolveEffectiveRegistration(
  * 0 = sem graça (comportamento original).
  */
 export interface RequireVerifiedEmailSetting {
-  enabled: boolean
+  enabled: boolean;
   /** Dias de graça após o cadastro. Default: 0 (sem graça). */
-  graceDays?: number
+  graceDays?: number;
 }
 
 /** Resultado resolvido de `require_verified_email`. */
 export interface ResolvedRequireVerifiedEmail {
-  enabled: boolean
+  enabled: boolean;
   /** Dias de graça após o cadastro (0 = sem graça). */
-  graceDays: number
+  graceDays: number;
 }
 
 /**
@@ -127,15 +127,15 @@ export interface ResolvedRequireVerifiedEmail {
  *   - setting ausente/inválido/erro → usa configDefault.
  */
 export async function resolveEffectiveRequireVerifiedEmail(
-  configDefault: boolean = false,
-  settings: SettingsCapability
+  configDefault,
+  settings: SettingsCapability,
 ): Promise<boolean> {
-  const raw = await settings.getSetting(SETTING_KEYS.REQUIRE_VERIFIED_EMAIL)
-  if (raw === null || raw === undefined) return configDefault
+  const raw = await settings.getSetting(SETTING_KEYS.REQUIRE_VERIFIED_EMAIL);
+  if (raw === null || raw === undefined) return configDefault;
   if (typeof raw !== 'object' || typeof (raw as any).enabled !== 'boolean') {
-    return configDefault // shape inválida → fallback
+    return configDefault; // shape inválida → fallback
   }
-  return (raw as RequireVerifiedEmailSetting).enabled
+  return (raw as RequireVerifiedEmailSetting).enabled;
 }
 
 /**
@@ -145,20 +145,21 @@ export async function resolveEffectiveRequireVerifiedEmail(
  * FAIL-SAFE: qualquer erro → `{ enabled: configDefault, graceDays: 0 }`.
  */
 export async function resolveEffectiveRequireVerifiedEmailFull(
-  configDefault: boolean = false,
-  settings: SettingsCapability
+  configDefault,
+  settings: SettingsCapability,
 ): Promise<ResolvedRequireVerifiedEmail> {
   try {
-    const raw = await settings.getSetting(SETTING_KEYS.REQUIRE_VERIFIED_EMAIL)
-    if (raw === null || raw === undefined) return { enabled: configDefault, graceDays: 0 }
+    const raw = await settings.getSetting(SETTING_KEYS.REQUIRE_VERIFIED_EMAIL);
+    if (raw === null || raw === undefined) return { enabled: configDefault, graceDays: 0 };
     if (typeof raw !== 'object' || typeof (raw as any).enabled !== 'boolean') {
-      return { enabled: configDefault, graceDays: 0 }
+      return { enabled: configDefault, graceDays: 0 };
     }
-    const s = raw as RequireVerifiedEmailSetting
-    const graceDays = typeof s.graceDays === 'number' && s.graceDays >= 0 ? Math.floor(s.graceDays) : 0
-    return { enabled: s.enabled, graceDays }
+    const s = raw as RequireVerifiedEmailSetting;
+    const graceDays =
+      typeof s.graceDays === 'number' && s.graceDays >= 0 ? Math.floor(s.graceDays) : 0;
+    return { enabled: s.enabled, graceDays };
   } catch {
-    return { enabled: configDefault, graceDays: 0 }
+    return { enabled: configDefault, graceDays: 0 };
   }
 }
 
@@ -188,15 +189,15 @@ export async function resolveEffectiveRequireVerifiedEmailFull(
  *   login. A Admin API usa API-key authentication, imune ao modo manutenção.
  */
 export interface MaintenanceModeSetting {
-  enabled: boolean
+  enabled: boolean;
   /** Mensagem custom exibida na tela de manutenção. Opcional. */
-  message?: string
+  message?: string;
 }
 
 /** Resultado resolvido do maintenance mode, pronto para consumo pelos controllers. */
 export interface ResolvedMaintenanceMode {
-  enabled: boolean
-  message?: string
+  enabled: boolean;
+  message?: string;
 }
 
 /**
@@ -209,18 +210,18 @@ export interface ResolvedMaintenanceMode {
  * FAIL-SAFE: qualquer erro → sistema considerado UP (disponibilidade > proteção).
  */
 export async function resolveEffectiveMaintenanceMode(
-  settings: SettingsCapability
+  settings: SettingsCapability,
 ): Promise<ResolvedMaintenanceMode> {
-  const raw = await settings.getSetting(SETTING_KEYS.MAINTENANCE_MODE)
-  if (raw === null || raw === undefined) return { enabled: false }
+  const raw = await settings.getSetting(SETTING_KEYS.MAINTENANCE_MODE);
+  if (raw === null || raw === undefined) return { enabled: false };
   if (typeof raw !== 'object' || typeof (raw as any).enabled !== 'boolean') {
-    return { enabled: false } // shape inválida → fail-safe
+    return { enabled: false }; // shape inválida → fail-safe
   }
-  const setting = raw as MaintenanceModeSetting
+  const setting = raw as MaintenanceModeSetting;
   return {
     enabled: setting.enabled,
     message: typeof setting.message === 'string' ? setting.message : undefined,
-  }
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -247,11 +248,11 @@ export async function resolveEffectiveMaintenanceMode(
  *                      AUTO-DERIVADO: sempre false quando `password` efetivo é false.
  */
 export interface AuthMethodsSetting {
-  password?: boolean
-  magicLink?: boolean
-  passkey?: boolean
-  social?: string[]
-  forgotPassword?: boolean
+  password?: boolean;
+  magicLink?: boolean;
+  passkey?: boolean;
+  social?: string[];
+  forgotPassword?: boolean;
   /**
    * Habilita WebAuthn conditional mediation (autofill) na tela de login.
    * Quando true (default quando passkey on), o input de e-mail exibe sugestões
@@ -259,20 +260,20 @@ export interface AuthMethodsSetting {
    * Fail-safe: browsers sem suporte ou abort → silêncio (login normal segue).
    * Default: true (quando passkey habilitado).
    */
-  passkeyAutofill?: boolean
+  passkeyAutofill?: boolean;
 }
 
 /**
  * Resultado resolvido dos métodos de autenticação, pronto para consumo pelas views.
  */
 export interface ResolvedAuthMethods {
-  password: boolean
-  magicLink: boolean
-  passkey: boolean
-  social: string[]
-  forgotPassword: boolean
+  password: boolean;
+  magicLink: boolean;
+  passkey: boolean;
+  social: string[];
+  forgotPassword: boolean;
   /** WebAuthn conditional mediation ativa (autofill de passkey no input de e-mail). */
-  passkeyAutofill: boolean
+  passkeyAutofill: boolean;
 }
 
 /**
@@ -281,26 +282,26 @@ export interface ResolvedAuthMethods {
  */
 export interface AuthMethodsCapabilities {
   /** Providers sociais configurados no config estático. */
-  configuredSocialProviders?: string[]
+  configuredSocialProviders?: string[];
   /** Magic link disponível (config.passwordless.magicLink && store.issueMagicLinkToken). */
-  magicLinkCapable?: boolean
+  magicLinkCapable?: boolean;
   /** Passkey-first disponível (config.passwordless.passkeyFirst && store tem passkeys). */
-  passkeyCapable?: boolean
+  passkeyCapable?: boolean;
   /**
    * Pins vindos do ARQUIVO DE CONFIG (`cfg.authMethods`): têm PRIORIDADE sobre o
    * runtime setting `auth_methods`. Cada campo presente sobrescreve o valor resolvido
    * do setting. Ligar respeita as capacidades (magicLink/passkey só ligam se capable);
    * desligar é sempre respeitado. Campos ausentes seguem controlados pelo runtime.
    */
-  configOverrides?: AuthMethodsConfigOverride
+  configOverrides?: AuthMethodsConfigOverride;
 }
 
 /** Métodos que o config pode FIXAR (prioridade sobre runtime). Só os campos declarados travam. */
 export interface AuthMethodsConfigOverride {
-  password?: boolean
-  magicLink?: boolean
-  passkey?: boolean
-  forgotPassword?: boolean
+  password?: boolean;
+  magicLink?: boolean;
+  passkey?: boolean;
+  forgotPassword?: boolean;
 }
 
 /**
@@ -309,16 +310,16 @@ export interface AuthMethodsConfigOverride {
  * booleanos presentes em `configOverrides`.
  */
 export function configLockedAuthMethods(
-  configOverrides?: AuthMethodsConfigOverride
+  configOverrides?: AuthMethodsConfigOverride,
 ): Array<keyof AuthMethodsConfigOverride> {
-  if (!configOverrides) return []
+  if (!configOverrides) return [];
   const keys: Array<keyof AuthMethodsConfigOverride> = [
     'password',
     'magicLink',
     'passkey',
     'forgotPassword',
-  ]
-  return keys.filter((k) => typeof configOverrides[k] === 'boolean')
+  ];
+  return keys.filter((k) => typeof configOverrides[k] === 'boolean');
 }
 
 /**
@@ -338,14 +339,14 @@ export function configLockedAuthMethods(
  */
 export async function resolveEffectiveAuthMethods(
   settings: SettingsCapability,
-  capabilities: AuthMethodsCapabilities = {}
+  capabilities: AuthMethodsCapabilities = {},
 ): Promise<ResolvedAuthMethods> {
   const {
     configuredSocialProviders = [],
     magicLinkCapable = false,
     passkeyCapable = false,
     configOverrides,
-  } = capabilities
+  } = capabilities;
 
   // Defaults derivados do config/capabilities.
   const configDefaults: ResolvedAuthMethods = {
@@ -355,32 +356,32 @@ export async function resolveEffectiveAuthMethods(
     social: configuredSocialProviders,
     forgotPassword: true,
     passkeyAutofill: passkeyCapable, // on por default quando passkey disponível
-  }
+  };
 
   // 1) Runtime setting sobre os defaults (setting ausente/inválida → só defaults).
-  const raw = await settings.getSetting(SETTING_KEYS.AUTH_METHODS)
+  const raw = await settings.getSetting(SETTING_KEYS.AUTH_METHODS);
   const s: AuthMethodsSetting =
     raw !== null && raw !== undefined && typeof raw === 'object' && !Array.isArray(raw)
       ? (raw as AuthMethodsSetting)
-      : {}
+      : {};
 
-  let password = typeof s.password === 'boolean' ? s.password : configDefaults.password
-  let magicLink = typeof s.magicLink === 'boolean' ? s.magicLink : configDefaults.magicLink
-  let passkey = typeof s.passkey === 'boolean' ? s.passkey : configDefaults.passkey
+  let password = typeof s.password === 'boolean' ? s.password : configDefaults.password;
+  let magicLink = typeof s.magicLink === 'boolean' ? s.magicLink : configDefaults.magicLink;
+  let passkey = typeof s.passkey === 'boolean' ? s.passkey : configDefaults.passkey;
 
   // Social: interseção com os providers do config (setting não pode ligar o que não existe).
   const social = Array.isArray(s.social)
     ? s.social.filter((p) => configuredSocialProviders.includes(p))
-    : configDefaults.social
+    : configDefaults.social;
 
   // 2) Pins do config: PRIORIDADE sobre o setting. Ligar respeita a capacidade;
   //    desligar sempre vale. `password` não tem guard de capacidade.
   if (configOverrides) {
-    if (typeof configOverrides.password === 'boolean') password = configOverrides.password
+    if (typeof configOverrides.password === 'boolean') password = configOverrides.password;
     if (typeof configOverrides.magicLink === 'boolean')
-      magicLink = configOverrides.magicLink && magicLinkCapable
+      magicLink = configOverrides.magicLink && magicLinkCapable;
     if (typeof configOverrides.passkey === 'boolean')
-      passkey = configOverrides.passkey && passkeyCapable
+      passkey = configOverrides.passkey && passkeyCapable;
   }
 
   // forgotPassword: derivado — sem senha NUNCA existe esqueci-senha. O pin/setting só
@@ -390,13 +391,13 @@ export async function resolveEffectiveAuthMethods(
       ? configOverrides.forgotPassword
       : typeof s.forgotPassword === 'boolean'
         ? s.forgotPassword
-        : true
-  const forgotPassword = password && forgotPasswordRequested
+        : true;
+  const forgotPassword = password && forgotPasswordRequested;
 
   // passkeyAutofill: só faz sentido quando passkey está ligado.
   const passkeyAutofill =
     passkey &&
-    (typeof s.passkeyAutofill === 'boolean' ? s.passkeyAutofill : configDefaults.passkeyAutofill)
+    (typeof s.passkeyAutofill === 'boolean' ? s.passkeyAutofill : configDefaults.passkeyAutofill);
 
   const resolved: ResolvedAuthMethods = {
     password,
@@ -405,23 +406,23 @@ export async function resolveEffectiveAuthMethods(
     social,
     forgotPassword,
     passkeyAutofill,
-  }
+  };
 
   // FAIL-SAFE all-off: se pins + setting zerarem TODOS os métodos, volta ao config derivado
   // (nunca deixar a tela sem método / trancar todo mundo pra fora).
   const allOff =
-    !resolved.password && !resolved.magicLink && !resolved.passkey && resolved.social.length === 0
+    !resolved.password && !resolved.magicLink && !resolved.passkey && resolved.social.length === 0;
   if (allOff) {
     // eslint-disable-next-line no-console
     console.warn(
       '[authkit] auth_methods (config pins + setting) deixou todos os métodos desligados — ' +
         'revertendo para os defaults do config (fail-safe). ' +
-        'Verifique cfg.authMethods e a setting auth_methods no console admin.'
-    )
-    return configDefaults
+        'Verifique cfg.authMethods e a setting auth_methods no console admin.',
+    );
+    return configDefaults;
   }
 
-  return resolved
+  return resolved;
 }
 
 // ---------------------------------------------------------------------------
@@ -437,16 +438,16 @@ export async function resolveEffectiveAuthMethods(
  *   - `requirePassword`:  exige senha atual para iniciar a troca. Default: true.
  */
 export interface EmailChangeSetting {
-  enabled?: boolean
-  ttlHours?: number
-  requirePassword?: boolean
+  enabled?: boolean;
+  ttlHours?: number;
+  requirePassword?: boolean;
 }
 
 /** Resultado resolvido da setting email_change. */
 export interface ResolvedEmailChangeSetting {
-  enabled: boolean
-  ttlHours: number
-  requirePassword: boolean
+  enabled: boolean;
+  ttlHours: number;
+  requirePassword: boolean;
 }
 
 /**
@@ -456,21 +457,26 @@ export interface ResolvedEmailChangeSetting {
  * FAIL-SAFE: qualquer erro → defaults (enabled true, 24h, requirePassword true).
  */
 export async function resolveEffectiveEmailChange(
-  settings: SettingsCapability
+  settings: SettingsCapability,
 ): Promise<ResolvedEmailChangeSetting> {
-  const defaults: ResolvedEmailChangeSetting = { enabled: true, ttlHours: 24, requirePassword: true }
+  const defaults: ResolvedEmailChangeSetting = {
+    enabled: true,
+    ttlHours: 24,
+    requirePassword: true,
+  };
   try {
-    const raw = await settings.getSetting(SETTING_KEYS.EMAIL_CHANGE)
-    if (raw === null || raw === undefined) return defaults
-    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
-    const s = raw as EmailChangeSetting
+    const raw = await settings.getSetting(SETTING_KEYS.EMAIL_CHANGE);
+    if (raw === null || raw === undefined) return defaults;
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults;
+    const s = raw as EmailChangeSetting;
     return {
       enabled: typeof s.enabled === 'boolean' ? s.enabled : defaults.enabled,
       ttlHours: typeof s.ttlHours === 'number' && s.ttlHours > 0 ? s.ttlHours : defaults.ttlHours,
-      requirePassword: typeof s.requirePassword === 'boolean' ? s.requirePassword : defaults.requirePassword,
-    }
+      requirePassword:
+        typeof s.requirePassword === 'boolean' ? s.requirePassword : defaults.requirePassword,
+    };
   } catch {
-    return defaults
+    return defaults;
   }
 }
 
@@ -487,7 +493,7 @@ export type SecurityNotificationKind =
   | 'mfa_disabled'
   | 'passkey_added'
   | 'passkey_removed'
-  | 'email_changed'
+  | 'email_changed';
 
 /** Todos os tipos de notificação de segurança suportados. */
 export const ALL_SECURITY_NOTIFICATION_KINDS: SecurityNotificationKind[] = [
@@ -497,7 +503,7 @@ export const ALL_SECURITY_NOTIFICATION_KINDS: SecurityNotificationKind[] = [
   'passkey_added',
   'passkey_removed',
   'email_changed',
-]
+];
 
 /**
  * Shape da setting `security_notifications` em `auth_settings`.
@@ -506,14 +512,14 @@ export const ALL_SECURITY_NOTIFICATION_KINDS: SecurityNotificationKind[] = [
  *   - `kinds`:    lista dos tipos de evento a notificar. Default: todos.
  */
 export interface SecurityNotificationsSetting {
-  enabled?: boolean
-  kinds?: string[]
+  enabled?: boolean;
+  kinds?: string[];
 }
 
 /** Resultado resolvido das notificações de segurança. */
 export interface ResolvedSecurityNotifications {
-  enabled: boolean
-  kinds: SecurityNotificationKind[]
+  enabled: boolean;
+  kinds: SecurityNotificationKind[];
 }
 
 /**
@@ -523,31 +529,31 @@ export interface ResolvedSecurityNotifications {
  * FAIL-SAFE: qualquer erro → defaults (enabled true, todos os kinds).
  */
 export async function resolveEffectiveSecurityNotifications(
-  settings: SettingsCapability
+  settings: SettingsCapability,
 ): Promise<ResolvedSecurityNotifications> {
   const defaults: ResolvedSecurityNotifications = {
     enabled: true,
     kinds: [...ALL_SECURITY_NOTIFICATION_KINDS],
-  }
+  };
   try {
-    const raw = await settings.getSetting(SETTING_KEYS.SECURITY_NOTIFICATIONS)
-    if (raw === null || raw === undefined) return defaults
-    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
-    const s = raw as SecurityNotificationsSetting
-    const enabled = typeof s.enabled === 'boolean' ? s.enabled : defaults.enabled
-    let kinds: SecurityNotificationKind[]
+    const raw = await settings.getSetting(SETTING_KEYS.SECURITY_NOTIFICATIONS);
+    if (raw === null || raw === undefined) return defaults;
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults;
+    const s = raw as SecurityNotificationsSetting;
+    const enabled = typeof s.enabled === 'boolean' ? s.enabled : defaults.enabled;
+    let kinds: SecurityNotificationKind[];
     if (Array.isArray(s.kinds) && s.kinds.length > 0) {
       // Apenas aceita kinds válidos (interseção com os suportados).
       kinds = s.kinds.filter((k): k is SecurityNotificationKind =>
-        (ALL_SECURITY_NOTIFICATION_KINDS as string[]).includes(k)
-      )
-      if (kinds.length === 0) kinds = [...ALL_SECURITY_NOTIFICATION_KINDS]
+        (ALL_SECURITY_NOTIFICATION_KINDS as string[]).includes(k),
+      );
+      if (kinds.length === 0) kinds = [...ALL_SECURITY_NOTIFICATION_KINDS];
     } else {
-      kinds = [...ALL_SECURITY_NOTIFICATION_KINDS]
+      kinds = [...ALL_SECURITY_NOTIFICATION_KINDS];
     }
-    return { enabled, kinds }
+    return { enabled, kinds };
   } catch {
-    return defaults
+    return defaults;
   }
 }
 
@@ -565,16 +571,16 @@ export async function resolveEffectiveSecurityNotifications(
  * Sem tabela → setting sem efeito; doctor explica o schema necessário.
  */
 export interface PasswordHistorySetting {
-  enabled?: boolean
+  enabled?: boolean;
   /** Quantos hashes anteriores verificar. Default: 5. */
-  count?: number
+  count?: number;
 }
 
 /** Resultado resolvido de `password_history`. */
 export interface ResolvedPasswordHistory {
-  enabled: boolean
+  enabled: boolean;
   /** Quantos hashes anteriores verificar (>= 1). */
-  count: number
+  count: number;
 }
 
 /**
@@ -583,20 +589,20 @@ export interface ResolvedPasswordHistory {
  * FAIL-SAFE: qualquer erro → `{ enabled: false, count: 5 }`.
  */
 export async function resolveEffectivePasswordHistory(
-  settings: SettingsCapability
+  settings: SettingsCapability,
 ): Promise<ResolvedPasswordHistory> {
-  const defaults: ResolvedPasswordHistory = { enabled: false, count: 5 }
+  const defaults: ResolvedPasswordHistory = { enabled: false, count: 5 };
   try {
-    const raw = await settings.getSetting(SETTING_KEYS.PASSWORD_HISTORY)
-    if (raw === null || raw === undefined) return defaults
-    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
-    const s = raw as PasswordHistorySetting
+    const raw = await settings.getSetting(SETTING_KEYS.PASSWORD_HISTORY);
+    if (raw === null || raw === undefined) return defaults;
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults;
+    const s = raw as PasswordHistorySetting;
     return {
       enabled: typeof s.enabled === 'boolean' ? s.enabled : defaults.enabled,
       count: typeof s.count === 'number' && s.count >= 1 ? Math.floor(s.count) : defaults.count,
-    }
+    };
   } catch {
-    return defaults
+    return defaults;
   }
 }
 
@@ -637,31 +643,31 @@ export async function resolveEffectivePasswordHistory(
  */
 export interface SessionPolicySetting {
   /** Exibe checkbox "manter conectado" na tela de login. Default: true. */
-  rememberEnabled?: boolean
+  rememberEnabled?: boolean;
   /** Duração da sessão quando "manter conectado" está marcado (dias). Default: 30. */
-  rememberDays?: number
+  rememberDays?: number;
   /**
    * Duração máxima da sessão quando "manter conectado" NÃO está marcado (horas).
    * Default: derivado de `config.ttl.session` em horas (default 168 h = 7 dias).
    * Independente do remember, a sessão OIDC nunca excede este valor quando transiente.
    */
-  defaultSessionHours?: number
+  defaultSessionHours?: number;
   /** Força sessão única por conta: revoga outras sessões no login. Default: false. */
-  singleSession?: boolean
+  singleSession?: boolean;
   /**
    * Timeout de inatividade do console de conta (minutos). 0 = desligado. Default: 0.
    * O idle é rastreado pela sessão Adonis; não cobre o lado OIDC (tokens independentes).
    */
-  idleTimeoutMinutes?: number
+  idleTimeoutMinutes?: number;
 }
 
 /** Resultado resolvido de `session_policy`. */
 export interface ResolvedSessionPolicy {
-  rememberEnabled: boolean
-  rememberDays: number
-  defaultSessionHours: number
-  singleSession: boolean
-  idleTimeoutMinutes: number
+  rememberEnabled: boolean;
+  rememberDays: number;
+  defaultSessionHours: number;
+  singleSession: boolean;
+  idleTimeoutMinutes: number;
 }
 
 /** Defaults da session_policy quando a setting não existe. */
@@ -671,7 +677,7 @@ export const SESSION_POLICY_DEFAULTS: ResolvedSessionPolicy = {
   defaultSessionHours: 168, // 7 dias em horas (= 604800 s padrão do oidc-provider)
   singleSession: false,
   idleTimeoutMinutes: 0,
-}
+};
 
 /**
  * Resolve as configurações efetivas de session policy.
@@ -683,26 +689,37 @@ export const SESSION_POLICY_DEFAULTS: ResolvedSessionPolicy = {
  */
 export async function resolveEffectiveSessionPolicy(
   settings: SettingsCapability,
-  configDefaultSessionHours?: number
+  configDefaultSessionHours?: number,
 ): Promise<ResolvedSessionPolicy> {
   const defaults: ResolvedSessionPolicy = {
     ...SESSION_POLICY_DEFAULTS,
     defaultSessionHours: configDefaultSessionHours ?? SESSION_POLICY_DEFAULTS.defaultSessionHours,
-  }
+  };
   try {
-    const raw = await settings.getSetting(SETTING_KEYS.SESSION_POLICY)
-    if (raw === null || raw === undefined) return defaults
-    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
-    const s = raw as SessionPolicySetting
+    const raw = await settings.getSetting(SETTING_KEYS.SESSION_POLICY);
+    if (raw === null || raw === undefined) return defaults;
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults;
+    const s = raw as SessionPolicySetting;
     return {
-      rememberEnabled: typeof s.rememberEnabled === 'boolean' ? s.rememberEnabled : defaults.rememberEnabled,
-      rememberDays: typeof s.rememberDays === 'number' && s.rememberDays >= 1 ? Math.floor(s.rememberDays) : defaults.rememberDays,
-      defaultSessionHours: typeof s.defaultSessionHours === 'number' && s.defaultSessionHours >= 1 ? Math.floor(s.defaultSessionHours) : defaults.defaultSessionHours,
-      singleSession: typeof s.singleSession === 'boolean' ? s.singleSession : defaults.singleSession,
-      idleTimeoutMinutes: typeof s.idleTimeoutMinutes === 'number' && s.idleTimeoutMinutes >= 0 ? Math.floor(s.idleTimeoutMinutes) : defaults.idleTimeoutMinutes,
-    }
+      rememberEnabled:
+        typeof s.rememberEnabled === 'boolean' ? s.rememberEnabled : defaults.rememberEnabled,
+      rememberDays:
+        typeof s.rememberDays === 'number' && s.rememberDays >= 1
+          ? Math.floor(s.rememberDays)
+          : defaults.rememberDays,
+      defaultSessionHours:
+        typeof s.defaultSessionHours === 'number' && s.defaultSessionHours >= 1
+          ? Math.floor(s.defaultSessionHours)
+          : defaults.defaultSessionHours,
+      singleSession:
+        typeof s.singleSession === 'boolean' ? s.singleSession : defaults.singleSession,
+      idleTimeoutMinutes:
+        typeof s.idleTimeoutMinutes === 'number' && s.idleTimeoutMinutes >= 0
+          ? Math.floor(s.idleTimeoutMinutes)
+          : defaults.idleTimeoutMinutes,
+    };
   } catch {
-    return defaults
+    return defaults;
   }
 }
 
@@ -719,16 +736,16 @@ export async function resolveEffectiveSessionPolicy(
  * Sem coluna → setting sem efeito; doctor explica a migração necessária.
  */
 export interface PasswordExpirationSetting {
-  enabled?: boolean
+  enabled?: boolean;
   /** Máximo de dias desde a última troca. Default: 90. */
-  maxAgeDays?: number
+  maxAgeDays?: number;
 }
 
 /** Resultado resolvido de `password_expiration`. */
 export interface ResolvedPasswordExpiration {
-  enabled: boolean
+  enabled: boolean;
   /** Máximo de dias desde a última troca (>= 1). */
-  maxAgeDays: number
+  maxAgeDays: number;
 }
 
 /**
@@ -737,20 +754,23 @@ export interface ResolvedPasswordExpiration {
  * FAIL-SAFE: qualquer erro → `{ enabled: false, maxAgeDays: 90 }`.
  */
 export async function resolveEffectivePasswordExpiration(
-  settings: SettingsCapability
+  settings: SettingsCapability,
 ): Promise<ResolvedPasswordExpiration> {
-  const defaults: ResolvedPasswordExpiration = { enabled: false, maxAgeDays: 90 }
+  const defaults: ResolvedPasswordExpiration = { enabled: false, maxAgeDays: 90 };
   try {
-    const raw = await settings.getSetting(SETTING_KEYS.PASSWORD_EXPIRATION)
-    if (raw === null || raw === undefined) return defaults
-    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
-    const s = raw as PasswordExpirationSetting
+    const raw = await settings.getSetting(SETTING_KEYS.PASSWORD_EXPIRATION);
+    if (raw === null || raw === undefined) return defaults;
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults;
+    const s = raw as PasswordExpirationSetting;
     return {
       enabled: typeof s.enabled === 'boolean' ? s.enabled : defaults.enabled,
-      maxAgeDays: typeof s.maxAgeDays === 'number' && s.maxAgeDays >= 1 ? Math.floor(s.maxAgeDays) : defaults.maxAgeDays,
-    }
+      maxAgeDays:
+        typeof s.maxAgeDays === 'number' && s.maxAgeDays >= 1
+          ? Math.floor(s.maxAgeDays)
+          : defaults.maxAgeDays,
+    };
   } catch {
-    return defaults
+    return defaults;
   }
 }
 
@@ -769,29 +789,29 @@ export async function resolveEffectivePasswordExpiration(
  * `configDefault`) ou nos defaults da lib.
  */
 export interface LockoutSetting {
-  enabled?: boolean
-  maxAttempts?: number
-  windowSec?: number
-  baseLockoutSec?: number
-  maxLockoutSec?: number
+  enabled?: boolean;
+  maxAttempts?: number;
+  windowSec?: number;
+  baseLockoutSec?: number;
+  maxLockoutSec?: number;
 }
 
 /** Resultado resolvido de `lockout` (política apenas; store vem do config estático). */
 export interface ResolvedLockoutSetting {
-  enabled: boolean
-  maxAttempts: number
-  windowSec: number
-  baseLockoutSec: number
-  maxLockoutSec: number
+  enabled: boolean;
+  maxAttempts: number;
+  windowSec: number;
+  baseLockoutSec: number;
+  maxLockoutSec: number;
 }
 
 /** Config default de lockout (valores que chegam do config estático). */
 export interface LockoutConfigDefaults {
-  enabled?: boolean
-  maxAttempts?: number
-  windowSec?: number
-  baseLockoutSec?: number
-  maxLockoutSec?: number
+  enabled?: boolean;
+  maxAttempts?: number;
+  windowSec?: number;
+  baseLockoutSec?: number;
+  maxLockoutSec?: number;
 }
 
 const LOCKOUT_LIB_DEFAULTS: ResolvedLockoutSetting = {
@@ -800,7 +820,7 @@ const LOCKOUT_LIB_DEFAULTS: ResolvedLockoutSetting = {
   windowSec: 900,
   baseLockoutSec: 60,
   maxLockoutSec: 3600,
-}
+};
 
 /**
  * Resolve as configurações efetivas de lockout.
@@ -810,7 +830,7 @@ const LOCKOUT_LIB_DEFAULTS: ResolvedLockoutSetting = {
  */
 export async function resolveEffectiveLockout(
   settings: SettingsCapability,
-  configDefault: LockoutConfigDefaults = {}
+  configDefault: LockoutConfigDefaults = {},
 ): Promise<ResolvedLockoutSetting> {
   const defaults: ResolvedLockoutSetting = {
     enabled: configDefault.enabled ?? LOCKOUT_LIB_DEFAULTS.enabled,
@@ -818,21 +838,33 @@ export async function resolveEffectiveLockout(
     windowSec: configDefault.windowSec ?? LOCKOUT_LIB_DEFAULTS.windowSec,
     baseLockoutSec: configDefault.baseLockoutSec ?? LOCKOUT_LIB_DEFAULTS.baseLockoutSec,
     maxLockoutSec: configDefault.maxLockoutSec ?? LOCKOUT_LIB_DEFAULTS.maxLockoutSec,
-  }
+  };
   try {
-    const raw = await settings.getSetting(SETTING_KEYS.LOCKOUT)
-    if (raw === null || raw === undefined) return defaults
-    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
-    const s = raw as LockoutSetting
+    const raw = await settings.getSetting(SETTING_KEYS.LOCKOUT);
+    if (raw === null || raw === undefined) return defaults;
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults;
+    const s = raw as LockoutSetting;
     return {
       enabled: typeof s.enabled === 'boolean' ? s.enabled : defaults.enabled,
-      maxAttempts: typeof s.maxAttempts === 'number' && s.maxAttempts >= 1 ? Math.floor(s.maxAttempts) : defaults.maxAttempts,
-      windowSec: typeof s.windowSec === 'number' && s.windowSec >= 1 ? Math.floor(s.windowSec) : defaults.windowSec,
-      baseLockoutSec: typeof s.baseLockoutSec === 'number' && s.baseLockoutSec >= 1 ? Math.floor(s.baseLockoutSec) : defaults.baseLockoutSec,
-      maxLockoutSec: typeof s.maxLockoutSec === 'number' && s.maxLockoutSec >= 1 ? Math.floor(s.maxLockoutSec) : defaults.maxLockoutSec,
-    }
+      maxAttempts:
+        typeof s.maxAttempts === 'number' && s.maxAttempts >= 1
+          ? Math.floor(s.maxAttempts)
+          : defaults.maxAttempts,
+      windowSec:
+        typeof s.windowSec === 'number' && s.windowSec >= 1
+          ? Math.floor(s.windowSec)
+          : defaults.windowSec,
+      baseLockoutSec:
+        typeof s.baseLockoutSec === 'number' && s.baseLockoutSec >= 1
+          ? Math.floor(s.baseLockoutSec)
+          : defaults.baseLockoutSec,
+      maxLockoutSec:
+        typeof s.maxLockoutSec === 'number' && s.maxLockoutSec >= 1
+          ? Math.floor(s.maxLockoutSec)
+          : defaults.maxLockoutSec,
+    };
   } catch {
-    return defaults
+    return defaults;
   }
 }
 
@@ -844,8 +876,8 @@ export async function resolveEffectiveLockout(
  * Shape do bucket de rate-limit.
  */
 export interface RateLimitBucketSetting {
-  points?: number
-  duration?: string
+  points?: number;
+  duration?: string;
 }
 
 /**
@@ -867,25 +899,25 @@ export interface RateLimitBucketSetting {
  * @see resolveEffectiveRateLimit
  */
 export interface RateLimitSetting {
-  login?: RateLimitBucketSetting
-  introspection?: RateLimitBucketSetting
+  login?: RateLimitBucketSetting;
+  introspection?: RateLimitBucketSetting;
 }
 
 /** Resultado resolvido do rate_limit (somente os buckets de política). */
 export interface ResolvedRateLimitSetting {
-  login: { points: number; duration: string }
-  introspection: { points: number; duration: string }
+  login: { points: number; duration: string };
+  introspection: { points: number; duration: string };
 }
 
 export interface RateLimitConfigDefaults {
-  login?: { points?: number; duration?: string }
-  introspection?: { points?: number; duration?: string }
+  login?: { points?: number; duration?: string };
+  introspection?: { points?: number; duration?: string };
 }
 
 const RATE_LIMIT_LIB_DEFAULTS: ResolvedRateLimitSetting = {
   login: { points: 10, duration: '1 min' },
   introspection: { points: 60, duration: '1 min' },
-}
+};
 
 /**
  * Resolve as configurações efetivas dos buckets de rate-limit.
@@ -898,7 +930,7 @@ const RATE_LIMIT_LIB_DEFAULTS: ResolvedRateLimitSetting = {
  */
 export async function resolveEffectiveRateLimit(
   settings: SettingsCapability,
-  configDefault: RateLimitConfigDefaults = {}
+  configDefault: RateLimitConfigDefaults = {},
 ): Promise<ResolvedRateLimitSetting> {
   const defaults: ResolvedRateLimitSetting = {
     login: {
@@ -907,26 +939,39 @@ export async function resolveEffectiveRateLimit(
     },
     introspection: {
       points: configDefault.introspection?.points ?? RATE_LIMIT_LIB_DEFAULTS.introspection.points,
-      duration: configDefault.introspection?.duration ?? RATE_LIMIT_LIB_DEFAULTS.introspection.duration,
+      duration:
+        configDefault.introspection?.duration ?? RATE_LIMIT_LIB_DEFAULTS.introspection.duration,
     },
-  }
+  };
   try {
-    const raw = await settings.getSetting(SETTING_KEYS.RATE_LIMIT)
-    if (raw === null || raw === undefined) return defaults
-    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
-    const s = raw as RateLimitSetting
+    const raw = await settings.getSetting(SETTING_KEYS.RATE_LIMIT);
+    if (raw === null || raw === undefined) return defaults;
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults;
+    const s = raw as RateLimitSetting;
     return {
       login: {
-        points: typeof s.login?.points === 'number' && s.login.points >= 1 ? Math.floor(s.login.points) : defaults.login.points,
-        duration: typeof s.login?.duration === 'string' && s.login.duration.trim() ? s.login.duration.trim() : defaults.login.duration,
+        points:
+          typeof s.login?.points === 'number' && s.login.points >= 1
+            ? Math.floor(s.login.points)
+            : defaults.login.points,
+        duration:
+          typeof s.login?.duration === 'string' && s.login.duration.trim()
+            ? s.login.duration.trim()
+            : defaults.login.duration,
       },
       introspection: {
-        points: typeof s.introspection?.points === 'number' && s.introspection.points >= 1 ? Math.floor(s.introspection.points) : defaults.introspection.points,
-        duration: typeof s.introspection?.duration === 'string' && s.introspection.duration.trim() ? s.introspection.duration.trim() : defaults.introspection.duration,
+        points:
+          typeof s.introspection?.points === 'number' && s.introspection.points >= 1
+            ? Math.floor(s.introspection.points)
+            : defaults.introspection.points,
+        duration:
+          typeof s.introspection?.duration === 'string' && s.introspection.duration.trim()
+            ? s.introspection.duration.trim()
+            : defaults.introspection.duration,
       },
-    }
+    };
   } catch {
-    return defaults
+    return defaults;
   }
 }
 
@@ -945,41 +990,41 @@ export async function resolveEffectiveRateLimit(
  * config (via `configDefault`) ou nos defaults da lib.
  */
 export interface PasswordPolicySetting {
-  minLength?: number
-  requireUppercase?: boolean
-  requireLowercase?: boolean
-  requireNumbers?: boolean
-  requireSymbols?: boolean
+  minLength?: number;
+  requireUppercase?: boolean;
+  requireLowercase?: boolean;
+  requireNumbers?: boolean;
+  requireSymbols?: boolean;
   /** Verifica se a senha aparece em vazamentos (HaveIBeenPwned, k-anonymity). */
-  checkPwned?: boolean
+  checkPwned?: boolean;
   /**
    * Rejeita senhas que constam na lista offline de ~10 000 senhas mais comuns.
    * A checagem é case-insensitive e roda ANTES do HIBP (mais barata).
    * Default: true.
    */
-  blockCommon?: boolean
+  blockCommon?: boolean;
 }
 
 /** Resultado resolvido da password_policy. */
 export interface ResolvedPasswordPolicySetting {
-  minLength: number
-  requireUppercase: boolean
-  requireLowercase: boolean
-  requireNumbers: boolean
-  requireSymbols: boolean
-  checkPwned: boolean
+  minLength: number;
+  requireUppercase: boolean;
+  requireLowercase: boolean;
+  requireNumbers: boolean;
+  requireSymbols: boolean;
+  checkPwned: boolean;
   /** Rejeita senhas da lista offline de senhas comuns. Default: true. */
-  blockCommon: boolean
+  blockCommon: boolean;
 }
 
 export interface PasswordPolicyConfigDefaults {
-  minLength?: number
-  requireUppercase?: boolean
-  requireLowercase?: boolean
-  requireNumbers?: boolean
-  requireSymbols?: boolean
-  checkPwned?: boolean
-  blockCommon?: boolean
+  minLength?: number;
+  requireUppercase?: boolean;
+  requireLowercase?: boolean;
+  requireNumbers?: boolean;
+  requireSymbols?: boolean;
+  checkPwned?: boolean;
+  blockCommon?: boolean;
 }
 
 const PASSWORD_POLICY_LIB_DEFAULTS: ResolvedPasswordPolicySetting = {
@@ -990,7 +1035,7 @@ const PASSWORD_POLICY_LIB_DEFAULTS: ResolvedPasswordPolicySetting = {
   requireSymbols: false,
   checkPwned: false,
   blockCommon: true,
-}
+};
 
 /**
  * Resolve as configurações efetivas de política de senha.
@@ -1000,33 +1045,42 @@ const PASSWORD_POLICY_LIB_DEFAULTS: ResolvedPasswordPolicySetting = {
  */
 export async function resolveEffectivePasswordPolicy(
   settings: SettingsCapability,
-  configDefault: PasswordPolicyConfigDefaults = {}
+  configDefault: PasswordPolicyConfigDefaults = {},
 ): Promise<ResolvedPasswordPolicySetting> {
   const defaults: ResolvedPasswordPolicySetting = {
     minLength: configDefault.minLength ?? PASSWORD_POLICY_LIB_DEFAULTS.minLength,
-    requireUppercase: configDefault.requireUppercase ?? PASSWORD_POLICY_LIB_DEFAULTS.requireUppercase,
-    requireLowercase: configDefault.requireLowercase ?? PASSWORD_POLICY_LIB_DEFAULTS.requireLowercase,
+    requireUppercase:
+      configDefault.requireUppercase ?? PASSWORD_POLICY_LIB_DEFAULTS.requireUppercase,
+    requireLowercase:
+      configDefault.requireLowercase ?? PASSWORD_POLICY_LIB_DEFAULTS.requireLowercase,
     requireNumbers: configDefault.requireNumbers ?? PASSWORD_POLICY_LIB_DEFAULTS.requireNumbers,
     requireSymbols: configDefault.requireSymbols ?? PASSWORD_POLICY_LIB_DEFAULTS.requireSymbols,
     checkPwned: configDefault.checkPwned ?? PASSWORD_POLICY_LIB_DEFAULTS.checkPwned,
     blockCommon: configDefault.blockCommon ?? PASSWORD_POLICY_LIB_DEFAULTS.blockCommon,
-  }
+  };
   try {
-    const raw = await settings.getSetting(SETTING_KEYS.PASSWORD_POLICY)
-    if (raw === null || raw === undefined) return defaults
-    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
-    const s = raw as PasswordPolicySetting
+    const raw = await settings.getSetting(SETTING_KEYS.PASSWORD_POLICY);
+    if (raw === null || raw === undefined) return defaults;
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults;
+    const s = raw as PasswordPolicySetting;
     return {
-      minLength: typeof s.minLength === 'number' && s.minLength >= 1 ? Math.floor(s.minLength) : defaults.minLength,
-      requireUppercase: typeof s.requireUppercase === 'boolean' ? s.requireUppercase : defaults.requireUppercase,
-      requireLowercase: typeof s.requireLowercase === 'boolean' ? s.requireLowercase : defaults.requireLowercase,
-      requireNumbers: typeof s.requireNumbers === 'boolean' ? s.requireNumbers : defaults.requireNumbers,
-      requireSymbols: typeof s.requireSymbols === 'boolean' ? s.requireSymbols : defaults.requireSymbols,
+      minLength:
+        typeof s.minLength === 'number' && s.minLength >= 1
+          ? Math.floor(s.minLength)
+          : defaults.minLength,
+      requireUppercase:
+        typeof s.requireUppercase === 'boolean' ? s.requireUppercase : defaults.requireUppercase,
+      requireLowercase:
+        typeof s.requireLowercase === 'boolean' ? s.requireLowercase : defaults.requireLowercase,
+      requireNumbers:
+        typeof s.requireNumbers === 'boolean' ? s.requireNumbers : defaults.requireNumbers,
+      requireSymbols:
+        typeof s.requireSymbols === 'boolean' ? s.requireSymbols : defaults.requireSymbols,
       checkPwned: typeof s.checkPwned === 'boolean' ? s.checkPwned : defaults.checkPwned,
       blockCommon: typeof s.blockCommon === 'boolean' ? s.blockCommon : defaults.blockCommon,
-    }
+    };
   } catch {
-    return defaults
+    return defaults;
   }
 }
 
@@ -1041,19 +1095,19 @@ export async function resolveEffectivePasswordPolicy(
  * FALLBACK: campos ausentes caem nos valores do `config.notifications`.
  */
 export interface NotificationsSetting {
-  newLoginEmail?: boolean
-  newDeviceEmail?: boolean
+  newLoginEmail?: boolean;
+  newDeviceEmail?: boolean;
 }
 
 /** Resultado resolvido de `notifications`. */
 export interface ResolvedNotificationsSetting {
-  newLoginEmail: boolean
-  newDeviceEmail: boolean
+  newLoginEmail: boolean;
+  newDeviceEmail: boolean;
 }
 
 export interface NotificationsConfigDefaults {
-  newLoginEmail?: boolean
-  newDeviceEmail?: boolean
+  newLoginEmail?: boolean;
+  newDeviceEmail?: boolean;
 }
 
 /**
@@ -1064,23 +1118,25 @@ export interface NotificationsConfigDefaults {
  */
 export async function resolveEffectiveNotifications(
   settings: SettingsCapability,
-  configDefault: NotificationsConfigDefaults = {}
+  configDefault: NotificationsConfigDefaults = {},
 ): Promise<ResolvedNotificationsSetting> {
   const defaults: ResolvedNotificationsSetting = {
     newLoginEmail: configDefault.newLoginEmail ?? true,
     newDeviceEmail: configDefault.newDeviceEmail ?? true,
-  }
+  };
   try {
-    const raw = await settings.getSetting(SETTING_KEYS.NOTIFICATIONS)
-    if (raw === null || raw === undefined) return defaults
-    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
-    const s = raw as NotificationsSetting
+    const raw = await settings.getSetting(SETTING_KEYS.NOTIFICATIONS);
+    if (raw === null || raw === undefined) return defaults;
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults;
+    const s = raw as NotificationsSetting;
     return {
-      newLoginEmail: typeof s.newLoginEmail === 'boolean' ? s.newLoginEmail : defaults.newLoginEmail,
-      newDeviceEmail: typeof s.newDeviceEmail === 'boolean' ? s.newDeviceEmail : defaults.newDeviceEmail,
-    }
+      newLoginEmail:
+        typeof s.newLoginEmail === 'boolean' ? s.newLoginEmail : defaults.newLoginEmail,
+      newDeviceEmail:
+        typeof s.newDeviceEmail === 'boolean' ? s.newDeviceEmail : defaults.newDeviceEmail,
+    };
   } catch {
-    return defaults
+    return defaults;
   }
 }
 
@@ -1097,19 +1153,19 @@ export async function resolveEffectiveNotifications(
  * FALLBACK: campos ausentes caem nos valores do `config.trustedDevices`.
  */
 export interface TrustedDevicesSetting {
-  enabled?: boolean
-  days?: number
+  enabled?: boolean;
+  days?: number;
 }
 
 /** Resultado resolvido de `trusted_devices` (política). */
 export interface ResolvedTrustedDevicesSetting {
-  enabled: boolean
-  days: number
+  enabled: boolean;
+  days: number;
 }
 
 export interface TrustedDevicesConfigDefaults {
-  enabled?: boolean
-  days?: number
+  enabled?: boolean;
+  days?: number;
 }
 
 /**
@@ -1120,23 +1176,23 @@ export interface TrustedDevicesConfigDefaults {
  */
 export async function resolveEffectiveTrustedDevices(
   settings: SettingsCapability,
-  configDefault: TrustedDevicesConfigDefaults = {}
+  configDefault: TrustedDevicesConfigDefaults = {},
 ): Promise<ResolvedTrustedDevicesSetting> {
   const defaults: ResolvedTrustedDevicesSetting = {
     enabled: configDefault.enabled ?? true,
     days: configDefault.days ?? 30,
-  }
+  };
   try {
-    const raw = await settings.getSetting(SETTING_KEYS.TRUSTED_DEVICES)
-    if (raw === null || raw === undefined) return defaults
-    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
-    const s = raw as TrustedDevicesSetting
+    const raw = await settings.getSetting(SETTING_KEYS.TRUSTED_DEVICES);
+    if (raw === null || raw === undefined) return defaults;
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults;
+    const s = raw as TrustedDevicesSetting;
     return {
       enabled: typeof s.enabled === 'boolean' ? s.enabled : defaults.enabled,
       days: typeof s.days === 'number' && s.days >= 1 ? Math.floor(s.days) : defaults.days,
-    }
+    };
   } catch {
-    return defaults
+    return defaults;
   }
 }
 
@@ -1157,22 +1213,22 @@ export async function resolveEffectiveTrustedDevices(
  * NOTA: session TTL JÁ é dinâmico via session_policy — NÃO duplique aqui.
  */
 export interface TokenTtlSetting {
-  accessTokenSec?: number
-  idTokenSec?: number
-  refreshTokenSec?: number
+  accessTokenSec?: number;
+  idTokenSec?: number;
+  refreshTokenSec?: number;
 }
 
 /** Resultado resolvido de `token_ttl`. */
 export interface ResolvedTokenTtlSetting {
-  accessTokenSec: number
-  idTokenSec: number
-  refreshTokenSec: number
+  accessTokenSec: number;
+  idTokenSec: number;
+  refreshTokenSec: number;
 }
 
 export interface TokenTtlConfigDefaults {
-  accessTokenSec?: number
-  idTokenSec?: number
-  refreshTokenSec?: number
+  accessTokenSec?: number;
+  idTokenSec?: number;
+  refreshTokenSec?: number;
 }
 
 /**
@@ -1183,25 +1239,34 @@ export interface TokenTtlConfigDefaults {
  */
 export async function resolveEffectiveTokenTtl(
   settings: SettingsCapability,
-  configDefault: TokenTtlConfigDefaults = {}
+  configDefault: TokenTtlConfigDefaults = {},
 ): Promise<ResolvedTokenTtlSetting> {
   const defaults: ResolvedTokenTtlSetting = {
     accessTokenSec: configDefault.accessTokenSec ?? 900,
     idTokenSec: configDefault.idTokenSec ?? 900,
     refreshTokenSec: configDefault.refreshTokenSec ?? 2592000,
-  }
+  };
   try {
-    const raw = await settings.getSetting(SETTING_KEYS.TOKEN_TTL)
-    if (raw === null || raw === undefined) return defaults
-    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
-    const s = raw as TokenTtlSetting
+    const raw = await settings.getSetting(SETTING_KEYS.TOKEN_TTL);
+    if (raw === null || raw === undefined) return defaults;
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults;
+    const s = raw as TokenTtlSetting;
     return {
-      accessTokenSec: typeof s.accessTokenSec === 'number' && s.accessTokenSec >= 1 ? Math.floor(s.accessTokenSec) : defaults.accessTokenSec,
-      idTokenSec: typeof s.idTokenSec === 'number' && s.idTokenSec >= 1 ? Math.floor(s.idTokenSec) : defaults.idTokenSec,
-      refreshTokenSec: typeof s.refreshTokenSec === 'number' && s.refreshTokenSec >= 1 ? Math.floor(s.refreshTokenSec) : defaults.refreshTokenSec,
-    }
+      accessTokenSec:
+        typeof s.accessTokenSec === 'number' && s.accessTokenSec >= 1
+          ? Math.floor(s.accessTokenSec)
+          : defaults.accessTokenSec,
+      idTokenSec:
+        typeof s.idTokenSec === 'number' && s.idTokenSec >= 1
+          ? Math.floor(s.idTokenSec)
+          : defaults.idTokenSec,
+      refreshTokenSec:
+        typeof s.refreshTokenSec === 'number' && s.refreshTokenSec >= 1
+          ? Math.floor(s.refreshTokenSec)
+          : defaults.refreshTokenSec,
+    };
   } catch {
-    return defaults
+    return defaults;
   }
 }
 
@@ -1216,12 +1281,12 @@ export async function resolveEffectiveTokenTtl(
  * console admin. FALLBACK: campo ausente cai em `config.admin.impersonation`.
  */
 export interface AdminImpersonationSetting {
-  enabled?: boolean
+  enabled?: boolean;
 }
 
 /** Resultado resolvido de `admin_impersonation`. */
 export interface ResolvedAdminImpersonationSetting {
-  enabled: boolean
+  enabled: boolean;
 }
 
 /**
@@ -1232,19 +1297,19 @@ export interface ResolvedAdminImpersonationSetting {
  */
 export async function resolveEffectiveAdminImpersonation(
   settings: SettingsCapability,
-  configDefault: boolean = false
+  configDefault = false,
 ): Promise<ResolvedAdminImpersonationSetting> {
-  const defaults: ResolvedAdminImpersonationSetting = { enabled: configDefault }
+  const defaults: ResolvedAdminImpersonationSetting = { enabled: configDefault };
   try {
-    const raw = await settings.getSetting(SETTING_KEYS.ADMIN_IMPERSONATION)
-    if (raw === null || raw === undefined) return defaults
-    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
-    const s = raw as AdminImpersonationSetting
+    const raw = await settings.getSetting(SETTING_KEYS.ADMIN_IMPERSONATION);
+    if (raw === null || raw === undefined) return defaults;
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults;
+    const s = raw as AdminImpersonationSetting;
     return {
       enabled: typeof s.enabled === 'boolean' ? s.enabled : defaults.enabled,
-    }
+    };
   } catch {
-    return defaults
+    return defaults;
   }
 }
 
@@ -1261,29 +1326,29 @@ export async function resolveEffectiveAdminImpersonation(
  * ausentes caem nos valores do `config.organizations`.
  */
 export interface OrganizationsPolicySetting {
-  allowSelfCreate?: boolean
-  invitationTtlHours?: number
-  roles?: string[]
+  allowSelfCreate?: boolean;
+  invitationTtlHours?: number;
+  roles?: string[];
 }
 
 /** Resultado resolvido de `organizations_policy`. */
 export interface ResolvedOrganizationsPolicySetting {
-  allowSelfCreate: boolean
-  invitationTtlHours: number
-  roles: string[]
+  allowSelfCreate: boolean;
+  invitationTtlHours: number;
+  roles: string[];
 }
 
 export interface OrganizationsPolicyConfigDefaults {
-  allowSelfCreate?: boolean
-  invitationTtlHours?: number
-  roles?: string[]
+  allowSelfCreate?: boolean;
+  invitationTtlHours?: number;
+  roles?: string[];
 }
 
 const ORGS_POLICY_LIB_DEFAULTS: ResolvedOrganizationsPolicySetting = {
   allowSelfCreate: false,
   invitationTtlHours: 168,
   roles: ['owner', 'admin', 'member'],
-}
+};
 
 // ---------------------------------------------------------------------------
 // 18. roles_catalog setting
@@ -1294,9 +1359,9 @@ const ORGS_POLICY_LIB_DEFAULTS: ResolvedOrganizationsPolicySetting = {
  */
 export interface RoleCatalogEntry {
   /** Nome da role — maiúsculas e underscores (ex.: ADMIN, EDITOR). */
-  name: string
+  name: string;
   /** Descrição legível (opcional). */
-  description?: string
+  description?: string;
 }
 
 /**
@@ -1310,18 +1375,18 @@ export interface RoleCatalogEntry {
  * gate do console admin (cfg.admin.roles default ['ADMIN']).
  */
 export interface RolesCatalogSetting {
-  roles: RoleCatalogEntry[]
+  roles: RoleCatalogEntry[];
 }
 
 /** Resultado resolvido do catálogo de roles, ordenado por nome. */
 export interface ResolvedRolesCatalog {
-  roles: RoleCatalogEntry[]
+  roles: RoleCatalogEntry[];
 }
 
 /** Default da lib: apenas ADMIN. */
 export const ROLES_CATALOG_DEFAULT: ResolvedRolesCatalog = {
   roles: [{ name: 'ADMIN', description: 'Full access to the admin console' }],
-}
+};
 
 /**
  * Resolve o catálogo efetivo de roles globais a partir da setting persistida.
@@ -1342,49 +1407,55 @@ export const ROLES_CATALOG_DEFAULT: ResolvedRolesCatalog = {
  */
 export async function resolveEffectiveRolesCatalog(
   settings: SettingsCapability,
-  orgId?: string | null
+  orgId?: string | null,
 ): Promise<ResolvedRolesCatalog> {
   async function fromRaw(raw: unknown): Promise<ResolvedRolesCatalog | null> {
-    if (raw === null || raw === undefined) return null
-    if (typeof raw !== 'object' || Array.isArray(raw)) return null
-    const s = raw as RolesCatalogSetting
-    if (!Array.isArray(s.roles)) return null
+    if (raw === null || raw === undefined) return null;
+    if (typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const s = raw as RolesCatalogSetting;
+    if (!Array.isArray(s.roles)) return null;
 
     // Filtra entradas válidas (name deve ser string não-vazia).
     const entries: RoleCatalogEntry[] = s.roles
-      .filter((r) => typeof r === 'object' && r !== null && typeof r.name === 'string' && r.name.trim().length > 0)
+      .filter(
+        (r) =>
+          typeof r === 'object' &&
+          r !== null &&
+          typeof r.name === 'string' &&
+          r.name.trim().length > 0,
+      )
       .map((r) => ({
         name: r.name.trim(),
         ...(typeof r.description === 'string' && r.description.trim().length > 0
           ? { description: r.description.trim() }
           : {}),
-      }))
+      }));
 
     // Merge defensivo: ADMIN sempre presente.
-    const hasAdmin = entries.some((r) => r.name === 'ADMIN')
+    const hasAdmin = entries.some((r) => r.name === 'ADMIN');
     if (!hasAdmin) {
-      entries.unshift({ name: 'ADMIN', description: 'Full access to the admin console' })
+      entries.unshift({ name: 'ADMIN', description: 'Full access to the admin console' });
     }
 
     // Ordena por nome.
-    entries.sort((a, b) => a.name.localeCompare(b.name))
+    entries.sort((a, b) => a.name.localeCompare(b.name));
 
-    return { roles: entries }
+    return { roles: entries };
   }
 
   try {
     // Resolução org → global → default
     if (orgId) {
-      const orgRaw = await settings.getSetting(SETTING_KEYS.ROLES_CATALOG, orgId)
-      const orgResult = await fromRaw(orgRaw)
-      if (orgResult) return orgResult
+      const orgRaw = await settings.getSetting(SETTING_KEYS.ROLES_CATALOG, orgId);
+      const orgResult = await fromRaw(orgRaw);
+      if (orgResult) return orgResult;
     }
-    const globalRaw = await settings.getSetting(SETTING_KEYS.ROLES_CATALOG, null)
-    const globalResult = await fromRaw(globalRaw)
-    if (globalResult) return globalResult
-    return ROLES_CATALOG_DEFAULT
+    const globalRaw = await settings.getSetting(SETTING_KEYS.ROLES_CATALOG, null);
+    const globalResult = await fromRaw(globalRaw);
+    if (globalResult) return globalResult;
+    return ROLES_CATALOG_DEFAULT;
   } catch {
-    return ROLES_CATALOG_DEFAULT
+    return ROLES_CATALOG_DEFAULT;
   }
 }
 
@@ -1403,46 +1474,51 @@ export async function resolveEffectiveRolesCatalog(
 export async function resolveEffectiveOrganizationsPolicy(
   settings: SettingsCapability,
   configDefault: OrganizationsPolicyConfigDefaults = {},
-  orgId?: string | null
+  orgId?: string | null,
 ): Promise<ResolvedOrganizationsPolicySetting> {
-  const defaultRoles = configDefault.roles ?? ORGS_POLICY_LIB_DEFAULTS.roles
-  const rolesWithOwner = defaultRoles.includes('owner') ? defaultRoles : ['owner', ...defaultRoles]
+  const defaultRoles = configDefault.roles ?? ORGS_POLICY_LIB_DEFAULTS.roles;
+  const rolesWithOwner = defaultRoles.includes('owner') ? defaultRoles : ['owner', ...defaultRoles];
   const defaults: ResolvedOrganizationsPolicySetting = {
     allowSelfCreate: configDefault.allowSelfCreate ?? ORGS_POLICY_LIB_DEFAULTS.allowSelfCreate,
-    invitationTtlHours: configDefault.invitationTtlHours ?? ORGS_POLICY_LIB_DEFAULTS.invitationTtlHours,
+    invitationTtlHours:
+      configDefault.invitationTtlHours ?? ORGS_POLICY_LIB_DEFAULTS.invitationTtlHours,
     roles: rolesWithOwner,
-  }
+  };
 
   function applyRaw(raw: unknown): ResolvedOrganizationsPolicySetting | null {
-    if (raw === null || raw === undefined) return null
-    if (typeof raw !== 'object' || Array.isArray(raw)) return null
-    const s = raw as OrganizationsPolicySetting
+    if (raw === null || raw === undefined) return null;
+    if (typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const s = raw as OrganizationsPolicySetting;
     // Roles: usa o valor da setting apenas se for um array não-vazio; sempre
     // garante que 'owner' está presente (invariante de governance).
-    let roles = defaults.roles
+    let roles = defaults.roles;
     if (Array.isArray(s.roles) && s.roles.length > 0) {
-      roles = s.roles.includes('owner') ? s.roles : ['owner', ...s.roles]
+      roles = s.roles.includes('owner') ? s.roles : ['owner', ...s.roles];
     }
     return {
-      allowSelfCreate: typeof s.allowSelfCreate === 'boolean' ? s.allowSelfCreate : defaults.allowSelfCreate,
-      invitationTtlHours: typeof s.invitationTtlHours === 'number' && s.invitationTtlHours >= 1 ? Math.floor(s.invitationTtlHours) : defaults.invitationTtlHours,
+      allowSelfCreate:
+        typeof s.allowSelfCreate === 'boolean' ? s.allowSelfCreate : defaults.allowSelfCreate,
+      invitationTtlHours:
+        typeof s.invitationTtlHours === 'number' && s.invitationTtlHours >= 1
+          ? Math.floor(s.invitationTtlHours)
+          : defaults.invitationTtlHours,
       roles,
-    }
+    };
   }
 
   try {
     // Resolução org → global → defaults
     if (orgId) {
-      const orgRaw = await settings.getSetting(SETTING_KEYS.ORGANIZATIONS_POLICY, orgId)
-      const orgResult = applyRaw(orgRaw)
-      if (orgResult) return orgResult
+      const orgRaw = await settings.getSetting(SETTING_KEYS.ORGANIZATIONS_POLICY, orgId);
+      const orgResult = applyRaw(orgRaw);
+      if (orgResult) return orgResult;
     }
-    const globalRaw = await settings.getSetting(SETTING_KEYS.ORGANIZATIONS_POLICY, null)
-    const globalResult = applyRaw(globalRaw)
-    if (globalResult) return globalResult
-    return defaults
+    const globalRaw = await settings.getSetting(SETTING_KEYS.ORGANIZATIONS_POLICY, null);
+    const globalResult = applyRaw(globalRaw);
+    if (globalResult) return globalResult;
+    return defaults;
   } catch {
-    return defaults
+    return defaults;
   }
 }
 
@@ -1463,14 +1539,14 @@ export async function resolveEffectiveOrganizationsPolicy(
 export async function resolveRoleCatalogList(
   settings: SettingsCapability | null,
   configDefault: OrganizationsPolicyConfigDefaults = {},
-  orgId?: string | null
+  orgId?: string | null,
 ): Promise<string[]> {
   if (!settings) {
-    const roles = configDefault.roles ?? ORGS_POLICY_LIB_DEFAULTS.roles
-    return roles.includes('owner') ? roles : ['owner', ...roles]
+    const roles = configDefault.roles ?? ORGS_POLICY_LIB_DEFAULTS.roles;
+    return roles.includes('owner') ? roles : ['owner', ...roles];
   }
-  const policy = await resolveEffectiveOrganizationsPolicy(settings, configDefault, orgId)
-  return policy.roles
+  const policy = await resolveEffectiveOrganizationsPolicy(settings, configDefault, orgId);
+  return policy.roles;
 }
 
 /**
@@ -1491,10 +1567,10 @@ export async function isRoleInCatalog(
   role: string,
   settings: SettingsCapability | null,
   configDefault: OrganizationsPolicyConfigDefaults = {},
-  orgId?: string | null
+  orgId?: string | null,
 ): Promise<boolean> {
-  const catalog = await resolveRoleCatalogList(settings, configDefault, orgId)
-  return catalog.includes(role)
+  const catalog = await resolveRoleCatalogList(settings, configDefault, orgId);
+  return catalog.includes(role);
 }
 
 // ---------------------------------------------------------------------------
@@ -1521,18 +1597,18 @@ export async function isRoleInCatalog(
  * FAIL-SAFE: qualquer erro → `{ enabled: false, inactiveDays: 365, warnDays: 14 }`.
  */
 export interface AccountExpirationSetting {
-  enabled?: boolean
+  enabled?: boolean;
   /** Dias de inatividade para expirar. Default: 365. */
-  inactiveDays?: number
+  inactiveDays?: number;
   /** Dias de antecipação para enviar aviso. Default: 14. */
-  warnDays?: number
+  warnDays?: number;
 }
 
 /** Resultado resolvido de `account_expiration`. */
 export interface ResolvedAccountExpiration {
-  enabled: boolean
-  inactiveDays: number
-  warnDays: number
+  enabled: boolean;
+  inactiveDays: number;
+  warnDays: number;
 }
 
 /**
@@ -1541,20 +1617,26 @@ export interface ResolvedAccountExpiration {
  * FAIL-SAFE: qualquer erro → `{ enabled: false, inactiveDays: 365, warnDays: 14 }`.
  */
 export async function resolveEffectiveAccountExpiration(
-  settings: SettingsCapability
+  settings: SettingsCapability,
 ): Promise<ResolvedAccountExpiration> {
-  const defaults: ResolvedAccountExpiration = { enabled: false, inactiveDays: 365, warnDays: 14 }
+  const defaults: ResolvedAccountExpiration = { enabled: false, inactiveDays: 365, warnDays: 14 };
   try {
-    const raw = await settings.getSetting(SETTING_KEYS.ACCOUNT_EXPIRATION)
-    if (raw === null || raw === undefined) return defaults
-    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults
-    const s = raw as AccountExpirationSetting
+    const raw = await settings.getSetting(SETTING_KEYS.ACCOUNT_EXPIRATION);
+    if (raw === null || raw === undefined) return defaults;
+    if (typeof raw !== 'object' || Array.isArray(raw)) return defaults;
+    const s = raw as AccountExpirationSetting;
     return {
       enabled: typeof s.enabled === 'boolean' ? s.enabled : defaults.enabled,
-      inactiveDays: typeof s.inactiveDays === 'number' && s.inactiveDays >= 1 ? Math.floor(s.inactiveDays) : defaults.inactiveDays,
-      warnDays: typeof s.warnDays === 'number' && s.warnDays >= 0 ? Math.floor(s.warnDays) : defaults.warnDays,
-    }
+      inactiveDays:
+        typeof s.inactiveDays === 'number' && s.inactiveDays >= 1
+          ? Math.floor(s.inactiveDays)
+          : defaults.inactiveDays,
+      warnDays:
+        typeof s.warnDays === 'number' && s.warnDays >= 0
+          ? Math.floor(s.warnDays)
+          : defaults.warnDays,
+    };
   } catch {
-    return defaults
+    return defaults;
   }
 }

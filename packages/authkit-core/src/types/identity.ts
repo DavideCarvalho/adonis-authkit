@@ -1,4 +1,4 @@
-import type { HttpContext } from '@adonisjs/core/http'
+import type { HttpContext } from '@adonisjs/core/http';
 
 /**
  * Identidade resolvida por request a partir das claims OIDC validadas.
@@ -6,20 +6,20 @@ import type { HttpContext } from '@adonisjs/core/http'
  */
 export interface Identity {
   /** claim `sub` */
-  userId: string
-  email: string
+  userId: string;
+  email: string;
   /** papéis globais, de uma claim custom (ex.: `roles`) */
-  globalRoles: string[]
+  globalRoles: string[];
   /** claims OIDC padrão de perfil */
-  profile?: { name?: string; avatarUrl?: string }
+  profile?: { name?: string; avatarUrl?: string };
   /** `sid` quando presente */
-  sessionId?: string
+  sessionId?: string;
   /** `iat` em epoch ms */
-  issuedAt: number
+  issuedAt: number;
   /** `exp` em epoch ms */
-  expiresAt: number
+  expiresAt: number;
   /** claims completas (escape hatch) */
-  raw: Record<string, unknown>
+  raw: Record<string, unknown>;
 }
 
 /**
@@ -27,5 +27,5 @@ export interface Identity {
  * v1 do client implementa `resolvers.jwt()`.
  */
 export interface SessionResolver {
-  resolve(ctx: HttpContext): Promise<Identity | null>
+  resolve(ctx: HttpContext): Promise<Identity | null>;
 }

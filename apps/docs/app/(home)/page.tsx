@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import {
   ArrowRight,
   Fingerprint,
@@ -11,10 +10,11 @@ import {
   UserCog,
   Users,
   Workflow,
-} from 'lucide-react'
-import { AdminConsoleDemo } from './admin-console-demo'
+} from 'lucide-react';
+import Link from 'next/link';
+import { AdminConsoleDemo } from './admin-console-demo';
 
-const GITHUB_URL = 'https://github.com/DavideCarvalho/adonis-authkit'
+const GITHUB_URL = 'https://github.com/DavideCarvalho/adonis-authkit';
 
 export default function HomePage() {
   return (
@@ -28,7 +28,7 @@ export default function HomePage() {
       <WireItIn />
       <FinalCta />
     </main>
-  )
+  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -45,8 +45,7 @@ function BackgroundTexture() {
             'radial-gradient(circle at center, var(--color-fd-border) 1px, transparent 1px)',
           backgroundSize: '22px 22px',
           maskImage: 'radial-gradient(ellipse 80% 60% at 50% 0%, black 20%, transparent 75%)',
-          WebkitMaskImage:
-            'radial-gradient(ellipse 80% 60% at 50% 0%, black 20%, transparent 75%)',
+          WebkitMaskImage: 'radial-gradient(ellipse 80% 60% at 50% 0%, black 20%, transparent 75%)',
         }}
       />
       <div
@@ -57,7 +56,7 @@ function BackgroundTexture() {
         }}
       />
     </div>
-  )
+  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -83,11 +82,10 @@ function Hero() {
         </h1>
 
         <p className="mt-6 max-w-2xl text-pretty text-lg text-fd-muted-foreground">
-          A drop-in OpenID Connect authorization server, a batteries-included
-          admin console, Clerk-style React components, and a typed TanStack
-          Query client — organizations, JWT access tokens, LGPD/GDPR compliance,
-          MFA, and audit logging. Run it standalone or embedded inside your
-          AdonisJS app.
+          A drop-in OpenID Connect authorization server, a batteries-included admin console,
+          Clerk-style React components, and a typed TanStack Query client — organizations, JWT
+          access tokens, LGPD/GDPR compliance, MFA, and audit logging. Run it standalone or embedded
+          inside your AdonisJS app.
         </p>
 
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
@@ -120,11 +118,12 @@ function Hero() {
         </div>
 
         <p className="mt-6 font-mono text-xs text-fd-muted-foreground">
-          3 packages on npm · admin console included · React components + hooks · standalone or embedded
+          3 packages on npm · admin console included · React components + hooks · standalone or
+          embedded
         </p>
       </div>
     </section>
-  )
+  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -142,8 +141,8 @@ function AdminConsoleMockSection() {
         />
         <AdminConsoleDemo />
         <p className="mt-5 text-center font-mono text-xs text-fd-muted-foreground">
-          This is a live mock — click the sidebar. The real console ships inside the npm
-          package: React SPA, zero extra build step.
+          This is a live mock — click the sidebar. The real console ships inside the npm package:
+          React SPA, zero extra build step.
         </p>
       </div>
 
@@ -156,11 +155,11 @@ function AdminConsoleMockSection() {
           A full admin console, out of the box
         </h2>
         <p className="mx-auto mt-3 max-w-2xl text-fd-muted-foreground">
-          Enable it with two config lines and get a Vite-built React SPA with
-          dark/light themes, violet accent{' '}
-          <code className="rounded bg-fd-muted px-1.5 py-0.5 font-mono text-xs">#625fff</code>,
-          and eight screens: Overview, Users, Sessions, OAuth Clients, Roles,
-          Organizations, Audit, and Settings.
+          Enable it with two config lines and get a Vite-built React SPA with dark/light themes,
+          violet accent{' '}
+          <code className="rounded bg-fd-muted px-1.5 py-0.5 font-mono text-xs">#625fff</code>, and
+          eight screens: Overview, Users, Sessions, OAuth Clients, Roles, Organizations, Audit, and
+          Settings.
         </p>
         <Link
           href="/docs/admin-console"
@@ -171,7 +170,7 @@ function AdminConsoleMockSection() {
         </Link>
       </div>
     </section>
-  )
+  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -179,24 +178,36 @@ function AdminConsoleMockSection() {
 /* -------------------------------------------------------------------------- */
 
 interface ComponentItem {
-  name: string
-  desc: string
+  name: string;
+  desc: string;
 }
 
 const COMPONENT_ITEMS: readonly ComponentItem[] = [
   { name: 'SignInButton', desc: 'Starts the OIDC redirect. Hidden when already authenticated.' },
-  { name: 'SignOutButton', desc: 'Logs out the current user. Renders nothing when unauthenticated.' },
+  {
+    name: 'SignOutButton',
+    desc: 'Logs out the current user. Renders nothing when unauthenticated.',
+  },
   { name: 'UserButton', desc: 'Avatar + dropdown: profile, orgs, sign out — Clerk-style.' },
   { name: 'UserProfile', desc: 'Full account management panel: profile, password, MFA, sessions.' },
-  { name: 'OrganizationSwitcher', desc: 'Switch between orgs or create one. Syncs the active org claim.' },
-  { name: 'OrganizationProfile', desc: 'Org settings panel: members, invitations, roles, danger zone.' },
+  {
+    name: 'OrganizationSwitcher',
+    desc: 'Switch between orgs or create one. Syncs the active org claim.',
+  },
+  {
+    name: 'OrganizationProfile',
+    desc: 'Org settings panel: members, invitations, roles, danger zone.',
+  },
   { name: 'AuthorizedApps', desc: 'Lists and revokes OAuth client consents for the current user.' },
-  { name: 'Avatar', desc: 'User avatar with fallback initials. Headless-style, accepts className.' },
+  {
+    name: 'Avatar',
+    desc: 'User avatar with fallback initials. Headless-style, accepts className.',
+  },
   {
     name: 'PasswordStrengthMeter',
     desc: 'Visual strength bar + HIBP breach check. Plugs into react-hook-form.',
   },
-]
+];
 
 function ReactComponentsSection() {
   return (
@@ -211,9 +222,8 @@ function ReactComponentsSection() {
             Clerk-style React components
           </h2>
           <p className="mt-3 text-fd-muted-foreground">
-            Pre-built, themeable UI components that consume the auth state
-            the AdonisJS host already resolved — no extra wiring beyond the
-            initial provider setup. Drop them into any layout.
+            Pre-built, themeable UI components that consume the auth state the AdonisJS host already
+            resolved — no extra wiring beyond the initial provider setup. Drop them into any layout.
           </p>
           <Link
             href="/docs/components"
@@ -247,7 +257,10 @@ function ReactComponentsSection() {
               <code>
                 <div className="whitespace-pre">
                   <span className="text-[#9a8bff]">import</span>
-                  <span className="text-zinc-300"> {`'@adonis-agora/authkit-react/styles.css'`}</span>
+                  <span className="text-zinc-300">
+                    {' '}
+                    {`'@adonis-agora/authkit-react/styles.css'`}
+                  </span>
                 </div>
                 <div className="whitespace-pre"> </div>
                 <div className="whitespace-pre">
@@ -265,7 +278,10 @@ function ReactComponentsSection() {
                   'PasswordStrengthMeter',
                 ].map((name) => (
                   <div key={name} className="whitespace-pre">
-                    <span className="text-amber-300">{'  '}{name}</span>
+                    <span className="text-amber-300">
+                      {'  '}
+                      {name}
+                    </span>
                     <span className="text-zinc-300">,</span>
                   </div>
                 ))}
@@ -308,7 +324,7 @@ function ReactComponentsSection() {
                   <span className="text-zinc-300"> {'{ Authenticated, Can, useAuth }'}</span>
                 </div>
                 <div className="whitespace-pre">
-                  <span className="text-[#9a8bff]">  from</span>
+                  <span className="text-[#9a8bff]"> from</span>
                   <span className="text-teal-300"> {`'@adonis-agora/authkit-react'`}</span>
                 </div>
                 <div className="whitespace-pre"> </div>
@@ -325,7 +341,9 @@ function ReactComponentsSection() {
                   <span className="text-zinc-300">{'  <'}</span>
                   <span className="text-sky-400">Can</span>
                   <span className="text-amber-300"> ability</span>
-                  <span className="text-zinc-300">={'`'}posts:publish{'`'}</span>
+                  <span className="text-zinc-300">
+                    ={'`'}posts:publish{'`'}
+                  </span>
                   <span className="text-zinc-300">{'>'}</span>
                 </div>
                 <div className="whitespace-pre">
@@ -349,7 +367,7 @@ function ReactComponentsSection() {
         </div>
       </div>
     </section>
-  )
+  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -366,7 +384,7 @@ const HOOKS_LIST = [
   { name: 'useUpdateUserMutationOptions', kind: 'mutation' },
   { name: 'useRevokeSessionMutationOptions', kind: 'mutation' },
   { name: 'useImpersonateMutationOptions', kind: 'mutation' },
-] as const
+] as const;
 
 const CLIENT_CODE_LINES: readonly { tokens: { text: string; cls?: string }[] }[] = [
   {
@@ -379,14 +397,14 @@ const CLIENT_CODE_LINES: readonly { tokens: { text: string; cls?: string }[] }[]
   },
   {
     tokens: [
-      { text: '         ', },
+      { text: '         ' },
       { text: 'AuthkitClientProvider', cls: 'text-amber-300' },
       { text: ',' },
     ],
   },
   {
     tokens: [
-      { text: '         ', },
+      { text: '         ' },
       { text: 'useUsersQueryOptions', cls: 'text-amber-300' },
       { text: ' }' },
       { text: ' from', cls: 'text-[#9a8bff]' },
@@ -406,9 +424,7 @@ const CLIENT_CODE_LINES: readonly { tokens: { text: string; cls?: string }[] }[]
   },
   { tokens: [] },
   {
-    tokens: [
-      { text: '// inside your admin page:', cls: 'text-zinc-600' },
-    ],
+    tokens: [{ text: '// inside your admin page:', cls: 'text-zinc-600' }],
   },
   {
     tokens: [
@@ -424,9 +440,7 @@ const CLIENT_CODE_LINES: readonly { tokens: { text: string; cls?: string }[] }[]
   },
   { tokens: [] },
   {
-    tokens: [
-      { text: '// typed, cached, refetched automatically', cls: 'text-zinc-600' },
-    ],
+    tokens: [{ text: '// typed, cached, refetched automatically', cls: 'text-zinc-600' }],
   },
   {
     tokens: [
@@ -435,7 +449,7 @@ const CLIENT_CODE_LINES: readonly { tokens: { text: string; cls?: string }[] }[]
       { text: '// User[]', cls: 'text-zinc-600' },
     ],
   },
-]
+];
 
 function TypedClientSection() {
   return (
@@ -475,13 +489,11 @@ function TypedClientSection() {
             <code className="rounded bg-fd-muted px-1.5 py-0.5 font-mono text-sm">
               createAuthkitClient
             </code>{' '}
-            is a typed fetch wrapper for both the admin and account APIs.
-            Wrap it once with{' '}
+            is a typed fetch wrapper for both the admin and account APIs. Wrap it once with{' '}
             <code className="rounded bg-fd-muted px-1.5 py-0.5 font-mono text-sm">
               AuthkitClientProvider
             </code>{' '}
-            and all hooks become available — no hand-written fetch calls,
-            structured cache keys (
+            and all hooks become available — no hand-written fetch calls, structured cache keys (
             <code className="rounded bg-fd-muted px-1.5 py-0.5 font-mono text-sm">
               authkitKeys.*
             </code>
@@ -522,7 +534,7 @@ function TypedClientSection() {
         </div>
       </div>
     </section>
-  )
+  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -530,11 +542,11 @@ function TypedClientSection() {
 /* -------------------------------------------------------------------------- */
 
 interface Feature {
-  icon: typeof KeyRound
-  title: string
-  body: string
-  accent: string
-  href?: string
+  icon: typeof KeyRound;
+  title: string;
+  body: string;
+  accent: string;
+  href?: string;
 }
 
 const FEATURES: readonly Feature[] = [
@@ -594,7 +606,7 @@ const FEATURES: readonly Feature[] = [
     body: 'Topology-agnostic: host it as a dedicated IdP, or embed the server kit directly inside an existing AdonisJS app. Eject when you outgrow it.',
     accent: 'text-teal-400',
   },
-]
+];
 
 function FeatureGrid() {
   return (
@@ -604,8 +616,8 @@ function FeatureGrid() {
           Everything an IdP needs, one kit
         </h2>
         <p className="mx-auto mt-3 max-w-2xl text-fd-muted-foreground">
-          Server, client, and shared core — the full identity surface for
-          AdonisJS, with one consistent mental model.
+          Server, client, and shared core — the full identity surface for AdonisJS, with one
+          consistent mental model.
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -614,11 +626,11 @@ function FeatureGrid() {
         ))}
       </div>
     </section>
-  )
+  );
 }
 
 function FeatureCard({ feature }: { feature: Feature }) {
-  const Icon = feature.icon
+  const Icon = feature.icon;
   const inner = (
     <div className="group relative overflow-hidden rounded-xl border border-fd-border bg-fd-card/50 p-5 backdrop-blur transition-colors hover:border-[#625fff]/40">
       <div
@@ -637,7 +649,7 @@ function FeatureCard({ feature }: { feature: Feature }) {
         <p className="mt-2 text-sm leading-relaxed text-fd-muted-foreground">{feature.body}</p>
       </div>
     </div>
-  )
+  );
 
   return feature.href ? (
     <Link href={feature.href} className="block no-underline">
@@ -645,7 +657,7 @@ function FeatureCard({ feature }: { feature: Feature }) {
     </Link>
   ) : (
     inner
-  )
+  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -709,7 +721,7 @@ const CODE_LINES: readonly { tokens: { text: string; cls?: string }[] }[] = [
     ],
   },
   { tokens: [{ text: '})' }] },
-]
+];
 
 function WireItIn() {
   return (
@@ -724,12 +736,12 @@ function WireItIn() {
           </h2>
           <p className="mt-4 text-fd-muted-foreground">
             Register the{' '}
-            <code className="rounded bg-fd-muted px-1.5 py-0.5 font-mono text-sm">server</code>{' '}
-            kit, point it at your issuer URL, and you have a working OIDC
-            provider with admin console. Add the{' '}
+            <code className="rounded bg-fd-muted px-1.5 py-0.5 font-mono text-sm">server</code> kit,
+            point it at your issuer URL, and you have a working OIDC provider with admin console.
+            Add the{' '}
             <code className="rounded bg-fd-muted px-1.5 py-0.5 font-mono text-sm">react</code>{' '}
-            package for Clerk-style components and typed hooks in any AdonisJS
-            app. Eject the internals whenever you need full control.
+            package for Clerk-style components and typed hooks in any AdonisJS app. Eject the
+            internals whenever you need full control.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
@@ -771,7 +783,7 @@ function WireItIn() {
         </div>
       </div>
     </section>
-  )
+  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -810,9 +822,8 @@ function FinalCta() {
           Stop bolting auth on by hand.
         </h2>
         <p className="mx-auto mt-3 max-w-xl text-fd-muted-foreground">
-          Drop in a real OpenID Connect provider, get MFA, admin console,
-          React components, typed hooks, and audit for free — ship identity
-          to production with confidence.
+          Drop in a real OpenID Connect provider, get MFA, admin console, React components, typed
+          hooks, and audit for free — ship identity to production with confidence.
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Link
@@ -831,5 +842,5 @@ function FinalCta() {
         </div>
       </div>
     </section>
-  )
+  );
 }

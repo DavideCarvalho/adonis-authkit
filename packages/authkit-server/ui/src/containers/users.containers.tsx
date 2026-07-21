@@ -1,40 +1,45 @@
-import React, { useState, useEffect } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  useUsersQueryOptions,
-  useUserQueryOptions,
-  useUserSessionsQueryOptions,
+  authkitKeys,
+  useDeleteUserMutationOptions,
   useDisableUserMutationOptions,
   useEnableUserMutationOptions,
-  useResetPasswordMutationOptions,
-  useDeleteUserMutationOptions,
-  useUpdateUserMutationOptions,
-  useRevokeUserSessionsMutationOptions,
   useImpersonationQueryOptions,
-  authkitKeys,
-} from '@adonis-agora/authkit-react'
-import { Drawer } from '../components/Drawer'
-import { Pagination } from '../components/Pagination'
-import { QueryBoundary } from '../components/QueryBoundary'
-import { SkeletonPanelTable, SkeletonDrawerSection } from '../components/Skeleton'
-import { useToast } from '../lib/toast'
+  useResetPasswordMutationOptions,
+  useRevokeUserSessionsMutationOptions,
+  useUpdateUserMutationOptions,
+  useUserQueryOptions,
+  useUserSessionsQueryOptions,
+  useUsersQueryOptions,
+} from '@adonis-agora/authkit-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useEffect } from 'react';
+import { Drawer } from '../components/Drawer';
+import { Pagination } from '../components/Pagination';
+import { QueryBoundary } from '../components/QueryBoundary';
+import { SkeletonDrawerSection, SkeletonPanelTable } from '../components/Skeleton';
+import { useToast } from '../lib/toast';
 
 // ── UsersTableContainer ───────────────────────────────────────────────────────
 
 interface UsersTableContainerProps {
-  search: string
-  page: number
-  onPage: (p: number) => void
-  onSelectUser: (id: string) => void
-  onInvalidate: () => void
+  search: string;
+  page: number;
+  onPage: (p: number) => void;
+  onSelectUser: (id: string) => void;
+  onInvalidate: () => void;
 }
 
-export function UsersTableContainer({ search, page, onPage, onSelectUser }: UsersTableContainerProps) {
+export function UsersTableContainer({
+  search,
+  page,
+  onPage,
+  onSelectUser,
+}: UsersTableContainerProps) {
   const { data, isLoading, error, refetch } = useQuery(
-    useUsersQueryOptions({ search, page, limit: 20 })
-  )
-  const users = data?.data ?? []
-  const total = data?.total ?? 0
+    useUsersQueryOptions({ search, page, limit: 20 }),
+  );
+  const users = data?.data ?? [];
+  const total = data?.total ?? 0;
 
   return (
     <>
@@ -82,8 +87,12 @@ export function UsersTableContainer({ search, page, onPage, onSelectUser }: User
                             {u.email.slice(0, 2).toUpperCase()}
                           </div>
                           <div>
-                            <div style={{ color: 'var(--text)', fontWeight: 500, fontSize: 12.5 }}>{u.email}</div>
-                            {u.name && <div style={{ color: 'var(--faint)', fontSize: 11 }}>{u.name}</div>}
+                            <div style={{ color: 'var(--text)', fontWeight: 500, fontSize: 12.5 }}>
+                              {u.email}
+                            </div>
+                            {u.name && (
+                              <div style={{ color: 'var(--faint)', fontSize: 11 }}>{u.name}</div>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -91,9 +100,13 @@ export function UsersTableContainer({ search, page, onPage, onSelectUser }: User
                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                           {u.globalRoles.length === 0 ? (
                             <span className="badge badge-muted">no roles</span>
-                          ) : u.globalRoles.map((r) => (
-                            <span key={r} className="badge badge-accent">{r}</span>
-                          ))}
+                          ) : (
+                            u.globalRoles.map((r) => (
+                              <span key={r} className="badge badge-accent">
+                                {r}
+                              </span>
+                            ))
+                          )}
                         </div>
                       </td>
                       <td>
@@ -113,98 +126,105 @@ export function UsersTableContainer({ search, page, onPage, onSelectUser }: User
         </QueryBoundary>
       </div>
     </>
-  )
+  );
 }
 
 // ── UserInfoContainer ─────────────────────────────────────────────────────────
 
 interface UserInfoContainerProps {
-  userId: string
-  onMutated: () => void
-  onClose: () => void
+  userId: string;
+  onMutated: () => void;
+  onClose: () => void;
 }
 
 export function UserInfoContainer({ userId, onMutated, onClose }: UserInfoContainerProps) {
-  const toast = useToast()
-  const queryClient = useQueryClient()
+  const toast = useToast();
+  const queryClient = useQueryClient();
 
-  const { data: user, isLoading, error, refetch } = useQuery(useUserQueryOptions(userId))
+  const { data: user, isLoading, error, refetch } = useQuery(useUserQueryOptions(userId));
 
-  const disableMutation = useMutation(useDisableUserMutationOptions(userId))
-  const enableMutation = useMutation(useEnableUserMutationOptions(userId))
-  const resetPwMutation = useMutation(useResetPasswordMutationOptions(userId))
-  const deleteMutation = useMutation(useDeleteUserMutationOptions(userId))
-  const revokeSessionsMutation = useMutation(useRevokeUserSessionsMutationOptions(userId))
+  const disableMutation = useMutation(useDisableUserMutationOptions(userId));
+  const enableMutation = useMutation(useEnableUserMutationOptions(userId));
+  const resetPwMutation = useMutation(useResetPasswordMutationOptions(userId));
+  const deleteMutation = useMutation(useDeleteUserMutationOptions(userId));
+  const revokeSessionsMutation = useMutation(useRevokeUserSessionsMutationOptions(userId));
 
   const impersonationQuery = useQuery({
     ...useImpersonationQueryOptions(userId),
     enabled: false,
-  })
+  });
 
   async function handleToggleDisable() {
-    if (!user) return
+    if (!user) return;
     try {
       if (user.disabled) {
-        await enableMutation.mutateAsync()
-        toast.success('User enabled')
+        await enableMutation.mutateAsync();
+        toast.success('User enabled');
       } else {
-        await disableMutation.mutateAsync()
-        toast.success('User disabled')
+        await disableMutation.mutateAsync();
+        toast.success('User disabled');
       }
-      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.user(userId) })
-      onMutated()
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.user(userId) });
+      onMutated();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   }
 
   async function handleResetPassword() {
     try {
-      await resetPwMutation.mutateAsync()
-      toast.success('Reset email sent')
+      await resetPwMutation.mutateAsync();
+      toast.success('Reset email sent');
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   }
 
   async function handleDelete() {
-    if (!user) return
-    if (!confirm(`Delete user ${user.email}? This cannot be undone.`)) return
+    if (!user) return;
+    if (!confirm(`Delete user ${user.email}? This cannot be undone.`)) return;
     try {
-      await deleteMutation.mutateAsync()
-      toast.success('User deleted')
-      onClose()
-      onMutated()
+      await deleteMutation.mutateAsync();
+      toast.success('User deleted');
+      onClose();
+      onMutated();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   }
 
   async function handleRevokeSessions() {
-    if (!user) return
-    if (!confirm(`Disconnect ${user.email} from all devices? Every active session and grant will be revoked.`)) return
+    if (!user) return;
+    if (
+      !confirm(
+        `Disconnect ${user.email} from all devices? Every active session and grant will be revoked.`,
+      )
+    )
+      return;
     try {
-      const result = await revokeSessionsMutation.mutateAsync()
-      toast.success(`Disconnected from all devices${typeof result?.revoked === 'number' ? ` (${result.revoked} sessions)` : ''}`)
-      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.userSessions(userId) })
+      const result = await revokeSessionsMutation.mutateAsync();
+      toast.success(
+        `Disconnected from all devices${typeof result?.revoked === 'number' ? ` (${result.revoked} sessions)` : ''}`,
+      );
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.userSessions(userId) });
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   }
 
   async function handleImpersonate() {
     try {
-      const result = await impersonationQuery.refetch()
+      const result = await impersonationQuery.refetch();
       if (result.data) {
-        const url = result.data['url']
+        const url = result.data.url;
         if (typeof url === 'string') {
-          window.open(url, '_blank')
+          window.open(url, '_blank');
         } else {
-          toast.error('Impersonation URL not available')
+          toast.error('Impersonation URL not available');
         }
       }
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Impersonation not available')
+      toast.error(err instanceof Error ? err.message : 'Impersonation not available');
     }
   }
 
@@ -216,10 +236,43 @@ export function UserInfoContainer({ userId, onMutated, onClose }: UserInfoContai
       skeleton={
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-            <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--bg3)', backgroundImage: 'linear-gradient(90deg, var(--bg3) 0%, var(--bg2) 40%, var(--bg3) 100%)', backgroundSize: '200% 100%', animation: 'sk-shimmer 1.6s ease-in-out infinite' }} />
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: '50%',
+                background: 'var(--bg3)',
+                backgroundImage:
+                  'linear-gradient(90deg, var(--bg3) 0%, var(--bg2) 40%, var(--bg3) 100%)',
+                backgroundSize: '200% 100%',
+                animation: 'sk-shimmer 1.6s ease-in-out infinite',
+              }}
+            />
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div style={{ height: 14, width: '60%', borderRadius: 6, background: 'var(--bg3)', backgroundImage: 'linear-gradient(90deg, var(--bg3) 0%, var(--bg2) 40%, var(--bg3) 100%)', backgroundSize: '200% 100%', animation: 'sk-shimmer 1.6s ease-in-out infinite' }} />
-              <div style={{ height: 11, width: '40%', borderRadius: 6, background: 'var(--bg3)', backgroundImage: 'linear-gradient(90deg, var(--bg3) 0%, var(--bg2) 40%, var(--bg3) 100%)', backgroundSize: '200% 100%', animation: 'sk-shimmer 1.6s ease-in-out infinite' }} />
+              <div
+                style={{
+                  height: 14,
+                  width: '60%',
+                  borderRadius: 6,
+                  background: 'var(--bg3)',
+                  backgroundImage:
+                    'linear-gradient(90deg, var(--bg3) 0%, var(--bg2) 40%, var(--bg3) 100%)',
+                  backgroundSize: '200% 100%',
+                  animation: 'sk-shimmer 1.6s ease-in-out infinite',
+                }}
+              />
+              <div
+                style={{
+                  height: 11,
+                  width: '40%',
+                  borderRadius: 6,
+                  background: 'var(--bg3)',
+                  backgroundImage:
+                    'linear-gradient(90deg, var(--bg3) 0%, var(--bg2) 40%, var(--bg3) 100%)',
+                  backgroundSize: '200% 100%',
+                  animation: 'sk-shimmer 1.6s ease-in-out infinite',
+                }}
+              />
             </div>
           </div>
         </div>
@@ -242,11 +295,24 @@ export function UserInfoContainer({ userId, onMutated, onClose }: UserInfoContai
               </div>
             </div>
           </div>
-          <div className="code" style={{ fontSize: 11, padding: '6px 10px' }}>ID: {user.id}</div>
+          <div className="code" style={{ fontSize: 11, padding: '6px 10px' }}>
+            ID: {user.id}
+          </div>
 
           {/* Actions */}
           <div style={{ marginTop: 16 }}>
-            <div style={{ fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--faint)', fontWeight: 600, marginBottom: 8 }}>Actions</div>
+            <div
+              style={{
+                fontSize: 10.5,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                color: 'var(--faint)',
+                fontWeight: 600,
+                marginBottom: 8,
+              }}
+            >
+              Actions
+            </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               <button
                 className={`btn btn-sm ${user.disabled ? '' : 'btn-danger'}`}
@@ -255,10 +321,18 @@ export function UserInfoContainer({ userId, onMutated, onClose }: UserInfoContai
               >
                 {user.disabled ? 'Enable account' : 'Disable account'}
               </button>
-              <button className="btn btn-sm" onClick={handleResetPassword} disabled={resetPwMutation.isPending}>
+              <button
+                className="btn btn-sm"
+                onClick={handleResetPassword}
+                disabled={resetPwMutation.isPending}
+              >
                 Reset password
               </button>
-              <button className="btn btn-sm" onClick={handleImpersonate} disabled={impersonationQuery.isFetching}>
+              <button
+                className="btn btn-sm"
+                onClick={handleImpersonate}
+                disabled={impersonationQuery.isFetching}
+              >
                 Impersonate
               </button>
               <button
@@ -268,7 +342,11 @@ export function UserInfoContainer({ userId, onMutated, onClose }: UserInfoContai
               >
                 Disconnect all devices
               </button>
-              <button className="btn btn-sm btn-danger" onClick={handleDelete} disabled={deleteMutation.isPending}>
+              <button
+                className="btn btn-sm btn-danger"
+                onClick={handleDelete}
+                disabled={deleteMutation.isPending}
+              >
                 Delete user
               </button>
             </div>
@@ -276,48 +354,57 @@ export function UserInfoContainer({ userId, onMutated, onClose }: UserInfoContai
         </div>
       )}
     </QueryBoundary>
-  )
+  );
 }
 
 // ── UserRolesContainer ────────────────────────────────────────────────────────
 
 interface UserRolesContainerProps {
-  userId: string
-  onMutated: () => void
+  userId: string;
+  onMutated: () => void;
 }
 
 export function UserRolesContainer({ userId, onMutated }: UserRolesContainerProps) {
-  const toast = useToast()
-  const queryClient = useQueryClient()
+  const toast = useToast();
+  const queryClient = useQueryClient();
 
-  const { data: user, isLoading, error, refetch } = useQuery(useUserQueryOptions(userId))
-  const updateRolesMutation = useMutation(useUpdateUserMutationOptions(userId))
-  const [selectedRoles, setSelectedRoles] = useState<string[]>([])
+  const { data: user, isLoading, error, refetch } = useQuery(useUserQueryOptions(userId));
+  const updateRolesMutation = useMutation(useUpdateUserMutationOptions(userId));
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
 
   useEffect(() => {
-    if (user) setSelectedRoles(user.globalRoles)
-  }, [user])
+    if (user) setSelectedRoles(user.globalRoles);
+  }, [user]);
 
   const toggleRole = (name: string) => {
     setSelectedRoles((prev) =>
-      prev.includes(name) ? prev.filter((r) => r !== name) : [...prev, name]
-    )
-  }
+      prev.includes(name) ? prev.filter((r) => r !== name) : [...prev, name],
+    );
+  };
 
   async function handleUpdateRoles() {
     try {
-      await updateRolesMutation.mutateAsync({ globalRoles: selectedRoles })
-      toast.success('Roles updated')
-      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.user(userId) })
-      onMutated()
+      await updateRolesMutation.mutateAsync({ globalRoles: selectedRoles });
+      toast.success('Roles updated');
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.user(userId) });
+      onMutated();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   }
 
   return (
     <div>
-      <div style={{ fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--faint)', fontWeight: 600, marginBottom: 8 }}>
+      <div
+        style={{
+          fontSize: 10.5,
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          color: 'var(--faint)',
+          fontWeight: 600,
+          marginBottom: 8,
+        }}
+      >
         Global Roles
       </div>
       <QueryBoundary
@@ -326,14 +413,29 @@ export function UserRolesContainer({ userId, onMutated }: UserRolesContainerProp
         onRetry={refetch}
         skeleton={
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[1, 2].map((i) => <div key={i} style={{ height: 20, borderRadius: 6, background: 'var(--bg3)', backgroundImage: 'linear-gradient(90deg, var(--bg3) 0%, var(--bg2) 40%, var(--bg3) 100%)', backgroundSize: '200% 100%', animation: 'sk-shimmer 1.6s ease-in-out infinite' }} />)}
+            {[1, 2].map((i) => (
+              <div
+                key={i}
+                style={{
+                  height: 20,
+                  borderRadius: 6,
+                  background: 'var(--bg3)',
+                  backgroundImage:
+                    'linear-gradient(90deg, var(--bg3) 0%, var(--bg2) 40%, var(--bg3) 100%)',
+                  backgroundSize: '200% 100%',
+                  animation: 'sk-shimmer 1.6s ease-in-out infinite',
+                }}
+              />
+            ))}
           </div>
         }
       >
         {user && (
           <>
             {selectedRoles.length === 0 && (
-              <div style={{ fontSize: 12, color: 'var(--faint)', marginBottom: 8 }}>No roles assigned</div>
+              <div style={{ fontSize: 12, color: 'var(--faint)', marginBottom: 8 }}>
+                No roles assigned
+              </div>
             )}
             {user.globalRoles.map((r) => (
               <label key={r} className="checkbox-row">
@@ -342,7 +444,9 @@ export function UserRolesContainer({ userId, onMutated }: UserRolesContainerProp
                   checked={selectedRoles.includes(r)}
                   onChange={() => toggleRole(r)}
                 />
-                <div><div className="chk-label">{r}</div></div>
+                <div>
+                  <div className="chk-label">{r}</div>
+                </div>
               </label>
             ))}
             <button
@@ -357,22 +461,36 @@ export function UserRolesContainer({ userId, onMutated }: UserRolesContainerProp
         )}
       </QueryBoundary>
     </div>
-  )
+  );
 }
 
 // ── UserSessionsContainer ─────────────────────────────────────────────────────
 
 interface UserSessionsContainerProps {
-  userId: string
+  userId: string;
 }
 
 export function UserSessionsContainer({ userId }: UserSessionsContainerProps) {
-  const { data: sessionsData, isLoading, error, refetch } = useQuery(useUserSessionsQueryOptions(userId))
-  const sessions = sessionsData?.sessions ?? []
+  const {
+    data: sessionsData,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery(useUserSessionsQueryOptions(userId));
+  const sessions = sessionsData?.sessions ?? [];
 
   return (
     <div>
-      <div style={{ fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--faint)', fontWeight: 600, marginBottom: 8 }}>
+      <div
+        style={{
+          fontSize: 10.5,
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          color: 'var(--faint)',
+          fontWeight: 600,
+          marginBottom: 8,
+        }}
+      >
         Sessions {!isLoading && !error ? `(${sessions.length})` : ''}
       </div>
       <QueryBoundary
@@ -381,7 +499,20 @@ export function UserSessionsContainer({ userId }: UserSessionsContainerProps) {
         onRetry={refetch}
         skeleton={
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[1, 2].map((i) => <div key={i} style={{ height: 44, borderRadius: 8, background: 'var(--bg3)', backgroundImage: 'linear-gradient(90deg, var(--bg3) 0%, var(--bg2) 40%, var(--bg3) 100%)', backgroundSize: '200% 100%', animation: 'sk-shimmer 1.6s ease-in-out infinite' }} />)}
+            {[1, 2].map((i) => (
+              <div
+                key={i}
+                style={{
+                  height: 44,
+                  borderRadius: 8,
+                  background: 'var(--bg3)',
+                  backgroundImage:
+                    'linear-gradient(90deg, var(--bg3) 0%, var(--bg2) 40%, var(--bg3) 100%)',
+                  backgroundSize: '200% 100%',
+                  animation: 'sk-shimmer 1.6s ease-in-out infinite',
+                }}
+              />
+            ))}
           </div>
         }
       >
@@ -391,33 +522,46 @@ export function UserSessionsContainer({ userId }: UserSessionsContainerProps) {
           sessions.map((s) => (
             <div key={s.id} className="panel" style={{ marginBottom: 8, padding: '10px 12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="var(--muted)" strokeWidth="1.6">
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="var(--muted)"
+                  strokeWidth="1.6"
+                >
                   <rect x="1.5" y="3.5" width="13" height="9" rx="1.5" />
                   <circle cx="8" cy="8.5" r="2" />
                 </svg>
-                <span style={{ color: 'var(--text)', fontWeight: 500 }}>{s.browser ?? 'Unknown browser'}</span>
+                <span style={{ color: 'var(--text)', fontWeight: 500 }}>
+                  {s.browser ?? 'Unknown browser'}
+                </span>
                 <span style={{ color: 'var(--faint)' }}>{s.os}</span>
                 <span className="code ml-auto">{s.ip ?? '—'}</span>
               </div>
-              {s.location && <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 4 }}>{s.location}</div>}
+              {s.location && (
+                <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 4 }}>
+                  {s.location}
+                </div>
+              )}
             </div>
           ))
         )}
       </QueryBoundary>
     </div>
-  )
+  );
 }
 
 // ── UserDetailDrawer (composed from containers) ───────────────────────────────
 
 interface UserDetailDrawerProps {
-  userId: string
-  onClose: () => void
-  onMutated: () => void
+  userId: string;
+  onClose: () => void;
+  onMutated: () => void;
 }
 
 export function UserDetailDrawer({ userId, onClose, onMutated }: UserDetailDrawerProps) {
-  const { data: user } = useQuery(useUserQueryOptions(userId))
+  const { data: user } = useQuery(useUserQueryOptions(userId));
 
   return (
     <Drawer open={true} onClose={onClose} title={user?.email ?? 'User detail'}>
@@ -427,5 +571,5 @@ export function UserDetailDrawer({ userId, onClose, onMutated }: UserDetailDrawe
         <UserSessionsContainer userId={userId} />
       </div>
     </Drawer>
-  )
+  );
 }

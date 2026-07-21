@@ -1,4 +1,4 @@
-import vine from '@vinejs/vine'
+import vine from '@vinejs/vine';
 
 /** Cadastro passwordless: só e-mail + nome (sem senha). O login vem por magic link. */
 export const passwordlessSignupValidator = vine.compile(
@@ -6,28 +6,28 @@ export const passwordlessSignupValidator = vine.compile(
     email: vine.string().trim().email().normalizeEmail(),
     fullName: vine.string().trim().minLength(2).maxLength(255),
   }),
-)
+);
 
 export const signupValidator = vine.compile(
   vine.object({
     email: vine.string().trim().email().normalizeEmail(),
     fullName: vine.string().trim().minLength(2).maxLength(255),
     password: vine.string().minLength(8).maxLength(255),
-  })
-)
+  }),
+);
 
 export const forgotPasswordValidator = vine.compile(
   vine.object({
     email: vine.string().trim().email().normalizeEmail(),
-  })
-)
+  }),
+);
 
 export const resetPasswordValidator = vine.compile(
   vine.object({
     token: vine.string().trim().minLength(1),
     password: vine.string().minLength(8).maxLength(255),
-  })
-)
+  }),
+);
 
 /**
  * Troca de senha no console de conta. A regra da nova senha espelha o
@@ -38,8 +38,8 @@ export const changePasswordValidator = vine.compile(
   vine.object({
     currentPassword: vine.string().minLength(1),
     newPassword: vine.string().minLength(8).maxLength(255),
-  })
-)
+  }),
+);
 
 /**
  * Troca de e-mail no console de conta: senha atual (opcional — pode ser
@@ -49,8 +49,8 @@ export const changeEmailValidator = vine.compile(
   vine.object({
     currentPassword: vine.string().minLength(1).optional(),
     newEmail: vine.string().trim().email().normalizeEmail(),
-  })
-)
+  }),
+);
 
 /**
  * Edição de perfil no console de conta: nome e avatarUrl, ambos opcionais.
@@ -60,8 +60,8 @@ export const updateProfileValidator = vine.compile(
   vine.object({
     name: vine.string().trim().maxLength(255).optional(),
     avatarUrl: vine.string().trim().url().maxLength(2048).optional(),
-  })
-)
+  }),
+);
 
 /**
  * Deleção self-service de conta (LGPD). Aceita confirmação por senha atual
@@ -72,8 +72,8 @@ export const deleteAccountValidator = vine.compile(
   vine.object({
     currentPassword: vine.string().optional(),
     confirmEmail: vine.string().trim().optional(),
-  })
-)
+  }),
+);
 
 /** Criação de usuário no console admin (email obrigatório; nome/senha opcionais). */
 export const adminCreateUserValidator = vine.compile(
@@ -81,5 +81,5 @@ export const adminCreateUserValidator = vine.compile(
     email: vine.string().trim().email().normalizeEmail(),
     name: vine.string().trim().maxLength(255).optional(),
     password: vine.string().minLength(8).maxLength(255).optional(),
-  })
-)
+  }),
+);

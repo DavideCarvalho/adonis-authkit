@@ -1,5 +1,5 @@
-import app from "@adonisjs/core/services/app";
-import type { AuthkitClientManager } from "../providers/authkit_client_provider.js";
+import app from '@adonisjs/core/services/app';
+import type { AuthkitClientManager } from '../providers/authkit_client_provider.js';
 
 /**
  * Singleton accessor for the {@link AuthkitClientManager}, following the Adonis `services/main`
@@ -11,7 +11,7 @@ import type { AuthkitClientManager } from "../providers/authkit_client_provider.
 let manager: AuthkitClientManager;
 
 await app.booted(async () => {
-  manager = await app.container.make("authkit.client");
+  manager = await app.container.make('authkit.client');
 });
 
 export { manager as default };

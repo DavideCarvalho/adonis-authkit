@@ -1,7 +1,7 @@
-import { test } from '@japa/runner'
-import { refreshTokens } from '../src/oidc_login.js'
-import { AuthkitClientManager } from '../providers/authkit_client_provider.js'
-import type { ResolvedClientConfig } from '../src/define_config.js'
+import { test } from '@japa/runner';
+import { AuthkitClientManager } from '../providers/authkit_client_provider.js';
+import type { ResolvedClientConfig } from '../src/define_config.js';
+import { refreshTokens } from '../src/oidc_login.js';
 
 function fakeConfig(over: Partial<ResolvedClientConfig> = {}): ResolvedClientConfig {
   return {
@@ -14,29 +14,29 @@ function fakeConfig(over: Partial<ResolvedClientConfig> = {}): ResolvedClientCon
     scopes: ['openid'],
     globalRolesClaim: 'roles',
     ...over,
-  }
+  };
 }
 
 /** Sessão fake (Map) com get/put. */
 function fakeCtxWithSession(initial?: any) {
-  const store = new Map<string, any>()
-  if (initial) store.set('authkit', initial)
+  const store = new Map<string, any>();
+  if (initial) store.set('authkit', initial);
   return {
     session: { get: (k: string) => store.get(k), put: (k: string, v: any) => store.set(k, v) },
     _store: store,
-  } as any
+  } as any;
 }
 
 test.group('refreshTokens (primitive)', () => {
   test('POST grant_type=refresh_token e mapeia a resposta', async ({ assert }) => {
-    let captured = ''
+    let captured = '';
     const ts = await refreshTokens({
       issuer: 'http://idp',
       clientId: 'app1',
       clientSecret: 's',
       refreshToken: 'rt_old',
       fetchImpl: (async (_url: string, init: any) => {
-        captured = init.body
+        captured = init.body;
         return {
           ok: true,
           json: async () => ({
@@ -45,16 +45,16 @@ test.group('refreshTokens (primitive)', () => {
             refresh_token: 'rt_new',
             expires_in: 3600,
           }),
-        }
+        };
       }) as any,
-    })
-    assert.include(captured, 'grant_type=refresh_token')
-    assert.include(captured, 'refresh_token=rt_old')
-    assert.equal(ts.accessToken, 'at_new')
-    assert.equal(ts.refreshToken, 'rt_new')
-    assert.equal(ts.idToken, 'idt_new')
-    assert.isNumber(ts.expiresAt)
-  })
+    });
+    assert.include(captured, 'grant_type=refresh_token');
+    assert.include(captured, 'refresh_token=rt_old');
+    assert.equal(ts.accessToken, 'at_new');
+    assert.equal(ts.refreshToken, 'rt_new');
+    assert.equal(ts.idToken, 'idt_new');
+    assert.isNumber(ts.expiresAt);
+  });
 
   test('resposta não-ok lança', async ({ assert }) => {
     await assert.rejects(() =>
@@ -63,49 +63,49 @@ test.group('refreshTokens (primitive)', () => {
         clientId: 'app1',
         refreshToken: 'rt',
         fetchImpl: (async () => ({ ok: false, json: async () => ({}) })) as any,
-      })
-    )
-  })
-})
+      }),
+    );
+  });
+});
 
 test.group('AuthkitClientManager.maybeRefresh', () => {
   test('sem refresh token → no-op (não chama fetch)', async ({ assert }) => {
-    let called = false
-    const m = new AuthkitClientManager(fakeConfig())
-    const ctx = fakeCtxWithSession({ idToken: 'i', accessToken: 'a', expiresAt: 0 })
+    let called = false;
+    const m = new AuthkitClientManager(fakeConfig());
+    const ctx = fakeCtxWithSession({ idToken: 'i', accessToken: 'a', expiresAt: 0 });
     await m.maybeRefresh(ctx, {
       now: () => 1_000_000,
       fetchImpl: (async () => ((called = true), { ok: true, json: async () => ({}) })) as any,
-    })
-    assert.isFalse(called)
-  })
+    });
+    assert.isFalse(called);
+  });
 
   test('token ainda fresco → no-op', async ({ assert }) => {
-    let called = false
-    const m = new AuthkitClientManager(fakeConfig())
-    const now = 1_000_000
+    let called = false;
+    const m = new AuthkitClientManager(fakeConfig());
+    const now = 1_000_000;
     const ctx = fakeCtxWithSession({
       idToken: 'i',
       accessToken: 'a',
       refreshToken: 'rt',
       expiresAt: now + 10 * 60_000, // 10 min no futuro
-    })
+    });
     await m.maybeRefresh(ctx, {
       now: () => now,
       fetchImpl: (async () => ((called = true), { ok: true, json: async () => ({}) })) as any,
-    })
-    assert.isFalse(called)
-  })
+    });
+    assert.isFalse(called);
+  });
 
   test('perto de expirar → renova e ROTACIONA o refresh token na sessão', async ({ assert }) => {
-    const m = new AuthkitClientManager(fakeConfig())
-    const now = 1_000_000
+    const m = new AuthkitClientManager(fakeConfig());
+    const now = 1_000_000;
     const ctx = fakeCtxWithSession({
       idToken: 'idt_old',
       accessToken: 'at_old',
       refreshToken: 'rt_old',
       expiresAt: now + 10_000, // dentro da margem de 60s
-    })
+    });
     await m.maybeRefresh(ctx, {
       now: () => now,
       fetchImpl: (async () => ({
@@ -117,46 +117,46 @@ test.group('AuthkitClientManager.maybeRefresh', () => {
           expires_in: 3600,
         }),
       })) as any,
-    })
-    const stored = ctx._store.get('authkit')
-    assert.equal(stored.accessToken, 'at_new')
-    assert.equal(stored.refreshToken, 'rt_new')
-    assert.equal(stored.idToken, 'idt_new')
-  })
+    });
+    const stored = ctx._store.get('authkit');
+    assert.equal(stored.accessToken, 'at_new');
+    assert.equal(stored.refreshToken, 'rt_new');
+    assert.equal(stored.idToken, 'idt_new');
+  });
 
   test('preserva id_token e refresh_token anteriores quando o IdP não os reemite', async ({
     assert,
   }) => {
-    const m = new AuthkitClientManager(fakeConfig())
-    const now = 1_000_000
+    const m = new AuthkitClientManager(fakeConfig());
+    const now = 1_000_000;
     const ctx = fakeCtxWithSession({
       idToken: 'idt_old',
       accessToken: 'at_old',
       refreshToken: 'rt_old',
       expiresAt: now,
-    })
+    });
     await m.maybeRefresh(ctx, {
       now: () => now,
       fetchImpl: (async () => ({
         ok: true,
         json: async () => ({ access_token: 'at_new', expires_in: 3600 }),
       })) as any,
-    })
-    const stored = ctx._store.get('authkit')
-    assert.equal(stored.accessToken, 'at_new')
-    assert.equal(stored.idToken, 'idt_old') // preservado
-    assert.equal(stored.refreshToken, 'rt_old') // preservado (sem rotação)
-  })
+    });
+    const stored = ctx._store.get('authkit');
+    assert.equal(stored.accessToken, 'at_new');
+    assert.equal(stored.idToken, 'idt_old'); // preservado
+    assert.equal(stored.refreshToken, 'rt_old'); // preservado (sem rotação)
+  });
 
   test('falha na renovação é silenciosa e mantém o TokenSet', async ({ assert }) => {
-    const m = new AuthkitClientManager(fakeConfig())
-    const now = 1_000_000
-    const original = { idToken: 'i', accessToken: 'a', refreshToken: 'rt', expiresAt: now }
-    const ctx = fakeCtxWithSession({ ...original })
+    const m = new AuthkitClientManager(fakeConfig());
+    const now = 1_000_000;
+    const original = { idToken: 'i', accessToken: 'a', refreshToken: 'rt', expiresAt: now };
+    const ctx = fakeCtxWithSession({ ...original });
     await m.maybeRefresh(ctx, {
       now: () => now,
       fetchImpl: (async () => ({ ok: false, json: async () => ({}) })) as any,
-    })
-    assert.deepEqual(ctx._store.get('authkit'), original)
-  })
-})
+    });
+    assert.deepEqual(ctx._store.get('authkit'), original);
+  });
+});

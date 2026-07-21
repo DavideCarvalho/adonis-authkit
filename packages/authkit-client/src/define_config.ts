@@ -1,9 +1,9 @@
-import type { Identity } from "@adonis-agora/authkit-core";
-import { configProvider } from "@adonisjs/core";
-import type { SessionIndex } from "./backchannel_logout.js";
-import type { ResiliencePolicy } from "./http/resilient_fetch.js";
-import { type ResolverFactory, resolvers } from "./resolvers/factory.js";
-import type { RevocationStore } from "./revocation/revocation_store.js";
+import type { Identity } from '@adonis-agora/authkit-core';
+import { configProvider } from '@adonisjs/core';
+import type { SessionIndex } from './backchannel_logout.js';
+import type { ResiliencePolicy } from './http/resilient_fetch.js';
+import { type ResolverFactory, resolvers } from './resolvers/factory.js';
+import type { RevocationStore } from './revocation/revocation_store.js';
 
 export { resolvers };
 
@@ -100,9 +100,9 @@ export function defineConfig(config: ClientConfigInput) {
       redirectUri: config.redirectUri,
       resolverFactory: config.resolver,
       resolveUser: config.resolveUser,
-      sessionKey: config.sessionKey ?? "authkit",
-      scopes: config.scopes ?? ["openid", "profile", "email", "offline_access", "roles"],
-      globalRolesClaim: config.globalRolesClaim ?? "roles",
+      sessionKey: config.sessionKey ?? 'authkit',
+      scopes: config.scopes ?? ['openid', 'profile', 'email', 'offline_access', 'roles'],
+      globalRolesClaim: config.globalRolesClaim ?? 'roles',
       onBackchannelLogout,
       sessionIndex: config.sessionIndex,
       backchannelStore: store,

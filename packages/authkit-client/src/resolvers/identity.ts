@@ -1,6 +1,6 @@
-import type { Identity } from '@adonis-agora/authkit-core'
+import type { Identity } from '@adonis-agora/authkit-core';
 
-type FetchImpl = (url: string, init: any) => Promise<{ ok: boolean; json: () => Promise<any> }>
+type FetchImpl = (url: string, init: any) => Promise<{ ok: boolean; json: () => Promise<any> }>;
 
 /**
  * Mapeamento canônico de claims OIDC validadas → Identity, compartilhado pelos
@@ -11,9 +11,9 @@ type FetchImpl = (url: string, init: any) => Promise<{ ok: boolean; json: () => 
  */
 export function buildIdentityFromClaims(
   claims: Record<string, unknown>,
-  globalRolesClaim: string
+  globalRolesClaim: string,
 ): Identity {
-  const roles = claims[globalRolesClaim]
+  const roles = claims[globalRolesClaim];
   return {
     userId: String(claims.sub ?? ''),
     email: typeof claims.email === 'string' ? claims.email : '',
@@ -26,19 +26,19 @@ export function buildIdentityFromClaims(
     issuedAt: typeof claims.iat === 'number' ? claims.iat * 1000 : 0,
     expiresAt: typeof claims.exp === 'number' ? claims.exp * 1000 : 0,
     raw: claims,
-  }
+  };
 }
 
 export interface IntrospectAuth {
   /** `bearer` envia `Authorization: Bearer <value>`; `basic` envia `Authorization: Basic <value>`. */
-  type: 'bearer' | 'basic'
-  value: string
+  type: 'bearer' | 'basic';
+  value: string;
 }
 
 export interface IntrospectOptions {
   /** `token_type_hint` enviado no corpo (RFC 7662). */
-  tokenTypeHint?: string
-  fetchImpl?: FetchImpl
+  tokenTypeHint?: string;
+  fetchImpl?: FetchImpl;
 }
 
 /**
@@ -50,13 +50,13 @@ export async function introspectToken(
   url: string,
   token: string,
   auth: IntrospectAuth,
-  opts: IntrospectOptions = {}
+  opts: IntrospectOptions = {},
 ): Promise<Record<string, any> | null> {
-  const doFetch = opts.fetchImpl ?? (fetch as unknown as FetchImpl)
-  const params = new URLSearchParams({ token })
-  if (opts.tokenTypeHint) params.set('token_type_hint', opts.tokenTypeHint)
+  const doFetch = opts.fetchImpl ?? (fetch as unknown as FetchImpl);
+  const params = new URLSearchParams({ token });
+  if (opts.tokenTypeHint) params.set('token_type_hint', opts.tokenTypeHint);
 
-  const authValue = auth.type === 'bearer' ? `Bearer ${auth.value}` : `Basic ${auth.value}`
+  const authValue = auth.type === 'bearer' ? `Bearer ${auth.value}` : `Basic ${auth.value}`;
   const res = await doFetch(url, {
     method: 'POST',
     headers: {
@@ -64,9 +64,9 @@ export async function introspectToken(
       'content-type': 'application/x-www-form-urlencoded',
     },
     body: params.toString(),
-  })
-  if (!res.ok) return null
-  const data = await res.json()
-  if (!data?.active) return null
-  return data
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (!data?.active) return null;
+  return data;
 }

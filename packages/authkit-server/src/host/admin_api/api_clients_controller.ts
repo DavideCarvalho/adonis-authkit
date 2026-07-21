@@ -1,13 +1,17 @@
-import '../augmentations.js'
-import type { HttpContext } from '@adonisjs/core/http'
-import { AdminClientsService } from '../admin_clients_service.js'
-import { clientDto, createdClientDto, apiError } from './dto.js'
-import { clientInputValidator, clientCreateInput, clientPartialInput } from '../admin_validators.js'
+import '../augmentations.js';
+import type { HttpContext } from '@adonisjs/core/http';
+import { AdminClientsService } from '../admin_clients_service.js';
+import {
+  clientCreateInput,
+  clientInputValidator,
+  clientPartialInput,
+} from '../admin_validators.js';
+import { apiError, clientDto, createdClientDto } from './dto.js';
 
 /** Resolve o serviço (== OidcService) + o AdminClientsService. */
 async function clientsService(ctx: HttpContext) {
-  const service = await ctx.containerResolver.make('authkit.server')
-  return { service, svc: new AdminClientsService(service) }
+  const service = await ctx.containerResolver.make('authkit.server');
+  return { service, svc: new AdminClientsService(service) };
 }
 
 /**
@@ -17,78 +21,78 @@ async function clientsService(ctx: HttpContext) {
  */
 export default class ApiClientsController {
   async index(ctx: HttpContext) {
-    const { svc } = await clientsService(ctx)
+    const { svc } = await clientsService(ctx);
     if (!svc.canList) {
-      return { data: [], canList: false }
+      return { data: [], canList: false };
     }
-    const clients = await svc.list()
-    return { data: clients.map(clientDto), canList: true }
+    const clients = await svc.list();
+    return { data: clients.map(clientDto), canList: true };
   }
 
   async show(ctx: HttpContext) {
-    const { svc } = await clientsService(ctx)
-    const client = await svc.find(ctx.request.param('id'))
-    if (!client) return ctx.response.notFound(apiError('not_found', 'Client não encontrado.'))
-    return clientDto(client)
+    const { svc } = await clientsService(ctx);
+    const client = await svc.find(ctx.request.param('id'));
+    if (!client) return ctx.response.notFound(apiError('not_found', 'Client não encontrado.'));
+    return clientDto(client);
   }
 
   async store(ctx: HttpContext) {
-    const { service, svc } = await clientsService(ctx)
-    const input = clientCreateInput(await ctx.request.validateUsing(clientInputValidator))
-    const created = await svc.create(input)
+    const { service, svc } = await clientsService(ctx);
+    const input = clientCreateInput(await ctx.request.validateUsing(clientInputValidator));
+    const created = await svc.create(input);
     await service.config.audit?.record({
       type: 'client.created',
       clientId: created.clientId,
       ip: ctx.request.ip?.() ?? null,
       metadata: { actor: 'admin-api' },
-    })
-    ctx.response.status(201)
-    return createdClientDto(created)
+    });
+    ctx.response.status(201);
+    return createdClientDto(created);
   }
 
   async update(ctx: HttpContext) {
-    const { service, svc } = await clientsService(ctx)
-    const id = ctx.request.param('id')
-    const existing = await svc.find(id)
-    if (!existing) return ctx.response.notFound(apiError('not_found', 'Client não encontrado.'))
-    await svc.update(id, clientPartialInput(await ctx.request.validateUsing(clientInputValidator)))
+    const { service, svc } = await clientsService(ctx);
+    const id = ctx.request.param('id');
+    const existing = await svc.find(id);
+    if (!existing) return ctx.response.notFound(apiError('not_found', 'Client não encontrado.'));
+    await svc.update(id, clientPartialInput(await ctx.request.validateUsing(clientInputValidator)));
     await service.config.audit?.record({
       type: 'client.updated',
       clientId: id,
       ip: ctx.request.ip?.() ?? null,
       metadata: { actor: 'admin-api' },
-    })
-    const updated = await svc.find(id)
-    return clientDto(updated!)
+    });
+    const updated = await svc.find(id);
+    return clientDto(updated!);
   }
 
   async regenerateSecret(ctx: HttpContext) {
-    const { service, svc } = await clientsService(ctx)
-    const id = ctx.request.param('id')
+    const { service, svc } = await clientsService(ctx);
+    const id = ctx.request.param('id');
     try {
-      const secret = await svc.regenerateSecret(id)
+      const secret = await svc.regenerateSecret(id);
       await service.config.audit?.record({
         type: 'client.updated',
         clientId: id,
         ip: ctx.request.ip?.() ?? null,
         metadata: { actor: 'admin-api', action: 'regenerate_secret' },
-      })
-      return { clientId: id, clientSecret: secret }
+      });
+      return { clientId: id, clientSecret: secret };
     } catch (e) {
-      return ctx.response.conflict(apiError('cannot_regenerate', (e as Error).message))
+      return ctx.response.conflict(apiError('cannot_regenerate', (e as Error).message));
     }
   }
 
   async destroy(ctx: HttpContext) {
-    const { service, svc } = await clientsService(ctx)
-    const id = ctx.request.param('id')
-    await svc.delete(id)
+    const { service, svc } = await clientsService(ctx);
+    const id = ctx.request.param('id');
+    await svc.delete(id);
     await service.config.audit?.record({
       type: 'client.deleted',
       clientId: id,
       ip: ctx.request.ip?.() ?? null,
       metadata: { actor: 'admin-api' },
-    })
-    return { clientId: id, deleted: true }
+    });
+    return { clientId: id, deleted: true };
   }
 }

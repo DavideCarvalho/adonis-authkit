@@ -1,7 +1,7 @@
-import type { ResolvedServerConfig } from '../define_config.js'
+import type { ResolvedServerConfig } from '../define_config.js';
 
-const TOKEN_EXCHANGE = 'urn:ietf:params:oauth:grant-type:token-exchange'
-const ACCESS_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:access_token'
+const TOKEN_EXCHANGE = 'urn:ietf:params:oauth:grant-type:token-exchange';
+const ACCESS_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:access_token';
 
 /**
  * Parâmetros PRONTOS do RFC 8693 Token Exchange para o admin assumir a identidade
@@ -12,14 +12,14 @@ const ACCESS_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:access_token'
  * o mecanismo que já existe em `provider/token_exchange.ts`.
  */
 export interface ImpersonationPanel {
-  tokenEndpoint: string
-  grantType: string
-  subjectTokenType: string
-  requestedSubject: string
+  tokenEndpoint: string;
+  grantType: string;
+  subjectTokenType: string;
+  requestedSubject: string;
   /** Client habilitado ao grant token-exchange usado no exemplo. */
-  clientId: string
+  clientId: string;
   /** Comando curl pronto (subject_token como placeholder a preencher). */
-  curl: string
+  curl: string;
 }
 
 /**
@@ -29,24 +29,17 @@ export interface ImpersonationPanel {
  */
 export function buildImpersonationPanel(
   cfg: Pick<ResolvedServerConfig, 'issuer' | 'clients'>,
-  targetId: string
+  targetId: string,
 ): ImpersonationPanel | null {
-  const client = cfg.clients.find((c) => (c.grants ?? []).includes(TOKEN_EXCHANGE))
-  if (!client) return null
+  const client = cfg.clients.find((c) => (c.grants ?? []).includes(TOKEN_EXCHANGE));
+  if (!client) return null;
 
-  const tokenEndpoint = `${cfg.issuer.replace(/\/+$/, '')}/token`
+  const tokenEndpoint = `${cfg.issuer.replace(/\/+$/, '')}/token`;
   const auth = client.clientSecret
     ? `  -u '${client.clientId}:${client.clientSecret}' \\\n`
-    : `  -d 'client_id=${client.clientId}' \\\n`
+    : `  -d 'client_id=${client.clientId}' \\\n`;
 
-  const curl =
-    `curl -X POST '${tokenEndpoint}' \\\n` +
-    auth +
-    `  -d 'grant_type=${TOKEN_EXCHANGE}' \\\n` +
-    `  -d 'subject_token=<ADMIN_ACCESS_TOKEN>' \\\n` +
-    `  -d 'subject_token_type=${ACCESS_TOKEN_TYPE}' \\\n` +
-    `  -d 'requested_subject=${targetId}' \\\n` +
-    `  -d 'scope=openid profile email'`
+  const curl = `curl -X POST '${tokenEndpoint}' \\\n${auth}  -d 'grant_type=${TOKEN_EXCHANGE}' \\\n  -d 'subject_token=<ADMIN_ACCESS_TOKEN>' \\\n  -d 'subject_token_type=${ACCESS_TOKEN_TYPE}' \\\n  -d 'requested_subject=${targetId}' \\\n  -d 'scope=openid profile email'`;
 
   return {
     tokenEndpoint,
@@ -55,5 +48,5 @@ export function buildImpersonationPanel(
     requestedSubject: targetId,
     clientId: client.clientId,
     curl,
-  }
+  };
 }

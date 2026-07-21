@@ -1,11 +1,11 @@
-import { DateTime } from 'luxon'
+import { DateTime } from 'luxon';
 import type {
   AccountDeletionCapability,
   AccountStatusCapability,
   EmailVerificationStatusCapability,
   ProfileCapability,
-} from '../account_store.js'
-import type { LucidStoreContext } from './shared.js'
+} from '../account_store.js';
+import type { LucidStoreContext } from './shared.js';
 
 /**
  * Indica se o model declara uma coluna (pela propriedade do model, ex.: `disabledAt`).
@@ -14,9 +14,9 @@ import type { LucidStoreContext } from './shared.js'
  * store degrada graciosamente (capacidade ausente) em models que não têm a coluna.
  */
 export function hasColumn(Model: any, property: string): boolean {
-  const defs = Model?.$columnsDefinitions
-  if (!defs || typeof defs.has !== 'function') return false
-  return defs.has(property)
+  const defs = Model?.$columnsDefinitions;
+  if (!defs || typeof defs.has !== 'function') return false;
+  return defs.has(property);
 }
 
 /**
@@ -25,26 +25,26 @@ export function hasColumn(Model: any, property: string): boolean {
  * ({@link hasColumn}).
  */
 export function buildStatus(ctx: LucidStoreContext): AccountStatusCapability {
-  const { Model } = ctx
+  const { Model } = ctx;
   return {
     async disableAccount(accountId) {
-      const row = await Model.find(accountId)
-      if (!row) return
-      row.disabledAt = DateTime.now()
-      await row.save()
+      const row = await Model.find(accountId);
+      if (!row) return;
+      row.disabledAt = DateTime.now();
+      await row.save();
     },
     async enableAccount(accountId) {
-      const row = await Model.find(accountId)
-      if (!row) return
-      row.disabledAt = null
-      await row.save()
+      const row = await Model.find(accountId);
+      if (!row) return;
+      row.disabledAt = null;
+      await row.save();
     },
     async isDisabled(accountId) {
-      const row = await Model.find(accountId)
-      if (!row) return false
-      return row.disabledAt !== null && row.disabledAt !== undefined
+      const row = await Model.find(accountId);
+      if (!row) return false;
+      return row.disabledAt !== null && row.disabledAt !== undefined;
     },
-  }
+  };
 }
 
 /**
@@ -53,19 +53,19 @@ export function buildStatus(ctx: LucidStoreContext): AccountStatusCapability {
  * menos uma das colunas existe.
  */
 export function buildProfile(ctx: LucidStoreContext): ProfileCapability {
-  const { Model, toAccount } = ctx
-  const canName = hasColumn(Model, 'fullName')
-  const canAvatar = hasColumn(Model, 'avatarUrl')
+  const { Model, toAccount } = ctx;
+  const canName = hasColumn(Model, 'fullName');
+  const canAvatar = hasColumn(Model, 'avatarUrl');
   return {
     async updateProfile(accountId, patch) {
-      const row = await Model.find(accountId)
-      if (!row) return null
-      if (canName && patch.name !== undefined) row.fullName = patch.name
-      if (canAvatar && patch.avatarUrl !== undefined) row.avatarUrl = patch.avatarUrl
-      await row.save()
-      return toAccount(row)
+      const row = await Model.find(accountId);
+      if (!row) return null;
+      if (canName && patch.name !== undefined) row.fullName = patch.name;
+      if (canAvatar && patch.avatarUrl !== undefined) row.avatarUrl = patch.avatarUrl;
+      await row.save();
+      return toAccount(row);
     },
-  }
+  };
 }
 
 /**
@@ -75,16 +75,16 @@ export function buildProfile(ctx: LucidStoreContext): ProfileCapability {
  * como `requireVerifiedEmail` degradam (não bloqueiam).
  */
 export function buildEmailVerificationStatus(
-  ctx: LucidStoreContext
+  ctx: LucidStoreContext,
 ): EmailVerificationStatusCapability {
-  const { Model } = ctx
+  const { Model } = ctx;
   return {
     async isEmailVerified(accountId) {
-      const row = await Model.find(accountId)
-      if (!row) return false
-      return row.emailVerifiedAt !== null && row.emailVerifiedAt !== undefined
+      const row = await Model.find(accountId);
+      if (!row) return false;
+      return row.emailVerifiedAt !== null && row.emailVerifiedAt !== undefined;
     },
-  }
+  };
 }
 
 /**
@@ -93,13 +93,13 @@ export function buildEmailVerificationStatus(
  * demais artefatos é orquestrado pelo `accountDeletionService` no host.
  */
 export function buildDeletion(ctx: LucidStoreContext): AccountDeletionCapability {
-  const { Model } = ctx
+  const { Model } = ctx;
   return {
     async deleteAccount(accountId) {
-      const row = await Model.find(accountId)
-      if (!row) return false
-      await row.delete()
-      return true
+      const row = await Model.find(accountId);
+      if (!row) return false;
+      await row.delete();
+      return true;
     },
-  }
+  };
 }

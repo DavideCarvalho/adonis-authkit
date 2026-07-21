@@ -1,11 +1,11 @@
-import type { OidcService } from "../provider/oidc_service.js";
-import type { ResolvedServerConfig } from "../define_config.js";
 import {
   supportsOrganizations,
   supportsPasskeys,
   supportsProviderIdentity,
-} from "../accounts/account_store.js";
-import { AdminSessionsService } from "./admin_sessions_service.js";
+} from '../accounts/account_store.js';
+import type { ResolvedServerConfig } from '../define_config.js';
+import type { OidcService } from '../provider/oidc_service.js';
+import { AdminSessionsService } from './admin_sessions_service.js';
 
 /** Payload de export de dados de uma conta (portabilidade — LGPD/GDPR). */
 export interface AccountExport {
@@ -93,24 +93,22 @@ export class AccountExportService {
     if (!account) return null;
 
     // Identidades de provider (capability-probed; sem tokens).
-    let linkedIdentities: AccountExport["linkedIdentities"] = [];
+    let linkedIdentities: AccountExport['linkedIdentities'] = [];
     if (supportsProviderIdentity(store)) {
       try {
-        linkedIdentities = (await store.listProviderIdentities(accountId)).map(
-          (i) => ({
-            provider: i.provider,
-            providerUserId: i.providerUserId,
-            email: i.email ?? null,
-          }),
-        );
+        linkedIdentities = (await store.listProviderIdentities(accountId)).map((i) => ({
+          provider: i.provider,
+          providerUserId: i.providerUserId,
+          email: i.email ?? null,
+        }));
       } catch {
         /* best-effort */
       }
     }
 
     // Sessões + grants (apps autorizados) — só metadados, sem tokens.
-    let sessions: AccountExport["sessions"] = [];
-    let authorizedApps: AccountExport["authorizedApps"] = [];
+    let sessions: AccountExport['sessions'] = [];
+    let authorizedApps: AccountExport['authorizedApps'] = [];
     try {
       const admin = new AdminSessionsService(this.#oidc);
       sessions = (await admin.listSessions(accountId)).map((s) => ({
@@ -128,7 +126,7 @@ export class AccountExportService {
     }
 
     // Passkeys — só metadados (id/label/createdAt), nunca a chave pública.
-    let passkeys: AccountExport["passkeys"] = [];
+    let passkeys: AccountExport['passkeys'] = [];
     if (supportsPasskeys(store)) {
       try {
         passkeys = (await store.listPasskeys(accountId)).map((p) => ({
@@ -142,7 +140,7 @@ export class AccountExportService {
     }
 
     // Organizations (capability-probed).
-    let organizations: AccountExport["organizations"] = [];
+    let organizations: AccountExport['organizations'] = [];
     if (supportsOrganizations(store)) {
       try {
         const orgs = await store.listOrgsForAccount(accountId);
@@ -158,8 +156,8 @@ export class AccountExportService {
     }
 
     // Audit do próprio usuário (quando o sink suporta consulta).
-    let auditLog: AccountExport["auditLog"] = [];
-    if (cfg.audit && typeof cfg.audit.list === "function") {
+    let auditLog: AccountExport['auditLog'] = [];
+    if (cfg.audit && typeof cfg.audit.list === 'function') {
       try {
         const page = await cfg.audit.list({
           subject: accountId,
@@ -172,9 +170,7 @@ export class AccountExportService {
           ip: e.ip ?? null,
           metadata: e.metadata ?? null,
           createdAt:
-            typeof e.createdAt === "string"
-              ? e.createdAt
-              : (e.createdAt?.toISOString?.() ?? null),
+            typeof e.createdAt === 'string' ? e.createdAt : (e.createdAt?.toISOString?.() ?? null),
         }));
       } catch {
         /* best-effort */

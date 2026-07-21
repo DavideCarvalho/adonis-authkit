@@ -1,11 +1,11 @@
-import { createHash } from 'node:crypto'
+import { createHash } from 'node:crypto';
 import type {
   AuditEvent,
   AuditPage,
   AuditSink,
   ListAuditParams,
   StoredAuditEvent,
-} from './audit_sink.js'
+} from './audit_sink.js';
 
 /**
  * Pseudônimo estável para um accountId anonimizado: `anon:<sha256(accountId)[:16]>`.
@@ -13,7 +13,7 @@ import type {
  * pseudônimo) sem permitir reidentificar a pessoa (one-way).
  */
 function anonId(accountId: string): string {
-  return `anon:${createHash('sha256').update(accountId).digest('hex').slice(0, 16)}`
+  return `anon:${createHash('sha256').update(accountId).digest('hex').slice(0, 16)}`;
 }
 
 /**
@@ -36,31 +36,31 @@ export function lucidAuditSink(Model: any): AuditSink {
           actorId: event.actorId ?? null,
           ip: event.ip ?? null,
           metadata: event.metadata ?? null,
-        })
+        });
       } catch (error) {
         // eslint-disable-next-line no-console
-        console.error('[authkit] audit sink falhou ao registrar evento', event.type, error)
+        console.error('[authkit] audit sink falhou ao registrar evento', event.type, error);
       }
     },
 
     async list(params: ListAuditParams): Promise<AuditPage> {
-      const page = Math.max(1, params.page ?? 1)
-      const limit = Math.max(1, params.limit ?? 20)
+      const page = Math.max(1, params.page ?? 1);
+      const limit = Math.max(1, params.limit ?? 20);
 
       const base = () => {
-        const q = Model.query()
-        if (params.type) q.where('type', params.type)
-        if (params.subject) q.where('accountId', params.subject)
-        return q
-      }
+        const q = Model.query();
+        if (params.type) q.where('type', params.type);
+        if (params.subject) q.where('accountId', params.subject);
+        return q;
+      };
 
-      const countResult = await base().count('* as total')
-      const total = Number(countResult[0]?.$extras?.total ?? 0)
+      const countResult = await base().count('* as total');
+      const total = Number(countResult[0]?.$extras?.total ?? 0);
 
       const rows = await base()
         .orderBy('createdAt', 'desc')
         .offset((page - 1) * limit)
-        .limit(limit)
+        .limit(limit);
 
       const data: StoredAuditEvent[] = rows.map((row: any) => ({
         id: String(row.id),
@@ -73,9 +73,9 @@ export function lucidAuditSink(Model: any): AuditSink {
         metadata: row.metadata ?? undefined,
         // createdAt é um luxon DateTime no Lucid; normaliza para ISO string.
         createdAt: row.createdAt?.toISO?.() ?? row.createdAt ?? null,
-      }))
+      }));
 
-      return { data, total }
+      return { data, total };
     },
 
     /**
@@ -86,25 +86,25 @@ export function lucidAuditSink(Model: any): AuditSink {
      * reidentificável. Best-effort: erros são logados e engolidos (retorna 0).
      */
     async anonymizeAccount(accountId: string): Promise<number> {
-      if (!accountId) return 0
-      const pseudonym = anonId(accountId)
+      if (!accountId) return 0;
+      const pseudonym = anonId(accountId);
       try {
         // accountId === conta deletada → subject.
         const asSubject = await Model.query()
           .where('accountId', accountId)
-          .update({ accountId: pseudonym, email: null, ip: null })
+          .update({ accountId: pseudonym, email: null, ip: null });
         // actorId === conta deletada (ações que ela fez como admin) → ator.
         const asActor = await Model.query()
           .where('actorId', accountId)
-          .update({ actorId: pseudonym })
+          .update({ actorId: pseudonym });
         // O retorno do update varia por dialeto (número ou array). Normaliza.
-        const n = (v: unknown) => (Array.isArray(v) ? Number(v[0] ?? 0) : Number(v ?? 0))
-        return n(asSubject) + n(asActor)
+        const n = (v: unknown) => (Array.isArray(v) ? Number(v[0] ?? 0) : Number(v ?? 0));
+        return n(asSubject) + n(asActor);
       } catch (error) {
         // eslint-disable-next-line no-console
-        console.error('[authkit] audit sink falhou ao anonimizar conta', accountId, error)
-        return 0
+        console.error('[authkit] audit sink falhou ao anonimizar conta', accountId, error);
+        return 0;
       }
     },
-  }
+  };
 }

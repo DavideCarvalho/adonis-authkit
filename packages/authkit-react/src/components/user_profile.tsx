@@ -1,11 +1,11 @@
-import { createElement, useState, type FormEvent } from 'react'
-import { useAuthkitConfig } from '../config.js'
-import { useAuth } from '../use_auth.js'
-import { useProfile } from '../hooks/use_profile.js'
-import { Avatar } from './avatar.js'
+import { type FormEvent, createElement, useState } from 'react';
+import { useAuthkitConfig } from '../config.js';
+import { useProfile } from '../hooks/use_profile.js';
+import { useAuth } from '../use_auth.js';
+import { Avatar } from './avatar.js';
 
 export interface UserProfileProps {
-  className?: string
+  className?: string;
 }
 
 /**
@@ -13,16 +13,16 @@ export interface UserProfileProps {
  * POST no endpoint `profile` configurado. Renderiza nada quando não autenticado.
  */
 function UserProfileInner({ className }: UserProfileProps) {
-  const { user, isAuthenticated } = useAuth()
-  const { actions, loading, error } = useProfile()
-  const [name, setName] = useState(user?.name ?? '')
+  const { user, isAuthenticated } = useAuth();
+  const { actions, loading, error } = useProfile();
+  const [name, setName] = useState(user?.name ?? '');
 
-  if (!isAuthenticated || !user) return null
+  if (!isAuthenticated || !user) return null;
 
   const onSubmit = (e: FormEvent) => {
-    e.preventDefault()
-    void actions.update({ name })
-  }
+    e.preventDefault();
+    void actions.update({ name });
+  };
 
   return createElement(
     'div',
@@ -35,8 +35,8 @@ function UserProfileInner({ className }: UserProfileProps) {
         'div',
         null,
         createElement('div', { className: 'authkit-profile__name' }, user.name ?? user.email),
-        createElement('div', { className: 'authkit-profile__email' }, user.email)
-      )
+        createElement('div', { className: 'authkit-profile__email' }, user.email),
+      ),
     ),
     createElement(
       'form',
@@ -44,7 +44,7 @@ function UserProfileInner({ className }: UserProfileProps) {
       createElement(
         'label',
         { className: 'authkit-label', htmlFor: 'authkit-profile-name' },
-        'Nome'
+        'Nome',
       ),
       createElement('input', {
         id: 'authkit-profile-name',
@@ -62,10 +62,10 @@ function UserProfileInner({ className }: UserProfileProps) {
           className: 'authkit-button authkit-button--primary',
           disabled: loading,
         },
-        loading ? 'Salvando…' : 'Salvar'
-      )
-    )
-  )
+        loading ? 'Salvando…' : 'Salvar',
+      ),
+    ),
+  );
 }
 
 /**
@@ -74,7 +74,7 @@ function UserProfileInner({ className }: UserProfileProps) {
  * inexistentes.
  */
 export function UserProfile(props: Parameters<typeof UserProfileInner>[0]) {
-  const { idp } = useAuthkitConfig()
-  if (idp === 'external') return null
-  return <UserProfileInner {...props} />
+  const { idp } = useAuthkitConfig();
+  if (idp === 'external') return null;
+  return <UserProfileInner {...props} />;
 }

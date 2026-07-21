@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from 'node:crypto'
+import { createHash, timingSafeEqual } from 'node:crypto';
 
 /**
  * Identificador NÃO-SENSÍVEL e estável da API key que autenticou a request, para
@@ -8,8 +8,8 @@ import { createHash, timingSafeEqual } from 'node:crypto'
  * segredo. Formato: `admin-key:<8 hex>`.
  */
 export function adminKeyId(key: string): string {
-  const digest = createHash('sha256').update(key).digest('hex').slice(0, 8)
-  return `admin-key:${digest}`
+  const digest = createHash('sha256').update(key).digest('hex').slice(0, 8);
+  return `admin-key:${digest}`;
 }
 
 /**
@@ -23,16 +23,16 @@ export function adminKeyId(key: string): string {
  * key casou.
  */
 function matchKey(header: string | undefined, keys: string[]): string | null {
-  if (!header || !header.startsWith('Bearer ')) return null
-  const provided = Buffer.from(header.slice(7))
-  let matched: string | null = null
+  if (!header || !header.startsWith('Bearer ')) return null;
+  const provided = Buffer.from(header.slice(7));
+  let matched: string | null = null;
   for (const key of keys) {
-    const expected = Buffer.from(key)
+    const expected = Buffer.from(key);
     if (provided.length === expected.length && timingSafeEqual(provided, expected)) {
-      matched = key
+      matched = key;
     }
   }
-  return matched
+  return matched;
 }
 
 /**
@@ -43,19 +43,19 @@ function matchKey(header: string | undefined, keys: string[]): string | null {
  * de erro seguem o envelope `{ error: { code, message } }`.
  */
 export const adminApiGuard = async (ctx: any, next: () => Promise<void>) => {
-  const service = await ctx.containerResolver.make('authkit.server')
-  const cfg = service.config
+  const service = await ctx.containerResolver.make('authkit.server');
+  const cfg = service.config;
   if (!cfg.adminApi.enabled) {
-    return ctx.response.notFound()
+    return ctx.response.notFound();
   }
-  const keys = cfg.adminApi.apiKeys as string[]
-  const matched = keys.length === 0 ? null : matchKey(ctx.request.header('authorization'), keys)
+  const keys = cfg.adminApi.apiKeys as string[];
+  const matched = keys.length === 0 ? null : matchKey(ctx.request.header('authorization'), keys);
   if (!matched) {
     return ctx.response.unauthorized({
       error: { code: 'unauthorized', message: 'API key ausente ou inválida.' },
-    })
+    });
   }
   // Anexa um id NÃO-SENSÍVEL da key ao contexto para a trilha de auditoria (M9).
-  ctx.adminApiKeyId = adminKeyId(matched)
-  return next()
-}
+  ctx.adminApiKeyId = adminKeyId(matched);
+  return next();
+};

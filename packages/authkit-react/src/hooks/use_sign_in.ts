@@ -1,10 +1,10 @@
-import { useCallback } from 'react'
-import { useAuthkitConfig, buildAuthUrl } from '../config.js'
-import { currentUrl } from '../utils.js'
+import { useCallback } from 'react';
+import { buildAuthUrl, useAuthkitConfig } from '../config.js';
+import { currentUrl } from '../utils.js';
 
 export interface SignInOptions {
   /** para onde voltar após o login; default = URL atual (SSR-safe) */
-  returnTo?: string
+  returnTo?: string;
 }
 
 /**
@@ -12,14 +12,14 @@ export interface SignInOptions {
  * browser para a `loginUrl` configurada (acrescentando `returnTo`).
  */
 export function useSignIn() {
-  const config = useAuthkitConfig()
+  const config = useAuthkitConfig();
   const signIn = useCallback(
     (opts?: SignInOptions) => {
-      const returnTo = opts?.returnTo ?? currentUrl()
-      const url = buildAuthUrl(config.loginUrl, returnTo)
-      if (typeof window !== 'undefined') window.location.assign(url)
+      const returnTo = opts?.returnTo ?? currentUrl();
+      const url = buildAuthUrl(config.loginUrl, returnTo);
+      if (typeof window !== 'undefined') window.location.assign(url);
     },
-    [config.loginUrl]
-  )
-  return { signIn }
+    [config.loginUrl],
+  );
+  return { signIn };
 }

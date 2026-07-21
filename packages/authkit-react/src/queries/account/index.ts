@@ -11,36 +11,36 @@
  * consumidor passe para `useQuery` / `useMutation`.
  */
 
-import type { UseQueryOptions, UseMutationOptions } from '@tanstack/react-query'
-import { useAuthkitClient } from '../../client/context.js'
-import { authkitKeys } from '../keys.js'
+import type { UseMutationOptions, UseQueryOptions } from '@tanstack/react-query';
+import { AuthkitClientError } from '../../client/client.js';
+import { useAuthkitClient } from '../../client/context.js';
 import type {
-  AccountMe,
-  AccountSecurityOverview,
-  UpdateProfileInput,
-  UpdateProfileResult,
-  ChangePasswordInput,
-  RequestEmailChangeInput,
-  OkResult,
-  EmailChangeResult,
-  AccountSessionsResult,
-  RevokeSessionResult,
-  RevokeOthersResult,
-  RevokeAllResult,
   AccountAppsResult,
-  RevokeAppResult,
+  AccountMe,
   AccountMfaStatus,
-  AccountPasskeysResult,
-  RemovePasskeyResult,
-  AccountTokensResult,
-  CreatedPatResult,
-  RevokeTokenResult,
-  CreateTokenInput,
-  AccountOrgsResult,
   AccountOrgDetail,
   AccountOrgInvitationsResult,
-} from '../../client/types.js'
-import { AuthkitClientError } from '../../client/client.js'
+  AccountOrgsResult,
+  AccountPasskeysResult,
+  AccountSecurityOverview,
+  AccountSessionsResult,
+  AccountTokensResult,
+  ChangePasswordInput,
+  CreateTokenInput,
+  CreatedPatResult,
+  EmailChangeResult,
+  OkResult,
+  RemovePasskeyResult,
+  RequestEmailChangeInput,
+  RevokeAllResult,
+  RevokeAppResult,
+  RevokeOthersResult,
+  RevokeSessionResult,
+  RevokeTokenResult,
+  UpdateProfileInput,
+  UpdateProfileResult,
+} from '../../client/types.js';
+import { authkitKeys } from '../keys.js';
 
 // ---------------------------------------------------------------------------
 // Me / Security – Queries
@@ -55,11 +55,11 @@ import { AuthkitClientError } from '../../client/client.js'
  * (mutação separada via `useUpdateProfileMutationOptions`)
  */
 export function useMeQueryOptions() {
-  const client = useAuthkitClient()
+  const client = useAuthkitClient();
   return {
     queryKey: authkitKeys.account.me(),
     queryFn: () => client.account.me(),
-  } satisfies UseQueryOptions<AccountMe, AuthkitClientError>
+  } satisfies UseQueryOptions<AccountMe, AuthkitClientError>;
 }
 
 /**
@@ -70,11 +70,11 @@ export function useMeQueryOptions() {
  * Agora: `{ data: AccountSecurityOverview|undefined, ... }`
  */
 export function useSecurityQueryOptions() {
-  const client = useAuthkitClient()
+  const client = useAuthkitClient();
   return {
     queryKey: authkitKeys.account.security(),
     queryFn: () => client.account.security(),
-  } satisfies UseQueryOptions<AccountSecurityOverview, AuthkitClientError>
+  } satisfies UseQueryOptions<AccountSecurityOverview, AuthkitClientError>;
 }
 
 // ---------------------------------------------------------------------------
@@ -82,11 +82,11 @@ export function useSecurityQueryOptions() {
 // ---------------------------------------------------------------------------
 
 export function useUpdateProfileMutationOptions() {
-  const client = useAuthkitClient()
+  const client = useAuthkitClient();
   return {
     mutationKey: ['authkit', 'account', 'profile', 'update'],
     mutationFn: (data: UpdateProfileInput) => client.account.updateProfile(data),
-  } satisfies UseMutationOptions<UpdateProfileResult, AuthkitClientError, UpdateProfileInput>
+  } satisfies UseMutationOptions<UpdateProfileResult, AuthkitClientError, UpdateProfileInput>;
 }
 
 // ---------------------------------------------------------------------------
@@ -94,11 +94,11 @@ export function useUpdateProfileMutationOptions() {
 // ---------------------------------------------------------------------------
 
 export function useChangePasswordMutationOptions() {
-  const client = useAuthkitClient()
+  const client = useAuthkitClient();
   return {
     mutationKey: ['authkit', 'account', 'password', 'change'],
     mutationFn: (data: ChangePasswordInput) => client.account.changePassword(data),
-  } satisfies UseMutationOptions<OkResult, AuthkitClientError, ChangePasswordInput>
+  } satisfies UseMutationOptions<OkResult, AuthkitClientError, ChangePasswordInput>;
 }
 
 // ---------------------------------------------------------------------------
@@ -106,19 +106,19 @@ export function useChangePasswordMutationOptions() {
 // ---------------------------------------------------------------------------
 
 export function useEmailChangeMutationOptions() {
-  const client = useAuthkitClient()
+  const client = useAuthkitClient();
   return {
     mutationKey: ['authkit', 'account', 'email-change'],
     mutationFn: (data: RequestEmailChangeInput) => client.account.emailChange(data),
-  } satisfies UseMutationOptions<EmailChangeResult, AuthkitClientError, RequestEmailChangeInput>
+  } satisfies UseMutationOptions<EmailChangeResult, AuthkitClientError, RequestEmailChangeInput>;
 }
 
 export function useCancelEmailChangeMutationOptions() {
-  const client = useAuthkitClient()
+  const client = useAuthkitClient();
   return {
     mutationKey: ['authkit', 'account', 'email-change', 'cancel'],
     mutationFn: () => client.account.cancelEmailChange(),
-  } satisfies UseMutationOptions<OkResult, AuthkitClientError, void>
+  } satisfies UseMutationOptions<OkResult, AuthkitClientError, void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -134,27 +134,27 @@ export function useCancelEmailChangeMutationOptions() {
  * Agora: shape TanStack padrão; mutação via `useRevokeSessionMutationOptions`.
  */
 export function useAccountSessionsQueryOptions() {
-  const client = useAuthkitClient()
+  const client = useAuthkitClient();
   return {
     queryKey: authkitKeys.account.sessions(),
     queryFn: () => client.account.sessions.list(),
-  } satisfies UseQueryOptions<AccountSessionsResult, AuthkitClientError>
+  } satisfies UseQueryOptions<AccountSessionsResult, AuthkitClientError>;
 }
 
 export function useRevokeSessionMutationOptions() {
-  const client = useAuthkitClient()
+  const client = useAuthkitClient();
   return {
     mutationKey: ['authkit', 'account', 'sessions', 'revoke'],
     mutationFn: (id: string) => client.account.sessions.revoke(id),
-  } satisfies UseMutationOptions<RevokeSessionResult, AuthkitClientError, string>
+  } satisfies UseMutationOptions<RevokeSessionResult, AuthkitClientError, string>;
 }
 
 export function useRevokeOtherSessionsMutationOptions() {
-  const client = useAuthkitClient()
+  const client = useAuthkitClient();
   return {
     mutationKey: ['authkit', 'account', 'sessions', 'revoke-others'],
     mutationFn: () => client.account.sessions.revokeOthers(),
-  } satisfies UseMutationOptions<RevokeOthersResult, AuthkitClientError, void>
+  } satisfies UseMutationOptions<RevokeOthersResult, AuthkitClientError, void>;
 }
 
 /**
@@ -165,11 +165,11 @@ export function useRevokeOtherSessionsMutationOptions() {
  * Invalida `authkitKeys.account.sessions()` (embora após o redirect não seja necessário).
  */
 export function useAccountRevokeAllSessionsMutationOptions() {
-  const client = useAuthkitClient()
+  const client = useAuthkitClient();
   return {
     mutationKey: ['authkit', 'account', 'sessions', 'revoke-all'],
     mutationFn: () => client.account.sessions.revokeAll(),
-  } satisfies UseMutationOptions<RevokeAllResult, AuthkitClientError, void>
+  } satisfies UseMutationOptions<RevokeAllResult, AuthkitClientError, void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -184,19 +184,19 @@ export function useAccountRevokeAllSessionsMutationOptions() {
  * Agora: shape TanStack padrão; mutação via `useRevokeAppMutationOptions`.
  */
 export function useAppsQueryOptions() {
-  const client = useAuthkitClient()
+  const client = useAuthkitClient();
   return {
     queryKey: authkitKeys.account.apps(),
     queryFn: () => client.account.apps.list(),
-  } satisfies UseQueryOptions<AccountAppsResult, AuthkitClientError>
+  } satisfies UseQueryOptions<AccountAppsResult, AuthkitClientError>;
 }
 
 export function useRevokeAppMutationOptions() {
-  const client = useAuthkitClient()
+  const client = useAuthkitClient();
   return {
     mutationKey: ['authkit', 'account', 'apps', 'revoke'],
     mutationFn: (clientId: string) => client.account.apps.revoke(clientId),
-  } satisfies UseMutationOptions<RevokeAppResult, AuthkitClientError, string>
+  } satisfies UseMutationOptions<RevokeAppResult, AuthkitClientError, string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -204,11 +204,11 @@ export function useRevokeAppMutationOptions() {
 // ---------------------------------------------------------------------------
 
 export function useMfaQueryOptions() {
-  const client = useAuthkitClient()
+  const client = useAuthkitClient();
   return {
     queryKey: authkitKeys.account.mfa(),
     queryFn: () => client.account.mfa(),
-  } satisfies UseQueryOptions<AccountMfaStatus, AuthkitClientError>
+  } satisfies UseQueryOptions<AccountMfaStatus, AuthkitClientError>;
 }
 
 // ---------------------------------------------------------------------------
@@ -216,19 +216,19 @@ export function useMfaQueryOptions() {
 // ---------------------------------------------------------------------------
 
 export function usePasskeysQueryOptions() {
-  const client = useAuthkitClient()
+  const client = useAuthkitClient();
   return {
     queryKey: authkitKeys.account.passkeys(),
     queryFn: () => client.account.passkeys.list(),
-  } satisfies UseQueryOptions<AccountPasskeysResult, AuthkitClientError>
+  } satisfies UseQueryOptions<AccountPasskeysResult, AuthkitClientError>;
 }
 
 export function useRemovePasskeyMutationOptions() {
-  const client = useAuthkitClient()
+  const client = useAuthkitClient();
   return {
     mutationKey: ['authkit', 'account', 'passkeys', 'remove'],
     mutationFn: (id: string) => client.account.passkeys.remove(id),
-  } satisfies UseMutationOptions<RemovePasskeyResult, AuthkitClientError, string>
+  } satisfies UseMutationOptions<RemovePasskeyResult, AuthkitClientError, string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -236,27 +236,31 @@ export function useRemovePasskeyMutationOptions() {
 // ---------------------------------------------------------------------------
 
 export function useTokensQueryOptions() {
-  const client = useAuthkitClient()
+  const client = useAuthkitClient();
   return {
     queryKey: authkitKeys.account.tokens(),
     queryFn: () => client.account.tokens.list(),
-  } satisfies UseQueryOptions<AccountTokensResult, AuthkitClientError>
+  } satisfies UseQueryOptions<AccountTokensResult, AuthkitClientError>;
 }
 
 export function useCreateTokenMutationOptions() {
-  const client = useAuthkitClient()
+  const client = useAuthkitClient();
   return {
     mutationKey: ['authkit', 'account', 'tokens', 'create'],
     mutationFn: (data?: CreateTokenInput) => client.account.tokens.create(data),
-  } satisfies UseMutationOptions<CreatedPatResult, AuthkitClientError, CreateTokenInput | undefined>
+  } satisfies UseMutationOptions<
+    CreatedPatResult,
+    AuthkitClientError,
+    CreateTokenInput | undefined
+  >;
 }
 
 export function useRevokeTokenMutationOptions() {
-  const client = useAuthkitClient()
+  const client = useAuthkitClient();
   return {
     mutationKey: ['authkit', 'account', 'tokens', 'revoke'],
     mutationFn: (id: string) => client.account.tokens.remove(id),
-  } satisfies UseMutationOptions<RevokeTokenResult, AuthkitClientError, string>
+  } satisfies UseMutationOptions<RevokeTokenResult, AuthkitClientError, string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -272,11 +276,11 @@ export function useRevokeTokenMutationOptions() {
  * O `activeOrgId` fica em `data.activeOrgId` e `supported` em `data.supported`.
  */
 export function useAccountOrgsQueryOptions() {
-  const client = useAuthkitClient()
+  const client = useAuthkitClient();
   return {
     queryKey: authkitKeys.account.orgs(),
     queryFn: () => client.account.orgs.list(),
-  } satisfies UseQueryOptions<AccountOrgsResult, AuthkitClientError>
+  } satisfies UseQueryOptions<AccountOrgsResult, AuthkitClientError>;
 }
 
 /**
@@ -287,12 +291,12 @@ export function useAccountOrgsQueryOptions() {
  * Agora: shape TanStack padrão.
  */
 export function useAccountOrgQueryOptions(id: string) {
-  const client = useAuthkitClient()
+  const client = useAuthkitClient();
   return {
     queryKey: authkitKeys.account.org(id),
     queryFn: () => client.account.orgs.get(id),
     enabled: !!id,
-  } satisfies UseQueryOptions<AccountOrgDetail, AuthkitClientError>
+  } satisfies UseQueryOptions<AccountOrgDetail, AuthkitClientError>;
 }
 
 /**
@@ -303,9 +307,9 @@ export function useAccountOrgQueryOptions(id: string) {
  * Agora: shape TanStack padrão. `accept` vira um POST via `useAcceptOrgInvitationMutationOptions`.
  */
 export function useAccountOrgInvitationsQueryOptions() {
-  const client = useAuthkitClient()
+  const client = useAuthkitClient();
   return {
     queryKey: authkitKeys.account.orgInvitations(),
     queryFn: () => client.account.orgs.invitations(),
-  } satisfies UseQueryOptions<AccountOrgInvitationsResult, AuthkitClientError>
+  } satisfies UseQueryOptions<AccountOrgInvitationsResult, AuthkitClientError>;
 }

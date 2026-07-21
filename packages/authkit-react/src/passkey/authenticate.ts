@@ -39,7 +39,7 @@ async function importWebAuthnBrowser(): Promise<{
 }> {
   return await import(
     // @ts-ignore — import dinâmico do pacote instalado pelo host (peer opcional).
-    "@simplewebauthn/browser" as string
+    '@simplewebauthn/browser' as string
   );
 }
 
@@ -59,14 +59,14 @@ export async function loadStartAuthentication(
     return mod.startAuthentication;
   } catch (cause) {
     throw new Error(
-      "@adonis-agora/authkit-react: o login por passkey requer o pacote " +
-        "`@simplewebauthn/browser`, que não foi encontrado. Instale-o no seu app " +
-        "(`npm i @simplewebauthn/browser@^13`) — ele é uma peer dependency " +
-        "opcional, e não uma dependência direta, porque quem faz o bundle do " +
-        "frontend é o seu app: embutir uma segunda cópia da lib duplicaria o " +
-        "código e brigaria com a versão que você já usa. Este pacote também não " +
-        "cai num CDN público: isso colocaria um terceiro dentro do caminho de " +
-        "autenticação, em silêncio.",
+      '@adonis-agora/authkit-react: o login por passkey requer o pacote ' +
+        '`@simplewebauthn/browser`, que não foi encontrado. Instale-o no seu app ' +
+        '(`npm i @simplewebauthn/browser@^13`) — ele é uma peer dependency ' +
+        'opcional, e não uma dependência direta, porque quem faz o bundle do ' +
+        'frontend é o seu app: embutir uma segunda cópia da lib duplicaria o ' +
+        'código e brigaria com a versão que você já usa. Este pacote também não ' +
+        'cai num CDN público: isso colocaria um terceiro dentro do caminho de ' +
+        'autenticação, em silêncio.',
       { cause },
     );
   }
@@ -111,12 +111,12 @@ export async function authenticatePasskey(
   const loadFn = deps.loadStartAuthentication ?? loadStartAuthentication;
 
   const headers: Record<string, string> = {
-    "content-type": "application/json",
+    'content-type': 'application/json',
   };
-  if (csrfToken) headers["x-csrf-token"] = csrfToken;
+  if (csrfToken) headers['x-csrf-token'] = csrfToken;
 
   const res = await doFetch(optionsUrl, {
-    method: "POST",
+    method: 'POST',
     headers,
     body: JSON.stringify({}),
     signal,
@@ -146,25 +146,23 @@ export interface SubmitPasskeyVerificationOptions {
  * com um redirect que precisa navegar o browser — não é uma resposta Inertia/JSON.
  * SSR-safe: sem `document`, é no-op.
  */
-export function submitPasskeyVerification(
-  options: SubmitPasskeyVerificationOptions,
-): void {
+export function submitPasskeyVerification(options: SubmitPasskeyVerificationOptions): void {
   const { verifyUrl, assertion, csrfToken } = options;
-  if (typeof document === "undefined") return;
+  if (typeof document === 'undefined') return;
 
-  const form = document.createElement("form");
-  form.method = "POST";
+  const form = document.createElement('form');
+  form.method = 'POST';
   form.action = verifyUrl;
   form.hidden = true;
-  if (csrfToken) form.appendChild(hiddenInput("_csrf", csrfToken));
-  form.appendChild(hiddenInput("response", assertion));
+  if (csrfToken) form.appendChild(hiddenInput('_csrf', csrfToken));
+  form.appendChild(hiddenInput('response', assertion));
   document.body.appendChild(form);
   form.submit();
 }
 
 function hiddenInput(name: string, value: string): HTMLInputElement {
-  const input = document.createElement("input");
-  input.type = "hidden";
+  const input = document.createElement('input');
+  input.type = 'hidden';
   input.name = name;
   input.value = value;
   return input;

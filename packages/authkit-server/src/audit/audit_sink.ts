@@ -75,20 +75,20 @@ export type AuditEventType =
   | 'session.single_enforced'
   // Account expiration
   | 'account.expired_login_blocked'
-  | 'account.expiration_warned'
+  | 'account.expiration_warned';
 
 /**
  * Evento de auditoria a registrar. O timestamp é definido pelo sink (não aqui).
  */
 export interface AuditEvent {
-  type: AuditEventType
-  accountId?: string | null
-  email?: string | null
-  clientId?: string | null
+  type: AuditEventType;
+  accountId?: string | null;
+  email?: string | null;
+  clientId?: string | null;
   /** Impersonation: quem agiu (o admin). */
-  actorId?: string | null
-  ip?: string | null
-  metadata?: Record<string, unknown>
+  actorId?: string | null;
+  ip?: string | null;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -96,26 +96,26 @@ export interface AuditEvent {
  * o id e o timestamp atribuídos pelo sink.
  */
 export interface StoredAuditEvent extends AuditEvent {
-  id: string
-  createdAt: Date | string | null
+  id: string;
+  createdAt: Date | string | null;
 }
 
 /** Filtros de listagem do log de auditoria (console admin). */
 export interface ListAuditParams {
   /** Página (1-based). Default: 1. */
-  page?: number
+  page?: number;
   /** Itens por página. Default: 20. */
-  limit?: number
+  limit?: number;
   /** Filtra por tipo de evento exato. */
-  type?: string
+  type?: string;
   /** Filtra pelo subject (accountId) do evento. */
-  subject?: string
+  subject?: string;
 }
 
 /** Página de eventos + total absoluto. */
 export interface AuditPage {
-  data: StoredAuditEvent[]
-  total: number
+  data: StoredAuditEvent[];
+  total: number;
 }
 
 /**
@@ -127,9 +127,9 @@ export interface AuditPage {
  * configurado não fornece `list`.
  */
 export interface AuditSink {
-  record(event: AuditEvent): Promise<void>
+  record(event: AuditEvent): Promise<void>;
   /** Lista eventos paginados (opcional — só sinks que suportam consulta). */
-  list?(params: ListAuditParams): Promise<AuditPage>
+  list?(params: ListAuditParams): Promise<AuditPage>;
   /**
    * Anonimiza (LGPD/GDPR) os eventos de uma conta SEM apagar o histórico: remove
    * os identificadores pessoais (`email`, `ip`) e re-escreve o `accountId` para um
@@ -138,5 +138,5 @@ export interface AuditSink {
    * deleção de conta segue funcionando (best-effort), só não anonimiza.
    * Retorna a quantidade de linhas afetadas.
    */
-  anonymizeAccount?(accountId: string): Promise<number>
+  anonymizeAccount?(accountId: string): Promise<number>;
 }

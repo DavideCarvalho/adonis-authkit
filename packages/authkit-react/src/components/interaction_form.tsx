@@ -1,13 +1,8 @@
-import { createElement, type FormHTMLAttributes, type ReactNode } from "react";
-import {
-  interactionUrls,
-  type InteractionPostStep,
-} from "../interaction/urls.js";
+import { type FormHTMLAttributes, type ReactNode, createElement } from 'react';
+import { type InteractionPostStep, interactionUrls } from '../interaction/urls.js';
 
-export interface InteractionFormProps extends Omit<
-  FormHTMLAttributes<HTMLFormElement>,
-  "method" | "action"
-> {
+export interface InteractionFormProps
+  extends Omit<FormHTMLAttributes<HTMLFormElement>, 'method' | 'action'> {
   /** O `uid` da interaction (vem da view do authkit-server). */
   uid: string;
   /** Qual endpoint POST da interaction submeter. */
@@ -37,9 +32,9 @@ export function InteractionForm({
 }: InteractionFormProps) {
   const action = interactionUrls(uid, basePath)[step];
   return createElement(
-    "form",
-    { method: "POST", action, ...rest },
-    createElement("input", { type: "hidden", name: "_csrf", value: csrfToken }),
+    'form',
+    { method: 'POST', action, ...rest },
+    createElement('input', { type: 'hidden', name: '_csrf', value: csrfToken }),
     children,
   );
 }

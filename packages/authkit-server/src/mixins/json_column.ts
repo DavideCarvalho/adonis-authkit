@@ -17,11 +17,11 @@
  */
 export interface JsonColumnOptions<T> {
   /** Valor devolvido por `consume` quando a coluna está null/undefined. */
-  fallback: T
+  fallback: T;
   /** O que `prepare` grava para valores vazios. Default: 'null'. */
-  emptyOnWrite?: 'null' | 'serialize'
+  emptyOnWrite?: 'null' | 'serialize';
   /** Trata array vazio como "vazio" no write (grava null). Default: false. */
-  treatEmptyArrayAsEmpty?: boolean
+  treatEmptyArrayAsEmpty?: boolean;
 }
 
 /**
@@ -29,36 +29,36 @@ export interface JsonColumnOptions<T> {
  * `T` é o tipo lógico da coluna (ex.: `string[]` ou `Record<string, unknown>`).
  */
 export function jsonColumn<T>(opts: JsonColumnOptions<T>): {
-  prepare: (value: T | null | undefined) => string | null
-  consume: (value: unknown) => T
+  prepare: (value: T | null | undefined) => string | null;
+  consume: (value: unknown) => T;
 } {
-  const emptyOnWrite = opts.emptyOnWrite ?? 'null'
-  const treatEmptyArrayAsEmpty = opts.treatEmptyArrayAsEmpty ?? false
+  const emptyOnWrite = opts.emptyOnWrite ?? 'null';
+  const treatEmptyArrayAsEmpty = opts.treatEmptyArrayAsEmpty ?? false;
 
   const isEmpty = (value: T | null | undefined): boolean => {
-    if (value === null || value === undefined) return true
-    if (treatEmptyArrayAsEmpty && Array.isArray(value) && value.length === 0) return true
-    return false
-  }
+    if (value === null || value === undefined) return true;
+    if (treatEmptyArrayAsEmpty && Array.isArray(value) && value.length === 0) return true;
+    return false;
+  };
 
   return {
     prepare: (value) => {
       if (isEmpty(value)) {
-        return emptyOnWrite === 'serialize' ? JSON.stringify(opts.fallback) : null
+        return emptyOnWrite === 'serialize' ? JSON.stringify(opts.fallback) : null;
       }
-      return JSON.stringify(value)
+      return JSON.stringify(value);
     },
     consume: (value) => {
-      if (value === null || value === undefined) return opts.fallback
+      if (value === null || value === undefined) return opts.fallback;
       // Drivers de Postgres entregam colunas json/jsonb JÁ desserializadas
       // (objeto/array); SQLite entrega TEXT. Só strings precisam de JSON.parse —
       // parsear um objeto vira JSON.parse("[object Object]") e explode.
-      if (typeof value !== 'string') return value as T
+      if (typeof value !== 'string') return value as T;
       try {
-        return JSON.parse(value) as T
+        return JSON.parse(value) as T;
       } catch {
-        return opts.fallback
+        return opts.fallback;
       }
     },
-  }
+  };
 }

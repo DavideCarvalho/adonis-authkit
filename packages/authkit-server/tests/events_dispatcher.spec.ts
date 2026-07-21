@@ -1,44 +1,44 @@
-import { test } from "@japa/runner";
-import { createServer, type Server } from "node:http";
-import { createHmac } from "node:crypto";
-import { configProvider } from "@adonisjs/core";
-import RedisMock from "ioredis-mock";
-import { defineConfig, adapters } from "../src/define_config.js";
+import { createHmac } from 'node:crypto';
+import { type Server, createServer } from 'node:http';
+import { configProvider } from '@adonisjs/core';
+import { test } from '@japa/runner';
+import RedisMock from 'ioredis-mock';
+import type { AuditEvent, AuditSink } from '../src/audit/audit_sink.js';
+import { adapters, defineConfig } from '../src/define_config.js';
 import {
-  composeAuditSink,
-  resolveEvents,
   buildWebhookBody,
-  signWebhookBody,
+  composeAuditSink,
   redactAuditEventForDiagnostics,
-} from "../src/events/dispatcher.js";
-import type { AuditEvent, AuditSink } from "../src/audit/audit_sink.js";
-import { fakeAccountStore } from "./bootstrap.js";
+  resolveEvents,
+  signWebhookBody,
+} from '../src/events/dispatcher.js';
+import { fakeAccountStore } from './bootstrap.js';
 
 const fakeApp = () =>
   ({
     container: { make: async () => ({ connection: () => new RedisMock() }) },
   }) as any;
 
-test.group("events/dispatcher — composeAuditSink", () => {
-  test("onEvent recebe os eventos record-ados", async ({ assert }) => {
+test.group('events/dispatcher — composeAuditSink', () => {
+  test('onEvent recebe os eventos record-ados', async ({ assert }) => {
     const received: AuditEvent[] = [];
     const sink = composeAuditSink(undefined, {
       onEvent: (e) => void received.push(e),
     });
 
     await sink.record({
-      type: "login.success",
-      accountId: "acc-1",
-      email: "a@b.c",
+      type: 'login.success',
+      accountId: 'acc-1',
+      email: 'a@b.c',
     });
-    await sink.record({ type: "login.failure", email: "x@y.z" });
+    await sink.record({ type: 'login.failure', email: 'x@y.z' });
 
     assert.lengthOf(received, 2);
-    assert.equal(received[0].type, "login.success");
-    assert.equal(received[1].type, "login.failure");
+    assert.equal(received[0].type, 'login.success');
+    assert.equal(received[1].type, 'login.failure');
   });
 
-  test("delega record ao sink original E ao onEvent", async ({ assert }) => {
+  test('delega record ao sink original E ao onEvent', async ({ assert }) => {
     const persisted: AuditEvent[] = [];
     const original: AuditSink = {
       async record(e) {
@@ -50,18 +50,16 @@ test.group("events/dispatcher — composeAuditSink", () => {
       onEvent: (e) => void observed.push(e),
     });
 
-    await sink.record({ type: "signup", email: "new@user.com" });
+    await sink.record({ type: 'signup', email: 'new@user.com' });
 
     assert.lengthOf(persisted, 1);
     assert.lengthOf(observed, 1);
   });
 
-  test("falha no sink original NÃO quebra o record nem impede onEvent", async ({
-    assert,
-  }) => {
+  test('falha no sink original NÃO quebra o record nem impede onEvent', async ({ assert }) => {
     const broken: AuditSink = {
       async record() {
-        throw new Error("db down");
+        throw new Error('db down');
       },
     };
     const observed: AuditEvent[] = [];
@@ -70,13 +68,11 @@ test.group("events/dispatcher — composeAuditSink", () => {
     });
 
     // não deve lançar
-    await sink.record({ type: "login.success", email: "a@b.c" });
+    await sink.record({ type: 'login.success', email: 'a@b.c' });
     assert.lengthOf(observed, 1);
   });
 
-  test("falha no onEvent NÃO quebra o record (best-effort)", async ({
-    assert,
-  }) => {
+  test('falha no onEvent NÃO quebra o record (best-effort)', async ({ assert }) => {
     const persisted: AuditEvent[] = [];
     const original: AuditSink = {
       async record(e) {
@@ -85,17 +81,15 @@ test.group("events/dispatcher — composeAuditSink", () => {
     };
     const sink = composeAuditSink(original, {
       onEvent: () => {
-        throw new Error("handler boom");
+        throw new Error('handler boom');
       },
     });
 
-    await sink.record({ type: "mfa.enabled", accountId: "acc-9" });
+    await sink.record({ type: 'mfa.enabled', accountId: 'acc-9' });
     assert.lengthOf(persisted, 1);
   });
 
-  test("preserva list() do sink original (consulta admin)", async ({
-    assert,
-  }) => {
+  test('preserva list() do sink original (consulta admin)', async ({ assert }) => {
     const original: AuditSink = {
       async record() {},
       async list() {
@@ -108,21 +102,19 @@ test.group("events/dispatcher — composeAuditSink", () => {
     assert.equal(page.total, 0);
   });
 
-  test("webhook POST é capturado por servidor in-process com HMAC válido", async ({
-    assert,
-  }) => {
-    const secret = "s3cr3t";
+  test('webhook POST é capturado por servidor in-process com HMAC válido', async ({ assert }) => {
+    const secret = 's3cr3t';
     const captured: { body: string; sig: string | undefined }[] = [];
     const server: Server = createServer((req, res) => {
-      let body = "";
-      req.on("data", (c) => (body += c));
-      req.on("end", () => {
+      let body = '';
+      req.on('data', (c) => (body += c));
+      req.on('end', () => {
         captured.push({
           body,
-          sig: req.headers["x-authkit-signature"] as string,
+          sig: req.headers['x-authkit-signature'] as string,
         });
         res.writeHead(200);
-        res.end("ok");
+        res.end('ok');
       });
     });
     await new Promise<void>((r) => server.listen(0, r));
@@ -131,12 +123,12 @@ test.group("events/dispatcher — composeAuditSink", () => {
 
     const sink = composeAuditSink(undefined, { webhook: { url, secret } });
     await sink.record({
-      type: "login.success",
-      accountId: "acc-1",
-      email: "a@b.c",
-      clientId: "app1",
-      ip: "1.2.3.4",
-      metadata: { foo: "bar" },
+      type: 'login.success',
+      accountId: 'acc-1',
+      email: 'a@b.c',
+      clientId: 'app1',
+      ip: '1.2.3.4',
+      metadata: { foo: 'bar' },
     });
 
     // webhook é fire-and-forget: espera a entrega
@@ -144,8 +136,7 @@ test.group("events/dispatcher — composeAuditSink", () => {
       const deadline = Date.now() + 3000;
       const tick = () => {
         if (captured.length > 0) return resolve();
-        if (Date.now() > deadline)
-          return reject(new Error("webhook não chegou"));
+        if (Date.now() > deadline) return reject(new Error('webhook não chegou'));
         setTimeout(tick, 20);
       };
       tick();
@@ -156,27 +147,24 @@ test.group("events/dispatcher — composeAuditSink", () => {
     assert.lengthOf(captured, 1);
     const { body, sig } = captured[0];
     const parsed = JSON.parse(body);
-    assert.equal(parsed.type, "login.success");
-    assert.equal(parsed.accountId, "acc-1");
-    assert.equal(parsed.clientId, "app1");
-    assert.equal(parsed.ip, "1.2.3.4");
-    assert.deepEqual(parsed.metadata, { foo: "bar" });
+    assert.equal(parsed.type, 'login.success');
+    assert.equal(parsed.accountId, 'acc-1');
+    assert.equal(parsed.clientId, 'app1');
+    assert.equal(parsed.ip, '1.2.3.4');
+    assert.deepEqual(parsed.metadata, { foo: 'bar' });
     assert.isString(parsed.ts);
 
     // HMAC válido
-    const expected =
-      "sha256=" + createHmac("sha256", secret).update(body).digest("hex");
+    const expected = `sha256=${createHmac('sha256', secret).update(body).digest('hex')}`;
     assert.equal(sig, expected);
   });
 
-  test("webhook sem secret não envia header de assinatura", async ({
-    assert,
-  }) => {
+  test('webhook sem secret não envia header de assinatura', async ({ assert }) => {
     const captured: (string | undefined)[] = [];
     const server = createServer((req, res) => {
-      captured.push(req.headers["x-authkit-signature"] as string | undefined);
+      captured.push(req.headers['x-authkit-signature'] as string | undefined);
       res.writeHead(200);
-      res.end("ok");
+      res.end('ok');
     });
     await new Promise<void>((r) => server.listen(0, r));
     const port = (server.address() as any).port;
@@ -184,11 +172,10 @@ test.group("events/dispatcher — composeAuditSink", () => {
     const sink = composeAuditSink(undefined, {
       webhook: { url: `http://127.0.0.1:${port}/hook` },
     });
-    await sink.record({ type: "signup", email: "x@y.z" });
+    await sink.record({ type: 'signup', email: 'x@y.z' });
 
     await new Promise<void>((resolve) => {
-      const tick = () =>
-        captured.length > 0 ? resolve() : setTimeout(tick, 20);
+      const tick = () => (captured.length > 0 ? resolve() : setTimeout(tick, 20));
       tick();
     });
     await new Promise<void>((r) => server.close(() => r()));
@@ -197,75 +184,69 @@ test.group("events/dispatcher — composeAuditSink", () => {
     assert.isUndefined(captured[0]);
   });
 
-  test("webhook a URL inalcançável NÃO lança no record", async () => {
+  test('webhook a URL inalcançável NÃO lança no record', async () => {
     const sink = composeAuditSink(undefined, {
       // porta improvável de estar aberta
-      webhook: { url: "http://127.0.0.1:1/hook" },
+      webhook: { url: 'http://127.0.0.1:1/hook' },
     });
     // não deve lançar
-    await sink.record({ type: "login.success", email: "a@b.c" });
+    await sink.record({ type: 'login.success', email: 'a@b.c' });
   });
 
-  test("redactAuditEventForDiagnostics remove email/ip/metadata, mantém type+ids", ({
-    assert,
-  }) => {
+  test('redactAuditEventForDiagnostics remove email/ip/metadata, mantém type+ids', ({ assert }) => {
     const redacted = redactAuditEventForDiagnostics({
-      type: "login.success",
-      accountId: "acc-1",
-      actorId: "admin-1",
-      clientId: "app1",
-      email: "a@b.c",
-      ip: "1.2.3.4",
-      metadata: { oldEmail: "old@b.c", reason: "x" },
+      type: 'login.success',
+      accountId: 'acc-1',
+      actorId: 'admin-1',
+      clientId: 'app1',
+      email: 'a@b.c',
+      ip: '1.2.3.4',
+      metadata: { oldEmail: 'old@b.c', reason: 'x' },
     });
     assert.deepEqual(redacted, {
-      type: "login.success",
-      accountId: "acc-1",
-      actorId: "admin-1",
-      clientId: "app1",
+      type: 'login.success',
+      accountId: 'acc-1',
+      actorId: 'admin-1',
+      clientId: 'app1',
     });
     // garantia explícita: chaves de PII ausentes (não apenas null/undefined).
-    assert.notProperty(redacted, "email");
-    assert.notProperty(redacted, "ip");
-    assert.notProperty(redacted, "metadata");
+    assert.notProperty(redacted, 'email');
+    assert.notProperty(redacted, 'ip');
+    assert.notProperty(redacted, 'metadata');
   });
 
-  test("webhook continua recebendo o evento COMPLETO (só diagnostics é redigido)", ({
-    assert,
-  }) => {
+  test('webhook continua recebendo o evento COMPLETO (só diagnostics é redigido)', ({ assert }) => {
     // O ramo de webhook usa buildWebhookBody (não a projeção de diagnostics):
     // integrações que o host habilita explicitamente seguem com os dados completos.
     const body = buildWebhookBody({
-      type: "login.success",
-      accountId: "acc-1",
-      email: "a@b.c",
-      ip: "1.2.3.4",
+      type: 'login.success',
+      accountId: 'acc-1',
+      email: 'a@b.c',
+      ip: '1.2.3.4',
     });
     const parsed = JSON.parse(body);
-    assert.equal(parsed.email, "a@b.c");
-    assert.equal(parsed.ip, "1.2.3.4");
+    assert.equal(parsed.email, 'a@b.c');
+    assert.equal(parsed.ip, '1.2.3.4');
   });
 
-  test("helpers buildWebhookBody/signWebhookBody são consistentes", ({
-    assert,
-  }) => {
-    const body = buildWebhookBody({ type: "pat.issued", accountId: "a1" });
+  test('helpers buildWebhookBody/signWebhookBody são consistentes', ({ assert }) => {
+    const body = buildWebhookBody({ type: 'pat.issued', accountId: 'a1' });
     const parsed = JSON.parse(body);
-    assert.equal(parsed.type, "pat.issued");
-    assert.equal(parsed.accountId, "a1");
+    assert.equal(parsed.type, 'pat.issued');
+    assert.equal(parsed.accountId, 'a1');
     assert.isNull(parsed.email);
-    const sig = signWebhookBody(body, "k");
+    const sig = signWebhookBody(body, 'k');
     assert.match(sig, /^sha256=[0-9a-f]{64}$/);
   });
 });
 
-test.group("events — resolveEvents + define_config wiring", () => {
-  test("resolveEvents devolve undefined sem onEvent/webhook", ({ assert }) => {
+test.group('events — resolveEvents + define_config wiring', () => {
+  test('resolveEvents devolve undefined sem onEvent/webhook', ({ assert }) => {
     assert.isUndefined(resolveEvents(undefined));
     assert.isUndefined(resolveEvents({}));
   });
 
-  test("define_config transforma audit num fan-out quando events está setado", async ({
+  test('define_config transforma audit num fan-out quando events está setado', async ({
     assert,
   }) => {
     const persisted: AuditEvent[] = [];
@@ -277,10 +258,10 @@ test.group("events — resolveEvents + define_config wiring", () => {
     };
 
     const provider = defineConfig({
-      issuer: "https://auth.test",
-      adapter: adapters.redis({ connection: "main" }),
-      jwks: { source: "managed", algorithm: "RS256" },
-      clients: [{ clientId: "app1", redirectUris: ["https://app1/cb"] }],
+      issuer: 'https://auth.test',
+      adapter: adapters.redis({ connection: 'main' }),
+      jwks: { source: 'managed', algorithm: 'RS256' },
+      clients: [{ clientId: 'app1', redirectUris: ['https://app1/cb'] }],
       accountStore: fakeAccountStore(),
       audit: original,
       events: { onEvent: (e) => void observed.push(e) },
@@ -288,12 +269,12 @@ test.group("events — resolveEvents + define_config wiring", () => {
 
     const resolved = await configProvider.resolve(fakeApp(), provider);
     assert.isFunction(resolved.audit?.record);
-    await resolved.audit!.record({ type: "login.success", email: "a@b.c" });
+    await resolved.audit!.record({ type: 'login.success', email: 'a@b.c' });
     assert.lengthOf(persisted, 1);
     assert.lengthOf(observed, 1);
   });
 
-  test("sem events, audit ainda é composto (diagnostics sempre ligado) e delega ao original", async ({
+  test('sem events, audit ainda é composto (diagnostics sempre ligado) e delega ao original', async ({
     assert,
   }) => {
     const persisted: AuditEvent[] = [];
@@ -303,10 +284,10 @@ test.group("events — resolveEvents + define_config wiring", () => {
       },
     };
     const provider = defineConfig({
-      issuer: "https://auth.test",
-      adapter: adapters.redis({ connection: "main" }),
-      jwks: { source: "managed", algorithm: "RS256" },
-      clients: [{ clientId: "app1", redirectUris: ["https://app1/cb"] }],
+      issuer: 'https://auth.test',
+      adapter: adapters.redis({ connection: 'main' }),
+      jwks: { source: 'managed', algorithm: 'RS256' },
+      clients: [{ clientId: 'app1', redirectUris: ['https://app1/cb'] }],
       accountStore: fakeAccountStore(),
       audit: original,
     });
@@ -314,7 +295,7 @@ test.group("events — resolveEvents + define_config wiring", () => {
     // O sink resolvido é o fan-out (não o original), pois o ramo de diagnostics
     // é sempre ligado; mas ele delega o record ao sink original.
     assert.notStrictEqual(resolved.audit, original);
-    await resolved.audit!.record({ type: "login.success", email: "a@b.c" });
+    await resolved.audit!.record({ type: 'login.success', email: 'a@b.c' });
     assert.lengthOf(persisted, 1);
   });
 });

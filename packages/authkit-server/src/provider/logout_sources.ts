@@ -1,4 +1,4 @@
-import { translate, type AuthMessages } from '../host/i18n.js'
+import { type AuthMessages, translate } from '../host/i18n.js';
 
 /**
  * Sources de RP-initiated logout (end_session).
@@ -18,7 +18,7 @@ function esc(value: unknown): string {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+    .replace(/"/g, '&quot;');
 }
 
 // Papel quente neutro + tinta — alinhado ao espírito "Manuscrito Vivo" sem
@@ -34,15 +34,15 @@ const STYLE = `
   button{margin-top:20px;height:44px;padding:0 22px;font-size:.95rem;font-weight:600;color:#2f1a47;background:#f17e42;border:0;border-radius:10px;cursor:pointer}
   @media (prefers-reduced-motion:reduce){.spinner{animation:none}}
   @media (prefers-color-scheme:dark){body{background:#1d112e;color:#f3ecdf}p{color:rgba(243,236,223,.65)}}
-`
+`;
 
 function page(title: string, inner: string): string {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)}</title><style>${STYLE}</style></head><body><div class="card">${inner}</div></body></html>`
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)}</title><style>${STYLE}</style></head><body><div class="card">${inner}</div></body></html>`;
 }
 
 export function createLogoutSources(messages: AuthMessages) {
   const t = (key: string, params?: Record<string, string | number>) =>
-    translate(messages, key, params)
+    translate(messages, key, params);
 
   return {
     /**
@@ -53,17 +53,12 @@ export function createLogoutSources(messages: AuthMessages) {
       // Injeta o campo de confirmação dentro do form fornecido pela lib.
       const confirmedForm = form.replace(
         /<\/form>/,
-        '<input type="hidden" name="logout" value="yes"/></form>'
-      )
+        '<input type="hidden" name="logout" value="yes"/></form>',
+      );
       ctx.body = page(
         t('logout.title'),
-        `<div class="spinner" aria-hidden="true"></div>` +
-          `<h1>${esc(t('logout.title'))}</h1>` +
-          `<p>${esc(t('logout.body'))}</p>` +
-          confirmedForm +
-          `<noscript><button type="submit" form="op.logoutForm">${esc(t('logout.fallback'))}</button></noscript>` +
-          `<script>(function(){var f=document.forms['op.logoutForm'];if(f){f.submit();}})();</script>`
-      )
+        `<div class="spinner" aria-hidden="true"></div><h1>${esc(t('logout.title'))}</h1><p>${esc(t('logout.body'))}</p>${confirmedForm}<noscript><button type="submit" form="op.logoutForm">${esc(t('logout.fallback'))}</button></noscript><script>(function(){var f=document.forms['op.logoutForm'];if(f){f.submit();}})();</script>`,
+      );
     },
 
     /**
@@ -73,9 +68,8 @@ export function createLogoutSources(messages: AuthMessages) {
     async postLogoutSuccessSource(ctx: any) {
       ctx.body = page(
         t('logout.success.title'),
-        `<h1>${esc(t('logout.success.title'))}</h1>` +
-          `<p>${esc(t('logout.success.body'))}</p>`
-      )
+        `<h1>${esc(t('logout.success.title'))}</h1>` + `<p>${esc(t('logout.success.body'))}</p>`,
+      );
     },
-  }
+  };
 }

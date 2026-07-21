@@ -1,58 +1,58 @@
-import { BaseModel, column } from '@adonisjs/lucid/orm'
-import type { NormalizeConstructor } from '@adonisjs/core/types/helpers'
-import { DateTime } from 'luxon'
-import { jsonColumn } from './json_column.js'
+import type { NormalizeConstructor } from '@adonisjs/core/types/helpers';
+import { BaseModel, column } from '@adonisjs/lucid/orm';
+import { DateTime } from 'luxon';
+import { jsonColumn } from './json_column.js';
 
 /** Instância composta pelo mixin {@link withPersonalAccessToken}. */
 export interface PersonalAccessTokenRow {
-  userId: string
-  name: string
-  tokenHash: string
-  scopes: string[]
-  audience: string | null
-  expiresAt: DateTime | null
-  lastUsedAt: DateTime | null
-  createdAt: DateTime
-  updatedAt: DateTime
+  userId: string;
+  name: string;
+  tokenHash: string;
+  scopes: string[];
+  audience: string | null;
+  expiresAt: DateTime | null;
+  lastUsedAt: DateTime | null;
+  createdAt: DateTime;
+  updatedAt: DateTime;
 }
 
 export type PersonalAccessTokenClass<Model extends NormalizeConstructor<typeof BaseModel>> =
-  Model & { new (...args: any[]): PersonalAccessTokenRow }
+  Model & { new (...args: any[]): PersonalAccessTokenRow };
 
 export function withPersonalAccessToken() {
   return <Model extends NormalizeConstructor<typeof BaseModel>>(
-    superclass: Model
+    superclass: Model,
   ): PersonalAccessTokenClass<Model> => {
     class PatMixin extends superclass {
       @column()
-      declare userId: string
+      declare userId: string;
 
       @column()
-      declare name: string
+      declare name: string;
 
       @column({ serializeAs: null })
-      declare tokenHash: string
+      declare tokenHash: string;
 
       // null quando vazio na escrita; fallback de leitura → [].
       @column(jsonColumn<string[]>({ fallback: [] }))
-      declare scopes: string[]
+      declare scopes: string[];
 
       @column()
-      declare audience: string | null
+      declare audience: string | null;
 
       @column.dateTime()
-      declare expiresAt: DateTime | null
+      declare expiresAt: DateTime | null;
 
       @column.dateTime()
-      declare lastUsedAt: DateTime | null
+      declare lastUsedAt: DateTime | null;
 
       @column.dateTime({ autoCreate: true })
-      declare createdAt: DateTime
+      declare createdAt: DateTime;
 
       @column.dateTime({ autoCreate: true, autoUpdate: true })
-      declare updatedAt: DateTime
+      declare updatedAt: DateTime;
     }
 
-    return PatMixin as unknown as PersonalAccessTokenClass<Model>
-  }
+    return PatMixin as unknown as PersonalAccessTokenClass<Model>;
+  };
 }

@@ -1,5 +1,5 @@
-import type { HttpContext } from '@adonisjs/core/http'
-import type { ResolvedUploadsConfig } from '../define_config.js'
+import type { HttpContext } from '@adonisjs/core/http';
+import type { ResolvedUploadsConfig } from '../define_config.js';
 
 /**
  * Upload de avatar do host-kit usando o `@adonisjs/drive` JÁ configurado no app.
@@ -16,9 +16,9 @@ import type { ResolvedUploadsConfig } from '../define_config.js'
  * Service do `@adonisjs/drive` resolvido de forma preguiçosa. Tipado como `any` de
  * propósito: a lib NÃO depende do drive em tempo de compilação (peer/opt-in).
  */
-type DriveService = any
+type DriveService = any;
 
-let driveServicePromise: Promise<DriveService | null> | undefined
+let driveServicePromise: Promise<DriveService | null> | undefined;
 
 /**
  * Importa o service de drive do HOST de forma preguiçosa e fail-safe.
@@ -28,12 +28,12 @@ async function loadDrive(): Promise<DriveService | null> {
   if (!driveServicePromise) {
     // Indireção via variável: o `@adonisjs/drive` é peer/opcional e pode não estar
     // instalado na lib, então o specifier não é resolvido em build-time.
-    const specifier = '@adonisjs/drive/services/main'
+    const specifier = '@adonisjs/drive/services/main';
     driveServicePromise = import(specifier)
       .then((mod) => (mod as any).default ?? null)
-      .catch(() => null)
+      .catch(() => null);
   }
-  return driveServicePromise
+  return driveServicePromise;
 }
 
 /**
@@ -41,12 +41,12 @@ async function loadDrive(): Promise<DriveService | null> {
  * @internal
  */
 export function __setDriveLoaderForTests(
-  fn: (() => Promise<DriveService | null>) | undefined
+  fn: (() => Promise<DriveService | null>) | undefined,
 ): void {
   if (fn) {
-    driveServicePromise = fn()
+    driveServicePromise = fn();
   } else {
-    driveServicePromise = undefined
+    driveServicePromise = undefined;
   }
 }
 
@@ -55,9 +55,9 @@ export function __setDriveLoaderForTests(
  * como `any` de propósito: a lib NÃO depende do media em tempo de compilação
  * (peer/opt-in). Expõe `storeSingleFile`/`removeSingleFile`/`isSingleFileStoreAvailable`.
  */
-type MediaModule = any
+type MediaModule = any;
 
-let mediaModulePromise: Promise<MediaModule | null> | undefined
+let mediaModulePromise: Promise<MediaModule | null> | undefined;
 
 /**
  * Importa o helper single-file do `@adonis-agora/media` de forma preguiçosa e
@@ -66,12 +66,10 @@ let mediaModulePromise: Promise<MediaModule | null> | undefined
  */
 async function loadMedia(): Promise<MediaModule | null> {
   if (!mediaModulePromise) {
-    const specifier = '@adonis-agora/media/single-file'
-    mediaModulePromise = import(specifier)
-      .then((mod) => (mod as any) ?? null)
-      .catch(() => null)
+    const specifier = '@adonis-agora/media/single-file';
+    mediaModulePromise = import(specifier).then((mod) => (mod as any) ?? null).catch(() => null);
   }
-  return mediaModulePromise
+  return mediaModulePromise;
 }
 
 /**
@@ -80,17 +78,17 @@ async function loadMedia(): Promise<MediaModule | null> {
  * @internal
  */
 export function __setMediaLoaderForTests(
-  fn: (() => Promise<MediaModule | null>) | undefined
+  fn: (() => Promise<MediaModule | null>) | undefined,
 ): void {
   if (fn) {
-    mediaModulePromise = fn()
+    mediaModulePromise = fn();
   } else {
-    mediaModulePromise = undefined
+    mediaModulePromise = undefined;
   }
 }
 
 /** Extensões aceitas para o avatar (imagem raster comum). */
-const ALLOWED_EXTNAMES = ['jpg', 'jpeg', 'png', 'webp'] as const
+const ALLOWED_EXTNAMES = ['jpg', 'jpeg', 'png', 'webp'] as const;
 
 /** MIME por extensão validada — fallback quando o file de multipart não traz `type`. */
 const EXT_MIME: Record<string, string> = {
@@ -98,29 +96,29 @@ const EXT_MIME: Record<string, string> = {
   jpeg: 'image/jpeg',
   png: 'image/png',
   webp: 'image/webp',
-}
+};
 
 /** Erro de validação do upload (mensagem já localizada no controller). */
 export class AvatarUploadError extends Error {
   constructor(
     public reason: 'extname' | 'size',
-    message: string
+    message: string,
   ) {
-    super(message)
-    this.name = 'AvatarUploadError'
+    super(message);
+    this.name = 'AvatarUploadError';
   }
 }
 
 /** File de multipart mínimo que precisamos do `request.file('avatar')`. */
 export interface UploadedAvatar {
-  extname?: string | null
-  size?: number
+  extname?: string | null;
+  size?: number;
   /** MIME reportado pelo multipart (ex.: 'image/png'). Usado pelo backend media. */
-  type?: string | null
+  type?: string | null;
   /** Caminho temporário (drive lê daqui para stream; media lê os bytes daqui). */
-  tmpPath?: string | null
+  tmpPath?: string | null;
   /** Move o arquivo para um disk do drive (API v3+). */
-  moveToDisk?: (key: string, options?: { disk?: string }) => Promise<void>
+  moveToDisk?: (key: string, options?: { disk?: string }) => Promise<void>;
 }
 
 /**
@@ -128,7 +126,7 @@ export interface UploadedAvatar {
  * de arquivo). Best-effort: nunca lança.
  */
 export async function isDriveAvailable(): Promise<boolean> {
-  return (await loadDrive()) !== null
+  return (await loadDrive()) !== null;
 }
 
 /**
@@ -138,17 +136,17 @@ export async function isDriveAvailable(): Promise<boolean> {
 function validate(
   file: UploadedAvatar,
   cfg: ResolvedUploadsConfig,
-  messages: { extname: string; size: string }
+  messages: { extname: string; size: string },
 ): string {
-  const ext = (file.extname ?? '').toLowerCase().replace(/^\./, '')
+  const ext = (file.extname ?? '').toLowerCase().replace(/^\./, '');
   if (!ALLOWED_EXTNAMES.includes(ext as (typeof ALLOWED_EXTNAMES)[number])) {
-    throw new AvatarUploadError('extname', messages.extname)
+    throw new AvatarUploadError('extname', messages.extname);
   }
-  const maxBytes = cfg.avatars.maxSizeMb * 1024 * 1024
+  const maxBytes = cfg.avatars.maxSizeMb * 1024 * 1024;
   if (typeof file.size === 'number' && file.size > maxBytes) {
-    throw new AvatarUploadError('size', messages.size)
+    throw new AvatarUploadError('size', messages.size);
   }
-  return ext
+  return ext;
 }
 
 /**
@@ -156,8 +154,8 @@ function validate(
  * `${directory}/${accountId}-${random}.${ext}`
  */
 function buildKey(cfg: ResolvedUploadsConfig, accountId: string, ext: string): string {
-  const random = Math.random().toString(36).slice(2, 10)
-  return `${cfg.avatars.directory}/${accountId}-${random}.${ext}`
+  const random = Math.random().toString(36).slice(2, 10);
+  return `${cfg.avatars.directory}/${accountId}-${random}.${ext}`;
 }
 
 /**
@@ -175,14 +173,14 @@ interface AvatarUploader {
     cfg: ResolvedUploadsConfig,
     file: UploadedAvatar,
     accountId: string,
-    ext: string
-  ): Promise<string | null>
+    ext: string,
+  ): Promise<string | null>;
   /** Apaga o avatar da conta (best-effort, nunca lança). */
   delete(
     cfg: ResolvedUploadsConfig,
     accountId: string | null | undefined,
-    storedUrlOrKey: string | null | undefined
-  ): Promise<boolean>
+    storedUrlOrKey: string | null | undefined,
+  ): Promise<boolean>;
 }
 
 /**
@@ -192,71 +190,71 @@ interface AvatarUploader {
  */
 const builtinUploader: AvatarUploader = {
   async store(_ctx, cfg, file, accountId, ext) {
-    const drive = await loadDrive()
-    if (!drive) return null
+    const drive = await loadDrive();
+    if (!drive) return null;
 
     // Resolve o disk: o configurado, ou o DEFAULT do drive do app.
-    let disk: any
+    let disk: any;
     try {
-      disk = cfg.avatars.disk ? drive.use(cfg.avatars.disk) : drive.use()
+      disk = cfg.avatars.disk ? drive.use(cfg.avatars.disk) : drive.use();
     } catch {
       // disk inválido/não-configurado — degrada para URL.
-      return null
+      return null;
     }
-    if (!disk) return null
+    if (!disk) return null;
 
-    const key = buildKey(cfg, accountId || 'account', ext)
+    const key = buildKey(cfg, accountId || 'account', ext);
 
     // API @adonisjs/drive v3+: o file de multipart move-se direto para o disk.
     // `moveToDisk` lê do tmpPath e usa o disk informado (ou o default da config).
     if (typeof file.moveToDisk === 'function') {
-      await file.moveToDisk(key, cfg.avatars.disk ? { disk: cfg.avatars.disk } : undefined)
+      await file.moveToDisk(key, cfg.avatars.disk ? { disk: cfg.avatars.disk } : undefined);
     } else if (file.tmpPath) {
       // Fallback: lê do tmpPath e escreve via putStream no disk resolvido.
-      const fs = await import('node:fs')
-      await disk.putStream(key, fs.createReadStream(file.tmpPath))
+      const fs = await import('node:fs');
+      await disk.putStream(key, fs.createReadStream(file.tmpPath));
     } else {
-      return null
+      return null;
     }
 
     try {
-      return await disk.getUrl(key)
+      return await disk.getUrl(key);
     } catch {
       // disk sem getUrl público — retorna a key como referência relativa.
-      return key
+      return key;
     }
   },
 
   async delete(cfg, _accountId, storedUrlOrKey) {
-    if (!storedUrlOrKey) return false
-    const drive = await loadDrive()
-    if (!drive) return false
+    if (!storedUrlOrKey) return false;
+    const drive = await loadDrive();
+    if (!drive) return false;
 
     // Deriva a key: trecho a partir de `<directory>/`. Se não bater, aborta (não
     // arriscamos deletar algo fora do nosso diretório).
-    const dir = cfg.avatars.directory.replace(/\/+$/, '')
-    const marker = `${dir}/`
-    const idx = storedUrlOrKey.indexOf(marker)
-    if (idx < 0) return false
+    const dir = cfg.avatars.directory.replace(/\/+$/, '');
+    const marker = `${dir}/`;
+    const idx = storedUrlOrKey.indexOf(marker);
+    if (idx < 0) return false;
     // Remove querystring/fragment de uma URL pública.
-    const key = storedUrlOrKey.slice(idx).split(/[?#]/)[0]
+    const key = storedUrlOrKey.slice(idx).split(/[?#]/)[0];
 
-    let disk: any
+    let disk: any;
     try {
-      disk = cfg.avatars.disk ? drive.use(cfg.avatars.disk) : drive.use()
+      disk = cfg.avatars.disk ? drive.use(cfg.avatars.disk) : drive.use();
     } catch {
-      return false
+      return false;
     }
-    if (!disk || typeof disk.delete !== 'function') return false
+    if (!disk || typeof disk.delete !== 'function') return false;
 
     try {
-      await disk.delete(key)
-      return true
+      await disk.delete(key);
+      return true;
     } catch {
-      return false
+      return false;
     }
   },
-}
+};
 
 /**
  * Backend media: delega ao `@adonis-agora/media` (collection single-file). O
@@ -266,11 +264,11 @@ const builtinUploader: AvatarUploader = {
 function makeMediaUploader(media: MediaModule): AvatarUploader {
   return {
     async store(_ctx, cfg, file, accountId, ext) {
-      if (!file.tmpPath) return null
-      const fs = await import('node:fs/promises')
-      const contents = await fs.readFile(file.tmpPath)
-      const fileName = `avatar.${ext}`
-      const mimeType = file.type ?? EXT_MIME[ext] ?? 'application/octet-stream'
+      if (!file.tmpPath) return null;
+      const fs = await import('node:fs/promises');
+      const contents = await fs.readFile(file.tmpPath);
+      const fileName = `avatar.${ext}`;
+      const mimeType = file.type ?? EXT_MIME[ext] ?? 'application/octet-stream';
       const result = await media.storeSingleFile({
         ownerType: cfg.avatars.ownerType,
         ownerId: accountId,
@@ -278,25 +276,25 @@ function makeMediaUploader(media: MediaModule): AvatarUploader {
         fileName,
         mimeType,
         contents,
-      })
-      return result?.url ?? null
+      });
+      return result?.url ?? null;
     },
 
     async delete(cfg, accountId, _storedUrlOrKey) {
       // media apaga por owner (a key/URL não é usada — o lifecycle é do owner).
-      if (!accountId) return false
+      if (!accountId) return false;
       try {
         await media.removeSingleFile({
           ownerType: cfg.avatars.ownerType,
           ownerId: accountId,
           collection: cfg.avatars.collection,
-        })
-        return true
+        });
+        return true;
       } catch {
-        return false
+        return false;
       }
     },
-  }
+  };
 }
 
 /**
@@ -309,21 +307,21 @@ function makeMediaUploader(media: MediaModule): AvatarUploader {
  * MediaManager está bindado no container do app). Nunca lança.
  */
 async function resolveUploader(cfg: ResolvedUploadsConfig): Promise<AvatarUploader | null> {
-  const storage = cfg.avatars.storage
+  const storage = cfg.avatars.storage;
 
   if (storage === 'builtin') {
-    return (await loadDrive()) ? builtinUploader : null
+    return (await loadDrive()) ? builtinUploader : null;
   }
 
   if (storage === 'media') {
-    const media = await loadMediaIfUsable()
-    return media ? makeMediaUploader(media) : null
+    const media = await loadMediaIfUsable();
+    return media ? makeMediaUploader(media) : null;
   }
 
   // 'auto' (default): media se disponível, senão builtin.
-  const media = await loadMediaIfUsable()
-  if (media) return makeMediaUploader(media)
-  return (await loadDrive()) ? builtinUploader : null
+  const media = await loadMediaIfUsable();
+  if (media) return makeMediaUploader(media);
+  return (await loadDrive()) ? builtinUploader : null;
 }
 
 /**
@@ -337,7 +335,7 @@ async function resolveUploader(cfg: ResolvedUploadsConfig): Promise<AvatarUpload
  * host media-only (media presente, drive ausente) mesmo com o media capaz de armazenar.
  */
 export async function isAvatarUploadSupported(cfg: ResolvedUploadsConfig): Promise<boolean> {
-  return (await resolveUploader(cfg)) !== null
+  return (await resolveUploader(cfg)) !== null;
 }
 
 /**
@@ -345,12 +343,12 @@ export async function isAvatarUploadSupported(cfg: ResolvedUploadsConfig): Promi
  * `isSingleFileStoreAvailable()` resolve `true`. Best-effort — qualquer erro → null.
  */
 async function loadMediaIfUsable(): Promise<MediaModule | null> {
-  const media = await loadMedia()
-  if (!media) return null
+  const media = await loadMedia();
+  if (!media) return null;
   try {
-    return (await media.isSingleFileStoreAvailable()) ? media : null
+    return (await media.isSingleFileStoreAvailable()) ? media : null;
   } catch {
-    return null
+    return null;
   }
 }
 
@@ -372,12 +370,12 @@ export async function storeAvatar(
   cfg: ResolvedUploadsConfig,
   file: UploadedAvatar,
   accountId: string,
-  messages: { extname: string; size: string }
+  messages: { extname: string; size: string },
 ): Promise<string | null> {
-  const uploader = await resolveUploader(cfg)
-  if (!uploader) return null
-  const ext = validate(file, cfg, messages)
-  return uploader.store(ctx, cfg, file, accountId, ext)
+  const uploader = await resolveUploader(cfg);
+  if (!uploader) return null;
+  const ext = validate(file, cfg, messages);
+  return uploader.store(ctx, cfg, file, accountId, ext);
 }
 
 /**
@@ -390,9 +388,9 @@ export async function storeAvatar(
 export async function deleteAvatar(
   cfg: ResolvedUploadsConfig,
   accountId: string | null | undefined,
-  storedUrlOrKey: string | null | undefined
+  storedUrlOrKey: string | null | undefined,
 ): Promise<boolean> {
-  const uploader = await resolveUploader(cfg)
-  if (!uploader) return false
-  return uploader.delete(cfg, accountId, storedUrlOrKey)
+  const uploader = await resolveUploader(cfg);
+  if (!uploader) return false;
+  return uploader.delete(cfg, accountId, storedUrlOrKey);
 }

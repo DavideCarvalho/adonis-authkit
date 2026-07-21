@@ -1,12 +1,12 @@
-import * as oidc from 'oidc-provider'
-import type { ResolvedServerConfig } from '../define_config.js'
-import { createDeviceSources } from './device_sources.js'
-import { createLogoutSources } from './logout_sources.js'
+import * as oidc from 'oidc-provider';
+import type { ResolvedServerConfig } from '../define_config.js';
+import { createDeviceSources } from './device_sources.js';
+import { createLogoutSources } from './logout_sources.js';
 
 export interface BuildProviderOptions {
   /** APP_KEY do consumidor; usado p/ derivar cookies.keys se não houver. */
-  appKey: string
-  findAccount: (ctx: any, sub: string, token?: any) => Promise<any>
+  appKey: string;
+  findAccount: (ctx: any, sub: string, token?: any) => Promise<any>;
 }
 
 /**
@@ -19,18 +19,18 @@ export interface BuildProviderOptions {
  */
 export interface SessionTtlHolder {
   /** TTL da sessão persistente (remember-me ON). Segundos. */
-  rememberSec: number
+  rememberSec: number;
   /** TTL da sessão transiente (browser session). Segundos. */
-  transientSec: number
+  transientSec: number;
 }
 
 /** Atualiza o holder mutável do TTL de sessão com os valores da setting. */
 export function updateSessionTtlHolder(
   holder: SessionTtlHolder,
-  policy: { rememberDays: number; defaultSessionHours: number }
+  policy: { rememberDays: number; defaultSessionHours: number },
 ): void {
-  holder.rememberSec = Math.max(1, Math.floor(policy.rememberDays * 86400))
-  holder.transientSec = Math.max(1, Math.floor(policy.defaultSessionHours * 3600))
+  holder.rememberSec = Math.max(1, Math.floor(policy.rememberDays * 86400));
+  holder.transientSec = Math.max(1, Math.floor(policy.defaultSessionHours * 3600));
 }
 
 /**
@@ -41,35 +41,35 @@ export function updateSessionTtlHolder(
  * Valores em SEGUNDOS.
  */
 export interface TokenTtlHolder {
-  accessTokenSec: number
-  idTokenSec: number
-  refreshTokenSec: number
+  accessTokenSec: number;
+  idTokenSec: number;
+  refreshTokenSec: number;
 }
 
 /** Atualiza o holder mutável de TTL de tokens com os valores da setting. */
 export function updateTokenTtlHolder(
   holder: TokenTtlHolder,
-  ttl: { accessTokenSec: number; idTokenSec: number; refreshTokenSec: number }
+  ttl: { accessTokenSec: number; idTokenSec: number; refreshTokenSec: number },
 ): void {
-  holder.accessTokenSec = Math.max(1, ttl.accessTokenSec)
-  holder.idTokenSec = Math.max(1, ttl.idTokenSec)
-  holder.refreshTokenSec = Math.max(1, ttl.refreshTokenSec)
+  holder.accessTokenSec = Math.max(1, ttl.accessTokenSec);
+  holder.idTokenSec = Math.max(1, ttl.idTokenSec);
+  holder.refreshTokenSec = Math.max(1, ttl.refreshTokenSec);
 }
 
 export function buildProvider(
   config: ResolvedServerConfig,
   options: BuildProviderOptions,
   sessionTtlHolder?: SessionTtlHolder,
-  tokenTtlHolder?: TokenTtlHolder
+  tokenTtlHolder?: TokenTtlHolder,
 ) {
-  const cookieKeys = config.cookieKeys.length ? config.cookieKeys : [options.appKey]
+  const cookieKeys = config.cookieKeys.length ? config.cookieKeys : [options.appKey];
 
   // OIDC Dynamic Client Registration (RFC 7591/7592). Só montamos as chaves de feature
   // quando habilitado — desligado (default), o oidc-provider não expõe o endpoint /reg.
   // O `initialAccessToken`: string => valida o bearer contra esse valor estático; ausente
   // => `false` (registro ABERTO; raramente desejável em prod). Clients registrados aqui
   // são persistidos automaticamente pelo MESMO AdapterClass, coexistindo com os estáticos.
-  const dynReg = config.dynamicRegistration
+  const dynReg = config.dynamicRegistration;
   const registrationFeatures = dynReg.enabled
     ? {
         registration: {
@@ -78,16 +78,16 @@ export function buildProvider(
         },
         ...(dynReg.management ? { registrationManagement: { enabled: true } } : {}),
       }
-    : {}
+    : {};
 
   // Device Authorization Grant (RFC 8628). Quando ligado, montamos a feature com
   // as três sources de UI i18n-izadas (entrada/confirmação/sucesso do user-code).
   const deviceFlowFeatures = config.deviceFlow.enabled
     ? { deviceFlow: { enabled: true, ...createDeviceSources(config.messages) } }
-    : {}
+    : {};
 
   // DPoP (RFC 9449). A chave EXATA do oidc-provider v9 é `dPoP`.
-  const dpopFeatures = config.dpop.enabled ? { dPoP: { enabled: true } } : {}
+  const dpopFeatures = config.dpop.enabled ? { dPoP: { enabled: true } } : {};
 
   // PAR (RFC 9126).
   const parFeatures = config.par.enabled
@@ -97,7 +97,7 @@ export function buildProvider(
           requirePushedAuthorizationRequests: config.par.requirePushedAuthorizationRequests,
         },
       }
-    : {}
+    : {};
 
   // Access Tokens RFC 9068 (JWT) via Resource Indicators (RFC 8707). Só montamos a
   // feature quando ALGUM AT deve ser JWT — caso contrário (default opaque) o
@@ -108,8 +108,8 @@ export function buildProvider(
   // o client não pede `resource` explicitamente, e o `getResourceServerInfo` descreve
   // a API (scope/audience/formato/TTL) — onde `accessTokenFormat: 'jwt'` faz o token
   // sair como JWS `typ: at+jwt` assinado com a chave corrente do JWKS.
-  const at = config.accessTokens
-  const allScopes = ['openid', 'profile', 'email', 'offline_access', 'roles']
+  const at = config.accessTokens;
+  const allScopes = ['openid', 'profile', 'email', 'offline_access', 'roles'];
   const resourceIndicatorFeatures = at.anyJwt
     ? {
         resourceIndicators: {
@@ -117,32 +117,32 @@ export function buildProvider(
           defaultResource: async (_ctx: any, _client: any, oneOf?: string[]) => {
             // Nas trocas (code/refresh/device), o provider passa `oneOf` com as
             // resources já concedidas — devolvemos para não falhar a request.
-            if (oneOf) return oneOf
+            if (oneOf) return oneOf;
             // Authorize/sem resource explícito: liga ao resource default (modo simples).
-            return at.audience
+            return at.audience;
           },
           useGrantedResource: async () => true,
           getResourceServerInfo: (_ctx: any, resourceIndicator: string, _client: any) => {
-            const rc = at.resources[resourceIndicator]
-            const format = rc?.format ?? (resourceIndicator === at.audience ? at.format : 'opaque')
-            const audience = rc?.audience ?? resourceIndicator
-            const scope = (rc?.scopes ?? allScopes).join(' ')
+            const rc = at.resources[resourceIndicator];
+            const format = rc?.format ?? (resourceIndicator === at.audience ? at.format : 'opaque');
+            const audience = rc?.audience ?? resourceIndicator;
+            const scope = (rc?.scopes ?? allScopes).join(' ');
             const info: Record<string, any> = {
               scope,
               audience,
               accessTokenFormat: format,
-            }
-            const ttl = rc?.expiresIn
-            if (ttl !== undefined) info.accessTokenTTL = ttl
+            };
+            const ttl = rc?.expiresIn;
+            if (ttl !== undefined) info.accessTokenTTL = ttl;
             if (format === 'jwt') {
               // Assina com a chave de assinatura corrente do keystore (mesma do JWKS).
-              info.jwt = { sign: { alg: config.jwks.keys[0]?.alg ?? 'RS256' } }
+              info.jwt = { sign: { alg: config.jwks.keys[0]?.alg ?? 'RS256' } };
             }
-            return info
+            return info;
           },
         },
       }
-    : {}
+    : {};
 
   const provider = new oidc.Provider(config.issuer, {
     adapter: config.AdapterClass as any,
@@ -268,8 +268,8 @@ export function buildProvider(
       // provider em /oidc/auth/:uid (já corretamente prefixado pelo koa-mount).
       url: (_ctx: any, interaction: any) => `/auth/interaction/${interaction.uid}`,
     },
-  })
+  });
 
-  provider.proxy = true
-  return provider
+  provider.proxy = true;
+  return provider;
 }

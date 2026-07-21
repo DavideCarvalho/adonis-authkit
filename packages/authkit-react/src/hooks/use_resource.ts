@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react';
 
 export interface ResourceState<T> {
-  data: T | null
-  loading: boolean
-  error: Error | null
+  data: T | null;
+  loading: boolean;
+  error: Error | null;
 }
 
 /**
@@ -12,32 +12,32 @@ export interface ResourceState<T> {
  */
 export async function jsonRequest<T>(
   url: string,
-  init: RequestInit & { csrfToken?: string } = {}
+  init: RequestInit & { csrfToken?: string } = {},
 ): Promise<T> {
-  const { csrfToken, headers, ...rest } = init
+  const { csrfToken, headers, ...rest } = init;
   const res = await fetch(url, {
     credentials: 'same-origin',
     headers: {
-      'Accept': 'application/json',
+      Accept: 'application/json',
       ...(rest.body ? { 'Content-Type': 'application/json' } : {}),
       ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {}),
       ...headers,
     },
     ...rest,
-  })
+  });
   if (!res.ok) {
-    let message = `Request failed (${res.status})`
+    let message = `Request failed (${res.status})`;
     try {
-      const body = await res.json()
-      if (body && typeof body.message === 'string') message = body.message
+      const body = await res.json();
+      if (body && typeof body.message === 'string') message = body.message;
     } catch {
       /* corpo não-JSON; mantém a mensagem padrão */
     }
-    throw new Error(message)
+    throw new Error(message);
   }
   // 204/empty
-  const text = await res.text()
-  return (text ? JSON.parse(text) : null) as T
+  const text = await res.text();
+  return (text ? JSON.parse(text) : null) as T;
 }
 
 /**
@@ -47,27 +47,27 @@ export async function jsonRequest<T>(
  */
 export function useResource<T>(
   url: string,
-  csrfToken?: string
+  csrfToken?: string,
 ): ResourceState<T> & { refetch: () => Promise<void> } {
   const [state, setState] = useState<ResourceState<T>>({
     data: null,
     loading: true,
     error: null,
-  })
+  });
 
   const refetch = useCallback(async () => {
-    setState((s) => ({ ...s, loading: true, error: null }))
+    setState((s) => ({ ...s, loading: true, error: null }));
     try {
-      const data = await jsonRequest<T>(url, { csrfToken })
-      setState({ data, loading: false, error: null })
+      const data = await jsonRequest<T>(url, { csrfToken });
+      setState({ data, loading: false, error: null });
     } catch (err) {
-      setState({ data: null, loading: false, error: err as Error })
+      setState({ data: null, loading: false, error: err as Error });
     }
-  }, [url, csrfToken])
+  }, [url, csrfToken]);
 
   useEffect(() => {
-    void refetch()
-  }, [refetch])
+    void refetch();
+  }, [refetch]);
 
-  return { ...state, refetch }
+  return { ...state, refetch };
 }

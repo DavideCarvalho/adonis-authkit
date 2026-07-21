@@ -1,4 +1,4 @@
-import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose'
+import { type JWTPayload, createRemoteJWKSet, jwtVerify } from 'jose';
 
 /**
  * Verificação LOCAL de um JWT Access Token (RFC 9068) emitido pelo AuthKit server
@@ -13,21 +13,21 @@ import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose'
  */
 export interface VerifyJwtAccessTokenOptions {
   /** Issuer esperado (a claim `iss`). */
-  issuer: string
+  issuer: string;
   /** jwks_uri do IdP (do discovery). */
-  jwksUri: string
+  jwksUri: string;
   /** Audience esperada (a claim `aud`) — a URI/identificador desta API. */
-  audience: string | string[]
+  audience: string | string[];
   /** Algoritmos de assinatura aceitos (defesa contra alg-confusion). Default: asimétricos. */
-  algorithms?: string[]
+  algorithms?: string[];
   /** Aceita JWS com qualquer `typ` (desliga a checagem RFC 9068 `at+jwt`). Default: false. */
-  allowAnyTyp?: boolean
+  allowAnyTyp?: boolean;
 }
 
 /** Claims de um JWT AT RFC 9068 validado. */
 export interface JwtAccessTokenClaims extends JWTPayload {
-  client_id?: string
-  scope?: string
+  client_id?: string;
+  scope?: string;
 }
 
 const DEFAULT_ALGS = [
@@ -41,18 +41,18 @@ const DEFAULT_ALGS = [
   'ES384',
   'ES512',
   'EdDSA',
-]
+];
 
 // Cache de keysets remotos por jwks_uri — evita refazer fetch/parse por request.
-const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>()
+const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
 function getJwks(uri: string): ReturnType<typeof createRemoteJWKSet> {
-  let set = jwksCache.get(uri)
+  let set = jwksCache.get(uri);
   if (!set) {
-    set = createRemoteJWKSet(new URL(uri))
-    jwksCache.set(uri, set)
+    set = createRemoteJWKSet(new URL(uri));
+    jwksCache.set(uri, set);
   }
-  return set
+  return set;
 }
 
 /**
@@ -62,20 +62,20 @@ function getJwks(uri: string): ReturnType<typeof createRemoteJWKSet> {
  */
 export async function verifyJwtAccessToken(
   token: string,
-  options: VerifyJwtAccessTokenOptions
+  options: VerifyJwtAccessTokenOptions,
 ): Promise<JwtAccessTokenClaims> {
-  const jwks = getJwks(options.jwksUri)
+  const jwks = getJwks(options.jwksUri);
   const { payload } = await jwtVerify(token, jwks, {
     issuer: options.issuer,
     audience: options.audience,
     algorithms: options.algorithms ?? DEFAULT_ALGS,
     // RFC 9068 §2.1: o header DEVE ser `typ: "at+jwt"`. jose valida quando passamos `typ`.
     ...(options.allowAnyTyp ? {} : { typ: 'at+jwt' }),
-  })
-  return payload as JwtAccessTokenClaims
+  });
+  return payload as JwtAccessTokenClaims;
 }
 
 /** Limpa o cache de JWKS remotos (útil em testes). */
 export function clearJwksCache(): void {
-  jwksCache.clear()
+  jwksCache.clear();
 }

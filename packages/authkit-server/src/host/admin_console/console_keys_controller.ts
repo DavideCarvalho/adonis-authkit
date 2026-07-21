@@ -1,13 +1,11 @@
-import '../augmentations.js'
-import type { HttpContext } from '@adonisjs/core/http'
-import { resolveRuntimeSettings } from '../runtime_settings.js'
-import { apiError } from '../admin_api/dto.js'
-import { buildKeysStatus, rotateNow } from '../key_rotation_actions.js'
+import '../augmentations.js';
+import type { HttpContext } from '@adonisjs/core/http';
+import { apiError } from '../admin_api/dto.js';
+import { buildKeysStatus, rotateNow } from '../key_rotation_actions.js';
+import { resolveRuntimeSettings } from '../runtime_settings.js';
 
 function notSupported(ctx: HttpContext) {
-  return ctx.response
-    .status(501)
-    .send(apiError('not_implemented', 'jwks não é managed+store.'))
+  return ctx.response.status(501).send(apiError('not_implemented', 'jwks não é managed+store.'));
 }
 
 /**
@@ -24,23 +22,23 @@ function notSupported(ctx: HttpContext) {
 export default class ConsoleKeysController {
   /** GET {prefix}/api/keys — status da chave de assinatura managed (idade + política + ETA). */
   async status(ctx: HttpContext) {
-    const svc: any = await ctx.containerResolver.make('authkit.server')
+    const svc: any = await ctx.containerResolver.make('authkit.server');
     // RuntimeSettings é opcional (tabela auth_settings ausente → política default).
-    const settings = await resolveRuntimeSettings(ctx)
-    const status = await buildKeysStatus(svc, settings)
-    if (!status) return notSupported(ctx)
-    return status
+    const settings = await resolveRuntimeSettings(ctx);
+    const status = await buildKeysStatus(svc, settings);
+    if (!status) return notSupported(ctx);
+    return status;
   }
 
   /** POST {prefix}/api/keys/rotate — { retire?, keep? } → rotaciona agora. */
   async rotate(ctx: HttpContext) {
-    const svc: any = await ctx.containerResolver.make('authkit.server')
+    const svc: any = await ctx.containerResolver.make('authkit.server');
     if (
       typeof svc.rotateKeys !== 'function' ||
       (await svc.keystoreAgeDays?.().catch(() => null)) === null
     ) {
-      return notSupported(ctx)
+      return notSupported(ctx);
     }
-    return rotateNow(svc, ctx.request.body() as any)
+    return rotateNow(svc, ctx.request.body() as any);
   }
 }

@@ -17,10 +17,7 @@
  * ```
  */
 
-import {
-  resilientFetch,
-  type ResiliencePolicy,
-} from "./http/resilient_fetch.js";
+import { type ResiliencePolicy, resilientFetch } from './http/resilient_fetch.js';
 
 export interface OidcEndpoints {
   authorizationEndpoint: string;
@@ -36,7 +33,7 @@ export interface OidcEndpoints {
  * documento de discovery não está acessível.
  */
 export function conventionEndpoints(issuer: string): OidcEndpoints {
-  const base = issuer.replace(/\/$/, "");
+  const base = issuer.replace(/\/$/, '');
   return {
     authorizationEndpoint: `${base}/auth`,
     tokenEndpoint: `${base}/token`,
@@ -80,7 +77,7 @@ export async function discoverEndpoints(
   issuer: string,
   options: DiscoverOptions = {},
 ): Promise<OidcEndpoints> {
-  const base = issuer.replace(/\/$/, "");
+  const base = issuer.replace(/\/$/, '');
   const ttl = options.cacheTtlMs ?? DEFAULT_TTL_MS;
 
   const cached = cache.get(base);
@@ -88,11 +85,7 @@ export async function discoverEndpoints(
   if (cached && Date.now() - cached.fetchedAt < ttl) {
     endpoints = cached.endpoints;
   } else {
-    endpoints = await fetchDiscovery(
-      base,
-      options.fetchImpl ?? fetch,
-      options.resilience,
-    );
+    endpoints = await fetchDiscovery(base, options.fetchImpl ?? fetch, options.resilience);
     cache.set(base, { endpoints, fetchedAt: Date.now() });
   }
 
@@ -113,24 +106,20 @@ async function fetchDiscovery(
   try {
     const res = await resilientFetch(
       `${base}/.well-known/openid-configuration`,
-      { headers: { accept: "application/json" } },
+      { headers: { accept: 'application/json' } },
       resilience,
       fetchImpl,
     );
     if (!res.ok) return fallback;
     const doc = (await res.json()) as Record<string, unknown>;
-    const str = (v: unknown): string | undefined =>
-      typeof v === "string" && v ? v : undefined;
+    const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
     return {
-      authorizationEndpoint:
-        str(doc.authorization_endpoint) ?? fallback.authorizationEndpoint,
+      authorizationEndpoint: str(doc.authorization_endpoint) ?? fallback.authorizationEndpoint,
       tokenEndpoint: str(doc.token_endpoint) ?? fallback.tokenEndpoint,
       jwksUri: str(doc.jwks_uri) ?? fallback.jwksUri,
-      endSessionEndpoint:
-        str(doc.end_session_endpoint) ?? fallback.endSessionEndpoint,
+      endSessionEndpoint: str(doc.end_session_endpoint) ?? fallback.endSessionEndpoint,
       userinfoEndpoint: str(doc.userinfo_endpoint) ?? fallback.userinfoEndpoint,
-      introspectionEndpoint:
-        str(doc.introspection_endpoint) ?? fallback.introspectionEndpoint,
+      introspectionEndpoint: str(doc.introspection_endpoint) ?? fallback.introspectionEndpoint,
     };
   } catch {
     return fallback;

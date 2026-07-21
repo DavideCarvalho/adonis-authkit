@@ -1,14 +1,14 @@
-import { createHmac } from 'node:crypto'
+import { createHmac } from 'node:crypto';
+import { isCommonPassword } from './common_passwords.js';
 import {
-  checkPasswordPolicy,
-  policyViolationParams,
-  resolvePasswordConfig,
   DEFAULT_PWNED_TIMEOUT_MS,
   type PasswordPolicyViolation,
   type ResolvedPasswordConfig,
-} from './policy.js'
-import { isPasswordPwned, type PwnedLogger, type FetchLike } from './pwned.js'
-import { isCommonPassword } from './common_passwords.js'
+  checkPasswordPolicy,
+  policyViolationParams,
+  resolvePasswordConfig,
+} from './policy.js';
+import { type FetchLike, type PwnedLogger, isPasswordPwned } from './pwned.js';
 
 /**
  * Verificador de hashes legados (de OUTROS sistemas). Chamado quando a
@@ -31,8 +31,8 @@ import { isCommonPassword } from './common_passwords.js'
  */
 export type LegacyPasswordVerifier = (
   hashedPassword: string,
-  plainPassword: string
-) => Promise<boolean | null>
+  plainPassword: string,
+) => Promise<boolean | null>;
 
 /**
  * Config de senha aceita pelo store (entrada do host).
@@ -46,7 +46,7 @@ export interface PasswordConfigInput {
    * Verificador de hashes legados de outros sistemas. Acionado quando a
    * verificação nativa falha. Veja {@link LegacyPasswordVerifier}.
    */
-  legacyVerifier?: LegacyPasswordVerifier
+  legacyVerifier?: LegacyPasswordVerifier;
   /**
    * Pepper de infra (segredo de boot). HMAC-SHA256 da senha ANTES do hasher
    * seguindo OWASP (defense-in-depth: DB comprometido sem o pepper = hashes
@@ -68,23 +68,27 @@ export interface PasswordConfigInput {
    * // Rotação: novo pepper primeiro, antigos no array.
    * password: { pepper: [env.get('PEPPER_V2'), env.get('PEPPER_V1')] }
    */
-  pepper?: string | string[]
+  pepper?: string | string[];
   /**
    * Timeout em ms para a checagem de vazamento HIBP (HaveIBeenPwned). Infra.
    * Default: 2000 ms. A checagem é habilitada/desabilitada via runtime setting
    * `password_policy.checkPwned` no admin console.
    */
-  pwnedTimeoutMs?: number
+  pwnedTimeoutMs?: number;
 }
 
 /** Erro de política/vazamento de senha — carrega a chave i18n + params. */
 export class PasswordPolicyError extends Error {
   constructor(
-    readonly key: PasswordPolicyViolation | 'password.pwned' | 'password.reused' | 'password.common',
-    readonly params?: Record<string, string | number>
+    readonly key:
+      | PasswordPolicyViolation
+      | 'password.pwned'
+      | 'password.reused'
+      | 'password.common',
+    readonly params?: Record<string, string | number>,
   ) {
-    super(key)
-    this.name = 'PasswordPolicyError'
+    super(key);
+    this.name = 'PasswordPolicyError';
   }
 }
 
@@ -98,7 +102,7 @@ export class PasswordPolicyError extends Error {
  * senha inalterada (back-compat total).
  */
 export function applyPepper(plain: string, pepper: string): string {
-  return createHmac('sha256', pepper).update(plain).digest('hex')
+  return createHmac('sha256', pepper).update(plain).digest('hex');
 }
 
 /**
@@ -108,10 +112,10 @@ export function applyPepper(plain: string, pepper: string): string {
  * @returns [corrente, ...antigos, ''] — string vazia = tentar sem HMAC (legacy).
  */
 export function resolvePeppers(pepper: string | string[] | undefined): string[] {
-  if (!pepper) return ['']
-  const arr = Array.isArray(pepper) ? pepper : [pepper]
+  if (!pepper) return [''];
+  const arr = Array.isArray(pepper) ? pepper : [pepper];
   // Inclui string vazia no final para tentar sem pepper (legacy back-compat).
-  return [...arr, '']
+  return [...arr, ''];
 }
 
 /**
@@ -119,10 +123,10 @@ export function resolvePeppers(pepper: string | string[] | undefined): string[] 
  * primeiro do array (ou a string direta). Sem pepper → retorna a senha.
  */
 export function applyCurrentPepper(plain: string, pepper: string | string[] | undefined): string {
-  if (!pepper) return plain
-  const current = Array.isArray(pepper) ? pepper[0] : pepper
-  if (!current) return plain
-  return applyPepper(plain, current)
+  if (!pepper) return plain;
+  const current = Array.isArray(pepper) ? pepper[0] : pepper;
+  if (!current) return plain;
+  return applyPepper(plain, current);
 }
 
 /**
@@ -132,8 +136,8 @@ export function applyCurrentPepper(plain: string, pepper: string | string[] | un
  * best-effort.
  */
 export interface PasswordVerifyResult {
-  ok: boolean
-  rehash: boolean
+  ok: boolean;
+  rehash: boolean;
 }
 
 /**
@@ -143,31 +147,31 @@ export interface PasswordVerifyResult {
  * é a única fonte de customização (via `assertAcceptable` com override).
  */
 export class PasswordManager {
-  readonly config: ResolvedPasswordConfig
-  private readonly legacyVerifier?: LegacyPasswordVerifier
-  private readonly logger?: PwnedLogger
-  private readonly fetchImpl?: FetchLike
+  readonly config: ResolvedPasswordConfig;
+  private readonly legacyVerifier?: LegacyPasswordVerifier;
+  private readonly logger?: PwnedLogger;
+  private readonly fetchImpl?: FetchLike;
   /** Pepper configurado (secret de boot). Pode ser string ou array para rotação. */
-  readonly pepper: string | string[] | undefined
+  readonly pepper: string | string[] | undefined;
   /** Timeout em ms para a checagem de vazamento HIBP. */
-  readonly pwnedTimeoutMs: number
+  readonly pwnedTimeoutMs: number;
 
   constructor(
     input: PasswordConfigInput = {},
-    deps: { logger?: PwnedLogger; fetchImpl?: FetchLike } = {}
+    deps: { logger?: PwnedLogger; fetchImpl?: FetchLike } = {},
   ) {
     // Lib defaults: minLength=8, sem complexidade, sem checkPwned (setting-driven).
-    this.config = resolvePasswordConfig({})
-    this.legacyVerifier = input.legacyVerifier
-    this.logger = deps.logger
-    this.fetchImpl = deps.fetchImpl
-    this.pepper = input.pepper
-    this.pwnedTimeoutMs = input.pwnedTimeoutMs ?? DEFAULT_PWNED_TIMEOUT_MS
+    this.config = resolvePasswordConfig({});
+    this.legacyVerifier = input.legacyVerifier;
+    this.logger = deps.logger;
+    this.fetchImpl = deps.fetchImpl;
+    this.pepper = input.pepper;
+    this.pwnedTimeoutMs = input.pwnedTimeoutMs ?? DEFAULT_PWNED_TIMEOUT_MS;
   }
 
   /** Há um verificador de hash legado configurado? */
   hasLegacyVerifier(): boolean {
-    return typeof this.legacyVerifier === 'function'
+    return typeof this.legacyVerifier === 'function';
   }
 
   /**
@@ -175,7 +179,7 @@ export class PasswordManager {
    * retorna a senha inalterada (back-compat total).
    */
   applyCurrentPepper(plain: string): string {
-    return applyCurrentPepper(plain, this.pepper)
+    return applyCurrentPepper(plain, this.pepper);
   }
 
   /**
@@ -187,7 +191,15 @@ export class PasswordManager {
    */
   async assertAcceptable(
     plainPassword: string,
-    policyOverride?: { minLength?: number; requireUppercase?: boolean; requireLowercase?: boolean; requireNumbers?: boolean; requireSymbols?: boolean; checkPwned?: boolean; blockCommon?: boolean }
+    policyOverride?: {
+      minLength?: number;
+      requireUppercase?: boolean;
+      requireLowercase?: boolean;
+      requireNumbers?: boolean;
+      requireSymbols?: boolean;
+      checkPwned?: boolean;
+      blockCommon?: boolean;
+    },
   ): Promise<void> {
     const effectivePolicy = policyOverride
       ? {
@@ -197,18 +209,18 @@ export class PasswordManager {
           requireNumbers: policyOverride.requireNumbers ?? this.config.policy.requireNumbers,
           requireSymbols: policyOverride.requireSymbols ?? this.config.policy.requireSymbols,
         }
-      : this.config.policy
+      : this.config.policy;
 
-    const violation = checkPasswordPolicy(plainPassword, effectivePolicy)
+    const violation = checkPasswordPolicy(plainPassword, effectivePolicy);
     if (violation) {
-      throw new PasswordPolicyError(violation, policyViolationParams(violation, effectivePolicy))
+      throw new PasswordPolicyError(violation, policyViolationParams(violation, effectivePolicy));
     }
 
     // Checagem offline de senhas comuns (case-insensitive, ANTES do HIBP).
     // Default: blockCommon=true. Somente pula se explicitamente desligado.
-    const blockCommon = policyOverride?.blockCommon !== false
+    const blockCommon = policyOverride?.blockCommon !== false;
     if (blockCommon && isCommonPassword(plainPassword)) {
-      throw new PasswordPolicyError('password.common')
+      throw new PasswordPolicyError('password.common');
     }
 
     if (policyOverride?.checkPwned) {
@@ -216,8 +228,8 @@ export class PasswordManager {
         timeoutMs: this.pwnedTimeoutMs,
         logger: this.logger,
         fetchImpl: this.fetchImpl,
-      })
-      if (pwned) throw new PasswordPolicyError('password.pwned')
+      });
+      if (pwned) throw new PasswordPolicyError('password.pwned');
     }
   }
 
@@ -243,34 +255,34 @@ export class PasswordManager {
     hashedPassword: string,
     plainPassword: string,
     hooks: {
-      nativeVerify: (hashed: string, plain: string) => Promise<boolean>
-      needsRehash: (hashed: string) => boolean
-    }
+      nativeVerify: (hashed: string, plain: string) => Promise<boolean>;
+      needsRehash: (hashed: string) => boolean;
+    },
   ): Promise<PasswordVerifyResult> {
-    const peppers = resolvePeppers(this.pepper)
-    const currentPepper = Array.isArray(this.pepper) ? this.pepper[0] : (this.pepper ?? '')
+    const peppers = resolvePeppers(this.pepper);
+    const currentPepper = Array.isArray(this.pepper) ? this.pepper[0] : (this.pepper ?? '');
 
     for (let i = 0; i < peppers.length; i++) {
-      const p = peppers[i]
-      const peppered = p ? applyPepper(plainPassword, p) : plainPassword
-      let nativeOk = false
+      const p = peppers[i];
+      const peppered = p ? applyPepper(plainPassword, p) : plainPassword;
+      let nativeOk = false;
       try {
-        nativeOk = await hooks.nativeVerify(hashedPassword, peppered)
+        nativeOk = await hooks.nativeVerify(hashedPassword, peppered);
       } catch {
-        nativeOk = false
+        nativeOk = false;
       }
       if (nativeOk) {
         // Se este não é o pepper corrente → re-hash obrigatório com o corrente.
-        const isCurrentPepper = (p === currentPepper) || (!p && !this.pepper)
-        let rehash = isCurrentPepper ? false : true
+        const isCurrentPepper = p === currentPepper || (!p && !this.pepper);
+        let rehash = !isCurrentPepper;
         if (!rehash) {
           try {
-            rehash = hooks.needsRehash(hashedPassword)
+            rehash = hooks.needsRehash(hashedPassword);
           } catch {
-            rehash = false
+            rehash = false;
           }
         }
-        return { ok: true, rehash }
+        return { ok: true, rehash };
       }
     }
 
@@ -280,19 +292,19 @@ export class PasswordManager {
       // que ainda não tinham pepper).
       const tryCandidates = this.pepper
         ? [applyCurrentPepper(plainPassword, this.pepper), plainPassword]
-        : [plainPassword]
+        : [plainPassword];
 
       for (const candidate of tryCandidates) {
-        let legacy: boolean | null = null
+        let legacy: boolean | null = null;
         try {
-          legacy = await this.legacyVerifier(hashedPassword, candidate)
+          legacy = await this.legacyVerifier(hashedPassword, candidate);
         } catch {
-          legacy = null
+          legacy = null;
         }
-        if (legacy === true) return { ok: true, rehash: true }
+        if (legacy === true) return { ok: true, rehash: true };
       }
     }
 
-    return { ok: false, rehash: false }
+    return { ok: false, rehash: false };
   }
 }

@@ -1,9 +1,9 @@
-import { useContext, useEffect, useState } from "react";
-import { usePage } from "@inertiajs/react";
-import { useAuthkitConfig } from "../config.js";
-import { AuthContext } from "../provider.js";
-import type { AuthSharedProps } from "../types.js";
-import { jsonRequest } from "./use_resource.js";
+import { usePage } from '@inertiajs/react';
+import { useContext, useEffect, useState } from 'react';
+import { useAuthkitConfig } from '../config.js';
+import { AuthContext } from '../provider.js';
+import type { AuthSharedProps } from '../types.js';
+import { jsonRequest } from './use_resource.js';
 
 /** Resultado do hook `useCan`. */
 export interface UseCanResult {
@@ -30,7 +30,7 @@ interface CanResponse {
  * autenticado (logout). Garante que respostas resolvidas para um usuário
  * não vazem para a sessão anônima e vice-versa.
  */
-const ANON_PRINCIPAL = "anon";
+const ANON_PRINCIPAL = 'anon';
 
 /**
  * Lê o id do principal atual sem lançar fora do Inertia.
@@ -43,7 +43,7 @@ const ANON_PRINCIPAL = "anon";
  */
 function usePrincipalId(): string {
   const fromContext = useContext(AuthContext);
-  let fromPage: AuthSharedProps["authkit"] | undefined;
+  let fromPage: AuthSharedProps['authkit'] | undefined;
   try {
     fromPage = usePage<AuthSharedProps>().props?.authkit;
   } catch {
@@ -62,13 +62,8 @@ function usePrincipalId(): string {
  * resposta antiga deixa de ser servida — sem nenhum `clear()` explícito
  * pendurado nos fluxos de sign-out/switch.
  */
-function cacheKey(
-  path: string,
-  principal: string,
-  permission: string,
-  resource?: string,
-): string {
-  return [principal, path, permission, resource ?? ""].join("|");
+function cacheKey(path: string, principal: string, permission: string, resource?: string): string {
+  return [principal, path, permission, resource ?? ''].join('|');
 }
 
 /**
@@ -123,7 +118,7 @@ export async function checkCan(
   if (pending) return pending;
 
   const promise = jsonRequest<CanResponse>(path, {
-    method: "POST",
+    method: 'POST',
     csrfToken,
     body: JSON.stringify({ permission, ...(resource ? { resource } : {}) }),
   })
@@ -185,8 +180,7 @@ export function useCan(permission: string, resource?: string): UseCanResult {
       })
       .catch((err) => {
         // Fail-closed: nega, mas expõe o erro no canal `error`.
-        if (!cancelled)
-          setState({ allowed: false, loading: false, error: err as Error });
+        if (!cancelled) setState({ allowed: false, loading: false, error: err as Error });
       });
     return () => {
       cancelled = true;

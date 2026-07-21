@@ -17,9 +17,9 @@
  */
 export interface AuthkitCsrfOptions {
   /** mountPath do IdP (mesmo de defineConfig/registerAuthHost). Default: `/oidc`. */
-  mountPath?: string
+  mountPath?: string;
   /** Inclui a rota de back-channel logout do CLIENT (default: `/auth/backchannel-logout`). */
-  backchannelLogoutPath?: string | false
+  backchannelLogoutPath?: string | false;
 }
 
 /**
@@ -28,15 +28,15 @@ export interface AuthkitCsrfOptions {
  * rota de back-channel logout do client.
  */
 export function authkitCsrfExceptions(url: string, options: AuthkitCsrfOptions = {}): boolean {
-  const mountPath = options.mountPath ?? '/oidc'
+  const mountPath = options.mountPath ?? '/oidc';
   const backchannel =
     options.backchannelLogoutPath === false
       ? null
-      : (options.backchannelLogoutPath ?? '/auth/backchannel-logout')
+      : (options.backchannelLogoutPath ?? '/auth/backchannel-logout');
 
   return (
     url.includes(mountPath) ||
     url.includes('/authkit/pat') ||
     (backchannel !== null && url === backchannel)
-  )
+  );
 }

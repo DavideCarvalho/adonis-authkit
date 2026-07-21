@@ -1,7 +1,7 @@
-import '../augmentations.js'
-import type { HttpContext } from '@adonisjs/core/http'
-import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
-import { AdminSessionsService } from '../admin_sessions_service.js'
+import '../augmentations.js';
+import type { HttpContext } from '@adonisjs/core/http';
+import { AdminSessionsService } from '../admin_sessions_service.js';
+import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js';
 
 /**
  * Self-service de consentimento ("apps com acesso") no console de conta. Lista os
@@ -13,21 +13,21 @@ import { AdminSessionsService } from '../admin_sessions_service.js'
 export default class AccountAppsController {
   /** GET /account/apps — lista os apps com acesso (grants) da conta logada. */
   async index(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const render = cfg.render!
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const render = cfg.render!;
 
-    const accountId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
+    const accountId = ctx.session.get(ACCOUNT_SESSION_KEY) as string;
 
-    const sessions = new AdminSessionsService(service)
-    const supported = sessions.canList
-    const grantList = supported ? await sessions.listGrants(accountId) : []
+    const sessions = new AdminSessionsService(service);
+    const supported = sessions.canList;
+    const grantList = supported ? await sessions.listGrants(accountId) : [];
 
     // Resolve o nome amigável do client: clientId é o fallback (config estática não
     // carrega um display name).
-    const nameOf = (clientId?: string): string => clientId ?? ''
+    const nameOf = (clientId?: string): string => clientId ?? '';
 
-    const revoked = ctx.session.flashMessages.get('appRevoked') as string | undefined
+    const revoked = ctx.session.flashMessages.get('appRevoked') as string | undefined;
 
     return render(ctx, 'account/apps', {
       csrfToken: ctx.request.csrfToken,
@@ -41,19 +41,19 @@ export default class AccountAppsController {
           accessTokens: g.accessTokens,
           refreshTokens: g.refreshTokens,
         })),
-    })
+    });
   }
 
   /** POST /account/apps/:clientId/revoke — revoga o acesso de um client. */
   async revoke(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
 
-    const accountId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
-    const clientId = ctx.request.param('clientId')
+    const accountId = ctx.session.get(ACCOUNT_SESSION_KEY) as string;
+    const clientId = ctx.request.param('clientId');
 
-    const sessions = new AdminSessionsService(service)
-    const result = await sessions.revokeClientGrants(accountId, clientId)
+    const sessions = new AdminSessionsService(service);
+    const result = await sessions.revokeClientGrants(accountId, clientId);
 
     await cfg.audit?.record({
       type: 'grant.revoked_by_user',
@@ -65,12 +65,9 @@ export default class AccountAppsController {
         accessTokens: result.accessTokens,
         refreshTokens: result.refreshTokens,
       },
-    })
+    });
 
-    ctx.session.flash(
-      'appRevoked',
-      cfg.messages['account.apps.revoked'] ?? 'account.apps.revoked'
-    )
-    return ctx.response.redirect('/account/apps')
+    ctx.session.flash('appRevoked', cfg.messages['account.apps.revoked'] ?? 'account.apps.revoked');
+    return ctx.response.redirect('/account/apps');
   }
 }

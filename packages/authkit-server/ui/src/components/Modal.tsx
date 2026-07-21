@@ -1,23 +1,25 @@
-import React, { useEffect } from 'react'
+import React, { useEffect } from 'react';
 
 interface ModalProps {
-  open: boolean
-  onClose: () => void
-  title: string
-  children: React.ReactNode
-  footer?: React.ReactNode
-  large?: boolean
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+  large?: boolean;
 }
 
 export function Modal({ open, onClose, title, children, footer, large }: ModalProps) {
   useEffect(() => {
-    if (!open) return
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [open, onClose])
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [open, onClose]);
 
-  if (!open) return null
+  if (!open) return null;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -34,5 +36,5 @@ export function Modal({ open, onClose, title, children, footer, large }: ModalPr
         {footer && <div className="modal-foot">{footer}</div>}
       </div>
     </div>
-  )
+  );
 }

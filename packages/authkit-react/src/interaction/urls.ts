@@ -28,10 +28,7 @@ export interface InteractionUrls {
  * cobre o mount padrão do authkit-server; passe outro se o app montou em prefixo
  * diferente.
  */
-export function interactionUrls(
-  uid: string,
-  basePath = "/auth/interaction",
-): InteractionUrls {
+export function interactionUrls(uid: string, basePath = '/auth/interaction'): InteractionUrls {
   const base = `${basePath}/${uid}`;
   return {
     identifier: `${base}/identifier`,
@@ -45,16 +42,12 @@ export function interactionUrls(
 }
 
 /** Passos de interaction que são POST de formulário (consumidos por `InteractionForm`). */
-export type InteractionPostStep = "identifier" | "login" | "magic";
+export type InteractionPostStep = 'identifier' | 'login' | 'magic';
 
 /**
  * URL de redirect de um provedor OAuth (ex.: `oauthRedirectUrl('google', uid)` →
  * `/auth/google/redirect/{uid}`). `basePath` default `/auth`.
  */
-export function oauthRedirectUrl(
-  provider: string,
-  uid: string,
-  basePath = "/auth",
-): string {
+export function oauthRedirectUrl(provider: string, uid: string, basePath = '/auth'): string {
   return `${basePath}/${provider}/redirect/${uid}`;
 }

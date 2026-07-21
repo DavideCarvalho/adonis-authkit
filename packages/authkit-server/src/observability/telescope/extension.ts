@@ -2,8 +2,8 @@ import type {
   DashboardSpec,
   ExtensionEntryType,
   TelescopeExtension,
-} from "@adonis-agora/telescope";
-import { authkitDataProviders } from "./data_providers.js";
+} from '@adonis-agora/telescope';
+import { authkitDataProviders } from './data_providers.js';
 
 /** Options for {@link defineAuthkitTelescopeExtension}. */
 export interface AuthkitTelescopeOptions {
@@ -20,7 +20,7 @@ export interface AuthkitTelescopeOptions {
  * tagged `lib:authkit`).
  */
 function authkitEntryType(): ExtensionEntryType {
-  return { id: "authkit", label: "Auth", dot: "bg-emerald-400" };
+  return { id: 'authkit', label: 'Auth', dot: 'bg-emerald-400' };
 }
 
 /**
@@ -29,128 +29,126 @@ function authkitEntryType(): ExtensionEntryType {
  * impersonation activity), then trends. Pure data: panels bind to the
  * `authkit.*` data providers by name.
  */
-function authkitSecurityDashboard(
-  opts: AuthkitTelescopeOptions,
-): DashboardSpec {
+function authkitSecurityDashboard(opts: AuthkitTelescopeOptions): DashboardSpec {
   const windowMs = opts.windowMs ?? 24 * 60 * 60 * 1000;
   return {
-    id: "authkit.security",
-    label: "Security",
-    navGroup: "Auth",
+    id: 'authkit.security',
+    label: 'Security',
+    navGroup: 'Auth',
     panels: [],
     sections: [
       {
-        title: "Logins",
+        title: 'Logins',
         cols: 4,
         panels: [
           {
-            kind: "gauge",
-            title: "Login success rate",
-            data: { provider: "authkit.loginSuccessRate", query: { windowMs } },
+            kind: 'gauge',
+            title: 'Login success rate',
+            data: { provider: 'authkit.loginSuccessRate', query: { windowMs } },
             max: 1,
-            format: "percent",
-            thresholds: { warn: 0.9, bad: 0.75, direction: "down-bad" },
+            format: 'percent',
+            thresholds: { warn: 0.9, bad: 0.75, direction: 'down-bad' },
           },
           {
-            kind: "stat",
-            title: "Successful logins",
+            kind: 'stat',
+            title: 'Successful logins',
             data: {
-              provider: "authkit.eventCount",
-              query: { metric: "loginSuccess", windowMs },
+              provider: 'authkit.eventCount',
+              query: { metric: 'loginSuccess', windowMs },
             },
             spark: true,
           },
           {
-            kind: "stat",
-            title: "Failed logins",
+            kind: 'stat',
+            title: 'Failed logins',
             data: {
-              provider: "authkit.eventCount",
-              query: { metric: "loginFailure", windowMs },
+              provider: 'authkit.eventCount',
+              query: { metric: 'loginFailure', windowMs },
             },
             spark: true,
-            thresholds: { warn: 25, bad: 100, direction: "up-bad" },
+            thresholds: { warn: 25, bad: 100, direction: 'up-bad' },
           },
           {
-            kind: "stat",
-            title: "Account lockouts",
+            kind: 'stat',
+            title: 'Account lockouts',
             data: {
-              provider: "authkit.eventCount",
-              query: { metric: "lockouts", windowMs },
+              provider: 'authkit.eventCount',
+              query: { metric: 'lockouts', windowMs },
             },
             spark: true,
-            thresholds: { warn: 5, bad: 25, direction: "up-bad" },
+            thresholds: { warn: 5, bad: 25, direction: 'up-bad' },
           },
         ],
       },
       {
-        title: "MFA & tokens",
+        title: 'MFA & tokens',
         cols: 3,
         panels: [
           {
-            kind: "stat",
-            title: "MFA / passkey enrollments",
+            kind: 'stat',
+            title: 'MFA / passkey enrollments',
             data: {
-              provider: "authkit.eventCount",
-              query: { metric: "mfaEnrollments", windowMs },
+              provider: 'authkit.eventCount',
+              query: { metric: 'mfaEnrollments', windowMs },
             },
             spark: true,
           },
           {
-            kind: "stat",
-            title: "Impersonation events",
+            kind: 'stat',
+            title: 'Impersonation events',
             data: {
-              provider: "authkit.eventCount",
-              query: { metric: "impersonation", windowMs },
+              provider: 'authkit.eventCount',
+              query: { metric: 'impersonation', windowMs },
             },
             spark: true,
-            thresholds: { warn: 1, bad: 10, direction: "up-bad" },
+            thresholds: { warn: 1, bad: 10, direction: 'up-bad' },
           },
           {
-            kind: "stat",
-            title: "PAT activity",
+            kind: 'stat',
+            title: 'PAT activity',
             data: {
-              provider: "authkit.eventCount",
-              query: { metric: "pat", windowMs },
+              provider: 'authkit.eventCount',
+              query: { metric: 'pat', windowMs },
             },
             spark: true,
           },
         ],
       },
       {
-        title: "Trends",
+        title: 'Trends',
         cols: 2,
         panels: [
           {
-            kind: "timeseries",
-            title: "Logins over time",
-            data: { provider: "authkit.loginsOverTime" },
-            series: ["success", "failure"],
-            style: "stacked",
+            kind: 'timeseries',
+            title: 'Logins over time',
+            data: { provider: 'authkit.loginsOverTime' },
+            series: ['success', 'failure'],
+            style: 'stacked',
           },
           {
-            kind: "breakdown",
-            title: "Events by family",
-            data: { provider: "authkit.eventBreakdown", query: { windowMs } },
-            style: "donut",
+            kind: 'breakdown',
+            title: 'Events by family',
+            data: { provider: 'authkit.eventBreakdown', query: { windowMs } },
+            style: 'donut',
           },
         ],
       },
       {
-        title: "PAT & impersonation activity",
+        title: 'PAT & impersonation activity',
         cols: 2,
         panels: [
           {
-            kind: "table",
-            title: "Recent token & impersonation events",
-            data: { provider: "authkit.tokenActivity" },
+            kind: 'table',
+            title: 'Recent token & impersonation events',
+            data: { provider: 'authkit.tokenActivity' },
             // No "IP" column: the diagnostics bridge emits a PII-free projection
             // (no `email`/`ip`/`metadata`), so a deleted account's PII never lands
             // in Telescope's store. See `redactAuditEventForDiagnostics`.
             columns: [
-              { key: "at", label: "When" },
-              { key: "event", label: "Event" },
-              { key: "subject", label: "Subject" },
-              { key: "actor", label: "Actor" },
+              { key: 'at', label: 'When' },
+              { key: 'event', label: 'Event' },
+              { key: 'subject', label: 'Subject' },
+              { key: 'actor', label: 'Actor' },
             ],
           },
         ],
@@ -182,7 +180,7 @@ export function defineAuthkitTelescopeExtension(
   opts: AuthkitTelescopeOptions = {},
 ): TelescopeExtension {
   return {
-    name: "authkit",
+    name: 'authkit',
     entryTypes: () => [authkitEntryType()],
     dashboards: () => [authkitSecurityDashboard(opts)],
     dataProviders: () => authkitDataProviders(),

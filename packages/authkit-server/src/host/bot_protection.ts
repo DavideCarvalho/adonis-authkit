@@ -1,6 +1,6 @@
-import type { HttpContext } from '@adonisjs/core/http'
-import type { ResolvedServerConfig } from '../define_config.js'
-import type { SettingsCapability } from './runtime_settings.js'
+import type { HttpContext } from '@adonisjs/core/http';
+import type { ResolvedServerConfig } from '../define_config.js';
+import type { SettingsCapability } from './runtime_settings.js';
 
 /**
  * Bot protection plugável (CAPTCHA / challenge), agnóstica de vendor.
@@ -71,28 +71,28 @@ import type { SettingsCapability } from './runtime_settings.js'
  */
 
 /** Ação protegida pelo bot protection (mapeia 1:1 com as telas/POSTs sensíveis). */
-export type BotProtectionAction = 'login' | 'signup' | 'reset'
+export type BotProtectionAction = 'login' | 'signup' | 'reset';
 
 /** Contexto passado ao `verify` do host. */
 export interface BotProtectionVerifyInput {
   /** Token do widget extraído do body (null quando ausente). */
-  token: string | null
+  token: string | null;
   /** IP da request (best-effort; pode ser undefined). */
-  ip?: string
+  ip?: string;
   /** Ação que disparou a verificação. */
-  action: BotProtectionAction
+  action: BotProtectionAction;
 }
 
 /** Markup/script do widget injetado nas telas (Turnstile, hCaptcha, etc.). */
 export interface BotProtectionWidget {
   /** URL do script externo do provedor (carregado uma vez, async). */
-  scriptUrl: string
+  scriptUrl: string;
   /**
    * HTML do container do widget (renderizado RAW no form). Tipicamente um
    * `<div>` com a classe/atributos do provedor (ex.: `class="cf-turnstile"
    * data-sitekey="..."`). Como é config-trusted (do host), é injetado sem escape.
    */
-  html: string
+  html: string;
 }
 
 /**
@@ -108,7 +108,7 @@ export const DEFAULT_BOT_TOKEN_FIELDS = [
   'h-captcha-response',
   'g-recaptcha-response',
   'authkit-bot-token',
-] as const
+] as const;
 
 /** Config de entrada do bot protection (em `config/authkit.ts`). */
 export interface BotProtectionConfigInput {
@@ -117,29 +117,29 @@ export interface BotProtectionConfigInput {
    * resolve `true` (humano/ok) ou `false` (bot/rejeitar). LANÇAR/timeout é
    * tratado como FAIL-SAFE (permite + warning) — ver {@link verifyBotProtection}.
    */
-  verify: (input: BotProtectionVerifyInput) => Promise<boolean>
+  verify: (input: BotProtectionVerifyInput) => Promise<boolean>;
   /** Ações protegidas. Default: `['login', 'signup']`. */
-  on?: BotProtectionAction[]
+  on?: BotProtectionAction[];
   /** Widget injetado nas telas (script + container). Opcional. */
-  widget?: BotProtectionWidget
+  widget?: BotProtectionWidget;
   /**
    * Nomes de campo de body onde procurar o token, em ordem. Default:
    * {@link DEFAULT_BOT_TOKEN_FIELDS}. O host pode passar uma lista própria.
    */
-  tokenFields?: string[]
+  tokenFields?: string[];
   /**
    * Timeout (ms) do `verify`. Estourar = FAIL-SAFE (permite). Default: 5000.
    */
-  timeoutMs?: number
+  timeoutMs?: number;
 }
 
 /** Config resolvida do bot protection (sempre com defaults aplicados). */
 export interface ResolvedBotProtectionConfig {
-  verify: (input: BotProtectionVerifyInput) => Promise<boolean>
-  on: BotProtectionAction[]
-  widget?: BotProtectionWidget
-  tokenFields: string[]
-  timeoutMs: number
+  verify: (input: BotProtectionVerifyInput) => Promise<boolean>;
+  on: BotProtectionAction[];
+  widget?: BotProtectionWidget;
+  tokenFields: string[];
+  timeoutMs: number;
 }
 
 /**
@@ -147,38 +147,39 @@ export interface ResolvedBotProtectionConfig {
  * quando o host não configura `botProtection` (feature totalmente desligada).
  */
 export function resolveBotProtection(
-  input?: BotProtectionConfigInput
+  input?: BotProtectionConfigInput,
 ): ResolvedBotProtectionConfig | undefined {
-  if (!input) return undefined
-  const on = input.on && input.on.length > 0 ? input.on : (['login', 'signup'] as BotProtectionAction[])
+  if (!input) return undefined;
+  const on =
+    input.on && input.on.length > 0 ? input.on : (['login', 'signup'] as BotProtectionAction[]);
   const tokenFields =
     input.tokenFields && input.tokenFields.length > 0
       ? input.tokenFields
-      : [...DEFAULT_BOT_TOKEN_FIELDS]
+      : [...DEFAULT_BOT_TOKEN_FIELDS];
   return {
     verify: input.verify,
     on,
     widget: input.widget,
     tokenFields,
     timeoutMs: input.timeoutMs && input.timeoutMs > 0 ? input.timeoutMs : 5000,
-  }
+  };
 }
 
 /** `true` se o bot protection está ligado para `action`. */
 export function botProtectionApplies(
   cfg: ResolvedBotProtectionConfig | undefined,
-  action: BotProtectionAction
+  action: BotProtectionAction,
 ): boolean {
-  return !!cfg && cfg.on.includes(action)
+  return !!cfg && cfg.on.includes(action);
 }
 
 /** Extrai o token do widget do body, testando os campos configurados em ordem. */
 export function extractBotToken(ctx: HttpContext, fields: string[]): string | null {
   for (const field of fields) {
-    const value = ctx.request.input(field)
-    if (typeof value === 'string' && value.length > 0) return value
+    const value = ctx.request.input(field);
+    if (typeof value === 'string' && value.length > 0) return value;
   }
-  return null
+  return null;
 }
 
 /**
@@ -193,28 +194,28 @@ export function extractBotToken(ctx: HttpContext, fields: string[]): string | nu
 export async function verifyBotProtection(
   ctx: HttpContext,
   cfg: ResolvedBotProtectionConfig,
-  action: BotProtectionAction
+  action: BotProtectionAction,
 ): Promise<boolean> {
-  const token = extractBotToken(ctx, cfg.tokenFields)
-  const ip = ctx.request.ip?.() ?? undefined
+  const token = extractBotToken(ctx, cfg.tokenFields);
+  const ip = ctx.request.ip?.() ?? undefined;
 
-  let timer: ReturnType<typeof setTimeout> | undefined
+  let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<boolean>((resolve) => {
-    timer = setTimeout(() => resolve(true), cfg.timeoutMs)
-  })
+    timer = setTimeout(() => resolve(true), cfg.timeoutMs);
+  });
 
   try {
-    const result = await Promise.race([cfg.verify({ token, ip, action }), timeout])
-    return result
+    const result = await Promise.race([cfg.verify({ token, ip, action }), timeout]);
+    return result;
   } catch (error) {
     // FAIL-SAFE: erro no verificador do host NÃO bloqueia o login.
     ctx.logger.warn(
       { err: error, action },
-      'authkit: bot protection verify lançou — fail-safe (request permitida)'
-    )
-    return true
+      'authkit: bot protection verify lançou — fail-safe (request permitida)',
+    );
+    return true;
   } finally {
-    if (timer) clearTimeout(timer)
+    if (timer) clearTimeout(timer);
   }
 }
 
@@ -228,12 +229,12 @@ export async function guardBotProtection(
   ctx: HttpContext,
   cfg: ResolvedServerConfig,
   action: BotProtectionAction,
-  meta?: { email?: string | null; clientId?: string | null }
+  meta?: { email?: string | null; clientId?: string | null },
 ): Promise<boolean> {
-  const bot = cfg.botProtection
-  if (!botProtectionApplies(bot, action)) return true
-  const ok = await verifyBotProtection(ctx, bot!, action)
-  if (ok) return true
+  const bot = cfg.botProtection;
+  if (!botProtectionApplies(bot, action)) return true;
+  const ok = await verifyBotProtection(ctx, bot!, action);
+  if (ok) return true;
   // Rejeitado: audita SEM o token (apenas action + ip + contexto mínimo).
   await cfg.audit?.record({
     type: 'bot_protection.rejected',
@@ -241,19 +242,19 @@ export async function guardBotProtection(
     ip: ctx.request.ip?.() ?? null,
     clientId: meta?.clientId ?? null,
     metadata: { action },
-  })
-  return false
+  });
+  return false;
 }
 
 /** Shape da setting `bot_protection` em `auth_settings`. */
 export interface BotProtectionSetting {
   /** Liga/desliga em runtime. */
-  enabled: boolean
+  enabled: boolean;
   /**
    * Ações protegidas. Se omitido, herda do config. Só é considerado
    * quando `enabled: true`.
    */
-  on?: BotProtectionAction[]
+  on?: BotProtectionAction[];
 }
 
 /**
@@ -274,25 +275,24 @@ export interface BotProtectionSetting {
  */
 export async function resolveEffectiveBotProtection(
   config: ResolvedBotProtectionConfig | undefined,
-  settings: SettingsCapability
+  settings: SettingsCapability,
 ): Promise<ResolvedBotProtectionConfig | undefined> {
-  if (!config) return undefined
+  if (!config) return undefined;
 
-  const raw = await settings.getSetting('bot_protection')
-  if (raw === null || raw === undefined) return config
+  const raw = await settings.getSetting('bot_protection');
+  if (raw === null || raw === undefined) return config;
 
   // Valida a shape mínima da setting.
   if (typeof raw !== 'object' || typeof (raw as any).enabled !== 'boolean') {
-    return config // shape inválida → fallback
+    return config; // shape inválida → fallback
   }
 
-  const setting = raw as BotProtectionSetting
+  const setting = raw as BotProtectionSetting;
 
-  if (!setting.enabled) return undefined // runtime off
+  if (!setting.enabled) return undefined; // runtime off
 
   // enabled: true — on pode sobrescrever
-  const on =
-    Array.isArray(setting.on) && setting.on.length > 0 ? setting.on : config.on
+  const on = Array.isArray(setting.on) && setting.on.length > 0 ? setting.on : config.on;
 
-  return { ...config, on }
+  return { ...config, on };
 }

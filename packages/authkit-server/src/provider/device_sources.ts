@@ -1,4 +1,4 @@
-import { translate, type AuthMessages } from '../host/i18n.js'
+import { type AuthMessages, translate } from '../host/i18n.js';
 
 /**
  * Fontes (sources) de renderização do Device Authorization Grant (RFC 8628).
@@ -17,7 +17,7 @@ function esc(value: unknown): string {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+    .replace(/"/g, '&quot;');
 }
 
 const STYLE = `
@@ -32,33 +32,33 @@ const STYLE = `
   button:hover{background:#0077ed}
   .abort{margin-top:12px;background:none;color:#666;font-weight:400}
   .abort:hover{background:none;text-decoration:underline}
-`
+`;
 
 function page(title: string, inner: string): string {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)}</title><style>${STYLE}</style></head><body><div class="card">${inner}</div></body></html>`
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)}</title><style>${STYLE}</style></head><body><div class="card">${inner}</div></body></html>`;
 }
 
 export function createDeviceSources(messages: AuthMessages) {
   const t = (key: string, params?: Record<string, string | number>) =>
-    translate(messages, key, params)
+    translate(messages, key, params);
 
   return {
     async userCodeInputSource(_ctx: any, form: string, _out: any, err: any) {
-      const ctx = _ctx
-      let msg: string
+      const ctx = _ctx;
+      let msg: string;
       if (err && (err.userCode || err.name === 'NoCodeError')) {
-        msg = `<p class="red">${esc(t('device.input.error_invalid'))}</p>`
+        msg = `<p class="red">${esc(t('device.input.error_invalid'))}</p>`;
       } else if (err && err.name === 'AbortedError') {
-        msg = `<p class="red">${esc(t('device.input.error_aborted'))}</p>`
+        msg = `<p class="red">${esc(t('device.input.error_aborted'))}</p>`;
       } else if (err) {
-        msg = `<p class="red">${esc(t('device.input.error_generic'))}</p>`
+        msg = `<p class="red">${esc(t('device.input.error_generic'))}</p>`;
       } else {
-        msg = `<p>${esc(t('device.input.intro'))}</p>`
+        msg = `<p>${esc(t('device.input.intro'))}</p>`;
       }
       ctx.body = page(
         t('device.input.title'),
-        `<h1>${esc(t('device.input.title'))}</h1>${msg}${form}<button type="submit" form="op.deviceInputForm">${esc(t('device.input.submit'))}</button>`
-      )
+        `<h1>${esc(t('device.input.title'))}</h1>${msg}${form}<button type="submit" form="op.deviceInputForm">${esc(t('device.input.submit'))}</button>`,
+      );
     },
 
     async userCodeConfirmSource(
@@ -66,21 +66,21 @@ export function createDeviceSources(messages: AuthMessages) {
       form: string,
       _client: any,
       _deviceInfo: any,
-      userCode: string
+      userCode: string,
     ) {
-      const ctx = _ctx
+      const ctx = _ctx;
       ctx.body = page(
         t('device.confirm.title'),
-        `<h1>${esc(t('device.confirm.title'))}</h1><p>${esc(t('device.confirm.body'))}</p><code>${esc(userCode)}</code>${form}<button autofocus type="submit" form="op.deviceConfirmForm">${esc(t('device.confirm.submit'))}</button><button class="abort" type="submit" form="op.deviceConfirmForm" value="yes" name="abort">${esc(t('device.confirm.abort'))}</button>`
-      )
+        `<h1>${esc(t('device.confirm.title'))}</h1><p>${esc(t('device.confirm.body'))}</p><code>${esc(userCode)}</code>${form}<button autofocus type="submit" form="op.deviceConfirmForm">${esc(t('device.confirm.submit'))}</button><button class="abort" type="submit" form="op.deviceConfirmForm" value="yes" name="abort">${esc(t('device.confirm.abort'))}</button>`,
+      );
     },
 
     async successSource(_ctx: any) {
-      const ctx = _ctx
+      const ctx = _ctx;
       ctx.body = page(
         t('device.success.title'),
-        `<h1>${esc(t('device.success.title'))}</h1><p>${esc(t('device.success.body'))}</p>`
-      )
+        `<h1>${esc(t('device.success.title'))}</h1><p>${esc(t('device.success.body'))}</p>`,
+      );
     },
-  }
+  };
 }

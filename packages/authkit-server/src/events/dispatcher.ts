@@ -1,6 +1,6 @@
-import { createHmac } from "node:crypto";
-import type { AuditEvent, AuditSink } from "../audit/audit_sink.js";
-import { emitDiagnostic } from "../observability/diagnostics_bridge.js";
+import { createHmac } from 'node:crypto';
+import type { AuditEvent, AuditSink } from '../audit/audit_sink.js';
+import { emitDiagnostic } from '../observability/diagnostics_bridge.js';
 
 /**
  * Configuração de eventos/webhooks para o host observar tudo que o IdP audita.
@@ -29,9 +29,7 @@ export interface ResolvedEventsConfig {
   webhook?: { url: string; secret?: string };
 }
 
-export function resolveEvents(
-  input?: EventsConfigInput,
-): ResolvedEventsConfig | undefined {
+export function resolveEvents(input?: EventsConfigInput): ResolvedEventsConfig | undefined {
   if (!input || (!input.onEvent && !input.webhook)) return undefined;
   return {
     onEvent: input.onEvent,
@@ -60,7 +58,7 @@ export function buildWebhookBody(event: AuditEvent): string {
 
 /** Calcula o header de assinatura `sha256=<hmac>` para um corpo + segredo. */
 export function signWebhookBody(body: string, secret: string): string {
-  return "sha256=" + createHmac("sha256", secret).update(body).digest("hex");
+  return `sha256=${createHmac('sha256', secret).update(body).digest('hex')}`;
 }
 
 /**
@@ -113,13 +111,13 @@ async function dispatchWebhook(
   try {
     const body = buildWebhookBody(event);
     const headers: Record<string, string> = {
-      "content-type": "application/json",
+      'content-type': 'application/json',
     };
     if (webhook.secret) {
-      headers["x-authkit-signature"] = signWebhookBody(body, webhook.secret);
+      headers['x-authkit-signature'] = signWebhookBody(body, webhook.secret);
     }
     await fetch(webhook.url, {
-      method: "POST",
+      method: 'POST',
       headers,
       body,
       signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
@@ -170,11 +168,11 @@ export function composeAuditSink(
     },
   };
   // Preserva a capacidade de consulta do sink original (console admin).
-  if (original && typeof original.list === "function") {
+  if (original && typeof original.list === 'function') {
     composed.list = original.list.bind(original);
   }
   // Preserva a anonimização (LGPD) do sink original (deleção de conta).
-  if (original && typeof original.anonymizeAccount === "function") {
+  if (original && typeof original.anonymizeAccount === 'function') {
     composed.anonymizeAccount = original.anonymizeAccount.bind(original);
   }
   // Preserva quaisquer propriedades extras do sink original (ex.: campos de
@@ -186,10 +184,9 @@ export function composeAuditSink(
     const src = original as unknown as Record<string, unknown>;
     const dst = composed as unknown as Record<string, unknown>;
     for (const key of Object.keys(src)) {
-      if (key === "record" || key === "list" || key === "anonymizeAccount")
-        continue;
+      if (key === 'record' || key === 'list' || key === 'anonymizeAccount') continue;
       const value = src[key];
-      dst[key] = typeof value === "function" ? value.bind(original) : value;
+      dst[key] = typeof value === 'function' ? value.bind(original) : value;
     }
   }
   return composed;

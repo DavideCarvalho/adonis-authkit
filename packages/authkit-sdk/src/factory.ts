@@ -1,12 +1,12 @@
-import { createEmbeddedAuthkit } from './embedded_driver.js'
-import type { EmbeddedOptions } from './embedded_driver.js'
-import { createRemoteAuthkit } from './remote_driver.js'
-import type { RemoteOptions } from './remote_driver.js'
-import type { Authkit } from './types.js'
+import { createEmbeddedAuthkit } from './embedded_driver.js';
+import type { EmbeddedOptions } from './embedded_driver.js';
+import { createRemoteAuthkit } from './remote_driver.js';
+import type { RemoteOptions } from './remote_driver.js';
+import type { Authkit } from './types.js';
 
 export type CreateAuthkitOptions =
   | ({ mode: 'remote' } & RemoteOptions)
-  | ({ mode: 'embedded' } & EmbeddedOptions)
+  | ({ mode: 'embedded' } & EmbeddedOptions);
 
 /**
  * Creates an AuthKit backend SDK over the Admin API. Pick a driver via `mode`:
@@ -19,7 +19,7 @@ export type CreateAuthkitOptions =
  */
 export function createAuthkit(options: CreateAuthkitOptions): Promise<Authkit> {
   if (options.mode === 'embedded') {
-    return createEmbeddedAuthkit(options)
+    return createEmbeddedAuthkit(options);
   }
-  return Promise.resolve(createRemoteAuthkit(options))
+  return Promise.resolve(createRemoteAuthkit(options));
 }

@@ -1,28 +1,28 @@
-import React, { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  useCreateClientMutationOptions,
-  useUpdateClientMutationOptions,
-  useAuthkitClient,
-  authkitKeys,
   type AdminClient,
   type CreateClientInput,
-} from '@adonis-agora/authkit-react'
-import { Modal } from '../components/Modal'
-import { useToast } from '../lib/toast'
-import { ClientsListContainer, useClientsCount } from '../containers/clients.containers'
+  authkitKeys,
+  useAuthkitClient,
+  useCreateClientMutationOptions,
+  useUpdateClientMutationOptions,
+} from '@adonis-agora/authkit-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { Modal } from '../components/Modal';
+import { ClientsListContainer, useClientsCount } from '../containers/clients.containers';
+import { useToast } from '../lib/toast';
 
-const GRANT_TYPES = ['authorization_code', 'refresh_token', 'client_credentials', 'implicit']
-const AUTH_METHODS = ['client_secret_basic', 'client_secret_post', 'none']
+const GRANT_TYPES = ['authorization_code', 'refresh_token', 'client_credentials', 'implicit'];
+const AUTH_METHODS = ['client_secret_basic', 'client_secret_post', 'none'];
 
 interface FormState {
-  clientIdOverride: string
-  redirectUris: string[]
-  postLogoutRedirectUris: string[]
-  grantTypes: string[]
-  tokenEndpointAuthMethod: string
-  backchannelLogoutUri: string
-  backchannelLogoutSessionRequired: boolean
+  clientIdOverride: string;
+  redirectUris: string[];
+  postLogoutRedirectUris: string[];
+  grantTypes: string[];
+  tokenEndpointAuthMethod: string;
+  backchannelLogoutUri: string;
+  backchannelLogoutSessionRequired: boolean;
 }
 
 function defaultForm(): FormState {
@@ -34,30 +34,32 @@ function defaultForm(): FormState {
     tokenEndpointAuthMethod: 'client_secret_basic',
     backchannelLogoutUri: '',
     backchannelLogoutSessionRequired: false,
-  }
+  };
 }
 
 export function Clients() {
-  const toast = useToast()
-  const queryClient = useQueryClient()
-  const authkitClient = useAuthkitClient()
-  const clientsCount = useClientsCount()
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const authkitClient = useAuthkitClient();
+  const clientsCount = useClientsCount();
 
-  const [createOpen, setCreateOpen] = useState(false)
-  const [editClient, setEditClient] = useState<AdminClient | null>(null)
-  const [createdSecret, setCreatedSecret] = useState<{ clientId: string; secret: string } | null>(null)
-  const [formData, setFormData] = useState<FormState>(defaultForm())
-  const [redirectInput, setRedirectInput] = useState('')
-  const [logoutInput, setLogoutInput] = useState('')
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editClient, setEditClient] = useState<AdminClient | null>(null);
+  const [createdSecret, setCreatedSecret] = useState<{ clientId: string; secret: string } | null>(
+    null,
+  );
+  const [formData, setFormData] = useState<FormState>(defaultForm());
+  const [redirectInput, setRedirectInput] = useState('');
+  const [logoutInput, setLogoutInput] = useState('');
 
-  const createMutation = useMutation(useCreateClientMutationOptions())
-  const updateMutation = useMutation(useUpdateClientMutationOptions(editClient?.clientId ?? ''))
+  const createMutation = useMutation(useCreateClientMutationOptions());
+  const updateMutation = useMutation(useUpdateClientMutationOptions(editClient?.clientId ?? ''));
 
   function openCreate() {
-    setFormData(defaultForm())
-    setRedirectInput('')
-    setLogoutInput('')
-    setCreateOpen(true)
+    setFormData(defaultForm());
+    setRedirectInput('');
+    setLogoutInput('');
+    setCreateOpen(true);
   }
 
   function openEdit(c: AdminClient) {
@@ -69,29 +71,32 @@ export function Clients() {
       tokenEndpointAuthMethod: c.tokenEndpointAuthMethod,
       backchannelLogoutUri: c.backchannelLogoutUri ?? '',
       backchannelLogoutSessionRequired: c.backchannelLogoutSessionRequired,
-    })
-    setRedirectInput('')
-    setLogoutInput('')
-    setEditClient(c)
+    });
+    setRedirectInput('');
+    setLogoutInput('');
+    setEditClient(c);
   }
 
   function addUri(type: 'redirect' | 'logout') {
-    const val = type === 'redirect' ? redirectInput.trim() : logoutInput.trim()
-    if (!val) return
+    const val = type === 'redirect' ? redirectInput.trim() : logoutInput.trim();
+    if (!val) return;
     if (type === 'redirect') {
-      setFormData((f) => ({ ...f, redirectUris: [...f.redirectUris, val] }))
-      setRedirectInput('')
+      setFormData((f) => ({ ...f, redirectUris: [...f.redirectUris, val] }));
+      setRedirectInput('');
     } else {
-      setFormData((f) => ({ ...f, postLogoutRedirectUris: [...f.postLogoutRedirectUris, val] }))
-      setLogoutInput('')
+      setFormData((f) => ({ ...f, postLogoutRedirectUris: [...f.postLogoutRedirectUris, val] }));
+      setLogoutInput('');
     }
   }
 
   function removeUri(type: 'redirect' | 'logout', idx: number) {
     if (type === 'redirect') {
-      setFormData((f) => ({ ...f, redirectUris: f.redirectUris.filter((_, i) => i !== idx) }))
+      setFormData((f) => ({ ...f, redirectUris: f.redirectUris.filter((_, i) => i !== idx) }));
     } else {
-      setFormData((f) => ({ ...f, postLogoutRedirectUris: f.postLogoutRedirectUris.filter((_, i) => i !== idx) }))
+      setFormData((f) => ({
+        ...f,
+        postLogoutRedirectUris: f.postLogoutRedirectUris.filter((_, i) => i !== idx),
+      }));
     }
   }
 
@@ -101,11 +106,11 @@ export function Clients() {
       grantTypes: f.grantTypes.includes(g)
         ? f.grantTypes.filter((x) => x !== g)
         : [...f.grantTypes, g],
-    }))
+    }));
   }
 
   async function handleCreate(e: React.FormEvent) {
-    e.preventDefault()
+    e.preventDefault();
     try {
       const input: CreateClientInput = {
         clientId: formData.clientIdOverride || undefined,
@@ -115,23 +120,23 @@ export function Clients() {
         tokenEndpointAuthMethod: formData.tokenEndpointAuthMethod,
         backchannelLogoutUri: formData.backchannelLogoutUri || undefined,
         backchannelLogoutSessionRequired: formData.backchannelLogoutSessionRequired,
-      }
-      const r = await createMutation.mutateAsync(input)
-      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.clients() })
-      setCreateOpen(false)
+      };
+      const r = await createMutation.mutateAsync(input);
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.clients() });
+      setCreateOpen(false);
       if (r.clientSecret) {
-        setCreatedSecret({ clientId: r.clientId, secret: r.clientSecret })
+        setCreatedSecret({ clientId: r.clientId, secret: r.clientSecret });
       } else {
-        toast.success(`Client ${r.clientId} created`)
+        toast.success(`Client ${r.clientId} created`);
       }
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   }
 
   async function handleUpdate(e: React.FormEvent) {
-    e.preventDefault()
-    if (!editClient) return
+    e.preventDefault();
+    if (!editClient) return;
     try {
       await updateMutation.mutateAsync({
         redirectUris: formData.redirectUris,
@@ -140,37 +145,37 @@ export function Clients() {
         tokenEndpointAuthMethod: formData.tokenEndpointAuthMethod,
         backchannelLogoutUri: formData.backchannelLogoutUri || undefined,
         backchannelLogoutSessionRequired: formData.backchannelLogoutSessionRequired,
-      })
-      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.clients() })
-      toast.success('Client updated')
-      setEditClient(null)
+      });
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.clients() });
+      toast.success('Client updated');
+      setEditClient(null);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   }
 
   async function handleDelete(c: AdminClient) {
-    if (!confirm(`Delete client ${c.clientId}?`)) return
+    if (!confirm(`Delete client ${c.clientId}?`)) return;
     try {
-      await authkitClient.admin.clients.remove(c.clientId)
-      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.clients() })
-      toast.success('Client deleted')
+      await authkitClient.admin.clients.remove(c.clientId);
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.clients() });
+      toast.success('Client deleted');
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   }
 
   async function handleRegenerate(c: AdminClient) {
-    if (!confirm(`Regenerate secret for ${c.clientId}? Existing secret will stop working.`)) return
+    if (!confirm(`Regenerate secret for ${c.clientId}? Existing secret will stop working.`)) return;
     try {
-      const r = await authkitClient.admin.clients.regenerateSecret(c.clientId)
+      const r = await authkitClient.admin.clients.regenerateSecret(c.clientId);
       if (r.clientSecret) {
-        setCreatedSecret({ clientId: r.clientId, secret: r.clientSecret })
+        setCreatedSecret({ clientId: r.clientId, secret: r.clientSecret });
       } else {
-        toast.info('No secret returned (public client)')
+        toast.info('No secret returned (public client)');
       }
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -211,7 +216,11 @@ export function Clients() {
           value={formData.tokenEndpointAuthMethod}
           onChange={(e) => setFormData((f) => ({ ...f, tokenEndpointAuthMethod: e.target.value }))}
         >
-          {AUTH_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+          {AUTH_METHODS.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -220,8 +229,14 @@ export function Clients() {
         {formData.redirectUris.map((uri, i) => (
           <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
             <input className="input input-mono" value={uri} readOnly style={{ flex: 1 }} />
-            <button type="button" className="btn btn-sm btn-danger" onClick={() => removeUri('redirect', i)}>
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3l10 10M13 3L3 13" strokeLinecap="round" /></svg>
+            <button
+              type="button"
+              className="btn btn-sm btn-danger"
+              onClick={() => removeUri('redirect', i)}
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 3l10 10M13 3L3 13" strokeLinecap="round" />
+              </svg>
             </button>
           </div>
         ))}
@@ -231,9 +246,16 @@ export function Clients() {
             value={redirectInput}
             onChange={(e) => setRedirectInput(e.target.value)}
             placeholder="https://app.example.com/callback"
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addUri('redirect') } }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                addUri('redirect');
+              }
+            }}
           />
-          <button type="button" className="btn btn-sm" onClick={() => addUri('redirect')}>Add</button>
+          <button type="button" className="btn btn-sm" onClick={() => addUri('redirect')}>
+            Add
+          </button>
         </div>
       </div>
 
@@ -242,8 +264,14 @@ export function Clients() {
         {formData.postLogoutRedirectUris.map((uri, i) => (
           <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
             <input className="input input-mono" value={uri} readOnly style={{ flex: 1 }} />
-            <button type="button" className="btn btn-sm btn-danger" onClick={() => removeUri('logout', i)}>
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3l10 10M13 3L3 13" strokeLinecap="round" /></svg>
+            <button
+              type="button"
+              className="btn btn-sm btn-danger"
+              onClick={() => removeUri('logout', i)}
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 3l10 10M13 3L3 13" strokeLinecap="round" />
+              </svg>
             </button>
           </div>
         ))}
@@ -253,9 +281,16 @@ export function Clients() {
             value={logoutInput}
             onChange={(e) => setLogoutInput(e.target.value)}
             placeholder="https://app.example.com/logged-out"
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addUri('logout') } }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                addUri('logout');
+              }
+            }}
           />
-          <button type="button" className="btn btn-sm" onClick={() => addUri('logout')}>Add</button>
+          <button type="button" className="btn btn-sm" onClick={() => addUri('logout')}>
+            Add
+          </button>
         </div>
       </div>
 
@@ -273,12 +308,14 @@ export function Clients() {
         <input
           type="checkbox"
           checked={formData.backchannelLogoutSessionRequired}
-          onChange={(e) => setFormData((f) => ({ ...f, backchannelLogoutSessionRequired: e.target.checked }))}
+          onChange={(e) =>
+            setFormData((f) => ({ ...f, backchannelLogoutSessionRequired: e.target.checked }))
+          }
         />
         <span className="chk-label">Require session ID in backchannel logout</span>
       </label>
     </form>
-  )
+  );
 
   return (
     <div>
@@ -312,8 +349,14 @@ export function Clients() {
         large
         footer={
           <>
-            <button className="btn" onClick={() => setCreateOpen(false)}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleCreate} disabled={createMutation.isPending}>
+            <button className="btn" onClick={() => setCreateOpen(false)}>
+              Cancel
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={handleCreate}
+              disabled={createMutation.isPending}
+            >
               {createMutation.isPending ? <span className="spinner sm" /> : 'Create Client'}
             </button>
           </>
@@ -330,8 +373,14 @@ export function Clients() {
         large
         footer={
           <>
-            <button className="btn" onClick={() => setEditClient(null)}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleUpdate} disabled={updateMutation.isPending}>
+            <button className="btn" onClick={() => setEditClient(null)}>
+              Cancel
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={handleUpdate}
+              disabled={updateMutation.isPending}
+            >
               {updateMutation.isPending ? <span className="spinner sm" /> : 'Save Changes'}
             </button>
           </>
@@ -346,10 +395,19 @@ export function Clients() {
         onClose={() => setCreatedSecret(null)}
         title="Client Secret — Save Now"
         footer={
-          <button className="btn btn-primary" onClick={() => setCreatedSecret(null)}>I've saved it</button>
+          <button className="btn btn-primary" onClick={() => setCreatedSecret(null)}>
+            I've saved it
+          </button>
         }
       >
-        <div className="error-box" style={{ background: 'var(--amber-soft)', borderColor: 'rgba(255,180,84,0.3)', color: 'var(--amber)' }}>
+        <div
+          className="error-box"
+          style={{
+            background: 'var(--amber-soft)',
+            borderColor: 'rgba(255,180,84,0.3)',
+            color: 'var(--amber)',
+          }}
+        >
           This secret will not be shown again. Copy it now.
         </div>
         <div className="secret-box" style={{ marginTop: 12 }}>
@@ -367,11 +425,14 @@ export function Clients() {
         >
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
             <rect x="5" y="5" width="9" height="9" rx="1.5" />
-            <path d="M3.5 11H3a1.5 1.5 0 01-1.5-1.5V3A1.5 1.5 0 013 1.5h6.5A1.5 1.5 0 0111 3v.5" strokeLinecap="round" />
+            <path
+              d="M3.5 11H3a1.5 1.5 0 01-1.5-1.5V3A1.5 1.5 0 013 1.5h6.5A1.5 1.5 0 0111 3v.5"
+              strokeLinecap="round"
+            />
           </svg>
           Copy secret
         </button>
       </Modal>
     </div>
-  )
+  );
 }

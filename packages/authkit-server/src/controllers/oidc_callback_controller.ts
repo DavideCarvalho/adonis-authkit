@@ -1,4 +1,4 @@
-import type { HttpContext } from '@adonisjs/core/http'
+import type { HttpContext } from '@adonisjs/core/http';
 
 /**
  * Delega a requisição Adonis ao handler do oidc-provider (`service.callback`),
@@ -20,18 +20,18 @@ import type { HttpContext } from '@adonisjs/core/http'
  */
 export default class OidcCallbackController {
   async handle(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make('authkit.server')
-    const req = ctx.request.request as any
-    const res = ctx.response.response
+    const service = await ctx.containerResolver.make('authkit.server');
+    const req = ctx.request.request as any;
+    const res = ctx.response.response;
 
     // Repassa o body já parseado pelo AdonisJS para o req cru, pois o stream
     // foi consumido pelo bodyparser_middleware antes de chegar neste controller.
-    req.body = ctx.request.all()
+    req.body = ctx.request.all();
 
     return new Promise<void>((resolve) => {
-      res.on('finish', resolve)
-      res.on('close', resolve)
-      service.callback(req, res)
-    })
+      res.on('finish', resolve);
+      res.on('close', resolve);
+      service.callback(req, res);
+    });
   }
 }

@@ -3,30 +3,30 @@
  * em runtime. Usado internamente pela lib para representar clients em memória.
  */
 export interface ClientConfig {
-  clientId: string
-  clientSecret?: string
-  redirectUris: string[]
-  postLogoutRedirectUris?: string[]
-  grants?: string[]
+  clientId: string;
+  clientSecret?: string;
+  redirectUris: string[];
+  postLogoutRedirectUris?: string[];
+  grants?: string[];
   /** 'none' para public clients (SPA com PKCE) */
-  tokenEndpointAuthMethod?: 'client_secret_basic' | 'client_secret_post' | 'none'
+  tokenEndpointAuthMethod?: 'client_secret_basic' | 'client_secret_post' | 'none';
   /**
    * Endpoint do RP que recebe o POST de OIDC Back-Channel Logout. Quando definido,
    * o IdP envia um `logout_token` para esta URI ao encerrar a sessão/grant do usuário.
    */
-  backchannelLogoutUri?: string
+  backchannelLogoutUri?: string;
   /**
    * Exige que o `logout_token` inclua a claim `sid` (session id). Mapeado para
    * `backchannel_logout_session_required` do oidc-provider. Default: false.
    */
-  backchannelLogoutSessionRequired?: boolean
+  backchannelLogoutSessionRequired?: boolean;
 }
 
 export interface TtlConfig {
-  accessToken?: string | number
-  refreshToken?: string | number
-  idToken?: string | number
-  session?: string | number
+  accessToken?: string | number;
+  refreshToken?: string | number;
+  idToken?: string | number;
+  session?: string | number;
 }
 
 /** Config de onde o keystore managed mora. String = atalho p/ { driver:'file', path }. */
@@ -36,37 +36,44 @@ export type KeystoreStoreConfig =
   | { driver: 'drive'; disk?: string; key: string }
   | { driver: 'lucid'; table?: string; connection?: string; key?: string }
   | { driver: 'redis'; connection?: string; key?: string }
-  | { driver: 'hashicorp-vault'; endpoint: string; path: string; token?: string; mount?: string; field?: string }
+  | {
+      driver: 'hashicorp-vault';
+      endpoint: string;
+      path: string;
+      token?: string;
+      mount?: string;
+      field?: string;
+    }
   | { driver: 'aws-secrets-manager'; secretId: string; region?: string }
   | { driver: 'gcp-secret-manager'; name: string }
-  | { driver: 'azure-key-vault'; vaultUrl: string; secretName: string }
+  | { driver: 'azure-key-vault'; vaultUrl: string; secretName: string };
 
 export interface JwksConfig {
   /** 'managed' = lib gera/rotaciona/persiste; 'jwks' = fornecido inline */
-  source: 'managed' | 'jwks'
+  source: 'managed' | 'jwks';
   /** usado quando source='managed' */
-  rotationDays?: number
-  algorithm?: 'RS256' | 'ES256' | 'PS256' | 'EdDSA'
+  rotationDays?: number;
+  algorithm?: 'RS256' | 'ES256' | 'PS256' | 'EdDSA';
   /**
    * Onde o keystore PRIVADO managed é persistido. String = atalho p/ arquivo
    * (`{driver:'file', path}`). Objeto `{ driver }` = cofre (file/drive/vault).
    * Ausente = chave efêmera por boot (sem rotação real).
    */
-  store?: KeystoreStoreConfig
+  store?: KeystoreStoreConfig;
   /** Encripta o keystore em repouso (APP_KEY). Default backend-aware: file/drive ON, vault real OFF. */
-  encrypt?: boolean
+  encrypt?: boolean;
   /** usado quando source='jwks' */
-  keys?: Record<string, unknown>[]
+  keys?: Record<string, unknown>[];
 }
 
 export interface ObservabilityConfig {
-  metrics?: boolean
-  jsonRoutes?: boolean
-  dashboard?: boolean
+  metrics?: boolean;
+  jsonRoutes?: boolean;
+  dashboard?: boolean;
 }
 
 /** Formato de emissão de um Access Token. */
-export type AccessTokenFormat = 'opaque' | 'jwt'
+export type AccessTokenFormat = 'opaque' | 'jwt';
 
 /**
  * Configuração de um Resource Server (API) endereçável por um resource indicator
@@ -78,16 +85,16 @@ export interface AccessTokenResourceConfig {
   /**
    * Valor da claim `aud` do JWT AT. Default: o próprio resource indicator (a chave).
    */
-  audience?: string
+  audience?: string;
   /**
    * Scopes que ESTA API aceita (space/array). Quando omitido, todos os scopes do
    * provider são oferecidos a esta resource.
    */
-  scopes?: string[]
+  scopes?: string[];
   /** Formato do AT para esta resource. Default: herda o `accessTokens.format`. */
-  format?: AccessTokenFormat
+  format?: AccessTokenFormat;
   /** TTL do AT (segundos) para esta resource. Default: herda `ttl.accessToken`. */
-  expiresIn?: number
+  expiresIn?: number;
 }
 
 /**
@@ -106,23 +113,23 @@ export interface AccessTokenResourceConfig {
  */
 export interface AccessTokensConfig {
   /** Formato default de TODOS os ATs sem resource explícito. Default: 'opaque'. */
-  format?: AccessTokenFormat
+  format?: AccessTokenFormat;
   /**
    * Claim `aud` do JWT AT no modo simples (sem `resources`). Também é o resource
    * indicator default usado quando `format: 'jwt'`. Default: o issuer.
    */
-  audience?: string
+  audience?: string;
   /** Resource Servers (APIs) endereçáveis por resource indicator (RFC 8707). */
-  resources?: Record<string, AccessTokenResourceConfig>
+  resources?: Record<string, AccessTokenResourceConfig>;
 }
 
 /** Forma normalizada do config do server (pós-`defineConfig`). */
 export interface ResolvedAuthServerConfig {
-  issuer: string
-  clients: ClientConfig[]
-  ttl: Required<TtlConfig>
-  jwks: JwksConfig
-  globalRolesClaim: string
-  cookieKeys: string[]
-  observability: ObservabilityConfig
+  issuer: string;
+  clients: ClientConfig[];
+  ttl: Required<TtlConfig>;
+  jwks: JwksConfig;
+  globalRolesClaim: string;
+  cookieKeys: string[];
+  observability: ObservabilityConfig;
 }

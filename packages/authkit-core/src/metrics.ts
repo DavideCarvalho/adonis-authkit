@@ -11,6 +11,6 @@ export const AUTHKIT_METRICS = {
   resolveErrors: 'authkit.resolve.errors',
   jwksRefresh: 'authkit.jwks.refresh',
   tokenRefresh: 'authkit.token.refresh',
-} as const
+} as const;
 
-export type AuthkitMetricName = (typeof AUTHKIT_METRICS)[keyof typeof AUTHKIT_METRICS]
+export type AuthkitMetricName = (typeof AUTHKIT_METRICS)[keyof typeof AUTHKIT_METRICS];

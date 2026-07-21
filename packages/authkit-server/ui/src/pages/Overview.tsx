@@ -1,5 +1,10 @@
-import React from 'react'
-import { MetricsContainer, SignInsChartContainer, SignUpsChartContainer, RecentEventsContainer } from '../containers/overview.containers'
+import React from 'react';
+import {
+  MetricsContainer,
+  RecentEventsContainer,
+  SignInsChartContainer,
+  SignUpsChartContainer,
+} from '../containers/overview.containers';
 
 export function Overview() {
   return (
@@ -20,5 +25,5 @@ export function Overview() {
         <RecentEventsContainer />
       </div>
     </div>
-  )
+  );
 }

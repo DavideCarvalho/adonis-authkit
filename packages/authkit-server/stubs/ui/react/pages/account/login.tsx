@@ -1,9 +1,9 @@
-{{{
-  exports({ to: app.makePath('inertia/pages/authkit/account/login.tsx') })
-}}}
+{
+  exports({ to: app.makePath('inertia/pages/authkit/account/login.tsx') });
+}
 interface Props {
-  csrfToken: string
-  error?: string
+  csrfToken: string;
+  error?: string;
 }
 
 export default function AccountLogin({ csrfToken, error }: Props) {
@@ -29,7 +29,6 @@ export default function AccountLogin({ csrfToken, error }: Props) {
           name="email"
           type="email"
           required
-          autoFocus
           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900"
         />
 
@@ -52,5 +51,5 @@ export default function AccountLogin({ csrfToken, error }: Props) {
         </button>
       </form>
     </div>
-  )
+  );
 }

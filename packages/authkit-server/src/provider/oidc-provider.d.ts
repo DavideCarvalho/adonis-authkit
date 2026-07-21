@@ -5,14 +5,14 @@
  */
 declare module 'oidc-provider' {
   export class Provider {
-    constructor(issuer: string, configuration?: Record<string, any>)
-    issuer: string
-    proxy: boolean
-    callback(): (req: any, res: any) => void
-    [key: string]: any
+    constructor(issuer: string, configuration?: Record<string, any>);
+    issuer: string;
+    proxy: boolean;
+    callback(): (req: any, res: any) => void;
+    [key: string]: any;
   }
-  const _default: typeof Provider
-  export default _default
+  const _default: typeof Provider;
+  export default _default;
 
   /**
    * Classes de erro OAuth/OIDC expostas pelo provider (runtime real do
@@ -20,11 +20,11 @@ declare module 'oidc-provider' {
    * de grant customizados.
    */
   export const errors: {
-    InvalidRequest: new (description?: string, status?: number) => Error
-    InvalidGrant: new (description?: string) => Error
-    InvalidClient: new (description?: string) => Error
-    [key: string]: new (...args: any[]) => Error
-  }
+    InvalidRequest: new (description?: string, status?: number) => Error;
+    InvalidGrant: new (description?: string) => Error;
+    InvalidClient: new (description?: string) => Error;
+    [key: string]: new (...args: any[]) => Error;
+  };
 }
 
 /**
@@ -33,8 +33,8 @@ declare module 'oidc-provider' {
  * Usado pelo console admin para invalidar o cache de clients após escritas no adapter.
  */
 declare module 'oidc-provider/lib/helpers/weak_cache.js' {
-  export function get(provider: unknown): any
-  export function set(provider: unknown, value: any): void
-  const _default: typeof get
-  export default _default
+  export function get(provider: unknown): any;
+  export function set(provider: unknown, value: any): void;
+  const _default: typeof get;
+  export default _default;
 }

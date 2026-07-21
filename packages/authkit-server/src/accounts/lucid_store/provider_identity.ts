@@ -1,5 +1,5 @@
-import type { LinkProviderIdentityInput, ProviderIdentityCapability } from '../account_store.js'
-import type { LucidStoreContext } from './shared.js'
+import type { LinkProviderIdentityInput, ProviderIdentityCapability } from '../account_store.js';
+import type { LucidStoreContext } from './shared.js';
 
 /**
  * Capacidade de account linking por identidade de provider (Google, GitHub, …).
@@ -8,19 +8,19 @@ import type { LucidStoreContext } from './shared.js'
  */
 export function buildProviderIdentity(
   ctx: LucidStoreContext,
-  ProviderIdentityModel: any
+  ProviderIdentityModel: any,
 ): ProviderIdentityCapability {
-  const { Model, toAccount } = ctx
+  const { Model, toAccount } = ctx;
 
   return {
     async findByProviderIdentity(provider, providerUserId) {
       const identity = await ProviderIdentityModel.query()
         .where('provider', provider)
         .where('providerUserId', providerUserId)
-        .first()
-      if (!identity) return null
-      const row = await Model.find(identity.accountId)
-      return row ? toAccount(row) : null
+        .first();
+      if (!identity) return null;
+      const row = await Model.find(identity.accountId);
+      return row ? toAccount(row) : null;
     },
 
     async linkProviderIdentity(data: LinkProviderIdentityInput) {
@@ -29,39 +29,39 @@ export function buildProviderIdentity(
       const existing = await ProviderIdentityModel.query()
         .where('provider', data.provider)
         .where('providerUserId', data.providerUserId)
-        .first()
+        .first();
       if (existing) {
-        existing.accountId = data.accountId
-        if (data.email !== undefined) existing.email = data.email
-        await existing.save()
-        return
+        existing.accountId = data.accountId;
+        if (data.email !== undefined) existing.email = data.email;
+        await existing.save();
+        return;
       }
       await ProviderIdentityModel.create({
         provider: data.provider,
         providerUserId: data.providerUserId,
         accountId: data.accountId,
         email: data.email ?? null,
-      })
+      });
     },
 
     async unlinkAllProviderIdentities(accountId) {
-      const rows = await ProviderIdentityModel.query().where('accountId', accountId)
-      let count = 0
+      const rows = await ProviderIdentityModel.query().where('accountId', accountId);
+      let count = 0;
       for (const row of rows) {
-        await row.delete()
-        count++
+        await row.delete();
+        count++;
       }
-      return count
+      return count;
     },
 
     async listProviderIdentities(accountId) {
-      const rows = await ProviderIdentityModel.query().where('accountId', accountId)
+      const rows = await ProviderIdentityModel.query().where('accountId', accountId);
       // NUNCA expõe tokens — só os identificadores estáveis do provider + email.
       return rows.map((r: any) => ({
         provider: r.provider,
         providerUserId: r.providerUserId,
         email: r.email ?? null,
-      }))
+      }));
     },
-  }
+  };
 }

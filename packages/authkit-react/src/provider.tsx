@@ -1,5 +1,5 @@
-import { createContext, createElement, type ReactNode } from 'react'
-import type { AuthSharedProps } from './types.js'
+import { type ReactNode, createContext, createElement } from 'react';
+import type { AuthSharedProps } from './types.js';
 
 /**
  * Contexto opcional para fornecer o valor do authkit fora do Inertia
@@ -8,11 +8,11 @@ import type { AuthSharedProps } from './types.js'
  * Quando ausente (default), `useAuth()` lê de `usePage().props.authkit`.
  * Quando presente, o valor do provider tem precedência.
  */
-export const AuthContext = createContext<AuthSharedProps['authkit'] | undefined>(undefined)
+export const AuthContext = createContext<AuthSharedProps['authkit'] | undefined>(undefined);
 
 export interface AuthProviderProps {
-  value: AuthSharedProps['authkit']
-  children: ReactNode
+  value: AuthSharedProps['authkit'];
+  children: ReactNode;
 }
 
 /**
@@ -20,5 +20,5 @@ export interface AuthProviderProps {
  * manualmente em vez de depender das shared props do Inertia.
  */
 export function AuthProvider({ value, children }: AuthProviderProps) {
-  return createElement(AuthContext.Provider, { value }, children)
+  return createElement(AuthContext.Provider, { value }, children);
 }

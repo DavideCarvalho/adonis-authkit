@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  useSettingsQueryOptions,
-  useSetSettingMutationOptions,
-  useRemoveSettingMutationOptions,
   authkitKeys,
-} from '@adonis-agora/authkit-react'
-import { QueryBoundary } from '../components/QueryBoundary'
-import { Skeleton } from '../components/Skeleton'
-import { useToast } from '../lib/toast'
+  useRemoveSettingMutationOptions,
+  useSetSettingMutationOptions,
+  useSettingsQueryOptions,
+} from '@adonis-agora/authkit-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useEffect } from 'react';
+import { QueryBoundary } from '../components/QueryBoundary';
+import { Skeleton } from '../components/Skeleton';
+import { useToast } from '../lib/toast';
 
 // ── Setting meta types ────────────────────────────────────────────────────────
 //
@@ -18,19 +18,19 @@ import { useToast } from '../lib/toast'
 
 export interface SettingFieldMeta {
   /** Campo dentro do objeto da setting (ex.: `enabled`, `password`, `graceDays`). */
-  field: string
-  label: string
-  description: string
-  type: 'boolean' | 'number' | 'string'
-  defaultValue?: unknown
+  field: string;
+  label: string;
+  description: string;
+  type: 'boolean' | 'number' | 'string';
+  defaultValue?: unknown;
 }
 
 export interface SettingSection {
-  title: string
-  description: string
+  title: string;
+  description: string;
   /** Key REAL da setting em `auth_settings` (SETTING_KEYS). Trava por config usa esta key. */
-  settingKey: string
-  fields: SettingFieldMeta[]
+  settingKey: string;
+  fields: SettingFieldMeta[];
 }
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
@@ -65,7 +65,7 @@ function SettingsSectionSkeleton({ rowCount = 4 }: { rowCount?: number }) {
         </div>
       ))}
     </div>
-  )
+  );
 }
 
 // ── Lock badge (setting travada via defineConfig) ─────────────────────────────
@@ -84,113 +84,136 @@ function ConfigLockBadge() {
         gap: 4,
       }}
     >
-      <svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <svg
+        viewBox="0 0 16 16"
+        width="10"
+        height="10"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        aria-hidden
+      >
         <rect x="3" y="7" width="10" height="7" rx="1.5" />
         <path d="M5 7V5a3 3 0 016 0v2" strokeLinecap="round" />
       </svg>
       definido via config
     </span>
-  )
+  );
 }
 
 // ── SettingsSectionContainer ──────────────────────────────────────────────────
 
 interface SettingsSectionContainerProps {
-  section: SettingSection
-  onUnavailable: () => void
+  section: SettingSection;
+  onUnavailable: () => void;
 }
 
-type SettingObject = Record<string, unknown>
+type SettingObject = Record<string, unknown>;
 
-export function SettingsSectionContainer({ section, onUnavailable }: SettingsSectionContainerProps) {
-  const toast = useToast()
-  const queryClient = useQueryClient()
+export function SettingsSectionContainer({
+  section,
+  onUnavailable,
+}: SettingsSectionContainerProps) {
+  const toast = useToast();
+  const queryClient = useQueryClient();
 
-  const [checkedUnavailable, setCheckedUnavailable] = useState(false)
-  const [local, setLocal] = useState<SettingObject | null>(null)
-  const [dirty, setDirty] = useState(false)
-  const [saving, setSaving] = useState(false)
+  const [checkedUnavailable, setCheckedUnavailable] = useState(false);
+  const [local, setLocal] = useState<SettingObject | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const { data, isLoading, error, refetch } = useQuery({
     ...useSettingsQueryOptions(),
     retry: (failureCount, err: unknown) => {
-      if (err && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 404) {
+      if (
+        err &&
+        typeof err === 'object' &&
+        'status' in err &&
+        (err as { status: number }).status === 404
+      ) {
         if (!checkedUnavailable) {
-          setCheckedUnavailable(true)
-          onUnavailable()
+          setCheckedUnavailable(true);
+          onUnavailable();
         }
-        return false
+        return false;
       }
-      return failureCount < 1
+      return failureCount < 1;
     },
-  })
+  });
 
-  const settings = data?.data ?? []
+  const settings = data?.data ?? [];
   // Keys travadas via defineConfig — config vence e a edição pela UI fica bloqueada.
-  const lockedKeys: string[] = (data as { locked?: string[] } | undefined)?.locked ?? []
-  const locked = lockedKeys.includes(section.settingKey)
-  const stored = settings.find((s) => s.key === section.settingKey)
-  const isDefault = !stored
+  const lockedKeys: string[] = (data as { locked?: string[] } | undefined)?.locked ?? [];
+  const locked = lockedKeys.includes(section.settingKey);
+  const stored = settings.find((s) => s.key === section.settingKey);
+  const isDefault = !stored;
 
   // Valor efetivo do objeto: local (editado) → stored → {} (defaults por campo).
   const storedObject: SettingObject =
-    stored && typeof stored.value === 'object' && stored.value !== null && !Array.isArray(stored.value)
+    stored &&
+    typeof stored.value === 'object' &&
+    stored.value !== null &&
+    !Array.isArray(stored.value)
       ? (stored.value as SettingObject)
-      : {}
-  const obj: SettingObject = local ?? storedObject
+      : {};
+  const obj: SettingObject = local ?? storedObject;
 
   // Reinicia o estado local quando os dados carregam/mudam.
   useEffect(() => {
-    setLocal(null)
-    setDirty(false)
-  }, [data])
+    setLocal(null);
+    setDirty(false);
+  }, [data]);
 
-  const setSettingMutation = useMutation(useSetSettingMutationOptions())
-  const removeSettingMutation = useMutation(useRemoveSettingMutationOptions())
+  const setSettingMutation = useMutation(useSetSettingMutationOptions());
+  const removeSettingMutation = useMutation(useRemoveSettingMutationOptions());
 
   function fieldValue(f: SettingFieldMeta): unknown {
-    return f.field in obj ? obj[f.field] : f.defaultValue
+    return f.field in obj ? obj[f.field] : f.defaultValue;
   }
 
   function setField(f: SettingFieldMeta, value: unknown) {
-    setLocal((prev) => ({ ...(prev ?? storedObject), [f.field]: value }))
-    setDirty(true)
+    setLocal((prev) => ({ ...(prev ?? storedObject), [f.field]: value }));
+    setDirty(true);
   }
 
   async function save() {
-    setSaving(true)
+    setSaving(true);
     try {
       // Mescla os defaults dos campos ausentes para gravar um objeto completo e explícito.
-      const value: SettingObject = { ...obj }
-      for (const f of section.fields) if (!(f.field in value)) value[f.field] = f.defaultValue
-      await setSettingMutation.mutateAsync({ key: section.settingKey, value })
-      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.settings() })
-      setDirty(false)
-      toast.success(`Salvo: ${section.settingKey}`)
+      const value: SettingObject = { ...obj };
+      for (const f of section.fields) if (!(f.field in value)) value[f.field] = f.defaultValue;
+      await setSettingMutation.mutateAsync({ key: section.settingKey, value });
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.settings() });
+      setDirty(false);
+      toast.success(`Salvo: ${section.settingKey}`);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(err instanceof Error ? err.message : String(err));
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
   }
 
   async function reset() {
-    setSaving(true)
+    setSaving(true);
     try {
-      await removeSettingMutation.mutateAsync(section.settingKey)
-      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.settings() })
-      setLocal(null)
-      setDirty(false)
-      toast.success(`Voltou ao default: ${section.settingKey}`)
+      await removeSettingMutation.mutateAsync(section.settingKey);
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.settings() });
+      setLocal(null);
+      setDirty(false);
+      toast.success(`Voltou ao default: ${section.settingKey}`);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(err instanceof Error ? err.message : String(err));
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
   }
 
-  const isNotFound = error && typeof error === 'object' && 'status' in error && (error as { status: number }).status === 404
-  const displayError = error && !isNotFound ? error : undefined
+  const isNotFound =
+    error &&
+    typeof error === 'object' &&
+    'status' in error &&
+    (error as { status: number }).status === 404;
+  const displayError = error && !isNotFound ? error : undefined;
 
   return (
     <div className="settings-section">
@@ -201,7 +224,14 @@ export function SettingsSectionContainer({ section, onUnavailable }: SettingsSec
             {locked && <ConfigLockBadge />}
             {!locked && !isDefault && <span className="settings-badge">custom</span>}
             {dirty && !locked && (
-              <span className="settings-badge" style={{ background: 'var(--amber-soft)', color: 'var(--amber)', borderColor: 'rgba(255,180,84,0.3)' }}>
+              <span
+                className="settings-badge"
+                style={{
+                  background: 'var(--amber-soft)',
+                  color: 'var(--amber)',
+                  borderColor: 'rgba(255,180,84,0.3)',
+                }}
+              >
                 unsaved
               </span>
             )}
@@ -213,7 +243,14 @@ export function SettingsSectionContainer({ section, onUnavailable }: SettingsSec
               Remova de lá para editar por aqui.
             </p>
           )}
-          <div style={{ fontSize: 10.5, color: 'var(--faint)', fontFamily: 'var(--mono)', marginTop: 2 }}>
+          <div
+            style={{
+              fontSize: 10.5,
+              color: 'var(--faint)',
+              fontFamily: 'var(--mono)',
+              marginTop: 2,
+            }}
+          >
             {section.settingKey}
           </div>
         </div>
@@ -225,7 +262,12 @@ export function SettingsSectionContainer({ section, onUnavailable }: SettingsSec
               </button>
             )}
             {!isDefault && !dirty && (
-              <button className="btn btn-ghost btn-sm" disabled={saving} onClick={reset} title="Voltar ao default">
+              <button
+                className="btn btn-ghost btn-sm"
+                disabled={saving}
+                onClick={reset}
+                title="Voltar ao default"
+              >
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
                   <path d="M2 8a6 6 0 016-6 6 6 0 014.24 1.76L14 5" strokeLinecap="round" />
                   <path d="M14 2v3h-3" strokeLinecap="round" />
@@ -245,9 +287,13 @@ export function SettingsSectionContainer({ section, onUnavailable }: SettingsSec
         <div className="panel">
           <div className="panel-body" style={{ padding: 0 }}>
             {section.fields.map((f) => {
-              const val = fieldValue(f)
+              const val = fieldValue(f);
               return (
-                <div key={f.field} className="settings-row" style={locked ? { opacity: 0.85 } : undefined}>
+                <div
+                  key={f.field}
+                  className="settings-row"
+                  style={locked ? { opacity: 0.85 } : undefined}
+                >
                   <div className="settings-info">
                     <div className="settings-key">{f.label}</div>
                     <div className="settings-desc">{f.description}</div>
@@ -284,11 +330,11 @@ export function SettingsSectionContainer({ section, onUnavailable }: SettingsSec
                     )}
                   </div>
                 </div>
-              )
+              );
             })}
           </div>
         </div>
       </QueryBoundary>
     </div>
-  )
+  );
 }

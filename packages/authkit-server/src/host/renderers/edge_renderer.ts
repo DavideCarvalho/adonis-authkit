@@ -1,6 +1,6 @@
-import type { HttpContext } from '@adonisjs/core/http'
-import { DEFAULT_MESSAGES, translate, type AuthMessages } from '../i18n.js'
-import { getAccountLoginUrl } from '../account_login_url.js'
+import type { HttpContext } from '@adonisjs/core/http';
+import { getAccountLoginUrl } from '../account_login_url.js';
+import { type AuthMessages, DEFAULT_MESSAGES, translate } from '../i18n.js';
 
 /**
  * Resolve o catálogo de mensagens ativo a partir do `authkit.server` (config
@@ -10,13 +10,13 @@ import { getAccountLoginUrl } from '../account_login_url.js'
  */
 async function resolveMessagesFromCtx(ctx: HttpContext): Promise<AuthMessages> {
   try {
-    const service = await (ctx as any).containerResolver?.make?.('authkit.server')
-    const messages = service?.config?.messages as AuthMessages | undefined
-    if (messages) return messages
+    const service = await (ctx as any).containerResolver?.make?.('authkit.server');
+    const messages = service?.config?.messages as AuthMessages | undefined;
+    if (messages) return messages;
   } catch {
     // sem container/serviço — usa o default
   }
-  return { ...DEFAULT_MESSAGES }
+  return { ...DEFAULT_MESSAGES };
 }
 
 /**
@@ -30,21 +30,21 @@ async function resolveMessagesFromCtx(ctx: HttpContext): Promise<AuthMessages> {
 export async function renderEdgeView(
   ctx: HttpContext,
   view: string,
-  props: Record<string, unknown>
+  props: Record<string, unknown>,
 ): Promise<unknown> {
-  const messages = await resolveMessagesFromCtx(ctx)
+  const messages = await resolveMessagesFromCtx(ctx);
   const t = (key: string, params?: Record<string, string | number>) =>
-    translate(messages, key, params)
+    translate(messages, key, params);
   // `loginUrl` como prop global: as views que linkam "faça login" (ex.: `otp-unlock`)
   // usam o destino configurável (`accountLoginUrl`) em vez do `/account/login` fixo,
   // que pode estar desmontado. Props explícitas ainda têm precedência (spread depois).
-  const loginUrl = getAccountLoginUrl()
-  return (ctx as any).view.render(`authkit::${view}`, { loginUrl, ...props, t, messages })
+  const loginUrl = getAccountLoginUrl();
+  return (ctx as any).view.render(`authkit::${view}`, { loginUrl, ...props, t, messages });
 }
 
 /** Renderer do seam para hosts Edge. As views são donas-da-lib (disco `authkit::`). */
 export function edgeRenderer() {
   return async (ctx: HttpContext, view: string, props: Record<string, unknown>) => {
-    return renderEdgeView(ctx, view, props)
-  }
+    return renderEdgeView(ctx, view, props);
+  };
 }

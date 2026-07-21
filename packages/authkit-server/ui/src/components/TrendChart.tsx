@@ -1,29 +1,42 @@
-import React from 'react'
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import type { TooltipContentProps } from 'recharts'
+import React from 'react';
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import type { TooltipContentProps } from 'recharts';
 
 interface TrendChartProps {
-  data: Array<{ date: string; count: number }>
-  color?: string
-  height?: number
+  data: Array<{ date: string; count: number }>;
+  color?: string;
+  height?: number;
   /** Rótulo da série no tooltip (ex.: "sign-ins"). */
-  label?: string
+  label?: string;
 }
 
 const fmtDay = (date: string) => {
-  const d = new Date(date + 'T00:00:00')
+  const d = new Date(`${date}T00:00:00`);
   return Number.isNaN(d.getTime())
     ? date
-    : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
+    : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+};
 
 /**
  * Gráfico de tendência diária (Recharts, estilo shadcn): área com gradiente,
  * grid pontilhado, tooltip com hover — substitui o SparkLine estático.
  */
-export function TrendChart({ data, color = 'var(--accent)', height = 150, label = 'events' }: TrendChartProps) {
-  if (!data || data.length === 0) return <div style={{ height }} />
-  const gid = `tc-${label.replace(/[^a-z0-9]/gi, '')}`
+export function TrendChart({
+  data,
+  color = 'var(--accent)',
+  height = 150,
+  label = 'events',
+}: TrendChartProps) {
+  if (!data || data.length === 0) return <div style={{ height }} />;
+  const gid = `tc-${label.replace(/[^a-z0-9]/gi, '')}`;
 
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -68,5 +81,5 @@ export function TrendChart({ data, color = 'var(--accent)', height = 150, label 
         />
       </AreaChart>
     </ResponsiveContainer>
-  )
+  );
 }

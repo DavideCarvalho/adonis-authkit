@@ -51,16 +51,16 @@
  * ```
  */
 
-import type { HttpContext } from '@adonisjs/core/http'
-import { isSettingLocked, SettingLockedError } from './config_locks.js'
+import type { HttpContext } from '@adonisjs/core/http';
+import { SettingLockedError, isSettingLocked } from './config_locks.js';
 
 /** Uma entrada da tabela `auth_settings`. */
 export interface SettingRow {
-  key: string
-  organizationId: string | null
-  value: unknown // JSON parseado
-  updatedAt: Date | string | null
-  updatedBy: string | null
+  key: string;
+  organizationId: string | null;
+  value: unknown; // JSON parseado
+  updatedAt: Date | string | null;
+  updatedBy: string | null;
 }
 
 /**
@@ -72,47 +72,52 @@ export interface SettingsCapability {
    * Lê uma key no escopo especificado (global se orgId omitido).
    * Retorna null se ausente ou tabela inexistente. Usa cache TTL.
    */
-  getSetting(key: string, orgId?: string | null): Promise<unknown | null>
+  getSetting(key: string, orgId?: string | null): Promise<unknown | null>;
   /**
    * Grava (upsert) uma key no escopo especificado.
    * Invalida o cache para essa (key, orgId).
    */
-  setSetting(key: string, value: unknown, updatedBy?: string | null, orgId?: string | null): Promise<void>
+  setSetting(
+    key: string,
+    value: unknown,
+    updatedBy?: string | null,
+    orgId?: string | null,
+  ): Promise<void>;
   /** Remove uma key no escopo especificado. Invalida o cache. */
-  deleteSetting(key: string, orgId?: string | null): Promise<void>
+  deleteSetting(key: string, orgId?: string | null): Promise<void>;
   /** Lista settings. Sem orgId = todas; com orgId = apenas escopo da org. */
-  listSettings(orgId?: string | null): Promise<SettingRow[]>
+  listSettings(orgId?: string | null): Promise<SettingRow[]>;
   /**
    * Resolve efetivamente: org-setting → global-setting → null.
    * Sem orgId equivale a getSetting(key) (global apenas).
    */
-  getEffective(key: string, orgId?: string | null): Promise<unknown | null>
+  getEffective(key: string, orgId?: string | null): Promise<unknown | null>;
 }
 
 /**
  * Type guard: o objeto (store ou serviço) expõe SettingsCapability?
  */
 export function supportsSettings(obj: unknown): obj is SettingsCapability {
-  return !!obj && typeof (obj as any).getSetting === 'function'
+  return !!obj && typeof (obj as any).getSetting === 'function';
 }
 
 export interface RuntimeSettingsOptions {
   /** TTL do cache em ms. Default: 15_000 (15s). */
-  ttlMs?: number
+  ttlMs?: number;
   /**
    * Nome da conexão Lucid a usar (ex.: 'auth'). Quando presente, todas as
    * queries usam `db.connection(name)` em vez da conexão default. Necessário
    * quando o schema de auth vive numa conexão nomeada com searchPath próprio.
    * Ausente (ou undefined) → conexão default (back-compat total).
    */
-  connection?: string
+  connection?: string;
 }
 
-type CacheEntry = { value: unknown | null; expiresAt: number }
+type CacheEntry = { value: unknown | null; expiresAt: number };
 
 /** Chave de cache: combina key + escopo de org (null = global). */
 function cacheKey(key: string, orgId: string | null | undefined): string {
-  return orgId ? `${key}\x00${orgId}` : key
+  return orgId ? `${key}\x00${orgId}` : key;
 }
 
 /**
@@ -121,17 +126,17 @@ function cacheKey(key: string, orgId: string | null | undefined): string {
  * Tabela esperada: ver módulo JSDoc acima.
  */
 export class RuntimeSettings implements SettingsCapability {
-  private readonly db: any
-  private readonly ttlMs: number
-  private readonly connectionName: string | undefined
-  private cache = new Map<string, CacheEntry>()
+  private readonly db: any;
+  private readonly ttlMs: number;
+  private readonly connectionName: string | undefined;
+  private cache = new Map<string, CacheEntry>();
   /** null = não foi verificado ainda; false = tabela ausente; true = presente */
-  private tablePresent: boolean | null = null
+  private tablePresent: boolean | null = null;
 
   constructor(db: any, opts: RuntimeSettingsOptions = {}) {
-    this.db = db
-    this.ttlMs = opts.ttlMs ?? 15_000
-    this.connectionName = opts.connection
+    this.db = db;
+    this.ttlMs = opts.ttlMs ?? 15_000;
+    this.connectionName = opts.connection;
   }
 
   /**
@@ -140,7 +145,7 @@ export class RuntimeSettings implements SettingsCapability {
    * caso contrário usa o `db` diretamente (conexão default).
    */
   private conn(): any {
-    return this.connectionName ? this.db.connection(this.connectionName) : this.db
+    return this.connectionName ? this.db.connection(this.connectionName) : this.db;
   }
 
   /**
@@ -155,47 +160,47 @@ export class RuntimeSettings implements SettingsCapability {
    * Fail-safe: qualquer erro → false (tabela considerada ausente, sem lançar).
    */
   private async hasTable(): Promise<boolean> {
-    if (this.tablePresent !== null) return this.tablePresent
+    if (this.tablePresent !== null) return this.tablePresent;
     try {
-      await this.conn().from('auth_settings').select('key').limit(1)
-      this.tablePresent = true
-      return true
+      await this.conn().from('auth_settings').select('key').limit(1);
+      this.tablePresent = true;
+      return true;
     } catch {
-      this.tablePresent = false
-      return false
+      this.tablePresent = false;
+      return false;
     }
   }
 
   async getSetting(key: string, orgId?: string | null): Promise<unknown | null> {
     // Travada por defineConfig → comporta-se como ausente, então os resolvers caem
     // no configDefault (= o valor do config). Config vence; a UI não pode sobrescrever.
-    if (isSettingLocked(key)) return null
+    if (isSettingLocked(key)) return null;
 
-    const ck = cacheKey(key, orgId ?? null)
+    const ck = cacheKey(key, orgId ?? null);
     // Cache hit?
-    const cached = this.cache.get(ck)
-    if (cached && cached.expiresAt > Date.now()) return cached.value
+    const cached = this.cache.get(ck);
+    if (cached && cached.expiresAt > Date.now()) return cached.value;
 
     if (!(await this.hasTable())) {
-      this._cache(ck, null)
-      return null
+      this._cache(ck, null);
+      return null;
     }
 
     try {
-      let q = this.conn().from('auth_settings').where('key', key)
+      let q = this.conn().from('auth_settings').where('key', key);
       if (orgId) {
-        q = q.where('organization_id', orgId)
+        q = q.where('organization_id', orgId);
       } else {
-        q = q.whereNull('organization_id')
+        q = q.whereNull('organization_id');
       }
-      const row = await q.first()
-      const value = row ? this._parse(row.value) : null
-      this._cache(ck, value)
-      return value
+      const row = await q.first();
+      const value = row ? this._parse(row.value) : null;
+      this._cache(ck, value);
+      return value;
     } catch {
       // FAIL-SAFE: erro de DB → null, caller usa config estático.
-      this._cache(ck, null)
-      return null
+      this._cache(ck, null);
+      return null;
     }
   }
 
@@ -205,81 +210,88 @@ export class RuntimeSettings implements SettingsCapability {
    */
   async getEffective(key: string, orgId?: string | null): Promise<unknown | null> {
     if (orgId) {
-      const orgValue = await this.getSetting(key, orgId)
-      if (orgValue !== null) return orgValue
+      const orgValue = await this.getSetting(key, orgId);
+      if (orgValue !== null) return orgValue;
     }
-    return this.getSetting(key, null)
+    return this.getSetting(key, null);
   }
 
-  async setSetting(key: string, value: unknown, updatedBy: string | null = null, orgId?: string | null): Promise<void> {
+  async setSetting(
+    key: string,
+    value: unknown,
+    updatedBy: string | null = null,
+    orgId?: string | null,
+  ): Promise<void> {
     // Travada por defineConfig → recusa a escrita (write path da Admin API/console mapeia p/ 423).
-    if (isSettingLocked(key)) throw new SettingLockedError(key)
-    if (!(await this.hasTable())) return
-    const json = JSON.stringify(value)
-    const resolvedOrgId = orgId ?? null
+    if (isSettingLocked(key)) throw new SettingLockedError(key);
+    if (!(await this.hasTable())) return;
+    const json = JSON.stringify(value);
+    const resolvedOrgId = orgId ?? null;
     try {
       // Delete first then insert = upsert (compatível com sqlite + pg sem UPSERT syntax).
-      let q = this.conn().from('auth_settings').where('key', key)
+      let q = this.conn().from('auth_settings').where('key', key);
       if (resolvedOrgId) {
-        q = q.where('organization_id', resolvedOrgId)
+        q = q.where('organization_id', resolvedOrgId);
       } else {
-        q = q.whereNull('organization_id')
+        q = q.whereNull('organization_id');
       }
-      await q.delete()
+      await q.delete();
       await this.conn().table('auth_settings').insert({
         key,
         organization_id: resolvedOrgId,
         value: json,
         updated_at: new Date(),
         updated_by: updatedBy,
-      })
+      });
     } catch {
       // Fail-safe: não lança.
     }
-    this.invalidate(key, resolvedOrgId)
+    this.invalidate(key, resolvedOrgId);
   }
 
   async deleteSetting(key: string, orgId?: string | null): Promise<void> {
-    if (isSettingLocked(key)) throw new SettingLockedError(key)
-    if (!(await this.hasTable())) return
-    const resolvedOrgId = orgId ?? null
+    if (isSettingLocked(key)) throw new SettingLockedError(key);
+    if (!(await this.hasTable())) return;
+    const resolvedOrgId = orgId ?? null;
     try {
-      let q = this.conn().from('auth_settings').where('key', key)
+      let q = this.conn().from('auth_settings').where('key', key);
       if (resolvedOrgId) {
-        q = q.where('organization_id', resolvedOrgId)
+        q = q.where('organization_id', resolvedOrgId);
       } else {
-        q = q.whereNull('organization_id')
+        q = q.whereNull('organization_id');
       }
-      await q.delete()
+      await q.delete();
     } catch {
       // Fail-safe.
     }
-    this.invalidate(key, resolvedOrgId)
+    this.invalidate(key, resolvedOrgId);
   }
 
   async listSettings(orgId?: string | null): Promise<SettingRow[]> {
-    if (!(await this.hasTable())) return []
+    if (!(await this.hasTable())) return [];
     try {
-      let q = this.conn().from('auth_settings').select('*')
+      let q = this.conn().from('auth_settings').select('*');
       if (orgId !== undefined) {
         // orgId fornecido: filtra pelo escopo
         if (orgId) {
-          q = q.where('organization_id', orgId)
+          q = q.where('organization_id', orgId);
         } else {
-          q = q.whereNull('organization_id')
+          q = q.whereNull('organization_id');
         }
       }
       // orgId undefined = lista tudo (global + todos os orgs)
-      const rows = await q
-      return rows.map((r: any): SettingRow => ({
-        key: r.key,
-        organizationId: r.organization_id ?? null,
-        value: this._parse(r.value),
-        updatedAt: r.updated_at ?? null,
-        updatedBy: r.updated_by ?? null,
-      }))
+      const rows = await q;
+      return rows.map(
+        (r: any): SettingRow => ({
+          key: r.key,
+          organizationId: r.organization_id ?? null,
+          value: this._parse(r.value),
+          updatedAt: r.updated_at ?? null,
+          updatedBy: r.updated_by ?? null,
+        }),
+      );
     } catch {
-      return []
+      return [];
     }
   }
 
@@ -288,7 +300,7 @@ export class RuntimeSettings implements SettingsCapability {
    * `hasTable()` privado, mas exposto para casos de diagnóstico como a UI admin).
    */
   async isTablePresent(): Promise<boolean> {
-    return this.hasTable()
+    return this.hasTable();
   }
 
   /**
@@ -298,22 +310,22 @@ export class RuntimeSettings implements SettingsCapability {
    */
   invalidate(key?: string, orgId?: string | null): void {
     if (key !== undefined) {
-      this.cache.delete(cacheKey(key, orgId ?? null))
+      this.cache.delete(cacheKey(key, orgId ?? null));
     } else {
-      this.cache.clear()
+      this.cache.clear();
     }
   }
 
   private _cache(key: string, value: unknown | null): void {
-    this.cache.set(key, { value, expiresAt: Date.now() + this.ttlMs })
+    this.cache.set(key, { value, expiresAt: Date.now() + this.ttlMs });
   }
 
   private _parse(raw: string | null | undefined): unknown | null {
-    if (!raw) return null
+    if (!raw) return null;
     try {
-      return JSON.parse(raw)
+      return JSON.parse(raw);
     } catch {
-      return null
+      return null;
     }
   }
 }
@@ -345,11 +357,11 @@ export class RuntimeSettings implements SettingsCapability {
  */
 export async function resolveRuntimeSettings(ctx: HttpContext): Promise<RuntimeSettings | null> {
   try {
-    const db = await ctx.containerResolver.make('lucid.db')
-    const service = await ctx.containerResolver.make('authkit.server').catch(() => null)
-    const connection = service?.config?.accountStore?.connectionName
-    return new RuntimeSettings(db, connection ? { connection } : {})
+    const db = await ctx.containerResolver.make('lucid.db');
+    const service = await ctx.containerResolver.make('authkit.server').catch(() => null);
+    const connection = service?.config?.accountStore?.connectionName;
+    return new RuntimeSettings(db, connection ? { connection } : {});
   } catch {
-    return null
+    return null;
   }
 }

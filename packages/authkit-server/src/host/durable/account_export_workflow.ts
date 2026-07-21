@@ -1,12 +1,9 @@
-import type { OidcService } from "../../provider/oidc_service.js";
-import {
-  AccountExportService,
-  type AccountExport,
-} from "../account_export_service.js";
-import type { DurableStepCtx } from "./account_deletion_workflow.js";
+import type { OidcService } from '../../provider/oidc_service.js';
+import { type AccountExport, AccountExportService } from '../account_export_service.js';
+import type { DurableStepCtx } from './account_deletion_workflow.js';
 
 /** Nome canônico do workflow durável de export de dados de conta. */
-export const ACCOUNT_EXPORT_WORKFLOW = "authkit.account.export";
+export const ACCOUNT_EXPORT_WORKFLOW = 'authkit.account.export';
 
 /** Input do workflow `authkit.account.export`. */
 export interface AccountExportWorkflowInput {
@@ -59,15 +56,10 @@ export interface AccountExportWorkflowDeps {
 }
 
 /** Persistência default: grava o JSON no disk do drive do app (best-effort). */
-const defaultPersist: PersistArtifact = async ({
-  accountId,
-  runId,
-  json,
-  oidc,
-}) => {
+const defaultPersist: PersistArtifact = async ({ accountId, runId, json, oidc }) => {
   // Indireção via variável: `@adonisjs/drive` é peer/opcional — pode não estar
   // instalado, então o specifier não é resolvido em build-time.
-  const specifier = "@adonisjs/drive/services/main";
+  const specifier = '@adonisjs/drive/services/main';
   let drive: any = null;
   try {
     const mod = await import(specifier);
@@ -78,16 +70,13 @@ const defaultPersist: PersistArtifact = async ({
   if (!drive) return null;
   const cfg = oidc.config;
   const exportsCfg = (cfg.uploads as any).exports;
-  const directory = (exportsCfg?.directory ?? "authkit/exports").replace(
-    /\/+$/,
-    "",
-  );
+  const directory = (exportsCfg?.directory ?? 'authkit/exports').replace(/\/+$/, '');
   const diskName = exportsCfg?.disk ?? (cfg.uploads as any).avatars?.disk;
   const key = `${directory}/authkit-data-export-${accountId}-${runId}.json`;
   try {
     const disk = diskName ? drive.use(diskName) : drive.use();
     await disk.put(key, json, {
-      contentType: "application/json; charset=utf-8",
+      contentType: 'application/json; charset=utf-8',
     });
     return key;
   } catch {
@@ -129,20 +118,17 @@ export function defineAccountExportWorkflow(deps: AccountExportWorkflowDeps): {
     const runId = ctx.runId ?? accountId;
 
     // 1) Coleta o payload (reusa a coleta inline do AccountExportService).
-    const payload = await ctx.step(
-      "collect",
-      async (): Promise<AccountExport | null> => {
-        const oidc = await deps.oidc();
-        return new AccountExportService(oidc).collect(accountId);
-      },
-    );
+    const payload = await ctx.step('collect', async (): Promise<AccountExport | null> => {
+      const oidc = await deps.oidc();
+      return new AccountExportService(oidc).collect(accountId);
+    });
     if (!payload) return { ok: false, artifactKey: null, bytes: 0 };
 
     // 2) Audita o export (account.exported).
-    await ctx.step("audit", async () => {
+    await ctx.step('audit', async () => {
       const cfg = (await deps.oidc()).config;
       await cfg.audit?.record({
-        type: "account.exported",
+        type: 'account.exported',
         accountId,
         ip: input.ip ?? null,
       });
@@ -150,13 +136,13 @@ export function defineAccountExportWorkflow(deps: AccountExportWorkflowDeps): {
 
     // 3) Serializa + persiste o artefato.
     const json = JSON.stringify(payload, null, 2);
-    const artifactKey = await ctx.step("persist", async () => {
+    const artifactKey = await ctx.step('persist', async () => {
       const oidc = await deps.oidc();
       return persist({ accountId, runId, json, oidc });
     });
 
     // 4) Entrega ao titular (signal + e-mail, pluggable).
-    await ctx.step("deliver", async () => {
+    await ctx.step('deliver', async () => {
       const oidc = await deps.oidc();
       await deliver({ accountId, runId, artifactKey, oidc });
     });
@@ -164,5 +150,5 @@ export function defineAccountExportWorkflow(deps: AccountExportWorkflowDeps): {
     return { ok: true, artifactKey, bytes: json.length };
   };
 
-  return { name: ACCOUNT_EXPORT_WORKFLOW, version: "1", body };
+  return { name: ACCOUNT_EXPORT_WORKFLOW, version: '1', body };
 }

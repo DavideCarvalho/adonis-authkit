@@ -6,6 +6,15 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext"
   },
-  "include": ["index.ts", "types.ts", "src/**/*", "providers/**/*", "commands/**/*", "database/**/*", "services/**/*", "stubs/**/*"],
+  "include": [
+    "index.ts",
+    "types.ts",
+    "src/**/*",
+    "providers/**/*",
+    "commands/**/*",
+    "database/**/*",
+    "services/**/*",
+    "stubs/**/*"
+  ],
   "exclude": ["stubs/ui/**/*"]
 }

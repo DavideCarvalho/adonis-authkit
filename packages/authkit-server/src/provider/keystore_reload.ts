@@ -6,45 +6,45 @@
  * exposto p/ teste.
  */
 export interface KeystoreReloadOptions {
-  head: () => Promise<string | null>
-  reload: () => Promise<void>
-  intervalMs: number
-  onError?: (err: unknown) => void
+  head: () => Promise<string | null>;
+  reload: () => Promise<void>;
+  intervalMs: number;
+  onError?: (err: unknown) => void;
 }
 
 export class KeystoreReloadPoller {
-  #last: string | null | undefined
-  #timer: ReturnType<typeof setInterval> | undefined
+  #last: string | null | undefined;
+  #timer: ReturnType<typeof setInterval> | undefined;
   constructor(private opts: KeystoreReloadOptions) {}
 
   async tick(): Promise<void> {
     try {
-      const head = await this.opts.head()
+      const head = await this.opts.head();
       if (this.#last === undefined) {
-        this.#last = head
-        return
+        this.#last = head;
+        return;
       } // baseline, sem reload
       if (head !== this.#last) {
-        this.#last = head
-        await this.opts.reload()
+        this.#last = head;
+        await this.opts.reload();
       }
     } catch (err) {
-      this.opts.onError?.(err)
+      this.opts.onError?.(err);
     }
   }
 
   start(): void {
-    if (this.#timer) return
+    if (this.#timer) return;
     this.#timer = setInterval(() => {
-      void this.tick()
-    }, this.opts.intervalMs)
-    if (typeof (this.#timer as any).unref === 'function') (this.#timer as any).unref()
+      void this.tick();
+    }, this.opts.intervalMs);
+    if (typeof (this.#timer as any).unref === 'function') (this.#timer as any).unref();
   }
 
   stop(): void {
     if (this.#timer) {
-      clearInterval(this.#timer)
-      this.#timer = undefined
+      clearInterval(this.#timer);
+      this.#timer = undefined;
     }
   }
 }

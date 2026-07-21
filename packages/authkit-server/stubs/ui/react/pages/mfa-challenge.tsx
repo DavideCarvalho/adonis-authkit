@@ -1,19 +1,19 @@
-{{{
-  exports({ to: app.makePath('inertia/pages/authkit/mfa-challenge.tsx') })
-}}}
-import AuthShell from '../components/auth_shell'
+{
+  exports({ to: app.makePath('inertia/pages/authkit/mfa-challenge.tsx') });
+}
+import AuthShell from '../components/auth_shell';
 
 const inputClass =
-  'w-full rounded-lg border border-gray-300 px-3 py-2 text-center text-lg tracking-[0.4em] outline-none transition focus:border-transparent focus:ring-2 focus:ring-gray-800'
+  'w-full rounded-lg border border-gray-300 px-3 py-2 text-center text-lg tracking-[0.4em] outline-none transition focus:border-transparent focus:ring-2 focus:ring-gray-800';
 
 export default function AuthkitMfaChallenge({
   uid,
   csrfToken,
   error,
 }: {
-  uid: string
-  csrfToken: string
-  error?: string
+  uid: string;
+  csrfToken: string;
+  error?: string;
 }) {
   return (
     <AuthShell>
@@ -37,7 +37,6 @@ export default function AuthkitMfaChallenge({
             autoComplete="one-time-code"
             pattern="[0-9]*"
             maxLength={6}
-            autoFocus
             className={inputClass}
           />
         </div>
@@ -68,5 +67,5 @@ export default function AuthkitMfaChallenge({
         </form>
       </details>
     </AuthShell>
-  )
+  );
 }

@@ -1,5 +1,80 @@
 # @adonis-agora/authkit-server
 
+## 0.47.0
+
+### Minor Changes
+
+- b1ba275: Montagem por tela do console de conta (`/account/*`) + destino de login configurável.
+
+  **1 — `AuthHostOptions.account`.** Nova opção `account?: false | { login?, tokens?,
+orgs?, security?, mfa?, apps? }` em `registerAuthHost`, espelhando o padrão
+  `admin`/`adminApi`: a decisão de MONTAR cada grupo de rotas é tomada em tempo de
+  registro. Default (opção ausente) = tudo montado — **back-compat total**. `false`
+  desmonta todas as telas; um objeto desmonta seletivamente (cada flag ausente
+  default `true`). As rotas de sudo (`/account/confirm`) e a JSON API
+  (`/account/api/*`) permanecem sempre montadas — são infraestrutura, não telas.
+
+  **2 — `AuthHostOptions.accountLoginUrl`.** Destino configurável do redirect de
+  "não-autenticado → faça login", default `/account/login`. Necessário porque a tela
+  `account/login` passou a ser desmontável: um host OIDC passwordless aponta para a
+  própria rota de login (ex.: `/login`). É respeitado por TODOS os pontos de redirect/
+  link: `accountGuard`, `adminGuard`, `AccountAuthMiddleware`, o helper público
+  `consoleLoginUrl()`, os fallbacks dos controllers de conta e a view Edge
+  `otp-unlock` (injetada como prop global `loginUrl` pelo renderer). Novo singleton de
+  processo `account_login_url.ts` (mesmo padrão de `admin_prefix.ts`).
+
+  **3 — `/account/tokens` sem `patStore` → 404 limpo.** As três actions de
+  `account_tokens_controller` faziam `cfg.patStore!` sobre config opcional →
+  `Cannot read properties of undefined` (500). Agora degradam para 404, como orgs
+  sem tabelas. Mesma classe de bug corrigida em `pat_introspection_controller`
+  (`/authkit/pat/introspect`, sempre montada): sem `patStore`, devolve `{ active: false }`
+  em vez de 500 — resposta negativa do protocolo (RFC 7662), não um 404 HTTP, já
+  que o endpoint é M2M JSON e sempre existe independente do store.
+
+  **4 — Contrato de props documentado.** Adicionadas as tabelas de props de
+  `account/security`, `account/mfa`, `account/confirm` e `account/email-confirmed`
+  ao docblock de `inertiaRenderer` (extraídas dos controllers reais), completando o
+  que já existia para `account/login`.
+
+  **5 — `verifyCredentials` com hash null/vazio.** Coberto por teste que
+  `lucidAccountStore.verifyCredentials` devolve `null` sem lançar quando a coluna
+  `password` é null ou vazia (contas passwordless) — pré-requisito para o app tornar
+  a coluna nullable. Nenhuma correção foi necessária: o `try/catch` de
+  `PasswordManager.verify` já engolia o throw do scrypt em hash malformado; o teste
+  pina o contrato.
+
+### Patch Changes
+
+- 481ae7a: Corrige dois resíduos do dual-package hazard e endurece a visibilidade de falha.
+
+  **1 — `recordSubRevocation` resolvia o Lucid pela classe `Database`.**
+  `AdminSessionsService.recordSubRevocation` ainda fazia `import('@adonisjs/lucid/services/db')`,
+  que resolve a CLASSE `Database` e a usa como TOKEN do container. Com duas cópias físicas do
+  lucid na árvore do host (pins distintos, ou o mesmo pin sob peer sets distintos que o pnpm
+  materializa em diretórios separados), os tokens-classe diferem, o `make()` falha e — pior — a
+  gravação da revogação por `sub` (`auth_session_revocations`) era engolida EM SILÊNCIO pelo catch
+  best-effort: nem crash, nem log. Agora resolve pelo alias string `'lucid.db'` (o mesmo idioma de
+  `runtime_settings.ts` e do provider), imune à deduplicação do host. A falha continua sem
+  propagar (a invalidação server-side já é a fonte da verdade), mas nunca mais é silenciosa: é
+  logada em `error`.
+
+  **2 — `services/main` capturava o `app` do core por import eager.**
+  `services/main.ts` importava `app` de `@adonisjs/core/services/app` (eager) + `await app.booted()`
+  no top-level — o mesmo hazard, agora para o singleton do core: sob pnpm este pacote pode resolver
+  uma cópia física de `@adonisjs/core` diferente da que o `bin/server` bootou, cujo binding de
+  `services/app` fica `undefined`. O `app` passa a vir de `services/booted_app.ts`, capturado pelo
+  provider no `register()` via `setBootedApp(this.app)`. Back-compat total: o `default` continua
+  sendo o `OidcService` resolvido.
+
+  Também: adicionado `prepack` (espelha o `build` composto — css + webauthn + ui + tsc + cópias)
+  para que o pacote seja sempre construído antes de publicar.
+
+  **Nota de transparência:** a escrita best-effort da revogação de sessão e o
+  `services/main` agora exigem o `AuthkitServerProvider` registrado; sem ele,
+  lançam/logam erro explícito em vez de silenciar ou pendurar. Nenhum host real
+  perde comportamento (o provider é sempre registrado), mas suítes downstream que
+  exercitem deleção/revogação sem o provider verão o erro no stderr.
+
 ## 0.46.0
 
 ### Minor Changes

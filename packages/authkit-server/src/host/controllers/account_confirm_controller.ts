@@ -28,7 +28,7 @@ export const SUDO_METHOD_DEFAULTS: SudoMethod[] = [password(), passkey()]
 /**
  * Ids dos métodos cujas rotas FORAM montadas, preenchido por `registerAuthHost`.
  * Serve só para detectar flag-drift entre `config.sudo.methods` (o que a tela
- * oferece) e `AuthHostOptions.sudoMethods` (o que tem rota).
+ * oferece) e o que de fato tem rota.
  */
 export const mountedSudoMethodIds = new Set<string>()
 
@@ -51,7 +51,17 @@ export async function sudoContextFrom(ctx: HttpContext): Promise<SudoContext> {
   const cfg = service.config
   const accountId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
   const account = await cfg.accountStore.findById(accountId)
-  const raw = (ctx.request as any).qs?.()?.return_to ?? ctx.request.input?.('return_to')
+
+  // PRECEDÊNCIA do return_to. Num GET a query string é a única fonte real. Num
+  // POST o alvo do redirect vem do campo hidden do form: deixar a query string
+  // vencer permitiria a um link `?return_to=...` sequestrar o destino de um form
+  // que o usuário já preencheu — e seria uma mudança silenciosa de um alvo de
+  // redirect em relação ao comportamento histórico (`request.input`, que no
+  // Adonis já dá precedência ao corpo). `validateReturnTo` roda nos dois casos.
+  const fromBody = ctx.request.input?.('return_to')
+  const fromQuery = (ctx.request as any).qs?.()?.return_to
+  const isPost = String((ctx.request as any).method?.() ?? '').toUpperCase() === 'POST'
+  const raw = isPost ? (fromBody ?? fromQuery) : (fromQuery ?? fromBody)
 
   return { ctx, cfg, accountId, account, returnTo: validateReturnTo(raw) }
 }
@@ -74,15 +84,16 @@ export default class AccountConfirmController {
     }
 
     // FLAG-DRIFT: `config.sudo.methods` decide o que a tela OFERECE, mas as
-    // rotas são montadas em tempo de registro (`AuthHostOptions.sudoMethods`).
-    // Se as duas listas divergirem, a tela mostra um método cujo endpoint dá
-    // 404 — falha silenciosa e confusa. Avisa alto, uma vez por render.
+    // rotas são montadas em tempo de registro, por `registerAuthHost`. Se as
+    // duas listas divergirem, a tela mostra um método cujo endpoint não existe
+    // — falha silenciosa e confusa. Avisa alto, uma vez por render.
     for (const m of methods) {
       if (!mountedSudoMethodIds.has(m.id)) {
         ;(ctx as any).logger?.warn(
           { method: m.id },
-          `authkit: método de sudo "${m.id}" está em config.sudo.methods mas não em ` +
-            'AuthHostOptions.sudoMethods — as rotas dele não foram montadas e o endpoint dará 404'
+          `authkit: método de sudo "${m.id}" está em config.sudo.methods mas não teve ` +
+            'rotas montadas por registerAuthHost — a tela vai oferecer uma opção cujo ' +
+            'endpoint não existe'
         )
       }
     }

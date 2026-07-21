@@ -1,10 +1,11 @@
 /**
  * Barreiras dos handlers dos métodos de sudo.
  *
- * Cobre os achados Critical do review da Task 4:
+ * Cobre os achados de segurança do review da Task 4:
  *  - `config.sudo.methods` precisa DESABILITAR de fato o endpoint do método;
  *  - os handlers de passkey precisam exigir `c.account`;
- *  - as rotas dos métodos precisam ficar sob o `accountGuard` (idle timeout).
+ *  - as rotas dos métodos precisam ficar sob o `accountGuard` (idle timeout);
+ *  - em POST, o `return_to` do corpo tem precedência sobre a query string.
  */
 
 import { test } from '@japa/runner'
@@ -172,6 +173,30 @@ test.group('sudo — handlers de passkey exigem a conta (Critical 2)', () => {
 
     assert.isUndefined(h.session[CONFIRM_PASSKEY_CHALLENGE_KEY])
     assert.lengthOf(h.notFounds, 1)
+  })
+})
+
+test.group('sudo — return_to em POST: corpo tem precedência (Minor 4)', () => {
+  test('o corpo vence a query string no POST', async ({ assert }) => {
+    const h = fakeCtx({
+      method: 'POST',
+      input: { password: 'correta', return_to: '/account/security' },
+      qs: { return_to: '/account/tokens' },
+    })
+    await captureHandlers().get('POST /account/confirm')!(h.ctx)
+
+    assert.deepEqual(h.redirects, ['/account/security'])
+  })
+
+  test('a query string ainda vale no POST quando o corpo não traz return_to', async ({ assert }) => {
+    const h = fakeCtx({
+      method: 'POST',
+      input: { password: 'correta' },
+      qs: { return_to: '/account/tokens' },
+    })
+    await captureHandlers().get('POST /account/confirm')!(h.ctx)
+
+    assert.deepEqual(h.redirects, ['/account/tokens'])
   })
 })
 

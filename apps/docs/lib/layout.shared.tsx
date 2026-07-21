@@ -1,6 +1,6 @@
-import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared'
+import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
 
-const GITHUB_URL = 'https://github.com/DavideCarvalho/adonis-authkit'
+const GITHUB_URL = 'https://github.com/DavideCarvalho/adonis-authkit';
 
 /**
  * Mono "status pill" wordmark — the same console branding the landing header
@@ -16,7 +16,7 @@ function NavTitle() {
       />
       AuthKit
     </span>
-  )
+  );
 }
 
 export function baseOptions(): BaseLayoutProps {
@@ -32,5 +32,5 @@ export function baseOptions(): BaseLayoutProps {
       },
     ],
     githubUrl: GITHUB_URL,
-  }
+  };
 }

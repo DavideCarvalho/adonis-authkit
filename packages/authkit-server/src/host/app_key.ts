@@ -1,5 +1,5 @@
-import { RuntimeException } from '@adonisjs/core/exceptions'
-import type { ApplicationService } from '@adonisjs/core/types'
+import { RuntimeException } from '@adonisjs/core/exceptions';
+import type { ApplicationService } from '@adonisjs/core/types';
 
 /**
  * Mensagem única (compartilhada entre o check EAGER do `boot()` e o resolver
@@ -7,8 +7,8 @@ import type { ApplicationService } from '@adonisjs/core/types'
  * editar o texto, e garante que os dois caminhos falem exatamente a mesma coisa.
  */
 export const MISSING_APP_KEY_MESSAGE =
-  'APP_KEY ausente: defina `export const appKey = new Secret(env.get(\'APP_KEY\'))` em config/app.ts. ' +
-  'O @adonis-agora/authkit-server precisa dele para assinar os cookies do oidc-provider (NÃO usa config/encryption.ts).'
+  "APP_KEY ausente: defina `export const appKey = new Secret(env.get('APP_KEY'))` em config/app.ts. " +
+  'O @adonis-agora/authkit-server precisa dele para assinar os cookies do oidc-provider (NÃO usa config/encryption.ts).';
 
 /**
  * Lê e valida `app.appKey` (usado pelo oidc-provider para assinar cookies via
@@ -21,13 +21,13 @@ export const MISSING_APP_KEY_MESSAGE =
  * sem apontar a causa raiz).
  */
 export function resolveAppKey(app: ApplicationService): string {
-  const rawAppKey = app.config.get<unknown>('app.appKey')
+  const rawAppKey = app.config.get<unknown>('app.appKey');
   const appKey =
     rawAppKey && typeof (rawAppKey as any).release === 'function'
       ? (rawAppKey as any).release()
-      : (rawAppKey as string)
+      : (rawAppKey as string);
   if (!appKey || typeof appKey !== 'string') {
-    throw new RuntimeException(MISSING_APP_KEY_MESSAGE)
+    throw new RuntimeException(MISSING_APP_KEY_MESSAGE);
   }
-  return appKey
+  return appKey;
 }

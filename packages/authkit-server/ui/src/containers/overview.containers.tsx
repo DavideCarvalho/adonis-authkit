@@ -1,28 +1,29 @@
-import React from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { useOverviewQueryOptions } from '@adonis-agora/authkit-react'
-import { TrendChart } from '../components/TrendChart'
-import { QueryBoundary } from '../components/QueryBoundary'
-import { SkeletonCards, SkeletonCard, SkeletonPanelTable, Skeleton } from '../components/Skeleton'
+import { useOverviewQueryOptions } from '@adonis-agora/authkit-react';
+import { useQuery } from '@tanstack/react-query';
+import React from 'react';
+import { QueryBoundary } from '../components/QueryBoundary';
+import { Skeleton, SkeletonCard, SkeletonCards, SkeletonPanelTable } from '../components/Skeleton';
+import { TrendChart } from '../components/TrendChart';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function fmtDate(d: string) {
-  return new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  return new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 function eventBadgeClass(type: string) {
-  if (type.includes('login') || type.includes('signin')) return 'badge-green'
-  if (type.includes('fail') || type.includes('error') || type.includes('locked')) return 'badge-red'
-  if (type.includes('register') || type.includes('signup')) return 'badge-accent'
-  if (type.includes('settings') || type.includes('admin')) return 'badge-amber'
-  return 'badge-muted'
+  if (type.includes('login') || type.includes('signin')) return 'badge-green';
+  if (type.includes('fail') || type.includes('error') || type.includes('locked'))
+    return 'badge-red';
+  if (type.includes('register') || type.includes('signup')) return 'badge-accent';
+  if (type.includes('settings') || type.includes('admin')) return 'badge-amber';
+  return 'badge-muted';
 }
 
 // ── MetricsContainer ──────────────────────────────────────────────────────────
 
 export function MetricsContainer() {
-  const { data, isLoading, error, refetch } = useQuery(useOverviewQueryOptions())
+  const { data, isLoading, error, refetch } = useQuery(useOverviewQueryOptions());
 
   return (
     <QueryBoundary
@@ -50,7 +51,9 @@ export function MetricsContainer() {
           </div>
           <div className="card">
             <div className="card-label">Sign-ins</div>
-            <div className="card-value" style={{ color: 'var(--text)' }}>{data.signInsTotal.toLocaleString()}</div>
+            <div className="card-value" style={{ color: 'var(--text)' }}>
+              {data.signInsTotal.toLocaleString()}
+            </div>
             <div className="card-hint">last {data.windowDays} days</div>
           </div>
           <div className="card c-blue">
@@ -60,13 +63,15 @@ export function MetricsContainer() {
           </div>
           <div className="card">
             <div className="card-label">OAuth Clients</div>
-            <div className="card-value" style={{ color: 'var(--text)' }}>{data.clientsCount.toLocaleString()}</div>
+            <div className="card-value" style={{ color: 'var(--text)' }}>
+              {data.clientsCount.toLocaleString()}
+            </div>
             <div className="card-hint">OIDC clients</div>
           </div>
         </div>
       )}
     </QueryBoundary>
-  )
+  );
 }
 
 // ── SignInsChartContainer ─────────────────────────────────────────────────────
@@ -81,11 +86,11 @@ function ChartPanelSkeleton({ title }: { title: string }) {
         <Skeleton height={60} borderRadius={8} />
       </div>
     </div>
-  )
+  );
 }
 
 export function SignInsChartContainer() {
-  const { data, isLoading, error, refetch } = useQuery(useOverviewQueryOptions())
+  const { data, isLoading, error, refetch } = useQuery(useOverviewQueryOptions());
 
   return (
     <QueryBoundary
@@ -104,7 +109,16 @@ export function SignInsChartContainer() {
             {data.signInsPerDay.length > 0 ? (
               <TrendChart data={data.signInsPerDay} color="var(--accent)" label="sign-ins" />
             ) : (
-              <div style={{ height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--faint)', fontSize: 12 }}>
+              <div
+                style={{
+                  height: 60,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--faint)',
+                  fontSize: 12,
+                }}
+              >
                 No data yet
               </div>
             )}
@@ -112,13 +126,13 @@ export function SignInsChartContainer() {
         </div>
       )}
     </QueryBoundary>
-  )
+  );
 }
 
 // ── SignUpsChartContainer ─────────────────────────────────────────────────────
 
 export function SignUpsChartContainer() {
-  const { data, isLoading, error, refetch } = useQuery(useOverviewQueryOptions())
+  const { data, isLoading, error, refetch } = useQuery(useOverviewQueryOptions());
 
   return (
     <QueryBoundary
@@ -137,7 +151,16 @@ export function SignUpsChartContainer() {
             {data.signUpsPerDay.length > 0 ? (
               <TrendChart data={data.signUpsPerDay} color="var(--green)" label="sign-ups" />
             ) : (
-              <div style={{ height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--faint)', fontSize: 12 }}>
+              <div
+                style={{
+                  height: 60,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--faint)',
+                  fontSize: 12,
+                }}
+              >
                 No data yet
               </div>
             )}
@@ -145,13 +168,13 @@ export function SignUpsChartContainer() {
         </div>
       )}
     </QueryBoundary>
-  )
+  );
 }
 
 // ── RecentEventsContainer ─────────────────────────────────────────────────────
 
 export function RecentEventsContainer() {
-  const { data, isLoading, error, refetch } = useQuery(useOverviewQueryOptions())
+  const { data, isLoading, error, refetch } = useQuery(useOverviewQueryOptions());
 
   return (
     <QueryBoundary
@@ -160,7 +183,7 @@ export function RecentEventsContainer() {
       onRetry={refetch}
       skeleton={<SkeletonPanelTable rows={5} cols={4} />}
     >
-      {data && data.auditSupported && data.recentEvents.length > 0 && (
+      {data?.auditSupported && data.recentEvents.length > 0 && (
         <div className="panel">
           <div className="panel-head">
             <h3>Recent Events</h3>
@@ -191,7 +214,13 @@ export function RecentEventsContainer() {
                       <span className="code">{ev.ip ?? '—'}</span>
                     </td>
                     <td>
-                      <span style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--faint)' }}>
+                      <span
+                        style={{
+                          fontFamily: 'var(--mono)',
+                          fontSize: '11px',
+                          color: 'var(--faint)',
+                        }}
+                      >
                         {ev.createdAt ? fmtDate(ev.createdAt) : '—'}
                       </span>
                     </td>
@@ -203,5 +232,5 @@ export function RecentEventsContainer() {
         </div>
       )}
     </QueryBoundary>
-  )
+  );
 }

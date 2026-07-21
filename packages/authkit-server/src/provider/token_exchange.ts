@@ -1,20 +1,20 @@
-import { errors } from 'oidc-provider'
-import type { AuditSink } from '../audit/audit_sink.js'
-import type { AuthAccount } from '../accounts/account_store.js'
+import { errors } from 'oidc-provider';
+import type { AuthAccount } from '../accounts/account_store.js';
+import type { AuditSink } from '../audit/audit_sink.js';
 
-const TOKEN_EXCHANGE = 'urn:ietf:params:oauth:grant-type:token-exchange'
-const ACCESS_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:access_token'
+const TOKEN_EXCHANGE = 'urn:ietf:params:oauth:grant-type:token-exchange';
+const ACCESS_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:access_token';
 
 export interface TokenExchangeAccount {
-  id: string
-  email?: string
-  name?: string
-  globalRoles?: string[]
+  id: string;
+  email?: string;
+  name?: string;
+  globalRoles?: string[];
 }
 
 export interface TokenExchangeDeps {
-  findAccount: (sub: string) => Promise<TokenExchangeAccount | null>
-  globalRolesClaim: string
+  findAccount: (sub: string) => Promise<TokenExchangeAccount | null>;
+  globalRolesClaim: string;
   /**
    * Resolves the global-roles claim at token-mint time. When omitted, falls back to
    * `target.globalRoles ?? []` (unchanged behavior). Mirrors the mint-time hook used
@@ -24,19 +24,19 @@ export interface TokenExchangeDeps {
   resolveTokenRoles?: (
     account: AuthAccount,
     context: {
-      clientId?: string
-      activeOrg?: { orgId: string; orgSlug: string; orgRole: string } | null
+      clientId?: string;
+      activeOrg?: { orgId: string; orgSlug: string; orgRole: string } | null;
     },
-  ) => string[] | Promise<string[]>
-  adminRole?: string
+  ) => string[] | Promise<string[]>;
+  adminRole?: string;
   /**
    * Resource indicators (RFC 8707) suportados pelo provider. Quando o pedido traz
    * `audience`/`resource`, validamos contra esta lista; um alvo não suportado é
    * rejeitado (conservador). Vazio/ausente => nenhum resource é aceito no pedido.
    */
-  supportedResources?: string[]
+  supportedResources?: string[];
   /** Sink de auditoria (best-effort). Quando presente, registra `impersonation`. */
-  audit?: AuditSink
+  audit?: AuditSink;
 }
 
 /**
@@ -44,62 +44,62 @@ export interface TokenExchangeDeps {
  * Preserva a ordem do pedido. Nunca excede a allowlist do client.
  */
 function intersectScopes(requested: string, allowed: Set<string>): string {
-  const out: string[] = []
+  const out: string[] = [];
   for (const s of requested.split(' ')) {
-    const t = s.trim()
-    if (t && allowed.has(t) && !out.includes(t)) out.push(t)
+    const t = s.trim();
+    if (t && allowed.has(t) && !out.includes(t)) out.push(t);
   }
-  return out.join(' ')
+  return out.join(' ');
 }
 
 export function registerTokenExchange(provider: any, deps: TokenExchangeDeps): void {
-  const adminRole = deps.adminRole ?? 'ADMIN'
-  const supportedResources = new Set(deps.supportedResources ?? [])
+  const adminRole = deps.adminRole ?? 'ADMIN';
+  const supportedResources = new Set(deps.supportedResources ?? []);
 
   const handler = async (ctx: any) => {
-    const { params, client } = ctx.oidc
+    const { params, client } = ctx.oidc;
 
     if (params.subject_token_type !== ACCESS_TOKEN_TYPE) {
-      throw new errors.InvalidRequest('unsupported subject_token_type')
+      throw new errors.InvalidRequest('unsupported subject_token_type');
     }
     if (!params.subject_token) {
-      throw new errors.InvalidRequest('subject_token is required')
+      throw new errors.InvalidRequest('subject_token is required');
     }
 
-    const subjectAt = await provider.AccessToken.find(params.subject_token)
+    const subjectAt = await provider.AccessToken.find(params.subject_token);
     if (!subjectAt || subjectAt.isExpired) {
-      throw new errors.InvalidGrant('subject_token invalid or expired')
+      throw new errors.InvalidGrant('subject_token invalid or expired');
     }
 
     // O subject_token DEVE ter sido emitido para o MESMO client autenticado: senão
     // um client B poderia trocar um AT emitido para o client A (cross-client).
     if (subjectAt.clientId !== client?.clientId) {
-      throw new errors.InvalidGrant('subject_token was not issued to this client')
+      throw new errors.InvalidGrant('subject_token was not issued to this client');
     }
 
-    const actor = await deps.findAccount(subjectAt.accountId)
+    const actor = await deps.findAccount(subjectAt.accountId);
     if (!actor || !(actor.globalRoles ?? []).includes(adminRole)) {
-      throw new errors.InvalidGrant('actor not permitted to impersonate')
+      throw new errors.InvalidGrant('actor not permitted to impersonate');
     }
 
-    const targetId = params.requested_subject
+    const targetId = params.requested_subject;
     if (!targetId) {
-      throw new errors.InvalidRequest('requested_subject is required')
+      throw new errors.InvalidRequest('requested_subject is required');
     }
-    const target = await deps.findAccount(targetId)
+    const target = await deps.findAccount(targetId);
     if (!target) {
-      throw new errors.InvalidGrant('requested_subject not found')
+      throw new errors.InvalidGrant('requested_subject not found');
     }
 
     // audience/resource: se o pedido vier com um alvo, ele PRECISA estar entre os
     // resource indicators suportados. Caso contrário rejeitamos (conservador) —
     // nunca embutimos audiência arbitrária no token emitido.
     const requestedTargets = [params.audience, params.resource].filter(
-      (v): v is string => typeof v === 'string' && v.length > 0
-    )
+      (v): v is string => typeof v === 'string' && v.length > 0,
+    );
     for (const tgt of requestedTargets) {
       if (!supportedResources.has(tgt)) {
-        throw new errors.InvalidTarget('requested audience/resource is not supported')
+        throw new errors.InvalidTarget('requested audience/resource is not supported');
       }
     }
 
@@ -112,26 +112,29 @@ export function registerTokenExchange(provider: any, deps: TokenExchangeDeps): v
       String(client?.scope ?? '')
         .split(' ')
         .map((s: string) => s.trim())
-        .filter(Boolean)
-    )
-    const DEFAULT_SCOPE = 'openid profile email'
-    let scope: string
+        .filter(Boolean),
+    );
+    const DEFAULT_SCOPE = 'openid profile email';
+    let scope: string;
     if (clientScopes.size) {
       // Client com allowlist explícita: interseção (pedido) ou a própria allowlist.
       scope = params.scope
         ? intersectScopes(params.scope, clientScopes)
-        : [...clientScopes].join(' ')
+        : [...clientScopes].join(' ');
       // Pedido explícito sem nenhuma interseção → erro claro, não token de scope vazio.
       if (params.scope && !scope) {
-        throw new errors.InvalidScope('requested scope is not allowed for this client', params.scope)
+        throw new errors.InvalidScope(
+          'requested scope is not allowed for this client',
+          params.scope,
+        );
       }
     } else {
       // Client sem allowlist declarada: comportamento atual preservado.
-      scope = params.scope || DEFAULT_SCOPE
+      scope = params.scope || DEFAULT_SCOPE;
     }
 
-    const at = new provider.AccessToken({ accountId: target.id, client, scope })
-    const accessToken = await at.save()
+    const at = new provider.AccessToken({ accountId: target.id, client, scope });
+    const accessToken = await at.save();
 
     // Token exchange is not tied to a browser session, so there is no active org
     // context here — roles are resolved for the impersonated target with clientId only.
@@ -140,7 +143,7 @@ export function registerTokenExchange(provider: any, deps: TokenExchangeDeps): v
           clientId: client?.clientId,
           activeOrg: null,
         })
-      : (target.globalRoles ?? [])
+      : (target.globalRoles ?? []);
 
     const idToken = new provider.IdToken(
       {
@@ -150,11 +153,11 @@ export function registerTokenExchange(provider: any, deps: TokenExchangeDeps): v
         name: target.name,
         [deps.globalRolesClaim]: roles,
       },
-      { ctx }
-    )
-    idToken.scope = scope
-    idToken.set('act', { sub: actor.id })
-    const idTokenJwt = await idToken.issue({ use: 'idtoken' })
+      { ctx },
+    );
+    idToken.scope = scope;
+    idToken.set('act', { sub: actor.id });
+    const idTokenJwt = await idToken.issue({ use: 'idtoken' });
 
     await deps.audit?.record({
       type: 'impersonation',
@@ -164,7 +167,7 @@ export function registerTokenExchange(provider: any, deps: TokenExchangeDeps): v
       clientId: client?.clientId ?? null,
       ip: ctx.req?.socket?.remoteAddress ?? null,
       metadata: { scope },
-    })
+    });
 
     ctx.body = {
       access_token: accessToken,
@@ -173,8 +176,8 @@ export function registerTokenExchange(provider: any, deps: TokenExchangeDeps): v
       expires_in: at.expiration ?? 3600,
       id_token: idTokenJwt,
       scope,
-    }
-  }
+    };
+  };
 
   provider.registerGrantType(
     TOKEN_EXCHANGE,
@@ -190,6 +193,6 @@ export function registerTokenExchange(provider: any, deps: TokenExchangeDeps): v
       'actor_token',
       'actor_token_type',
     ],
-    ['audience', 'resource']
-  )
+    ['audience', 'resource'],
+  );
 }

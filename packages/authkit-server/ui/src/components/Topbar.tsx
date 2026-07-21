@@ -1,8 +1,8 @@
-import React from 'react'
+import React from 'react';
 
 interface TopbarProps {
-  title: string
-  actions?: React.ReactNode
+  title: string;
+  actions?: React.ReactNode;
 }
 
 export function Topbar({ title, actions }: TopbarProps) {
@@ -12,5 +12,5 @@ export function Topbar({ title, actions }: TopbarProps) {
       <div className="topbar-spacer" />
       {actions}
     </div>
-  )
+  );
 }

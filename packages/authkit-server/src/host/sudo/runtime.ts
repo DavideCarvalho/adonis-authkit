@@ -1,14 +1,14 @@
-import { markSudo } from '../sudo_mode.js'
-import { accountHome } from '../account_home.js'
-import { translate } from '../i18n.js'
-import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
-import { validateReturnTo } from '../controllers/account_session_controller.js'
-import type { HttpContext, Router } from '@adonisjs/core/http'
-import type { ResolvedServerConfig } from '../../define_config.js'
-import type { SudoContext, SudoMethod, SudoRouteHelpers } from './types.js'
+import type { HttpContext, Router } from '@adonisjs/core/http';
+import type { ResolvedServerConfig } from '../../define_config.js';
+import { accountHome } from '../account_home.js';
+import { validateReturnTo } from '../controllers/account_session_controller.js';
+import { translate } from '../i18n.js';
+import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js';
+import { markSudo } from '../sudo_mode.js';
+import type { SudoContext, SudoMethod, SudoRouteHelpers } from './types.js';
 
 /** Último método usado com sucesso — só ordena a tela, não restringe nada. */
-export const LAST_METHOD_SESSION_KEY = 'authkit_sudo_last_method'
+export const LAST_METHOD_SESSION_KEY = 'authkit_sudo_last_method';
 
 /**
  * Monta o `SudoContext` a partir do `HttpContext`.
@@ -21,10 +21,10 @@ export const LAST_METHOD_SESSION_KEY = 'authkit_sudo_last_method'
  * viver longe de `isSudoMethodEnabled` — origem do drift entre os dois lados.
  */
 export async function sudoContextFrom(ctx: HttpContext): Promise<SudoContext> {
-  const service = await (ctx as any).containerResolver.make('authkit.server')
-  const cfg = service.config
-  const accountId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
-  const account = await cfg.accountStore.findById(accountId)
+  const service = await (ctx as any).containerResolver.make('authkit.server');
+  const cfg = service.config;
+  const accountId = ctx.session.get(ACCOUNT_SESSION_KEY) as string;
+  const account = await cfg.accountStore.findById(accountId);
 
   // PRECEDÊNCIA do return_to. Num GET a query string é a única fonte real. Num
   // POST o alvo do redirect vem do campo hidden do form: deixar a query string
@@ -32,12 +32,12 @@ export async function sudoContextFrom(ctx: HttpContext): Promise<SudoContext> {
   // que o usuário já preencheu — e seria uma mudança silenciosa de um alvo de
   // redirect em relação ao comportamento histórico (`request.input`, que no
   // Adonis já dá precedência ao corpo). `validateReturnTo` roda nos dois casos.
-  const fromBody = ctx.request.input?.('return_to')
-  const fromQuery = (ctx.request as any).qs?.()?.return_to
-  const isPost = String((ctx.request as any).method?.() ?? '').toUpperCase() === 'POST'
-  const raw = isPost ? (fromBody ?? fromQuery) : (fromQuery ?? fromBody)
+  const fromBody = ctx.request.input?.('return_to');
+  const fromQuery = (ctx.request as any).qs?.()?.return_to;
+  const isPost = String((ctx.request as any).method?.() ?? '').toUpperCase() === 'POST';
+  const raw = isPost ? (fromBody ?? fromQuery) : (fromQuery ?? fromBody);
 
-  return { ctx, cfg, accountId, account, returnTo: validateReturnTo(raw) }
+  return { ctx, cfg, accountId, account, returnTo: validateReturnTo(raw) };
 }
 
 /**
@@ -46,7 +46,7 @@ export async function sudoContextFrom(ctx: HttpContext): Promise<SudoContext> {
  * a lista efetiva da TELA quando o host não configura `config.sudo.methods` —
  * ver `configuredSudoMethods`.
  */
-const mountedSudoMethods: SudoMethod[] = []
+const mountedSudoMethods: SudoMethod[] = [];
 
 /**
  * Registra a lista montada. Chamado UMA vez por `registerAuthHost`, e
@@ -54,12 +54,12 @@ const mountedSudoMethods: SudoMethod[] = []
  * não somar ao que existia.
  */
 export function setMountedSudoMethods(methods: SudoMethod[]): void {
-  mountedSudoMethods.splice(0, mountedSudoMethods.length, ...methods)
+  mountedSudoMethods.splice(0, mountedSudoMethods.length, ...methods);
 }
 
 /** Um método com este id teve rotas montadas? Usado só para avisar de drift. */
 export function isSudoMethodMounted(methodId: string): boolean {
-  return mountedSudoMethods.some((m) => m?.id === methodId)
+  return mountedSudoMethods.some((m) => m?.id === methodId);
 }
 
 /**
@@ -73,8 +73,8 @@ export function isSudoMethodMounted(methodId: string): boolean {
  * circular se os métodos importassem de volta o controller.
  */
 export function explicitSudoMethods(cfg: ResolvedServerConfig): SudoMethod[] | null {
-  const configured = cfg?.sudo?.methods
-  return Array.isArray(configured) && configured.length ? configured : null
+  const configured = cfg?.sudo?.methods;
+  return Array.isArray(configured) && configured.length ? configured : null;
 }
 
 /**
@@ -90,9 +90,9 @@ export function explicitSudoMethods(cfg: ResolvedServerConfig): SudoMethod[] | n
  * montado, e tratá-la como tal derrubaria um método customizado do host.
  */
 export function isSudoMethodEnabled(cfg: ResolvedServerConfig, methodId: string): boolean {
-  const explicit = explicitSudoMethods(cfg)
-  if (explicit === null) return true
-  return explicit.some((m) => m?.id === methodId)
+  const explicit = explicitSudoMethods(cfg);
+  if (explicit === null) return true;
+  return explicit.some((m) => m?.id === methodId);
 }
 
 /**
@@ -115,7 +115,7 @@ export function isSudoMethodEnabled(cfg: ResolvedServerConfig, methodId: string)
  * sobra — config explícita divergindo do que foi montado.
  */
 export function configuredSudoMethods(cfg: ResolvedServerConfig): SudoMethod[] {
-  return explicitSudoMethods(cfg) ?? mountedSudoMethods
+  return explicitSudoMethods(cfg) ?? mountedSudoMethods;
 }
 
 /**
@@ -127,7 +127,7 @@ export function configuredSudoMethods(cfg: ResolvedServerConfig): SudoMethod[] {
  * Deixá-lo de fora da barreira seria um bypass silencioso — `router.route()`
  * registra rota igual a qualquer verbo.
  */
-const ROUTER_VERBS = ['get', 'post', 'put', 'patch', 'delete', 'any'] as const
+const ROUTER_VERBS = ['get', 'post', 'put', 'patch', 'delete', 'any'] as const;
 
 /**
  * Atalhos do `Router` que registram rotas SEM receber um handler-função: eles
@@ -136,7 +136,7 @@ const ROUTER_VERBS = ['get', 'post', 'put', 'patch', 'delete', 'any'] as const
  *
  * Ver `assertWrappableHandler` para o porquê de recusar em vez de deixar passar.
  */
-const ROUTER_CONTROLLER_SHORTCUTS = ['resource', 'shallowResource'] as const
+const ROUTER_CONTROLLER_SHORTCUTS = ['resource', 'shallowResource'] as const;
 
 /**
  * Envelopa o router entregue a `method.register` para que TODO handler que ele
@@ -193,17 +193,17 @@ export function guardSudoRoutes(
    * mesma natureza da barreira de `config.sudo.methods`: estrutural, sem
    * depender de quem escreve o método lembrar de nada.
    */
-  applyThrottle?: (route: unknown) => void
+  applyThrottle?: (route: unknown) => void,
 ): Router {
   const wrap =
     (handler: (ctx: HttpContext) => unknown) =>
     async (ctx: HttpContext): Promise<unknown> => {
-      const service = await (ctx as any).containerResolver.make('authkit.server')
-      if (isSudoMethodEnabled(service.config, methodId)) return handler(ctx)
+      const service = await (ctx as any).containerResolver.make('authkit.server');
+      if (isSudoMethodEnabled(service.config, methodId)) return handler(ctx);
 
-      const c = await h.contextFrom(ctx)
-      return h.fail(c, 'account.confirm.error')
-    }
+      const c = await h.contextFrom(ctx);
+      return h.fail(c, 'account.confirm.error');
+    };
 
   /**
    * A barreira só sabe embrulhar handler-FUNÇÃO. Qualquer outra forma
@@ -221,20 +221,15 @@ export function guardSudoRoutes(
    * de uma linha (`(ctx) => new Ctrl().metodo(ctx)`), que passa pela barreira.
    */
   const assertWrappableHandler = (verb: string, pattern: string, handler: unknown) => {
-    if (typeof handler === 'function') return handler as (ctx: HttpContext) => unknown
+    if (typeof handler === 'function') return handler as (ctx: HttpContext) => unknown;
 
     throw new Error(
-      `authkit: o método de sudo "${methodId}" registrou "${verb} ${pattern}" com um handler ` +
-        `que não é função (${handler === undefined ? 'undefined' : typeof handler}). ` +
-        'Métodos de sudo precisam registrar handler-função para receber a barreira de ' +
-        '`config.sudo.methods` — uma tupla `[Controller, \'metodo\']` registraria uma rota que ' +
-        'a config não desabilita e que alcança `completeSudo`. Envolva o controller numa ' +
-        "função: `router.post(pattern, (ctx) => new Controller().metodo(ctx))`."
-    )
-  }
+      `authkit: o método de sudo "${methodId}" registrou "${verb} ${pattern}" com um handler que não é função (${handler === undefined ? 'undefined' : typeof handler}). Métodos de sudo precisam registrar handler-função para receber a barreira de \`config.sudo.methods\` — uma tupla \`[Controller, 'metodo']\` registraria uma rota que a config não desabilita e que alcança \`completeSudo\`. Envolva o controller numa função: \`router.post(pattern, (ctx) => new Controller().metodo(ctx))\`.`,
+    );
+  };
 
   const wrapIfFn = (verb: string, pattern: string, handler: unknown) =>
-    wrap(assertWrappableHandler(verb, pattern, handler))
+    wrap(assertWrappableHandler(verb, pattern, handler));
 
   return new Proxy(router, {
     // `receiver` é DELIBERADAMENTE `target`, não o Proxy: o `Router` do Adonis é
@@ -242,22 +237,22 @@ export function guardSudoRoutes(
     // e ler/chamar um membro com `this` apontando para o Proxy lança
     // `TypeError: Cannot read private member #app`.
     get(target, prop) {
-      const original = Reflect.get(target, prop, target)
-      if (typeof original !== 'function') return original
+      const original = Reflect.get(target, prop, target);
+      if (typeof original !== 'function') return original;
 
       // Throttle na rota recém-criada. O `Route` real é preservado e devolvido,
       // então `.as()`/`.use()` seguem encadeando do lado de fora.
       const throttled = (route: unknown) => {
-        applyThrottle?.(route)
-        return route
-      }
+        applyThrottle?.(route);
+        return route;
+      };
 
       // `route(pattern, methods, handler)` — handler no TERCEIRO argumento.
       if (prop === 'route') {
         return (pattern: string, methods: unknown, handler: unknown, ...rest: unknown[]) =>
           throttled(
-            original.call(target, pattern, methods, wrapIfFn('route', pattern, handler), ...rest)
-          )
+            original.call(target, pattern, methods, wrapIfFn('route', pattern, handler), ...rest),
+          );
       }
 
       if (ROUTER_VERBS.includes(prop as (typeof ROUTER_VERBS)[number])) {
@@ -267,9 +262,9 @@ export function guardSudoRoutes(
               target,
               pattern,
               wrapIfFn(String(prop).toUpperCase(), pattern, handler),
-              ...rest
-            )
-          )
+              ...rest,
+            ),
+          );
       }
 
       // `resource()`/`shallowResource()` expandem um controller em N rotas por
@@ -277,15 +272,14 @@ export function guardSudoRoutes(
       // teria o que embrulhar. Recusa no boot pela mesma razão da tupla — deixar
       // passar seria registrar rotas de sudo que `config.sudo.methods` não
       // desabilita.
-      if (ROUTER_CONTROLLER_SHORTCUTS.includes(prop as (typeof ROUTER_CONTROLLER_SHORTCUTS)[number])) {
+      if (
+        ROUTER_CONTROLLER_SHORTCUTS.includes(prop as (typeof ROUTER_CONTROLLER_SHORTCUTS)[number])
+      ) {
         return (pattern: string) => {
           throw new Error(
-            `authkit: o método de sudo "${methodId}" chamou router.${String(prop)}("${pattern}"), ` +
-              'que registra rotas a partir de um controller e portanto não pode receber a ' +
-              'barreira de `config.sudo.methods`. Registre as rotas do método uma a uma, com ' +
-              'handler-função.'
-          )
-        }
+            `authkit: o método de sudo "${methodId}" chamou router.${String(prop)}("${pattern}"), que registra rotas a partir de um controller e portanto não pode receber a barreira de \`config.sudo.methods\`. Registre as rotas do método uma a uma, com handler-função.`,
+          );
+        };
       }
 
       // Todo o RESTO da API do `Router` (`group`, `on`, `where`, `use`, ...)
@@ -297,9 +291,9 @@ export function guardSudoRoutes(
       // `original.call(target, ...)` nos verbos e o `bind` aqui preservam o
       // RETORNO real (`Route`/`RouteGroup`), então `.as()`/`.use()`/
       // `.middleware()`/`.prefix()` continuam encadeando normalmente.
-      return original.bind(target)
+      return original.bind(target);
     },
-  })
+  });
 }
 
 /**
@@ -320,19 +314,19 @@ export async function completeSudo(c: SudoContext, methodId: string): Promise<un
   // ponto de concessão.
   // Falsy, não `=== null`: um contexto montado à mão que simplesmente omita
   // `account` não pode escapar da barreira por um detalhe de forma.
-  if (!c.account) return fail(c, 'account.confirm.error')
+  if (!c.account) return fail(c, 'account.confirm.error');
 
-  markSudo(c.ctx)
-  c.ctx.session.put(LAST_METHOD_SESSION_KEY, methodId)
+  markSudo(c.ctx);
+  c.ctx.session.put(LAST_METHOD_SESSION_KEY, methodId);
 
   await c.cfg.audit?.record({
     type: 'sudo.confirmed',
     accountId: c.accountId,
     ip: c.ctx.request.ip?.() ?? null,
     metadata: { method: methodId },
-  })
+  });
 
-  return c.ctx.response.redirect(c.returnTo ?? accountHome(c.cfg))
+  return c.ctx.response.redirect(c.returnTo ?? accountHome(c.cfg));
 }
 
 /**
@@ -341,9 +335,9 @@ export async function completeSudo(c: SudoContext, methodId: string): Promise<un
  * controller.
  */
 export async function fail(c: SudoContext, messageKey: string): Promise<unknown> {
-  c.ctx.session.flash('confirmError', translate(c.cfg.messages, messageKey))
-  const qs = c.returnTo ? `?return_to=${encodeURIComponent(c.returnTo)}` : ''
-  return c.ctx.response.redirect(`/account/confirm${qs}`)
+  c.ctx.session.flash('confirmError', translate(c.cfg.messages, messageKey));
+  const qs = c.returnTo ? `?return_to=${encodeURIComponent(c.returnTo)}` : '';
+  return c.ctx.response.redirect(`/account/confirm${qs}`);
 }
 
 /**
@@ -355,12 +349,12 @@ export async function fail(c: SudoContext, messageKey: string): Promise<unknown>
  */
 export async function resolveAvailableMethods(
   c: SudoContext,
-  methods: SudoMethod[]
+  methods: SudoMethod[],
 ): Promise<SudoMethod[]> {
   const checked = await Promise.all(
     methods.map(async (m) => {
       try {
-        return (await m.isAvailable(c)) ? m : null
+        return (await m.isAvailable(c)) ? m : null;
       } catch (error) {
         // Fail-safe: um `isAvailable` quebrado não pode trancar o usuário fora
         // dos outros métodos — mas precisa deixar rastro, senão um typo vira
@@ -368,17 +362,17 @@ export async function resolveAvailableMethods(
         // `?.` defensivo: em teste, `fakeSudoContext` pode não ter logger.
         c.ctx.logger?.warn(
           { method: m.id, err: error },
-          `authkit: isAvailable() do método de sudo "${m.id}" lançou — método omitido da lista`
-        )
-        return null
+          `authkit: isAvailable() do método de sudo "${m.id}" lançou — método omitido da lista`,
+        );
+        return null;
       }
-    })
-  )
+    }),
+  );
 
-  const available = checked.filter((m): m is SudoMethod => m !== null)
-  const last = c.ctx.session.get(LAST_METHOD_SESSION_KEY) as string | undefined
-  if (!last) return available
+  const available = checked.filter((m): m is SudoMethod => m !== null);
+  const last = c.ctx.session.get(LAST_METHOD_SESSION_KEY) as string | undefined;
+  if (!last) return available;
 
-  const preferred = available.filter((m) => m.id === last)
-  return preferred.length ? [...preferred, ...available.filter((m) => m.id !== last)] : available
+  const preferred = available.filter((m) => m.id === last);
+  return preferred.length ? [...preferred, ...available.filter((m) => m.id !== last)] : available;
 }

@@ -7,7 +7,7 @@
 export {
   defineAuthkitTelescopeExtension,
   type AuthkitTelescopeOptions,
-} from "./extension.js";
+} from './extension.js';
 export {
   authkitDataProviders,
   authkitEventCountProvider,
@@ -15,4 +15,4 @@ export {
   authkitLoginsOverTimeProvider,
   authkitEventBreakdownProvider,
   authkitTokenActivityProvider,
-} from "./data_providers.js";
+} from './data_providers.js';

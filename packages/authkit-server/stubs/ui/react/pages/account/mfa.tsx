@@ -1,14 +1,14 @@
-{{{
-  exports({ to: app.makePath('inertia/pages/authkit/account/mfa.tsx') })
-}}}
+{
+  exports({ to: app.makePath('inertia/pages/authkit/account/mfa.tsx') });
+}
 interface Props {
-  csrfToken: string
-  enabled: boolean
-  enrolling?: boolean
-  secret?: string | null
-  qrDataUrl?: string | null
-  error?: string
-  recoveryCodes?: string[] | null
+  csrfToken: string;
+  enabled: boolean;
+  enrolling?: boolean;
+  secret?: string | null;
+  qrDataUrl?: string | null;
+  error?: string;
+  recoveryCodes?: string[] | null;
 }
 
 export default function AccountMfa({
@@ -25,7 +25,9 @@ export default function AccountMfa({
       <div className="mx-auto max-w-2xl">
         <div className="flex items-center justify-between py-6">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Acme</div>
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">
+              Acme
+            </div>
             <h1 className="text-xl font-semibold text-gray-900">Verificação em duas etapas</h1>
           </div>
           <form method="POST" action="/account/logout">
@@ -82,7 +84,6 @@ export default function AccountMfa({
                 inputMode="numeric"
                 pattern="[0-9]*"
                 maxLength={6}
-                autoFocus
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-center text-lg tracking-[0.4em] outline-none focus:border-gray-900"
               />
               <button
@@ -112,8 +113,8 @@ export default function AccountMfa({
         ) : (
           <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
             <p className="text-sm text-gray-700">
-              A verificação em duas etapas está desativada. Ative-a para proteger sua conta com um app
-              autenticador.
+              A verificação em duas etapas está desativada. Ative-a para proteger sua conta com um
+              app autenticador.
             </p>
             <form method="POST" action="/account/mfa/enroll" className="mt-4">
               <input type="hidden" name="_csrf" value={csrfToken} />
@@ -128,5 +129,5 @@ export default function AccountMfa({
         )}
       </div>
     </div>
-  )
+  );
 }

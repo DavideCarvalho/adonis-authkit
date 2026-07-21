@@ -1,10 +1,10 @@
-import type { ActiveOrgInfo } from '../accounts/account_store.js'
+import type { ActiveOrgInfo } from '../accounts/account_store.js';
 
 /** Nome do cookie da org ativa. HttpOnly, SameSite=Lax, Secure em prod. */
-export const ACTIVE_ORG_COOKIE = 'authkit_active_org'
+export const ACTIVE_ORG_COOKIE = 'authkit_active_org';
 
 /** TTL máximo do cookie da org ativa (30 dias em segundos). */
-export const ACTIVE_ORG_COOKIE_TTL = 60 * 60 * 24 * 30
+export const ACTIVE_ORG_COOKIE_TTL = 60 * 60 * 24 * 30;
 
 /**
  * Codifica as informações da org ativa num valor de cookie (plaintext, sem
@@ -13,7 +13,7 @@ export const ACTIVE_ORG_COOKIE_TTL = 60 * 60 * 24 * 30
  * TAB é escolhido pois IDs e slugs não o contêm.
  */
 export function encodeActiveOrgCookie(info: ActiveOrgInfo): string {
-  return `${info.orgId}\t${info.orgSlug}\t${info.orgRole}`
+  return `${info.orgId}\t${info.orgSlug}\t${info.orgRole}`;
 }
 
 /**
@@ -21,12 +21,12 @@ export function encodeActiveOrgCookie(info: ActiveOrgInfo): string {
  * Não valida assinatura — assume que o caller já verificou (AdonisJS request.cookiesList).
  */
 export function decodeActiveOrgCookie(value: string | null | undefined): ActiveOrgInfo | null {
-  if (!value) return null
-  const parts = value.split('\t')
-  if (parts.length !== 3) return null
-  const [orgId, orgSlug, orgRole] = parts
-  if (!orgId || !orgSlug || !orgRole) return null
-  return { orgId, orgSlug, orgRole }
+  if (!value) return null;
+  const parts = value.split('\t');
+  if (parts.length !== 3) return null;
+  const [orgId, orgSlug, orgRole] = parts;
+  if (!orgId || !orgSlug || !orgRole) return null;
+  return { orgId, orgSlug, orgRole };
 }
 
 /**
@@ -41,9 +41,9 @@ export function decodeActiveOrgCookie(value: string | null | undefined): ActiveO
  */
 export function readActiveOrgFromKoaCtx(koaCtx: any): ActiveOrgInfo | null {
   try {
-    const raw = koaCtx?.cookies?.get?.(ACTIVE_ORG_COOKIE, { signed: false })
-    return decodeActiveOrgCookie(raw)
+    const raw = koaCtx?.cookies?.get?.(ACTIVE_ORG_COOKIE, { signed: false });
+    return decodeActiveOrgCookie(raw);
   } catch {
-    return null
+    return null;
   }
 }

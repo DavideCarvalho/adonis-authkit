@@ -1,20 +1,20 @@
-export type UiPreset = 'headless' | 'edge' | 'react'
+export type UiPreset = 'headless' | 'edge' | 'react';
 
-const VALID: UiPreset[] = ['headless', 'edge', 'react']
+const VALID: UiPreset[] = ['headless', 'edge', 'react'];
 
 export function resolveUiPreset(value: string | undefined): UiPreset {
-  if (value === undefined) return 'edge'
+  if (value === undefined) return 'edge';
   if (!VALID.includes(value as UiPreset)) {
-    throw new Error(`authkit: --ui inválido "${value}". Use: ${VALID.join(' | ')}`)
+    throw new Error(`authkit: --ui inválido "${value}". Use: ${VALID.join(' | ')}`);
   }
-  return value as UiPreset
+  return value as UiPreset;
 }
 
 /** Caminhos de stub (relativos ao stubsRoot) que o preset publica. */
 export function uiStubPaths(preset: UiPreset): string[] {
   switch (preset) {
     case 'headless':
-      return []
+      return [];
     case 'edge':
       /**
        * Views são donas-da-lib (disco `authkit::`); nada a scaffoldar.
@@ -30,7 +30,7 @@ export function uiStubPaths(preset: UiPreset): string[] {
        * CSS compilado. Foram removidos em vez de ressuscitados — o scaffold era
        * uma duplicata inferior das views da lib (sem `_csrf`, inclusive).
        */
-      return []
+      return [];
     case 'react':
       return [
         'ui/react/components/auth_shell.tsx',
@@ -44,6 +44,6 @@ export function uiStubPaths(preset: UiPreset): string[] {
         'ui/react/pages/account/login.tsx',
         'ui/react/pages/account/tokens.tsx',
         'ui/react/pages/account/mfa.tsx',
-      ]
+      ];
   }
 }

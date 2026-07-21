@@ -1,6 +1,6 @@
-import type { HttpContext } from '@adonisjs/core/http'
-import { ACCOUNT_SESSION_KEY } from './middleware/account_auth.js'
-import { getAccountLoginUrl } from './account_login_url.js'
+import type { HttpContext } from '@adonisjs/core/http';
+import { getAccountLoginUrl } from './account_login_url.js';
+import { ACCOUNT_SESSION_KEY } from './middleware/account_auth.js';
 
 /**
  * Helpers públicos para integrar a sessão do console do AuthKit com
@@ -17,15 +17,15 @@ import { getAccountLoginUrl } from './account_login_url.js'
  * sessão).
  */
 export function getAccountId(ctx: HttpContext): string | null {
-  const accountId = ctx.session?.get(ACCOUNT_SESSION_KEY) as string | undefined
-  return accountId ?? null
+  const accountId = ctx.session?.get(ACCOUNT_SESSION_KEY) as string | undefined;
+  return accountId ?? null;
 }
 
 /**
  * `true` quando o request carrega uma sessão de conta do console.
  */
 export function hasAccountSession(ctx: HttpContext): boolean {
-  return getAccountId(ctx) !== null
+  return getAccountId(ctx) !== null;
 }
 
 /**
@@ -40,8 +40,8 @@ export function hasAccountSession(ctx: HttpContext): boolean {
  * consoleLoginUrl('/telescope') // => '/account/login?return_to=%2Ftelescope'
  */
 export function consoleLoginUrl(returnTo?: string): string {
-  const loginUrl = getAccountLoginUrl()
-  if (!returnTo) return loginUrl
-  const sep = loginUrl.includes('?') ? '&' : '?'
-  return `${loginUrl}${sep}return_to=${encodeURIComponent(returnTo)}`
+  const loginUrl = getAccountLoginUrl();
+  if (!returnTo) return loginUrl;
+  const sep = loginUrl.includes('?') ? '&' : '?';
+  return `${loginUrl}${sep}return_to=${encodeURIComponent(returnTo)}`;
 }

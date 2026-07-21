@@ -1,9 +1,9 @@
-import type { HttpContext, Router } from '@adonisjs/core/http'
-import type { ResolvedServerConfig } from '../../define_config.js'
+import type { HttpContext, Router } from '@adonisjs/core/http';
+import type { ResolvedServerConfig } from '../../define_config.js';
 
 /** Contexto entregue a todo método de sudo. */
 export interface SudoContext {
-  ctx: HttpContext
+  ctx: HttpContext;
   /**
    * Conta logada no console — carregada com `accountStore.findById`.
    *
@@ -16,18 +16,18 @@ export interface SudoContext {
    * de fato garante: `findById` devolve `AuthAccount`, cujo `email: string`
    * (accounts/account_store.ts:4). A nulidade real está no objeto, não no campo.
    */
-  account: { id: string; email: string } | null
-  accountId: string
+  account: { id: string; email: string } | null;
+  accountId: string;
   /** Config resolvida do authkit (accountStore, messages, audit, mail...). */
-  cfg: ResolvedServerConfig
+  cfg: ResolvedServerConfig;
   /** Destino pós-confirmação, já validado — só caminhos internos. */
-  returnTo: string | null
+  returnTo: string | null;
 }
 
 /** Como a tela deve renderizar o passo deste método. */
 export interface SudoMethodDescriptor {
   /** Chave i18n do rótulo. Ex.: 'account.confirm.method.magic_link'. */
-  labelKey: string
+  labelKey: string;
   /**
    * 'form'     — a tela renderiza `fields` e dá POST em `endpoint`.
    * 'action'   — a tela dá POST em `endpoint` sem input.
@@ -48,19 +48,19 @@ export interface SudoMethodDescriptor {
    * um form de submit direto manda `response` vazio e o handler recusa sempre —
    * foi exatamente essa a regressão que motivou este kind.
    */
-  kind: 'form' | 'action' | 'redirect' | 'webauthn'
-  endpoint: string
-  fields?: Array<{ name: string; type: 'password' | 'text'; labelKey: string }>
+  kind: 'form' | 'action' | 'redirect' | 'webauthn';
+  endpoint: string;
+  fields?: Array<{ name: string; type: 'password' | 'text'; labelKey: string }>;
 }
 
 /** Helpers que o runtime entrega às rotas de um método. */
 export interface SudoRouteHelpers {
   /** Monta o SudoContext a partir do HttpContext (resolve config, conta, returnTo). */
-  contextFrom(ctx: HttpContext): Promise<SudoContext>
+  contextFrom(ctx: HttpContext): Promise<SudoContext>;
   /** ÚNICO ponto de concessão de sudo no pacote. */
-  completeSudo(c: SudoContext, methodId: string): Promise<unknown>
+  completeSudo(c: SudoContext, methodId: string): Promise<unknown>;
   /** Flash de erro + volta pro /account/confirm preservando return_to. */
-  fail(c: SudoContext, messageKey: string): Promise<unknown>
+  fail(c: SudoContext, messageKey: string): Promise<unknown>;
 }
 
 /**
@@ -73,11 +73,11 @@ export interface SudoRouteHelpers {
  */
 export interface SudoMethod {
   /** Estável. Vai no audit (`metadata.method`) e na preferência lembrada. */
-  readonly id: string
+  readonly id: string;
   /** Disponível para ESTA conta? Ex.: passkey só se houver passkey cadastrada. */
-  isAvailable(c: SudoContext): Promise<boolean>
+  isAvailable(c: SudoContext): Promise<boolean>;
   /** O que a tela mostra para este método. */
-  describe(c: SudoContext): Promise<SudoMethodDescriptor>
+  describe(c: SudoContext): Promise<SudoMethodDescriptor>;
   /**
    * Endpoints próprios. Opcional: métodos puramente 'redirect' (oidcStepUp)
    * não registram nada, porque o fluxo sai do pacote.
@@ -86,5 +86,5 @@ export interface SudoMethod {
    * `password` e `passkey` precisam manter URLs legadas que uma convenção
    * não comportaria.
    */
-  register?(router: Router, h: SudoRouteHelpers): void
+  register?(router: Router, h: SudoRouteHelpers): void;
 }

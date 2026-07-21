@@ -1,44 +1,40 @@
-import "../augmentations.js";
-import type { HttpContext } from "@adonisjs/core/http";
-import { ACCOUNT_SESSION_KEY } from "../middleware/account_auth.js";
-import { getAccountLoginUrl } from "../account_login_url.js";
+import '../augmentations.js';
+import type { HttpContext } from '@adonisjs/core/http';
 import {
-  supportsAccountSecurity,
   supportsAccountDeletion,
-  supportsProfile,
+  supportsAccountSecurity,
   supportsPasswordHistory,
-} from "../../accounts/account_store.js";
-import {
-  changePasswordValidator,
-  changeEmailValidator,
-  deleteAccountValidator,
-  updateProfileValidator,
-} from "../validators.js";
+  supportsProfile,
+} from '../../accounts/account_store.js';
+import { PasswordPolicyError } from '../../password/password_manager.js';
+import { AccountDeletionService } from '../account_deletion_service.js';
+import { AccountExportService } from '../account_export_service.js';
+import { getAccountLoginUrl } from '../account_login_url.js';
+import { AdminSessionsService } from '../admin_sessions_service.js';
+import { syncAdonisAuthLogout } from '../adonis_auth_sync.js';
+import { AvatarUploadError, isAvatarUploadSupported, storeAvatar } from '../avatar_storage.js';
 import {
   sendEmailChangeConfirmationEmail,
   sendEmailChangeNoticeEmail,
   sendEmailChangedCompletedEmail,
-} from "../default_mailer.js";
-import {
-  storeAvatar,
-  isAvatarUploadSupported,
-  AvatarUploadError,
-} from "../avatar_storage.js";
-import { translate } from "../i18n.js";
-import { TRUSTED_DEVICE_COOKIE } from "../trusted_device.js";
-import { AccountDeletionService } from "../account_deletion_service.js";
-import { AccountExportService } from "../account_export_service.js";
-import { AdminSessionsService } from "../admin_sessions_service.js";
-import { enrichSessionsWithContext } from "../session_context.js";
-import { PasswordPolicyError } from "../../password/password_manager.js";
-import { resolveRuntimeSettings } from "../runtime_settings.js";
+} from '../default_mailer.js';
+import { translate } from '../i18n.js';
+import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js';
+import { resolveRuntimeSettings } from '../runtime_settings.js';
 import {
   resolveEffectiveEmailChange,
   resolveEffectivePasswordHistory,
-} from "../runtime_toggles.js";
-import { dispatchSecurityNotice } from "../security_notice_service.js";
-import { requireSudo } from "../sudo_mode.js";
-import { syncAdonisAuthLogout } from "../adonis_auth_sync.js";
+} from '../runtime_toggles.js';
+import { dispatchSecurityNotice } from '../security_notice_service.js';
+import { enrichSessionsWithContext } from '../session_context.js';
+import { requireSudo } from '../sudo_mode.js';
+import { TRUSTED_DEVICE_COOKIE } from '../trusted_device.js';
+import {
+  changeEmailValidator,
+  changePasswordValidator,
+  deleteAccountValidator,
+  updateProfileValidator,
+} from '../validators.js';
 
 /** Resolve os password history settings em runtime (fail-safe). */
 async function resolvePasswordHistorySettings(ctx: HttpContext) {
@@ -75,7 +71,7 @@ async function resolveEmailChangeSettings(ctx: HttpContext) {
  */
 export default class AccountSecurityController {
   async index(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make("authkit.server");
+    const service = await ctx.containerResolver.make('authkit.server');
     const cfg = service.config;
     const render = cfg.render!;
 
@@ -87,44 +83,38 @@ export default class AccountSecurityController {
     const adminSessions = new AdminSessionsService(service);
     const sessionsSupported = adminSessions.canList;
     const ownSessions = sessionsSupported
-      ? await enrichSessionsWithContext(
-          cfg,
-          userId,
-          await adminSessions.listSessions(userId),
-        )
+      ? await enrichSessionsWithContext(cfg, userId, await adminSessions.listSessions(userId))
       : [];
 
-    return render(ctx, "account/security", {
+    return render(ctx, 'account/security', {
       csrfToken: ctx.request.csrfToken,
       supported: supportsAccountSecurity(cfg.accountStore),
       profileSupported: supportsProfile(cfg.accountStore),
       // Só mostramos o input de arquivo se ALGUM backend (drive OU media) puder armazenar.
       avatarUploadSupported: await isAvatarUploadSupported(cfg.uploads),
-      email: account?.email ?? "",
-      name: account?.name ?? "",
-      avatarUrl: account?.avatarUrl ?? "",
-      passwordChanged: ctx.session.flashMessages.get("passwordChanged") ?? null,
-      emailChangeRequested:
-        ctx.session.flashMessages.get("emailChangeRequested") ?? null,
-      emailChanged: ctx.session.flashMessages.get("emailChanged") ?? null,
-      profileUpdated: ctx.session.flashMessages.get("profileUpdated") ?? null,
-      error: ctx.session.flashMessages.get("securityError") ?? null,
+      email: account?.email ?? '',
+      name: account?.name ?? '',
+      avatarUrl: account?.avatarUrl ?? '',
+      passwordChanged: ctx.session.flashMessages.get('passwordChanged') ?? null,
+      emailChangeRequested: ctx.session.flashMessages.get('emailChangeRequested') ?? null,
+      emailChanged: ctx.session.flashMessages.get('emailChanged') ?? null,
+      profileUpdated: ctx.session.flashMessages.get('profileUpdated') ?? null,
+      error: ctx.session.flashMessages.get('securityError') ?? null,
       trustedDevicesEnabled: cfg.trustedDevices.enabled,
-      trustedDevicesRevoked:
-        ctx.session.flashMessages.get("trustedDevicesRevoked") ?? null,
+      trustedDevicesRevoked: ctx.session.flashMessages.get('trustedDevicesRevoked') ?? null,
       sessionsSupported,
       sessions: ownSessions.map((s) => ({
-        loginTs: s.loginTs ? new Date(s.loginTs * 1000).toISOString() : "",
-        browser: s.browser ?? "",
-        os: s.os ?? "",
-        ip: s.ip ?? "",
-        location: s.location ?? "",
+        loginTs: s.loginTs ? new Date(s.loginTs * 1000).toISOString() : '',
+        browser: s.browser ?? '',
+        os: s.os ?? '',
+        ip: s.ip ?? '',
+        location: s.location ?? '',
       })),
       // Export de dados (portabilidade) sempre disponível para a conta logada.
       exportSupported: true,
       // Deleção de conta (LGPD): só quando o store suporta hard delete.
       deletionSupported: supportsAccountDeletion(cfg.accountStore),
-      deleteError: ctx.session.flashMessages.get("deleteError") ?? null,
+      deleteError: ctx.session.flashMessages.get('deleteError') ?? null,
     });
   }
 
@@ -134,7 +124,7 @@ export default class AccountSecurityController {
    * NUNCA inclui segredos. Audita `account.exported`.
    */
   async exportData(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make("authkit.server");
+    const service = await ctx.containerResolver.make('authkit.server');
     const cfg = service.config;
 
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string;
@@ -142,18 +132,14 @@ export default class AccountSecurityController {
     if (cfg.accountLifecycle?.durable) {
       // OPT-IN durável: enfileira o workflow de export (coleta + persiste artefato
       // + entrega async). Isolado no subpath durável — só carregado neste ramo.
-      const { resolveWorkflowEngine, enqueueAccountExport } =
-        await import("../durable/index.js");
+      const { resolveWorkflowEngine, enqueueAccountExport } = await import('../durable/index.js');
       const engine = await resolveWorkflowEngine(ctx.containerResolver);
       await enqueueAccountExport(engine, {
         accountId: userId,
         ip: ctx.request.ip?.() ?? null,
       });
-      ctx.session.flash(
-        "exportRequested",
-        translate(cfg.messages, "account.export.requested"),
-      );
-      return ctx.response.redirect("/account/security");
+      ctx.session.flash('exportRequested', translate(cfg.messages, 'account.export.requested'));
+      return ctx.response.redirect('/account/security');
     }
 
     // Caminho SÍNCRONO de sempre (byte-idêntico): download inline do JSON.
@@ -163,14 +149,14 @@ export default class AccountSecurityController {
     }
 
     await cfg.audit?.record({
-      type: "account.exported",
+      type: 'account.exported',
       accountId: userId,
       ip: ctx.request.ip?.() ?? null,
     });
 
-    ctx.response.header("content-type", "application/json; charset=utf-8");
+    ctx.response.header('content-type', 'application/json; charset=utf-8');
     ctx.response.header(
-      "content-disposition",
+      'content-disposition',
       `attachment; filename="authkit-data-export-${userId}.json"`,
     );
     return ctx.response.send(JSON.stringify(payload, null, 2));
@@ -183,13 +169,13 @@ export default class AccountSecurityController {
    * completo e encerra a sessão.
    */
   async deleteAccount(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make("authkit.server");
+    const service = await ctx.containerResolver.make('authkit.server');
     const cfg = service.config;
     const store = cfg.accountStore;
 
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string;
     if (!supportsAccountDeletion(store)) {
-      return ctx.response.redirect("/account/security");
+      return ctx.response.redirect('/account/security');
     }
 
     // Sudo mode gate (defesa em profundidade — confirmação inline continua abaixo).
@@ -202,45 +188,39 @@ export default class AccountSecurityController {
       return ctx.response.redirect(getAccountLoginUrl());
     }
 
-    const { currentPassword, confirmEmail } = await ctx.request.validateUsing(
-      deleteAccountValidator,
-    );
+    const { currentPassword, confirmEmail } =
+      await ctx.request.validateUsing(deleteAccountValidator);
 
     // Confirmação: senha atual correta OU e-mail digitado batendo com o da conta
     // (case-insensitive). Sem nenhuma das duas → recusa (não deleta).
     let confirmed = false;
     if (currentPassword) {
-      confirmed = !!(await store.verifyCredentials(
-        account.email,
-        currentPassword,
-      ));
+      confirmed = !!(await store.verifyCredentials(account.email, currentPassword));
     }
     if (!confirmed && confirmEmail) {
-      confirmed =
-        confirmEmail.trim().toLowerCase() === account.email.toLowerCase();
+      confirmed = confirmEmail.trim().toLowerCase() === account.email.toLowerCase();
     }
     if (!confirmed) {
       ctx.session.flash(
-        "deleteError",
-        translate(cfg.messages, "account.delete.invalid_confirmation"),
+        'deleteError',
+        translate(cfg.messages, 'account.delete.invalid_confirmation'),
       );
-      return ctx.response.redirect("/account/security");
+      return ctx.response.redirect('/account/security');
     }
 
     const actor = {
       actorId: userId,
       ip: ctx.request.ip?.() ?? null,
-      source: "self" as const,
+      source: 'self' as const,
     };
 
     if (cfg.accountLifecycle?.durable) {
       // OPT-IN durável (self-service): logout IMEDIATO (revoga as sessões/grants
       // OIDC do ator de forma síncrona) + enfileira o resto do cascade async.
       // Isolado no subpath durável — só carregado neste ramo.
-      const { resolveWorkflowEngine, enqueueAccountDeletion } =
-        await import("../durable/index.js");
+      const { resolveWorkflowEngine, enqueueAccountDeletion } = await import('../durable/index.js');
       try {
-        const { revokeSessions } = await import("../account_deletion_ops.js");
+        const { revokeSessions } = await import('../account_deletion_ops.js');
         await revokeSessions(service, userId);
       } catch {
         // best-effort: o logout do cookie abaixo já tira o usuário; o workflow
@@ -256,10 +236,7 @@ export default class AccountSecurityController {
     // Encerra a sessão e leva ao login com a mensagem de sucesso.
     ctx.session.forget(ACCOUNT_SESSION_KEY);
     await syncAdonisAuthLogout(ctx, cfg);
-    ctx.session.flash(
-      "accountDeleted",
-      translate(cfg.messages, "account.delete.deleted"),
-    );
+    ctx.session.flash('accountDeleted', translate(cfg.messages, 'account.delete.deleted'));
     return ctx.response.redirect(getAccountLoginUrl());
   }
 
@@ -270,69 +247,58 @@ export default class AccountSecurityController {
    * server-side; re-enrolar o MFA invalida a confiança em TODOS os dispositivos.
    */
   async revokeTrustedDevices(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make("authkit.server");
+    const service = await ctx.containerResolver.make('authkit.server');
     const cfg = service.config;
     ctx.response.clearCookie(TRUSTED_DEVICE_COOKIE);
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string;
     await cfg.audit?.record({
-      type: "trusted_device.revoked",
+      type: 'trusted_device.revoked',
       accountId: userId,
       ip: ctx.request.ip?.() ?? null,
     });
     ctx.session.flash(
-      "trustedDevicesRevoked",
-      translate(cfg.messages, "account.security.trusted_devices_revoked"),
+      'trustedDevicesRevoked',
+      translate(cfg.messages, 'account.security.trusted_devices_revoked'),
     );
-    return ctx.response.redirect("/account/security");
+    return ctx.response.redirect('/account/security');
   }
 
   /** POST /account/security/profile — atualiza nome + avatar do próprio perfil. */
   async updateProfile(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make("authkit.server");
+    const service = await ctx.containerResolver.make('authkit.server');
     const cfg = service.config;
     const store = cfg.accountStore;
 
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string;
     if (!supportsProfile(store)) {
-      return ctx.response.redirect("/account/security");
+      return ctx.response.redirect('/account/security');
     }
 
-    const { name, avatarUrl } = await ctx.request.validateUsing(
-      updateProfileValidator,
-    );
+    const { name, avatarUrl } = await ctx.request.validateUsing(updateProfileValidator);
 
     // Upload de avatar via o drive do app (opt-in pela presença do arquivo).
     // Se um arquivo for enviado e o drive estiver disponível, a URL resultante
     // tem prioridade sobre o input de URL; senão caímos no avatarUrl (texto).
     let resolvedAvatarUrl: string | null = avatarUrl ?? null;
-    let via: "upload" | "url" = "url";
-    const file = ctx.request.file("avatar", {
+    let via: 'upload' | 'url' = 'url';
+    const file = ctx.request.file('avatar', {
       size: `${cfg.uploads.avatars.maxSizeMb}mb`,
-      extnames: ["jpg", "jpeg", "png", "webp"],
+      extnames: ['jpg', 'jpeg', 'png', 'webp'],
     });
     if (file) {
       try {
-        const uploadedUrl = await storeAvatar(
-          ctx,
-          cfg.uploads,
-          file as any,
-          userId,
-          {
-            extname: translate(
-              cfg.messages,
-              "account.profile.avatar_invalid_type",
-            ),
-            size: translate(cfg.messages, "account.profile.avatar_too_large"),
-          },
-        );
+        const uploadedUrl = await storeAvatar(ctx, cfg.uploads, file as any, userId, {
+          extname: translate(cfg.messages, 'account.profile.avatar_invalid_type'),
+          size: translate(cfg.messages, 'account.profile.avatar_too_large'),
+        });
         if (uploadedUrl) {
           resolvedAvatarUrl = uploadedUrl;
-          via = "upload";
+          via = 'upload';
         }
       } catch (error) {
         if (error instanceof AvatarUploadError) {
-          ctx.session.flash("securityError", error.message);
-          return ctx.response.redirect("/account/security");
+          ctx.session.flash('securityError', error.message);
+          return ctx.response.redirect('/account/security');
         }
         throw error;
       }
@@ -346,26 +312,23 @@ export default class AccountSecurityController {
     });
 
     await cfg.audit?.record({
-      type: "profile.updated",
+      type: 'profile.updated',
       accountId: userId,
       ip: ctx.request.ip?.() ?? null,
       metadata: { via },
     });
-    ctx.session.flash(
-      "profileUpdated",
-      translate(cfg.messages, "account.profile.updated"),
-    );
-    return ctx.response.redirect("/account/security");
+    ctx.session.flash('profileUpdated', translate(cfg.messages, 'account.profile.updated'));
+    return ctx.response.redirect('/account/security');
   }
 
   async changePassword(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make("authkit.server");
+    const service = await ctx.containerResolver.make('authkit.server');
     const cfg = service.config;
     const store = cfg.accountStore;
 
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string;
     if (!supportsAccountSecurity(store)) {
-      return ctx.response.redirect("/account/security");
+      return ctx.response.redirect('/account/security');
     }
 
     // Sudo mode gate (defesa em profundidade — a verificação de senha ATUAL continua abaixo).
@@ -373,20 +336,14 @@ export default class AccountSecurityController {
     const sudoResult = await requireSudo(ctx, sudoSettings);
     if (sudoResult !== true) return sudoResult;
 
-    const { currentPassword, newPassword } = await ctx.request.validateUsing(
-      changePasswordValidator,
-    );
+    const { currentPassword, newPassword } =
+      await ctx.request.validateUsing(changePasswordValidator);
     const account = await store.findById(userId);
     // Confirma a senha ATUAL pelo e-mail da conta.
-    const verified = account
-      ? await store.verifyCredentials(account.email, currentPassword)
-      : null;
+    const verified = account ? await store.verifyCredentials(account.email, currentPassword) : null;
     if (!verified) {
-      ctx.session.flash(
-        "securityError",
-        translate(cfg.messages, "errors.invalid_credentials"),
-      );
-      return ctx.response.redirect("/account/security");
+      ctx.session.flash('securityError', translate(cfg.messages, 'errors.invalid_credentials'));
+      return ctx.response.redirect('/account/security');
     }
 
     // Verificação de histórico de senhas (disallow_password_reuse).
@@ -397,22 +354,17 @@ export default class AccountSecurityController {
         // Aplica o pepper à senha candidata antes de comparar com os hashes históricos
         // (que foram gravados já com pepper). Pepper ausente → identidade.
         const pepperedNew =
-          (cfg.accountStore as any).__passwordManager?.applyCurrentPepper?.(
-            newPassword,
-          ) ?? newPassword;
-        const reused = await store.isPasswordReused!(
-          userId,
-          pepperedNew,
-          histSettings.count,
-        );
+          (cfg.accountStore as any).__passwordManager?.applyCurrentPepper?.(newPassword) ??
+          newPassword;
+        const reused = await store.isPasswordReused!(userId, pepperedNew, histSettings.count);
         if (reused) {
           ctx.session.flash(
-            "securityError",
-            translate(cfg.messages, "password.reused", {
+            'securityError',
+            translate(cfg.messages, 'password.reused', {
               count: histSettings.count,
             }),
           );
-          return ctx.response.redirect("/account/security");
+          return ctx.response.redirect('/account/security');
         }
         // Grava o hash ATUAL no histórico antes de trocar.
         // O hash atual está na linha do DB — buscamos via store.findById + raw model.
@@ -429,16 +381,13 @@ export default class AccountSecurityController {
     } catch (error) {
       // Política de senha violada → flash com a regra e volta à tela de segurança.
       if (error instanceof PasswordPolicyError) {
-        ctx.session.flash(
-          "securityError",
-          translate(cfg.messages, error.key, error.params),
-        );
-        return ctx.response.redirect("/account/security");
+        ctx.session.flash('securityError', translate(cfg.messages, error.key, error.params));
+        return ctx.response.redirect('/account/security');
       }
       throw error;
     }
     await cfg.audit?.record({
-      type: "password.changed",
+      type: 'password.changed',
       accountId: userId,
       ip: ctx.request.ip?.() ?? null,
     });
@@ -451,7 +400,7 @@ export default class AccountSecurityController {
       const sessions = new AdminSessionsService(service);
       const result = await sessions.revokeAll(userId);
       await cfg.audit?.record({
-        type: "session.revoked_all",
+        type: 'session.revoked_all',
         accountId: userId,
         actorId: userId,
         ip: ctx.request.ip?.() ?? null,
@@ -460,7 +409,7 @@ export default class AccountSecurityController {
           grants: result.grants,
           accessTokens: result.accessTokens,
           refreshTokens: result.refreshTokens,
-          source: "password-change",
+          source: 'password-change',
         },
       });
     } catch {
@@ -472,7 +421,7 @@ export default class AccountSecurityController {
         ctx,
         {
           account: { id: userId, email: account.email },
-          kind: "password_changed",
+          kind: 'password_changed',
           ip: ctx.request.ip?.() ?? null,
           timestamp: new Date().toISOString(),
         },
@@ -481,20 +430,20 @@ export default class AccountSecurityController {
       );
     }
     ctx.session.flash(
-      "passwordChanged",
-      translate(cfg.messages, "account.security.password_changed"),
+      'passwordChanged',
+      translate(cfg.messages, 'account.security.password_changed'),
     );
-    return ctx.response.redirect("/account/security");
+    return ctx.response.redirect('/account/security');
   }
 
   async changeEmail(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make("authkit.server");
+    const service = await ctx.containerResolver.make('authkit.server');
     const cfg = service.config;
     const store = cfg.accountStore;
 
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string;
     if (!supportsAccountSecurity(store)) {
-      return ctx.response.redirect("/account/security");
+      return ctx.response.redirect('/account/security');
     }
 
     // Sudo mode gate.
@@ -506,48 +455,38 @@ export default class AccountSecurityController {
     const emailChangeSettings = await resolveEmailChangeSettings(ctx);
     if (!emailChangeSettings.enabled) {
       ctx.session.flash(
-        "securityError",
-        translate(cfg.messages, "account.security.email_change_disabled"),
+        'securityError',
+        translate(cfg.messages, 'account.security.email_change_disabled'),
       );
-      return ctx.response.redirect("/account/security");
+      return ctx.response.redirect('/account/security');
     }
 
-    const { currentPassword, newEmail } =
-      await ctx.request.validateUsing(changeEmailValidator);
+    const { currentPassword, newEmail } = await ctx.request.validateUsing(changeEmailValidator);
     const account = await store.findById(userId);
 
     // requirePassword: se ligado (default true), exige senha atual.
     if (emailChangeSettings.requirePassword) {
       if (!currentPassword) {
-        ctx.session.flash(
-          "securityError",
-          translate(cfg.messages, "errors.invalid_credentials"),
-        );
-        return ctx.response.redirect("/account/security");
+        ctx.session.flash('securityError', translate(cfg.messages, 'errors.invalid_credentials'));
+        return ctx.response.redirect('/account/security');
       }
       const verified = account
         ? await store.verifyCredentials(account.email, currentPassword)
         : null;
       if (!verified) {
-        ctx.session.flash(
-          "securityError",
-          translate(cfg.messages, "errors.invalid_credentials"),
-        );
-        return ctx.response.redirect("/account/security");
+        ctx.session.flash('securityError', translate(cfg.messages, 'errors.invalid_credentials'));
+        return ctx.response.redirect('/account/security');
       }
     }
 
     const issued = await store.requestEmailChange(userId, newEmail);
     if (!issued) {
-      ctx.session.flash(
-        "securityError",
-        translate(cfg.messages, "errors.email_taken"),
-      );
-      return ctx.response.redirect("/account/security");
+      ctx.session.flash('securityError', translate(cfg.messages, 'errors.email_taken'));
+      return ctx.response.redirect('/account/security');
     }
 
     await cfg.audit?.record({
-      type: "email_change.requested",
+      type: 'email_change.requested',
       accountId: userId,
       email: newEmail,
       ip: ctx.request.ip?.() ?? null,
@@ -562,7 +501,7 @@ export default class AccountSecurityController {
         email: newEmail,
         confirmUrl,
         token: issued.token,
-        oldEmail: account?.email ?? "",
+        oldEmail: account?.email ?? '',
       });
     } else if (cfg.mail?.onEmailVerification) {
       // Retrocompat: hook legado onEmailVerification (ainda funciona como override).
@@ -591,12 +530,12 @@ export default class AccountSecurityController {
     }
 
     ctx.session.flash(
-      "emailChangeRequested",
-      translate(cfg.messages, "account.security.email_change_requested", {
+      'emailChangeRequested',
+      translate(cfg.messages, 'account.security.email_change_requested', {
         email: newEmail,
       }),
     );
-    return ctx.response.redirect("/account/security");
+    return ctx.response.redirect('/account/security');
   }
 
   /**
@@ -604,13 +543,13 @@ export default class AccountSecurityController {
    * (limpa o token pending sem alterar o e-mail da conta).
    */
   async cancelEmailChange(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make("authkit.server");
+    const service = await ctx.containerResolver.make('authkit.server');
     const cfg = service.config;
     const store = cfg.accountStore;
 
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string;
     if (!supportsAccountSecurity(store)) {
-      return ctx.response.redirect("/account/security");
+      return ctx.response.redirect('/account/security');
     }
 
     // Implementação: issuePendingToken(userId, null) limpa o token; reutilizamos
@@ -620,7 +559,7 @@ export default class AccountSecurityController {
     // A forma mais limpa é verificar se o store tem cancelEmailChange; se não tiver,
     // chamamos requestEmailChange com o próprio e-mail atual (limpa o pending antigo).
     const cancelFn = (store as any).cancelEmailChange;
-    if (typeof cancelFn === "function") {
+    if (typeof cancelFn === 'function') {
       await cancelFn.call(store, userId);
     } else {
       // Fallback: sobrescreve o pending com o próprio e-mail (não tem efeito após confirm).
@@ -634,34 +573,34 @@ export default class AccountSecurityController {
     }
 
     await cfg.audit?.record({
-      type: "email_change.cancelled",
+      type: 'email_change.cancelled',
       accountId: userId,
       ip: ctx.request.ip?.() ?? null,
     });
 
     ctx.session.flash(
-      "emailChangeRequested",
-      translate(cfg.messages, "account.security.email_change_cancelled"),
+      'emailChangeRequested',
+      translate(cfg.messages, 'account.security.email_change_cancelled'),
     );
-    return ctx.response.redirect("/account/security");
+    return ctx.response.redirect('/account/security');
   }
 
   /** GET /account/email/confirm?token=... — consome o token e aplica o novo e-mail. */
   async confirmEmail(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make("authkit.server");
+    const service = await ctx.containerResolver.make('authkit.server');
     const cfg = service.config;
     const store = cfg.accountStore;
     const render = cfg.render!;
 
     if (!supportsAccountSecurity(store)) {
-      return render(ctx, "account/email-confirmed", { ok: false });
+      return render(ctx, 'account/email-confirmed', { ok: false });
     }
 
-    const token = ctx.request.qs().token ?? "";
+    const token = ctx.request.qs().token ?? '';
     const result = await store.confirmEmailChange(token);
     if (result.ok) {
       await cfg.audit?.record({
-        type: "email_change.confirmed",
+        type: 'email_change.confirmed',
         accountId: result.account.id,
         email: result.newEmail,
         ip: ctx.request.ip?.() ?? null,
@@ -690,7 +629,7 @@ export default class AccountSecurityController {
         ctx,
         {
           account: { id: result.account.id, email: result.newEmail },
-          kind: "email_changed",
+          kind: 'email_changed',
           ip: ctx.request.ip?.() ?? null,
           timestamp: new Date().toISOString(),
           metadata: { oldEmail: result.oldEmail, newEmail: result.newEmail },
@@ -699,6 +638,6 @@ export default class AccountSecurityController {
         cfg.audit,
       );
     }
-    return render(ctx, "account/email-confirmed", { ok: result.ok });
+    return render(ctx, 'account/email-confirmed', { ok: result.ok });
   }
 }

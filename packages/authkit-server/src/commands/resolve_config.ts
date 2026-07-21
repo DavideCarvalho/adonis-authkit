@@ -1,5 +1,5 @@
-import { configProvider } from '@adonisjs/core'
-import type { ApplicationService } from '@adonisjs/core/types'
+import { configProvider } from '@adonisjs/core';
+import type { ApplicationService } from '@adonisjs/core/types';
 
 /**
  * Resolve o valor exportado por `config/authkit.ts` para a config final.
@@ -14,9 +14,9 @@ import type { ApplicationService } from '@adonisjs/core/types'
  */
 export async function resolveAuthkitConfig<T = Record<string, any>>(
   app: ApplicationService,
-  raw: unknown
+  raw: unknown,
 ): Promise<T | null> {
-  if (!raw) return null
-  const resolved = (await configProvider.resolve(app, raw as any)) as T | null
-  return resolved ?? (raw as T)
+  if (!raw) return null;
+  const resolved = (await configProvider.resolve(app, raw as any)) as T | null;
+  return resolved ?? (raw as T);
 }

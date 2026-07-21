@@ -8,38 +8,38 @@
  * A tela está atrás do `accountGuard` (requer sessão de conta ativa).
  */
 
-import '../augmentations.js'
-import type { HttpContext } from '@adonisjs/core/http'
+import '../augmentations.js';
+import type { HttpContext } from '@adonisjs/core/http';
 import {
-  resolveAvailableMethods,
+  LAST_METHOD_SESSION_KEY,
   configuredSudoMethods,
   isSudoMethodMounted,
+  resolveAvailableMethods,
   sudoContextFrom,
-  LAST_METHOD_SESSION_KEY,
-} from '../sudo/runtime.js'
+} from '../sudo/runtime.js';
 
 /**
  * Reexport de compatibilidade. O construtor canônico do `SudoContext` vive em
  * `sudo/runtime.ts` (é runtime do SPI, não detalhe da tela); este caminho
  * antigo segue valendo para quem já o importava.
  */
-export { sudoContextFrom }
+export { sudoContextFrom };
 
 export default class AccountConfirmController {
   async show(ctx: HttpContext) {
-    const c = await sudoContextFrom(ctx)
-    const available = await resolveAvailableMethods(c, configuredSudoMethods(c.cfg))
+    const c = await sudoContextFrom(ctx);
+    const available = await resolveAvailableMethods(c, configuredSudoMethods(c.cfg));
     const methods = await Promise.all(
-      available.map(async (m) => ({ id: m.id, ...(await m.describe(c)) }))
-    )
+      available.map(async (m) => ({ id: m.id, ...(await m.describe(c)) })),
+    );
 
     if (!methods.length) {
       // Nenhum método disponível é erro de CONFIGURAÇÃO do host, não usuário
       // preso: a tela informa e o log aponta o problema.
-      ;(ctx as any).logger?.error(
+      (ctx as any).logger?.error(
         { accountId: c.accountId },
-        'authkit: nenhum método de sudo disponível para a conta — verifique config.sudo.methods'
-      )
+        'authkit: nenhum método de sudo disponível para a conta — verifique config.sudo.methods',
+      );
     }
 
     // FLAG-DRIFT: `config.sudo.methods` decide o que a tela OFERECE, mas as
@@ -51,12 +51,10 @@ export default class AccountConfirmController {
     // `configuredSudoMethods` devolve a própria lista montada.
     for (const m of methods) {
       if (!isSudoMethodMounted(m.id)) {
-        ;(ctx as any).logger?.warn(
+        (ctx as any).logger?.warn(
           { method: m.id },
-          `authkit: método de sudo "${m.id}" está em config.sudo.methods mas não teve ` +
-            'rotas montadas por registerAuthHost — a tela vai oferecer uma opção cujo ' +
-            'endpoint não existe'
-        )
+          `authkit: método de sudo "${m.id}" está em config.sudo.methods mas não teve rotas montadas por registerAuthHost — a tela vai oferecer uma opção cujo endpoint não existe`,
+        );
       }
     }
 
@@ -70,6 +68,6 @@ export default class AccountConfirmController {
       notice: ctx.session.flashMessages.get('confirmNotice') ?? null,
       methods,
       preferredId: ctx.session.get(LAST_METHOD_SESSION_KEY) ?? null,
-    })
+    });
   }
 }

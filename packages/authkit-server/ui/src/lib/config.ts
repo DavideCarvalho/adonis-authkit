@@ -1,15 +1,15 @@
 export interface AuthKitConfig {
-  adminBase: string
-  csrfToken: string | null
-  locale: string
-  messages: Record<string, string>
-  currentUser: { id: string; email: string; roles: string[] } | null
-  endpoints: { api: string }
+  adminBase: string;
+  csrfToken: string | null;
+  locale: string;
+  messages: Record<string, string>;
+  currentUser: { id: string; email: string; roles: string[] } | null;
+  endpoints: { api: string };
 }
 
 declare global {
   interface Window {
-    __AUTHKIT__: AuthKitConfig
+    __AUTHKIT__: AuthKitConfig;
   }
 }
 
@@ -23,12 +23,12 @@ export function getConfig(): AuthKitConfig {
       messages: {},
       currentUser: { id: 'dev', email: 'dev@example.com', roles: ['ADMIN'] },
       endpoints: { api: '/admin/api' },
-    }
+    };
   }
-  return window.__AUTHKIT__
+  return window.__AUTHKIT__;
 }
 
 export function t(key: string, fallback?: string): string {
-  const cfg = getConfig()
-  return cfg.messages[key] ?? fallback ?? key
+  const cfg = getConfig();
+  return cfg.messages[key] ?? fallback ?? key;
 }

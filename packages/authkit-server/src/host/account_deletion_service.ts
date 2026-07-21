@@ -1,6 +1,6 @@
-import type { OidcService } from "../provider/oidc_service.js";
-import type { ResolvedServerConfig } from "../define_config.js";
-import { supportsAccountDeletion } from "../accounts/account_store.js";
+import { supportsAccountDeletion } from '../accounts/account_store.js';
+import type { ResolvedServerConfig } from '../define_config.js';
+import type { OidcService } from '../provider/oidc_service.js';
 import {
   anonymizeAudit,
   auditDeleted,
@@ -13,7 +13,7 @@ import {
   revokeSessions,
   snapshotAccount,
   unlinkProviders,
-} from "./account_deletion_ops.js";
+} from './account_deletion_ops.js';
 
 /** Quem disparou a deleção (auditoria). 'self' = o próprio usuário; senão admin. */
 export interface DeletionActor {
@@ -27,7 +27,7 @@ export interface DeletionActor {
    *   - 'admin'     → um admin pelo console HTML;
    *   - 'admin-api' → via Admin REST API / SDK.
    */
-  source: "self" | "admin" | "admin-api";
+  source: 'self' | 'admin' | 'admin-api';
 }
 
 /** Contagens do que foi removido no cascade (para auditoria/diagnóstico). */
@@ -86,10 +86,7 @@ export class AccountDeletionService {
     return supportsAccountDeletion(this.#cfg.accountStore);
   }
 
-  async delete(
-    accountId: string,
-    actor: DeletionActor,
-  ): Promise<DeletionResult> {
+  async delete(accountId: string, actor: DeletionActor): Promise<DeletionResult> {
     const cfg = this.#cfg;
     const store = cfg.accountStore;
     const result: DeletionResult = {
@@ -155,9 +152,7 @@ export class AccountDeletionService {
 
     // 6) Identidades de provider linkadas (Google, GitHub, …).
     try {
-      result.providerIdentities = (
-        await unlinkProviders(cfg, accountId)
-      ).providerIdentities;
+      result.providerIdentities = (await unlinkProviders(cfg, accountId)).providerIdentities;
     } catch {
       /* best-effort */
     }
@@ -184,9 +179,7 @@ export class AccountDeletionService {
 
     // 8) Anonimiza o histórico de audit (mantém as linhas, remove identificadores).
     try {
-      result.auditAnonymized = (
-        await anonymizeAudit(cfg, accountId)
-      ).auditAnonymized;
+      result.auditAnonymized = (await anonymizeAudit(cfg, accountId)).auditAnonymized;
     } catch {
       /* best-effort */
     }

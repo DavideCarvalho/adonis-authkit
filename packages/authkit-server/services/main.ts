@@ -1,5 +1,5 @@
-import type { OidcService } from "../src/provider/oidc_service.js";
-import { getBootedApp } from "./booted_app.js";
+import type { OidcService } from '../src/provider/oidc_service.js';
+import { getBootedApp } from './booted_app.js';
 
 /**
  * Acessor singleton do {@link OidcService}, seguindo a convenção `services/main` do
@@ -26,7 +26,7 @@ let service: OidcService;
 
 const app = getBootedApp();
 await app.booted(async () => {
-  service = await app.container.make("authkit.server");
+  service = await app.container.make('authkit.server');
 });
 
 export { service as default };

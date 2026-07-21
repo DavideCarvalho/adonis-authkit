@@ -1,6 +1,5 @@
-'use client'
+'use client';
 
-import { useMemo, useState } from 'react'
 import {
   Building2,
   KeyRound,
@@ -10,7 +9,8 @@ import {
   Settings,
   ShieldCheck,
   Users,
-} from 'lucide-react'
+} from 'lucide-react';
+import { useMemo, useState } from 'react';
 
 /**
  * Interactive mock of the AuthKit Admin Console: every screen is
@@ -25,7 +25,7 @@ const METRIC_CARDS = [
   { label: 'Active sessions', value: '318', delta: '+3% today' },
   { label: 'OAuth clients', value: '14', delta: '2 new' },
   { label: 'Lockouts (24 h)', value: '7', delta: '-40% vs yesterday' },
-] as const
+] as const;
 
 const USER_ROWS = [
   { name: 'Jane Smith', email: 'jane@acme.dev', role: 'Admin', status: 'active' },
@@ -36,7 +36,7 @@ const USER_ROWS = [
   { name: 'John Doe', email: 'john@acme.dev', role: 'Member', status: 'active' },
   { name: 'Lin Wei', email: 'lin@acme.dev', role: 'Viewer', status: 'active' },
   { name: 'Ana Costa', email: 'ana@acme.dev', role: 'Member', status: 'locked' },
-] as const
+] as const;
 
 const SESSION_ROWS = [
   { user: 'jane@acme.dev', device: 'Chrome · macOS', ip: '189.40.12.7', seen: '2 min ago' },
@@ -44,35 +44,54 @@ const SESSION_ROWS = [
   { user: 'maria@acme.dev', device: 'Firefox · Linux', ip: '201.17.88.2', seen: '1 h ago' },
   { user: 'john@acme.dev', device: 'Edge · Windows', ip: '45.231.9.18', seen: '3 h ago' },
   { user: 'lin@acme.dev', device: 'Chrome · Android', ip: '190.102.44.9', seen: '6 h ago' },
-] as const
+] as const;
 
 const CLIENT_ROWS = [
   { name: 'Acme Dashboard', id: 'akc_9f2…c41', type: 'SPA · PKCE', uris: 2 },
   { name: 'Mobile App', id: 'akc_77b…e90', type: 'Native · PKCE', uris: 1 },
   { name: 'Billing Service', id: 'akc_3aa…b12', type: 'M2M · client_credentials', uris: 0 },
   { name: 'Partner Portal', id: 'akc_c05…77f', type: 'Web · confidential', uris: 3 },
-] as const
+] as const;
 
 const ROLE_ROWS = [
-  { name: 'Admin', members: 3, perms: ['users:write', 'clients:write', 'audit:read', 'settings:write'] },
+  {
+    name: 'Admin',
+    members: 3,
+    perms: ['users:write', 'clients:write', 'audit:read', 'settings:write'],
+  },
   { name: 'Member', members: 4_512, perms: ['profile:write', 'orgs:read'] },
   { name: 'Viewer', members: 306, perms: ['profile:read'] },
-] as const
+] as const;
 
 const ORG_ROWS = [
   { name: 'Acme Inc', slug: 'acme', members: 4_204, plan: 'Enterprise' },
   { name: 'Acme Labs', slug: 'acme-labs', members: 422, plan: 'Pro' },
   { name: 'Sandbox', slug: 'sandbox', members: 195, plan: 'Free' },
-] as const
+] as const;
 
 const AUDIT_ROWS = [
   { event: 'user.login', actor: 'jane@acme.dev', detail: 'password + TOTP', when: '2 min ago' },
   { event: 'client.created', actor: 'jane@acme.dev', detail: 'Partner Portal', when: '1 h ago' },
-  { event: 'user.locked', actor: 'system', detail: 'sara@acme.dev · 5 failed attempts', when: '3 h ago' },
-  { event: 'org.member_invited', actor: 'maria@acme.dev', detail: 'lin@acme.dev → Acme Labs', when: '5 h ago' },
+  {
+    event: 'user.locked',
+    actor: 'system',
+    detail: 'sara@acme.dev · 5 failed attempts',
+    when: '3 h ago',
+  },
+  {
+    event: 'org.member_invited',
+    actor: 'maria@acme.dev',
+    detail: 'lin@acme.dev → Acme Labs',
+    when: '5 h ago',
+  },
   { event: 'session.revoked', actor: 'tom@acme.dev', detail: 'Safari · iOS', when: '8 h ago' },
-  { event: 'settings.updated', actor: 'jane@acme.dev', detail: 'MFA required: on', when: '1 d ago' },
-] as const
+  {
+    event: 'settings.updated',
+    actor: 'jane@acme.dev',
+    detail: 'MFA required: on',
+    when: '1 d ago',
+  },
+] as const;
 
 const SCREENS = [
   { key: 'overview', icon: LayoutDashboard, label: 'Overview' },
@@ -83,13 +102,13 @@ const SCREENS = [
   { key: 'orgs', icon: Building2, label: 'Organizations' },
   { key: 'audit', icon: ScrollText, label: 'Audit' },
   { key: 'settings', icon: Settings, label: 'Settings' },
-] as const
+] as const;
 
-type ScreenKey = (typeof SCREENS)[number]['key']
+type ScreenKey = (typeof SCREENS)[number]['key'];
 
 /* --------------------------- building blocks --------------------------- */
 
-const DEMO_TITLE = 'Demo — read-only'
+const DEMO_TITLE = 'Demo — read-only';
 
 function DemoButton({ children }: { children: React.ReactNode }) {
   return (
@@ -100,19 +119,21 @@ function DemoButton({ children }: { children: React.ReactNode }) {
     >
       {children}
     </button>
-  )
+  );
 }
 
 function PageTitle({ kicker, title, action }: { kicker: string; title: string; action?: string }) {
   return (
     <div className="mb-5 flex items-center justify-between">
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500">{kicker}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500">
+          {kicker}
+        </p>
         <h3 className="text-lg font-semibold text-zinc-100">{title}</h3>
       </div>
       {action && <DemoButton>{action}</DemoButton>}
     </div>
-  )
+  );
 }
 
 function Table({ head, children }: { head: string[]; children: React.ReactNode }) {
@@ -128,7 +149,7 @@ function Table({ head, children }: { head: string[]; children: React.ReactNode }
       </div>
       {children}
     </div>
-  )
+  );
 }
 
 function Row({ cols, children }: { cols: number; children: React.ReactNode }) {
@@ -139,7 +160,7 @@ function Row({ cols, children }: { cols: number; children: React.ReactNode }) {
     >
       {children}
     </div>
-  )
+  );
 }
 
 function StatusPill({ ok, okLabel, badLabel }: { ok: boolean; okLabel: string; badLabel: string }) {
@@ -152,7 +173,7 @@ function StatusPill({ ok, okLabel, badLabel }: { ok: boolean; okLabel: string; b
       <span className={`size-1.5 rounded-full ${ok ? 'bg-emerald-400' : 'bg-rose-400'}`} />
       {ok ? okLabel : badLabel}
     </span>
-  )
+  );
 }
 
 function MetricCards() {
@@ -166,13 +187,13 @@ function MetricCards() {
         </div>
       ))}
     </div>
-  )
+  );
 }
 
 /* ------------------------------- screens ------------------------------- */
 
 function OverviewScreen() {
-  const bars = [42, 58, 50, 75, 66, 88, 79, 95, 84, 70, 90, 100]
+  const bars = [42, 58, 50, 75, 66, 88, 79, 95, 84, 70, 90, 100];
   return (
     <>
       <PageTitle kicker="Identity" title="Overview" />
@@ -190,15 +211,15 @@ function OverviewScreen() {
         </div>
       </div>
     </>
-  )
+  );
 }
 
-const PAGE_SIZE = 4
+const PAGE_SIZE = 4;
 
 function UsersScreen() {
-  const [search, setSearch] = useState('')
-  const [role, setRole] = useState('All')
-  const [page, setPage] = useState(0)
+  const [search, setSearch] = useState('');
+  const [role, setRole] = useState('All');
+  const [page, setPage] = useState(0);
 
   const filtered = useMemo(
     () =>
@@ -206,13 +227,13 @@ function UsersScreen() {
         (u) =>
           (role === 'All' || u.role === role) &&
           (u.name.toLowerCase().includes(search.toLowerCase()) ||
-            u.email.toLowerCase().includes(search.toLowerCase()))
+            u.email.toLowerCase().includes(search.toLowerCase())),
       ),
-    [search, role]
-  )
-  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const current = Math.min(page, pages - 1)
-  const visible = filtered.slice(current * PAGE_SIZE, current * PAGE_SIZE + PAGE_SIZE)
+    [search, role],
+  );
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const current = Math.min(page, pages - 1);
+  const visible = filtered.slice(current * PAGE_SIZE, current * PAGE_SIZE + PAGE_SIZE);
 
   return (
     <>
@@ -221,8 +242,8 @@ function UsersScreen() {
         <input
           value={search}
           onChange={(e) => {
-            setSearch(e.target.value)
-            setPage(0)
+            setSearch(e.target.value);
+            setPage(0);
           }}
           placeholder="Search by name or email…"
           className="flex-1 rounded-lg border border-zinc-700 bg-[#16161b]/60 px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 focus:border-[#625fff] focus:outline-none"
@@ -230,8 +251,8 @@ function UsersScreen() {
         <select
           value={role}
           onChange={(e) => {
-            setRole(e.target.value)
-            setPage(0)
+            setRole(e.target.value);
+            setPage(0);
           }}
           className="rounded-lg border border-zinc-700 bg-[#16161b]/60 px-3 py-2 text-sm text-zinc-400 focus:border-[#625fff] focus:outline-none"
         >
@@ -279,7 +300,7 @@ function UsersScreen() {
         </div>
       </div>
     </>
-  )
+  );
 }
 
 function SessionsScreen() {
@@ -304,7 +325,7 @@ function SessionsScreen() {
         ))}
       </Table>
     </>
-  )
+  );
 }
 
 function ClientsScreen() {
@@ -322,7 +343,7 @@ function ClientsScreen() {
         ))}
       </Table>
     </>
-  )
+  );
 }
 
 function RolesScreen() {
@@ -334,7 +355,9 @@ function RolesScreen() {
           <div key={r.name} className="rounded-xl border border-zinc-800 bg-[#16161b]/40 p-4">
             <div className="flex items-center justify-between">
               <span className="font-medium text-zinc-200">{r.name}</span>
-              <span className="text-xs text-zinc-500">{r.members.toLocaleString('en-US')} members</span>
+              <span className="text-xs text-zinc-500">
+                {r.members.toLocaleString('en-US')} members
+              </span>
             </div>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {r.perms.map((p) => (
@@ -350,7 +373,7 @@ function RolesScreen() {
         ))}
       </div>
     </>
-  )
+  );
 }
 
 function OrgsScreen() {
@@ -368,7 +391,7 @@ function OrgsScreen() {
         ))}
       </Table>
     </>
-  )
+  );
 }
 
 function AuditScreen() {
@@ -391,11 +414,11 @@ function AuditScreen() {
         ))}
       </div>
     </>
-  )
+  );
 }
 
 function Toggle({ label, hint, initial }: { label: string; hint: string; initial: boolean }) {
-  const [on, setOn] = useState(initial)
+  const [on, setOn] = useState(initial);
   return (
     <button
       type="button"
@@ -414,7 +437,7 @@ function Toggle({ label, hint, initial }: { label: string; hint: string; initial
         />
       </span>
     </button>
-  )
+  );
 }
 
 function SettingsScreen() {
@@ -424,11 +447,19 @@ function SettingsScreen() {
       <div className="space-y-3">
         <Toggle label="Require MFA" hint="Force TOTP enrollment for every user" initial />
         <Toggle label="Breached-password check" hint="Reject passwords found in HIBP" initial />
-        <Toggle label="Self-service sign-up" hint="Allow users to register without an invite" initial={false} />
-        <Toggle label="Session inactivity timeout" hint="Expire sessions idle for 30 days" initial />
+        <Toggle
+          label="Self-service sign-up"
+          hint="Allow users to register without an invite"
+          initial={false}
+        />
+        <Toggle
+          label="Session inactivity timeout"
+          hint="Expire sessions idle for 30 days"
+          initial
+        />
       </div>
     </>
-  )
+  );
 }
 
 const SCREEN_COMPONENTS: Record<ScreenKey, () => React.ReactNode> = {
@@ -440,13 +471,13 @@ const SCREEN_COMPONENTS: Record<ScreenKey, () => React.ReactNode> = {
   orgs: OrgsScreen,
   audit: AuditScreen,
   settings: SettingsScreen,
-}
+};
 
 /* ------------------------------- shell ------------------------------- */
 
 export function AdminConsoleDemo() {
-  const [screen, setScreen] = useState<ScreenKey>('users')
-  const Screen = SCREEN_COMPONENTS[screen]
+  const [screen, setScreen] = useState<ScreenKey>('users');
+  const Screen = SCREEN_COMPONENTS[screen];
 
   return (
     <div className="overflow-hidden rounded-xl border border-zinc-800 bg-[#0d0d10] text-left shadow-2xl shadow-black/50 ring-1 ring-white/5">
@@ -469,13 +500,15 @@ export function AdminConsoleDemo() {
         {/* sidebar */}
         <aside className="hidden w-48 shrink-0 border-r border-zinc-800 bg-[#0f0f13] sm:block">
           <div className="border-b border-zinc-800 px-4 py-4">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500">Acme</p>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500">
+              Acme
+            </p>
             <p className="mt-0.5 text-sm font-semibold text-zinc-100">Auth Console</p>
           </div>
           <nav className="p-2">
             {SCREENS.map((item) => {
-              const Icon = item.icon
-              const active = item.key === screen
+              const Icon = item.icon;
+              const active = item.key === screen;
               return (
                 <button
                   key={item.key}
@@ -490,7 +523,7 @@ export function AdminConsoleDemo() {
                   <Icon className="size-4 shrink-0" />
                   {item.label}
                 </button>
-              )
+              );
             })}
           </nav>
         </aside>
@@ -517,5 +550,5 @@ export function AdminConsoleDemo() {
         </div>
       </div>
     </div>
-  )
+  );
 }

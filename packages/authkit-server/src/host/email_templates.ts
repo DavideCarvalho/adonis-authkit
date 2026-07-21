@@ -8,30 +8,30 @@
  */
 
 export interface EmailContent {
-  subject: string
-  html: string
-  text: string
+  subject: string;
+  html: string;
+  text: string;
 }
 
 interface EmailTemplateInput {
   /** Marca usada no cabeçalho/botão/rodapé (accent/company opcionais). */
-  brand: { appName: string; accent?: string; company?: string }
+  brand: { appName: string; accent?: string; company?: string };
   /** Assunto do e-mail. */
-  subject: string
+  subject: string;
   /** Saudação/título dentro do card. */
-  heading: string
+  heading: string;
   /** Parágrafo de introdução (texto puro, será escapado). */
-  intro: string
+  intro: string;
   /** Rótulo do botão de CTA. */
-  ctaLabel: string
+  ctaLabel: string;
   /** URL do CTA. */
-  ctaUrl: string
+  ctaUrl: string;
   /** Linha auxiliar abaixo do botão (ex.: validade do link). */
-  footnote?: string
+  footnote?: string;
   /** Texto que precede o link de fallback (i18n). Default em inglês. */
-  linkFallback?: string
+  linkFallback?: string;
   /** Locale do documento HTML (atributo `lang`). Default: 'en'. */
-  locale?: string
+  locale?: string;
 }
 
 /** Escapa texto para interpolação segura em HTML. */
@@ -41,20 +41,20 @@ function esc(value: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
+    .replace(/'/g, '&#39;');
 }
 
-const FALLBACK_ACCENT = '#4f46e5'
+const FALLBACK_ACCENT = '#4f46e5';
 
 export function renderTransactionalEmail(input: EmailTemplateInput): EmailContent {
-  const appName = input.brand.appName || input.brand.company || 'AuthKit'
-  const accent = input.brand.accent || FALLBACK_ACCENT
-  const company = input.brand.company || appName
-  const year = '©' // ano resolvido fora (sem Date.* aqui); rodapé usa só o nome.
-  const lang = input.locale || 'en'
+  const appName = input.brand.appName || input.brand.company || 'AuthKit';
+  const accent = input.brand.accent || FALLBACK_ACCENT;
+  const company = input.brand.company || appName;
+  const year = '©'; // ano resolvido fora (sem Date.* aqui); rodapé usa só o nome.
+  const lang = input.locale || 'en';
   const linkFallback =
     input.linkFallback ||
-    'If the button does not work, copy and paste this link into your browser:'
+    'If the button does not work, copy and paste this link into your browser:';
 
   const html = `<!doctype html>
 <html lang="${esc(lang)}">
@@ -86,7 +86,7 @@ ${input.footnote ? `<p style="margin:24px 0 0;font-size:13px;line-height:1.5;col
 </td></tr>
 </table>
 </body>
-</html>`
+</html>`;
 
   const text = [
     input.heading,
@@ -97,7 +97,7 @@ ${input.footnote ? `<p style="margin:24px 0 0;font-size:13px;line-height:1.5;col
     ...(input.footnote ? ['', input.footnote] : []),
     '',
     `— ${company}`,
-  ].join('\n')
+  ].join('\n');
 
-  return { subject: input.subject, html, text }
+  return { subject: input.subject, html, text };
 }

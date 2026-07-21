@@ -1,15 +1,9 @@
-import {
-  createElement,
-  type ButtonHTMLAttributes,
-  type ReactNode,
-} from "react";
-import { usePasskeyLogin } from "../hooks/use_passkey_login.js";
-import { buttonClass } from "../utils.js";
+import { type ButtonHTMLAttributes, type ReactNode, createElement } from 'react';
+import { usePasskeyLogin } from '../hooks/use_passkey_login.js';
+import { buttonClass } from '../utils.js';
 
-export interface PasskeyButtonProps extends Omit<
-  ButtonHTMLAttributes<HTMLButtonElement>,
-  "onClick"
-> {
+export interface PasskeyButtonProps
+  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick'> {
   /** Endpoint `passkey/options` do interaction controller (POST). */
   optionsUrl: string;
   /** Endpoint `passkey/verify` do interaction controller (POST de página inteira). */
@@ -24,8 +18,7 @@ export interface PasskeyButtonProps extends Omit<
   errorContent?: ReactNode;
 }
 
-const DEFAULT_ERROR =
-  "Não foi possível autenticar com a passkey. Tente novamente.";
+const DEFAULT_ERROR = 'Não foi possível autenticar com a passkey. Tente novamente.';
 
 /**
  * Botão pronto de login por passkey (tier "faz tudo"). Renderiza o botão, roda a
@@ -37,7 +30,7 @@ export function PasskeyButton({
   optionsUrl,
   verifyUrl,
   csrfToken,
-  children = "Entrar com passkey",
+  children = 'Entrar com passkey',
   errorContent,
   className,
   ...rest
@@ -49,10 +42,10 @@ export function PasskeyButton({
   });
 
   const button = createElement(
-    "button",
+    'button',
     {
-      type: "button",
-      className: buttonClass("authkit-button--ghost", className),
+      type: 'button',
+      className: buttonClass('authkit-button--ghost', className),
       onClick: () => {
         void authenticate();
       },
@@ -65,13 +58,9 @@ export function PasskeyButton({
   if (!failed || errorContent === null) return button;
 
   return createElement(
-    "div",
-    { className: "authkit-passkey" },
+    'div',
+    { className: 'authkit-passkey' },
     button,
-    createElement(
-      "p",
-      { className: "authkit-passkey__error" },
-      errorContent ?? DEFAULT_ERROR,
-    ),
+    createElement('p', { className: 'authkit-passkey__error' }, errorContent ?? DEFAULT_ERROR),
   );
 }

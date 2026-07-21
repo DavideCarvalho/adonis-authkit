@@ -1,8 +1,8 @@
-import { readFile } from 'node:fs/promises'
-import { extname } from 'node:path'
-import type { HttpContext } from '@adonisjs/core/http'
-import { getAdminPrefix } from '../admin_prefix.js'
-import { resolveAccountRoles } from '../account_roles.js'
+import { readFile } from 'node:fs/promises';
+import { extname } from 'node:path';
+import type { HttpContext } from '@adonisjs/core/http';
+import { resolveAccountRoles } from '../account_roles.js';
+import { getAdminPrefix } from '../admin_prefix.js';
 
 // ─── Shell HTML cache ─────────────────────────────────────────────────────────
 
@@ -11,32 +11,32 @@ import { resolveAccountRoles } from '../account_roles.js'
  * Falls back to the old placeholder in src/host/ui/admin.html when the dist
  * is absent (dev environment without a prior build).
  */
-const UI_DIST_URL = new URL('../../host/ui-dist/index.html', import.meta.url)
-const UI_FALLBACK_URL = new URL('../ui/admin.html', import.meta.url)
+const UI_DIST_URL = new URL('../../host/ui-dist/index.html', import.meta.url);
+const UI_FALLBACK_URL = new URL('../ui/admin.html', import.meta.url);
 
 /** Cached raw shell HTML (loaded once per process). */
-let _shellHtml: string | null = null
-let _shellSource: 'dist' | 'fallback' | null = null
+let _shellHtml: string | null = null;
+let _shellSource: 'dist' | 'fallback' | null = null;
 
 async function loadShell(): Promise<{ html: string; source: 'dist' | 'fallback' }> {
   if (_shellHtml !== null && _shellSource !== null) {
-    return { html: _shellHtml, source: _shellSource }
+    return { html: _shellHtml, source: _shellSource };
   }
 
   // Try the built dist first.
   try {
-    _shellHtml = await readFile(UI_DIST_URL, 'utf-8')
-    _shellSource = 'dist'
-    return { html: _shellHtml, source: 'dist' }
+    _shellHtml = await readFile(UI_DIST_URL, 'utf-8');
+    _shellSource = 'dist';
+    return { html: _shellHtml, source: 'dist' };
   } catch {
     // Fall through to legacy placeholder.
   }
 
   // Try legacy placeholder.
   try {
-    _shellHtml = await readFile(UI_FALLBACK_URL, 'utf-8')
-    _shellSource = 'fallback'
-    return { html: _shellHtml, source: 'fallback' }
+    _shellHtml = await readFile(UI_FALLBACK_URL, 'utf-8');
+    _shellSource = 'fallback';
+    return { html: _shellHtml, source: 'fallback' };
   } catch {
     // Return a minimal error shell.
     const err = `<!doctype html><html><head><title>AuthKit Admin — Build Required</title>
@@ -47,10 +47,10 @@ p{color:#9292ac;font-size:13px;line-height:1.6}code{background:#12121f;border:1p
 <h1>AuthKit Admin — Build Required</h1>
 <p>The React SPA has not been built yet. Run:<br><code>pnpm --filter @adonis-agora/authkit-server build</code><br>
 then restart the server.</p>
-</div></body></html>`
-    _shellHtml = err
-    _shellSource = 'fallback'
-    return { html: err, source: 'fallback' }
+</div></body></html>`;
+    _shellHtml = err;
+    _shellSource = 'fallback';
+    return { html: err, source: 'fallback' };
   }
 }
 
@@ -62,20 +62,20 @@ then restart the server.</p>
  * produced by Vite (base: '/__AUTHKIT_BASE__/') resolve correctly at runtime.
  */
 function prepareShell(html: string, config: Record<string, unknown>): string {
-  const adminBase = config.adminBase as string
+  const adminBase = config.adminBase as string;
 
   // 1. Rewrite the Vite placeholder base in ALL occurrences (src/href attributes).
   //    Vite puts `/__AUTHKIT_BASE__/assets/foo.js` so we rewrite `/__AUTHKIT_BASE__/`
   //    to `${adminBase}/` so asset URLs become `${adminBase}/assets/foo.js`.
-  const rewritten = html.replaceAll('/__AUTHKIT_BASE__/', `${adminBase}/`)
+  const rewritten = html.replaceAll('/__AUTHKIT_BASE__/', `${adminBase}/`);
 
   // 2. Inject config script right after <body>.
-  const script = `<script>window.__AUTHKIT__=${JSON.stringify(config)};</script>`
-  const bodyIdx = rewritten.indexOf('<body')
-  if (bodyIdx === -1) return script + rewritten
-  const closeIdx = rewritten.indexOf('>', bodyIdx)
-  if (closeIdx === -1) return script + rewritten
-  return rewritten.slice(0, closeIdx + 1) + script + rewritten.slice(closeIdx + 1)
+  const script = `<script>window.__AUTHKIT__=${JSON.stringify(config)};</script>`;
+  const bodyIdx = rewritten.indexOf('<body');
+  if (bodyIdx === -1) return script + rewritten;
+  const closeIdx = rewritten.indexOf('>', bodyIdx);
+  if (closeIdx === -1) return script + rewritten;
+  return rewritten.slice(0, closeIdx + 1) + script + rewritten.slice(closeIdx + 1);
 }
 
 // ─── MIME types for static assets ────────────────────────────────────────────
@@ -96,7 +96,7 @@ const MIME: Record<string, string> = {
   '.ico': 'image/x-icon',
   '.json': 'application/json',
   '.map': 'application/json',
-}
+};
 
 // ─── Controller ───────────────────────────────────────────────────────────────
 
@@ -120,25 +120,25 @@ export default class AdminShellController {
    * GET {prefix}/* — idem (qualquer rota de página é tratada pela SPA via hash-routing).
    */
   async serve(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
 
     // Resolve currentUser da sessão ativa.
-    const { ACCOUNT_SESSION_KEY } = await import('../middleware/account_auth.js')
-    const accountId = ctx.session?.get(ACCOUNT_SESSION_KEY) as string | undefined
-    let currentUser: { id: string; email: string; roles: string[] } | null = null
+    const { ACCOUNT_SESSION_KEY } = await import('../middleware/account_auth.js');
+    const accountId = ctx.session?.get(ACCOUNT_SESSION_KEY) as string | undefined;
+    let currentUser: { id: string; email: string; roles: string[] } | null = null;
     if (accountId) {
-      const account = await cfg.accountStore.findById(accountId)
+      const account = await cfg.accountStore.findById(accountId);
       if (account) {
         currentUser = {
           id: account.id,
           email: account.email,
           roles: await resolveAccountRoles(cfg, account),
-        }
+        };
       }
     }
 
-    const adminBase = getAdminPrefix()
+    const adminBase = getAdminPrefix();
     const authkitConfig = {
       adminBase,
       csrfToken: (ctx.request as any).csrfToken ?? null,
@@ -148,11 +148,11 @@ export default class AdminShellController {
       endpoints: {
         api: `${adminBase}/api`,
       },
-    }
+    };
 
-    const { html: rawHtml } = await loadShell()
-    const html = prepareShell(rawHtml, authkitConfig)
-    ctx.response.type('text/html').send(html)
+    const { html: rawHtml } = await loadShell();
+    const html = prepareShell(rawHtml, authkitConfig);
+    ctx.response.type('text/html').send(html);
   }
 
   /**
@@ -161,23 +161,25 @@ export default class AdminShellController {
    */
   async serveAsset(ctx: HttpContext) {
     // AdonisJS wildcard route `*` → params['*'] is an array of path segments.
-    const wildcardParams = (ctx.request.params() as Record<string, unknown>)['*']
-    const file = Array.isArray(wildcardParams) ? wildcardParams.join('/') : String(wildcardParams ?? '')
+    const wildcardParams = (ctx.request.params() as Record<string, unknown>)['*'];
+    const file = Array.isArray(wildcardParams)
+      ? wildcardParams.join('/')
+      : String(wildcardParams ?? '');
     if (!file || file.includes('..') || file.includes('\0')) {
-      return ctx.response.notFound()
+      return ctx.response.notFound();
     }
 
-    const assetUrl = new URL(`../../host/ui-dist/assets/${file}`, import.meta.url)
+    const assetUrl = new URL(`../../host/ui-dist/assets/${file}`, import.meta.url);
     try {
-      const content = await readFile(assetUrl)
-      const ext = extname(file).toLowerCase()
-      const mime = MIME[ext] ?? 'application/octet-stream'
+      const content = await readFile(assetUrl);
+      const ext = extname(file).toLowerCase();
+      const mime = MIME[ext] ?? 'application/octet-stream';
       ctx.response
         .type(mime)
         .header('Cache-Control', 'public, max-age=31536000, immutable')
-        .send(content)
+        .send(content);
     } catch {
-      ctx.response.notFound()
+      ctx.response.notFound();
     }
   }
 }

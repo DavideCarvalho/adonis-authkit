@@ -1,3 +1,6 @@
+import type {} from '@adonisjs/ally/ally_provider';
+import type {} from '@adonisjs/auth/initialize_auth_middleware';
+import type {} from '@adonisjs/core/providers/vinejs_provider';
 /**
  * Carrega as augmentations de tipo do AdonisJS usadas pelos controllers do host-kit.
  *
@@ -18,11 +21,8 @@
  * - `@adonisjs/core/providers/vinejs_provider`      → `HttpRequest.validateUsing`
  * - `@adonisjs/auth/initialize_auth_middleware`     → `HttpContext.auth` (peer opcional)
  */
-import type {} from '@adonisjs/session/session_middleware'
-import type {} from '@adonisjs/shield/shield_middleware'
-import type {} from '@adonisjs/ally/ally_provider'
-import type {} from '@adonisjs/core/providers/vinejs_provider'
-import type {} from '@adonisjs/auth/initialize_auth_middleware'
+import type {} from '@adonisjs/session/session_middleware';
+import type {} from '@adonisjs/shield/shield_middleware';
 
 /**
  * Identificador NÃO-SENSÍVEL da API key admin que autenticou a request (R6),
@@ -32,12 +32,6 @@ import type {} from '@adonisjs/auth/initialize_auth_middleware'
  */
 declare module '@adonisjs/core/http' {
   interface HttpContext {
-    adminApiKeyId?: string
+    adminApiKeyId?: string;
   }
 }
-
-// `export {}` garante que este módulo seja EMITIDO como JS (vazio) no build —
-// caso contrário um arquivo só com `import type` não gera `.js` e os controllers
-// que fazem `import '../augmentations.js'` quebrariam em runtime. O módulo emitido
-// é inofensivo (não importa nada em runtime).
-export {}

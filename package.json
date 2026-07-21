@@ -15,16 +15,17 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "smoke": "node scripts/import-smoke.mjs",
-    "lint": "prettier --check .",
-    "format": "prettier --write .",
-    "version-packages": "changeset version",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "version-packages": "changeset version && biome check --write .",
     "release": "pnpm build && pnpm changeset publish"
   },
   "devDependencies": {
     "@adonisjs/assembler": "8.4.0",
     "@adonisjs/tsconfig": "2.0.0",
+    "@biomejs/biome": "^1.9.0",
     "@changesets/cli": "^2.27.0",
-    "prettier": "3.8.3",
     "typescript": "6.0.3"
   }
 }

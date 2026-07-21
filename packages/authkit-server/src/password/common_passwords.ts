@@ -12,16 +12,16 @@
  * Licença do arquivo de dados: CC0 / Public Domain.
  */
 
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-import { join, dirname } from 'node:path'
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /**
  * Set em memória das senhas comuns (minúsculas). Inicializado na primeira
  * chamada a `isCommonPassword`. O módulo garante que o carregamento ocorre
  * apenas uma vez (lazy singleton).
  */
-let _commonPasswordsSet: Set<string> | null = null
+let _commonPasswordsSet: Set<string> | null = null;
 
 /**
  * Carrega o arquivo de senhas comuns uma única vez (lazy).
@@ -30,24 +30,24 @@ let _commonPasswordsSet: Set<string> | null = null
  * assets), retorna um Set vazio — a checagem vira no-op sem quebrar o fluxo.
  */
 function loadCommonPasswords(): Set<string> {
-  if (_commonPasswordsSet !== null) return _commonPasswordsSet
+  if (_commonPasswordsSet !== null) return _commonPasswordsSet;
 
   try {
-    const __filename = fileURLToPath(import.meta.url)
-    const __dir = dirname(__filename)
-    const filePath = join(__dir, 'common_passwords.txt')
-    const content = readFileSync(filePath, 'utf-8')
+    const __filename = fileURLToPath(import.meta.url);
+    const __dir = dirname(__filename);
+    const filePath = join(__dir, 'common_passwords.txt');
+    const content = readFileSync(filePath, 'utf-8');
     const entries = content
       .split('\n')
       .map((l) => l.trim().toLowerCase())
-      .filter((l) => l.length > 0 && !l.startsWith('#'))
-    _commonPasswordsSet = new Set(entries)
+      .filter((l) => l.length > 0 && !l.startsWith('#'));
+    _commonPasswordsSet = new Set(entries);
   } catch {
     // Fail-safe: arquivo ausente → Set vazio (no-op check).
-    _commonPasswordsSet = new Set()
+    _commonPasswordsSet = new Set();
   }
 
-  return _commonPasswordsSet
+  return _commonPasswordsSet;
 }
 
 /**
@@ -59,15 +59,15 @@ function loadCommonPasswords(): Set<string> {
  * @returns `true` se a senha for considerada comum (deve ser rejeitada).
  */
 export function isCommonPassword(plain: string): boolean {
-  const set = loadCommonPasswords()
-  return set.has(plain.toLowerCase())
+  const set = loadCommonPasswords();
+  return set.has(plain.toLowerCase());
 }
 
 /**
  * Número de entradas na lista de senhas comuns. Útil para testes e diagnóstico.
  */
 export function commonPasswordsCount(): number {
-  return loadCommonPasswords().size
+  return loadCommonPasswords().size;
 }
 
 /**
@@ -75,5 +75,5 @@ export function commonPasswordsCount(): number {
  * @internal
  */
 export function __setCommonPasswordsForTests(passwords: Set<string> | null): void {
-  _commonPasswordsSet = passwords
+  _commonPasswordsSet = passwords;
 }

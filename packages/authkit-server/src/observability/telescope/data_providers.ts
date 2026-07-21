@@ -1,5 +1,5 @@
-import type { AuditEvent, AuditEventType } from "../../audit/audit_sink.js";
-import type { DataProvider, ExtensionContext } from "@adonis-agora/telescope";
+import type { DataProvider, ExtensionContext } from '@adonis-agora/telescope';
+import type { AuditEvent, AuditEventType } from '../../audit/audit_sink.js';
 
 /**
  * Data providers for the authkit "Security" Telescope dashboard.
@@ -27,17 +27,14 @@ interface AuthkitEntry {
 }
 
 /** The Telescope entry `type` the generic diagnostics watcher records under. */
-const DIAGNOSTIC_TYPE = "diagnostic";
+const DIAGNOSTIC_TYPE = 'diagnostic';
 /** The tag the diagnostics watcher stamps for authkit-emitted events. */
-const AUTHKIT_TAG = "lib:authkit";
+const AUTHKIT_TAG = 'lib:authkit';
 /** Default rolling window for the entry-backed providers (24h). */
 const DEFAULT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /** Fetch captured `agora:authkit:*` audit entries from Telescope (newest-first). */
-async function fetchEntries(
-  ctx: ExtensionContext,
-  limit = 5_000,
-): Promise<AuthkitEntry[]> {
+async function fetchEntries(ctx: ExtensionContext, limit = 5_000): Promise<AuthkitEntry[]> {
   return ctx.store.list({
     type: DIAGNOSTIC_TYPE,
     tag: AUTHKIT_TAG,
@@ -47,7 +44,7 @@ async function fetchEntries(
 
 /** The `AuditEventType` an entry carries (under `content.event`), or `''`. */
 function eventOf(e: AuthkitEntry): string {
-  return e.content?.event ?? "";
+  return e.content?.event ?? '';
 }
 
 /** Epoch millis the entry was recorded at, or `0` when absent/unparsable. */
@@ -56,10 +53,7 @@ function timeOf(e: AuthkitEntry): number {
 }
 
 /** Count entries whose `content.event` is one of `types`. */
-function countByType(
-  entries: AuthkitEntry[],
-  types: readonly string[],
-): number {
+function countByType(entries: AuthkitEntry[], types: readonly string[]): number {
   const set = new Set(types);
   let n = 0;
   for (const e of entries) if (set.has(eventOf(e))) n += 1;
@@ -76,32 +70,17 @@ function splitWindows(
   const prevStart = start - windowMs;
   return {
     current: entries.filter((e) => timeOf(e) > start && timeOf(e) <= now),
-    previous: entries.filter(
-      (e) => timeOf(e) > prevStart && timeOf(e) <= start,
-    ),
+    previous: entries.filter((e) => timeOf(e) > prevStart && timeOf(e) <= start),
   };
 }
 
 // The audit event groupings the dashboard rolls up.
-const LOGIN_SUCCESS: readonly AuditEventType[] = ["login.success"];
-const LOGIN_FAILURE: readonly AuditEventType[] = [
-  "login.failure",
-  "bot_protection.rejected",
-];
-const MFA_ENROLLMENTS: readonly AuditEventType[] = [
-  "mfa.enabled",
-  "passkey.registered",
-];
-const LOCKOUTS: readonly AuditEventType[] = ["account.locked", "otp.locked"];
-const PAT_EVENTS: readonly AuditEventType[] = [
-  "pat.issued",
-  "pat.revoked",
-  "pat.used",
-];
-const IMPERSONATION_EVENTS: readonly AuditEventType[] = [
-  "impersonation",
-  "impersonation.started",
-];
+const LOGIN_SUCCESS: readonly AuditEventType[] = ['login.success'];
+const LOGIN_FAILURE: readonly AuditEventType[] = ['login.failure', 'bot_protection.rejected'];
+const MFA_ENROLLMENTS: readonly AuditEventType[] = ['mfa.enabled', 'passkey.registered'];
+const LOCKOUTS: readonly AuditEventType[] = ['account.locked', 'otp.locked'];
+const PAT_EVENTS: readonly AuditEventType[] = ['pat.issued', 'pat.revoked', 'pat.used'];
+const IMPERSONATION_EVENTS: readonly AuditEventType[] = ['impersonation', 'impersonation.started'];
 
 /**
  * A stat (`{ value, delta?, spark? }`) over a window for a set of event types.
@@ -109,7 +88,7 @@ const IMPERSONATION_EVENTS: readonly AuditEventType[] = [
  */
 export function authkitEventCountProvider(): DataProvider {
   return {
-    name: "authkit.eventCount",
+    name: 'authkit.eventCount',
     async resolve(query, ctx) {
       const entries = await fetchEntries(ctx);
       const windowMs = Number(query?.windowMs ?? DEFAULT_WINDOW_MS);
@@ -117,8 +96,7 @@ export function authkitEventCountProvider(): DataProvider {
       const types = typesForMetric(query?.metric as string | undefined);
       const { current, previous } = splitWindows(entries, windowMs, now);
       const value = countByType(current, types);
-      const delta =
-        previous.length > 0 ? value - countByType(previous, types) : undefined;
+      const delta = previous.length > 0 ? value - countByType(previous, types) : undefined;
       const sparkBuckets = 8;
       const bucketSize = windowMs / sparkBuckets;
       const sparkStart = now - windowMs;
@@ -138,17 +116,16 @@ export function authkitEventCountProvider(): DataProvider {
 /** Map a panel `metric` to the set of `AuditEventType`s it aggregates. */
 function typesForMetric(metric: string | undefined): readonly string[] {
   switch (metric) {
-    case "loginFailure":
+    case 'loginFailure':
       return LOGIN_FAILURE;
-    case "mfaEnrollments":
+    case 'mfaEnrollments':
       return MFA_ENROLLMENTS;
-    case "lockouts":
+    case 'lockouts':
       return LOCKOUTS;
-    case "pat":
+    case 'pat':
       return PAT_EVENTS;
-    case "impersonation":
+    case 'impersonation':
       return IMPERSONATION_EVENTS;
-    case "loginSuccess":
     default:
       return LOGIN_SUCCESS;
   }
@@ -160,7 +137,7 @@ function typesForMetric(metric: string | undefined): readonly string[] {
  */
 export function authkitLoginSuccessRateProvider(): DataProvider {
   return {
-    name: "authkit.loginSuccessRate",
+    name: 'authkit.loginSuccessRate',
     async resolve(query, ctx) {
       const entries = await fetchEntries(ctx);
       const windowMs = Number(query?.windowMs ?? DEFAULT_WINDOW_MS);
@@ -179,7 +156,7 @@ export function authkitLoginSuccessRateProvider(): DataProvider {
  */
 export function authkitLoginsOverTimeProvider(): DataProvider {
   return {
-    name: "authkit.loginsOverTime",
+    name: 'authkit.loginsOverTime',
     async resolve(query, ctx) {
       const entries = await fetchEntries(ctx);
       const n = Math.max(1, Number(query?.buckets ?? 24));
@@ -203,8 +180,7 @@ export function authkitLoginsOverTimeProvider(): DataProvider {
         const isSuccess = successSet.has(event);
         const isFailure = failureSet.has(event);
         if (!isSuccess && !isFailure) continue;
-        const row =
-          rows[Math.min(n - 1, Math.floor((timeOf(e) - minT) / bucketSize))];
+        const row = rows[Math.min(n - 1, Math.floor((timeOf(e) - minT) / bucketSize))];
         if (row) {
           if (isSuccess) row.success += 1;
           else row.failure += 1;
@@ -221,17 +197,17 @@ const BREAKDOWN_GROUPS: Array<{
   types: readonly string[];
   color: string;
 }> = [
-  { label: "Login OK", types: LOGIN_SUCCESS, color: "#34d399" },
-  { label: "Login fail", types: LOGIN_FAILURE, color: "#f87171" },
-  { label: "MFA", types: MFA_ENROLLMENTS, color: "#38bdf8" },
-  { label: "Lockouts", types: LOCKOUTS, color: "#fbbf24" },
-  { label: "PAT", types: PAT_EVENTS, color: "#a78bfa" },
-  { label: "Impersonation", types: IMPERSONATION_EVENTS, color: "#fb923c" },
+  { label: 'Login OK', types: LOGIN_SUCCESS, color: '#34d399' },
+  { label: 'Login fail', types: LOGIN_FAILURE, color: '#f87171' },
+  { label: 'MFA', types: MFA_ENROLLMENTS, color: '#38bdf8' },
+  { label: 'Lockouts', types: LOCKOUTS, color: '#fbbf24' },
+  { label: 'PAT', types: PAT_EVENTS, color: '#a78bfa' },
+  { label: 'Impersonation', types: IMPERSONATION_EVENTS, color: '#fb923c' },
 ];
 
 export function authkitEventBreakdownProvider(): DataProvider {
   return {
-    name: "authkit.eventBreakdown",
+    name: 'authkit.eventBreakdown',
     async resolve(query, ctx) {
       const entries = await fetchEntries(ctx);
       const windowMs = Number(query?.windowMs ?? DEFAULT_WINDOW_MS);
@@ -252,7 +228,7 @@ export function authkitEventBreakdownProvider(): DataProvider {
  */
 export function authkitTokenActivityProvider(): DataProvider {
   return {
-    name: "authkit.tokenActivity",
+    name: 'authkit.tokenActivity',
     async resolve(query, ctx) {
       const entries = await fetchEntries(ctx);
       const limit = Math.min(200, Math.max(10, Number(query?.limit ?? 50)));
@@ -264,11 +240,11 @@ export function authkitTokenActivityProvider(): DataProvider {
           const p = e.content?.payload;
           return {
             at: e.createdAt
-              ? `${new Date(e.createdAt).toISOString().replace("T", " ").slice(0, 16)}Z`
-              : "",
+              ? `${new Date(e.createdAt).toISOString().replace('T', ' ').slice(0, 16)}Z`
+              : '',
             event: eventOf(e),
-            subject: p?.accountId ?? "",
-            actor: p?.actorId ?? "",
+            subject: p?.accountId ?? '',
+            actor: p?.actorId ?? '',
             // `ip` is intentionally NOT surfaced: the diagnostics bridge emits a
             // PII-free projection of each audit event (no `email`/`ip`/`metadata`)
             // so a deleted account's PII never lands in Telescope's store. See

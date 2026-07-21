@@ -27,15 +27,15 @@
  * ```
  */
 
-import type { DeletionActor } from "../account_deletion_service.js";
+import type { DeletionActor } from '../account_deletion_service.js';
 import {
   ACCOUNT_DELETE_WORKFLOW,
   type AccountDeleteWorkflowInput,
-} from "./account_deletion_workflow.js";
+} from './account_deletion_workflow.js';
 import {
   ACCOUNT_EXPORT_WORKFLOW,
   type AccountExportWorkflowInput,
-} from "./account_export_workflow.js";
+} from './account_export_workflow.js';
 
 export {
   defineAccountDeletionWorkflow,
@@ -44,7 +44,7 @@ export {
   type AccountDeletionWorkflowDeps,
   type DurableStepCtx,
   type WorkflowBody,
-} from "./account_deletion_workflow.js";
+} from './account_deletion_workflow.js';
 export {
   defineAccountExportWorkflow,
   ACCOUNT_EXPORT_WORKFLOW,
@@ -53,19 +53,14 @@ export {
   type AccountExportWorkflowDeps,
   type PersistArtifact,
   type DeliverArtifact,
-} from "./account_export_workflow.js";
+} from './account_export_workflow.js';
 
 /**
  * Superfície mínima do `WorkflowEngine` que o enqueue usa (`start` idempotente por
  * run-id). Tipada estruturalmente p/ NÃO acoplar o build ao peer opcional.
  */
 export interface EnqueueEngine {
-  start(
-    workflow: string,
-    input: unknown,
-    runId: string,
-    opts?: unknown,
-  ): Promise<unknown>;
+  start(workflow: string, input: unknown, runId: string, opts?: unknown): Promise<unknown>;
 }
 
 /** Um resolver de container (`ctx.containerResolver` ou `app.container`). */
@@ -83,11 +78,11 @@ export async function resolveWorkflowEngine(
 ): Promise<EnqueueEngine> {
   let mod: { WorkflowEngine: abstract new (...args: any[]) => unknown };
   try {
-    mod = (await import("@adonis-agora/durable")) as any;
+    mod = (await import('@adonis-agora/durable')) as any;
   } catch {
     throw new Error(
       '[authkit] durable account-lifecycle is enabled but "@adonis-agora/durable" is not installed. ' +
-        "Add it as a dependency and register the workflows on your WorkflowEngine.",
+        'Add it as a dependency and register the workflows on your WorkflowEngine.',
     );
   }
   return resolver.make(mod.WorkflowEngine) as Promise<EnqueueEngine>;

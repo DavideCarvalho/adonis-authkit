@@ -1,33 +1,33 @@
-import '../augmentations.js'
-import type { HttpContext } from '@adonisjs/core/http'
-import type { ResolvedServerConfig } from '../../define_config.js'
-import { brandFor, isFirstParty } from '../branding.js'
-import { translate } from '../i18n.js'
-import { attemptPasswordLogin, isEmailUnverifiedBlock } from '../login_attempt.js'
-import { notifyLoginSuccess } from '../login_notify.js'
-import { guardBotProtection, resolveEffectiveBotProtection } from '../bot_protection.js'
-import { RuntimeSettings, resolveRuntimeSettings } from '../runtime_settings.js'
+import '../augmentations.js';
+import type { HttpContext } from '@adonisjs/core/http';
+import { supportsMagicLink, supportsPasskeys } from '../../accounts/account_store.js';
+import type { ResolvedServerConfig } from '../../define_config.js';
+import { AdminSessionsService } from '../admin_sessions_service.js';
+import { guardBotProtection, resolveEffectiveBotProtection } from '../bot_protection.js';
+import { brandFor, isFirstParty } from '../branding.js';
+import { sendMagicLinkEmail } from '../default_mailer.js';
+import { sendOtpUnlockEmail } from '../default_mailer.js';
+import { translate } from '../i18n.js';
+import { attemptPasswordLogin, isEmailUnverifiedBlock } from '../login_attempt.js';
+import { notifyLoginSuccess } from '../login_notify.js';
 import {
+  createOtpLockout,
+  generateOtpUnlockToken,
+  rawToDbOtpUnlockToken,
+  resolveEffectiveOtpLockout,
+} from '../otp_lockout.js';
+import { RuntimeSettings, resolveRuntimeSettings } from '../runtime_settings.js';
+import {
+  resolveEffectiveAuthMethods,
   resolveEffectiveMaintenanceMode,
   resolveEffectiveRegistration,
-  resolveEffectiveAuthMethods,
   resolveEffectiveSessionPolicy,
-} from '../runtime_toggles.js'
-import { supportsPasskeys, supportsMagicLink } from '../../accounts/account_store.js'
-import { sendMagicLinkEmail } from '../default_mailer.js'
+} from '../runtime_toggles.js';
 import {
   TRUSTED_DEVICE_COOKIE,
   buildTrustedDevicePayload,
   isTrustedDeviceValid,
-} from '../trusted_device.js'
-import { AdminSessionsService } from '../admin_sessions_service.js'
-import {
-  createOtpLockout,
-  resolveEffectiveOtpLockout,
-  generateOtpUnlockToken,
-  rawToDbOtpUnlockToken,
-} from '../otp_lockout.js'
-import { sendOtpUnlockEmail } from '../default_mailer.js'
+} from '../trusted_device.js';
 
 /**
  * Best-effort: returns a RuntimeSettings backed by the container DB, or a no-op
@@ -37,15 +37,22 @@ import { sendOtpUnlockEmail } from '../default_mailer.js'
  * SELECT lança → tabela ausente → config fallback) quando a resolução falha.
  */
 async function getRuntimeSettings(ctx: HttpContext): Promise<RuntimeSettings> {
-  const rs = await resolveRuntimeSettings(ctx)
-  return rs ?? new RuntimeSettings({ table: () => { throw new Error('no-op') } })
+  const rs = await resolveRuntimeSettings(ctx);
+  return (
+    rs ??
+    new RuntimeSettings({
+      table: () => {
+        throw new Error('no-op');
+      },
+    })
+  );
 }
 
-const SESSION_KEY = 'authkit_login_email'
+const SESSION_KEY = 'authkit_login_email';
 /** accountId aguardando o 2º fator depois da senha verificada. */
-const MFA_PENDING_KEY = 'authkit_mfa_pending'
+const MFA_PENDING_KEY = 'authkit_mfa_pending';
 /** Desafio WebAuthn pendente (autenticação) guardado entre begin/finish no login. */
-const PASSKEY_AUTH_CHALLENGE_KEY = 'authkit_passkey_auth_challenge'
+const PASSKEY_AUTH_CHALLENGE_KEY = 'authkit_passkey_auth_challenge';
 
 export default class AuthInteractionController {
   /**
@@ -55,33 +62,34 @@ export default class AuthInteractionController {
    * `passkeyFirst` depende da conta (resolvido no fluxo principal); aqui cobrimos senha + magic link.
    */
   async #loginMethods(ctx: HttpContext, cfg: ResolvedServerConfig) {
-    const runtimeSettings = await getRuntimeSettings(ctx)
-    const magicLinkCapableConfig = cfg.passwordless.magicLink && supportsMagicLink(cfg.accountStore)
+    const runtimeSettings = await getRuntimeSettings(ctx);
+    const magicLinkCapableConfig =
+      cfg.passwordless.magicLink && supportsMagicLink(cfg.accountStore);
     const authMethods = await resolveEffectiveAuthMethods(runtimeSettings, {
       configuredSocialProviders: cfg.social?.providers ?? [],
       magicLinkCapable: magicLinkCapableConfig,
       passkeyCapable: false,
       configOverrides: cfg.authMethods,
-    })
-    return { authMethods, magicLinkAvailable: authMethods.magicLink && magicLinkCapableConfig }
+    });
+    return { authMethods, magicLinkAvailable: authMethods.magicLink && magicLinkCapableConfig };
   }
 
   async show(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const render = cfg.render!
-    const details = await service.interactions.details(ctx)
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const render = cfg.render!;
+    const details = await service.interactions.details(ctx);
     const brand = brandFor(
       cfg.branding!,
       details.params.client_id as string | undefined,
-      details.params.audience as string | undefined
-    )
+      details.params.audience as string | undefined,
+    );
 
     // Maintenance mode: verifica se é uma conta admin antes de bloquear.
     // Contas admin continuam podendo logar para que o operador possa desligar a
     // manutenção via console. Contas comuns veem a tela de manutenção.
-    const runtimeSettingsForMaintenance = await getRuntimeSettings(ctx)
-    const maintenance = await resolveEffectiveMaintenanceMode(runtimeSettingsForMaintenance)
+    const runtimeSettingsForMaintenance = await getRuntimeSettings(ctx);
+    const maintenance = await resolveEffectiveMaintenanceMode(runtimeSettingsForMaintenance);
     if (maintenance.enabled) {
       // Verifica se já há uma conta admin na sessão (já autenticado) OU
       // se o prompt não é de login — nesse caso, permite prosseguir.
@@ -100,16 +108,19 @@ export default class AuthInteractionController {
           brand,
           adminLoginAllowed: true,
           adminLoginNote: translate(cfg.messages, 'maintenance.admin_login_note'),
-        })
+        });
       }
     }
 
-    if (details.prompt.name === 'consent' && isFirstParty(cfg.branding!, details.params.client_id as string | undefined)) {
+    if (
+      details.prompt.name === 'consent' &&
+      isFirstParty(cfg.branding!, details.params.client_id as string | undefined)
+    ) {
       // Clients first-party: auto-concede o consent (pula a tela de consent).
       // interactions.consent monta o Grant + interactionFinished e escreve o
       // redirect de volta para o client — opera via provider.interactionDetails,
       // independente do metodo HTTP, entao funciona no GET show().
-      return await service.interactions.consent(ctx)
+      return await service.interactions.consent(ctx);
     }
 
     if (details.prompt.name !== 'login') {
@@ -119,31 +130,31 @@ export default class AuthInteractionController {
         params: details.params,
         csrfToken: ctx.request.csrfToken,
         brand,
-      })
+      });
     }
 
-    const email = ctx.session.get(SESSION_KEY) as string | undefined
+    const email = ctx.session.get(SESSION_KEY) as string | undefined;
 
     // Resolve auth methods (capabilities: magic link, passkey-first, social providers).
     // Capabilities are account-independent at this stage for the identifier step.
     const magicLinkCapableConfig =
-      cfg.passwordless.magicLink && supportsMagicLink(cfg.accountStore)
-    const configuredSocialProviders: string[] = cfg.social?.providers ?? []
-    const authMethodsSettings = runtimeSettingsForMaintenance
+      cfg.passwordless.magicLink && supportsMagicLink(cfg.accountStore);
+    const configuredSocialProviders: string[] = cfg.social?.providers ?? [];
+    const authMethodsSettings = runtimeSettingsForMaintenance;
     const authMethods = await resolveEffectiveAuthMethods(authMethodsSettings, {
       configuredSocialProviders,
       magicLinkCapable: magicLinkCapableConfig,
       passkeyCapable: false, // passkey-first depends on account — resolved in step 2
       configOverrides: cfg.authMethods,
-    })
+    });
 
     if (!email) {
       // Step 1: identifier (email only).
       // Resolve registration enabled to hide "create account" link when closed.
       const registrationEnabled = await resolveEffectiveRegistration(
         cfg.registration?.enabled ?? true,
-        runtimeSettingsForMaintenance
-      )
+        runtimeSettingsForMaintenance,
+      );
       return render(ctx, 'login', {
         uid: details.uid,
         csrfToken: ctx.request.csrfToken,
@@ -151,26 +162,31 @@ export default class AuthInteractionController {
         registrationEnabled,
         brand,
         authMethods,
-      })
+      });
     }
 
     // Step 2: password — look up user for personalisation (enumeration-safe: always show step 2)
-    const acc = await cfg.accountStore.findByEmail(email)
-    const account = acc ? { fullName: acc.name ?? null, globalRoles: acc.globalRoles ?? [] } : null
+    const acc = await cfg.accountStore.findByEmail(email);
+    const account = acc ? { fullName: acc.name ?? null, globalRoles: acc.globalRoles ?? [] } : null;
 
     // Passwordless: magic link disponível se ligado E o store suporta E auth_methods permite.
     // Passkey-first disponível se ligado, o store suporta, a conta tem passkeys E auth_methods permite.
-    const magicLinkAvailable =
-      authMethods.magicLink && magicLinkCapableConfig
+    const magicLinkAvailable = authMethods.magicLink && magicLinkCapableConfig;
     const passkeyFirstCapable =
-      cfg.passwordless.passkeyFirst && !!acc && (await this.hasPasskeys(cfg, acc.id))
-    const passkeyFirstAvailable = authMethods.passkey && passkeyFirstCapable
+      cfg.passwordless.passkeyFirst && !!acc && (await this.hasPasskeys(cfg, acc.id));
+    const passkeyFirstAvailable = authMethods.passkey && passkeyFirstCapable;
 
     // Effective bot protection: may be overridden at runtime via auth_settings.
-    const effectiveBot = await resolveEffectiveBotProtection(cfg.botProtection, await getRuntimeSettings(ctx))
+    const effectiveBot = await resolveEffectiveBotProtection(
+      cfg.botProtection,
+      await getRuntimeSettings(ctx),
+    );
 
     // Session policy: resolve para exibir o checkbox "manter conectado".
-    const sessionPolicyForShow = await resolveEffectiveSessionPolicy(runtimeSettingsForMaintenance, cfg.ttl?.session ? Math.ceil(cfg.ttl.session / 3600) : undefined)
+    const sessionPolicyForShow = await resolveEffectiveSessionPolicy(
+      runtimeSettingsForMaintenance,
+      cfg.ttl?.session ? Math.ceil(cfg.ttl.session / 3600) : undefined,
+    );
 
     return render(ctx, 'login', {
       uid: details.uid,
@@ -185,7 +201,7 @@ export default class AuthInteractionController {
       authMethods,
       rememberEnabled: sessionPolicyForShow.rememberEnabled,
       rememberDays: sessionPolicyForShow.rememberDays,
-    })
+    });
   }
 
   /**
@@ -194,9 +210,9 @@ export default class AuthInteractionController {
    * ENUMERATION-SAFE: always advances regardless of whether the email exists.
    */
   async identifier(ctx: HttpContext) {
-    const { email } = ctx.request.only(['email'])
-    ctx.session.put(SESSION_KEY, email)
-    return ctx.response.redirect(`/auth/interaction/${ctx.request.param('uid')}`)
+    const { email } = ctx.request.only(['email']);
+    ctx.session.put(SESSION_KEY, email);
+    return ctx.response.redirect(`/auth/interaction/${ctx.request.param('uid')}`);
   }
 
   /**
@@ -204,47 +220,51 @@ export default class AuthInteractionController {
    * Step 2: password submit. Reads email from session (never from form).
    */
   async login(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const render = cfg.render!
-    const details = await service.interactions.details(ctx)
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const render = cfg.render!;
+    const details = await service.interactions.details(ctx);
     const brand = brandFor(
       cfg.branding!,
       details.params.client_id as string | undefined,
-      details.params.audience as string | undefined
-    )
-    const email = ctx.session.get(SESSION_KEY) as string | undefined
+      details.params.audience as string | undefined,
+    );
+    const email = ctx.session.get(SESSION_KEY) as string | undefined;
     if (!email) {
       // Session expired or tampered — send back to step 1
-      return ctx.response.redirect(`/auth/interaction/${ctx.request.param('uid')}`)
+      return ctx.response.redirect(`/auth/interaction/${ctx.request.param('uid')}`);
     }
 
-    const { password } = ctx.request.only(['password'])
-    const ip = ctx.request.ip?.() ?? null
-    const clientId = (details.params.client_id as string | undefined) ?? null
+    const { password } = ctx.request.only(['password']);
+    const ip = ctx.request.ip?.() ?? null;
+    const clientId = (details.params.client_id as string | undefined) ?? null;
 
     // Resolve runtime settings (reutilizado por bot + maintenance + verifiedEmail + session_policy).
-    const runtimeSettings = await getRuntimeSettings(ctx)
+    const runtimeSettings = await getRuntimeSettings(ctx);
 
     // Maintenance mode: verifica se a conta que tenta logar é admin.
     // Admins CONTINUAM podendo logar (senão o operador se tranca fora).
     // A verificação de role acontece APÓS as credenciais (senha correta primeiro).
-    const maintenance = await resolveEffectiveMaintenanceMode(runtimeSettings)
+    const maintenance = await resolveEffectiveMaintenanceMode(runtimeSettings);
 
     // Effective bot protection: may be overridden at runtime via auth_settings.
-    const effectiveBotLogin = await resolveEffectiveBotProtection(cfg.botProtection, runtimeSettings)
+    const effectiveBotLogin = await resolveEffectiveBotProtection(
+      cfg.botProtection,
+      runtimeSettings,
+    );
 
     // Bot protection (plugável): valida o token do widget ANTES de tocar nas
     // credenciais. Fail-safe: erro/timeout no verify do host PERMITE o fluxo.
     // We use a cfg-compatible object: pass effectiveBotLogin merged into cfg.
-    const cfgWithEffectiveBot = effectiveBotLogin !== cfg.botProtection
-      ? { ...cfg, botProtection: effectiveBotLogin }
-      : cfg
-    if (!(await guardBotProtection(ctx, cfgWithEffectiveBot as any, 'login', { email, clientId }))) {
-      const found = await cfg.accountStore.findByEmail(email)
+    const cfgWithEffectiveBot =
+      effectiveBotLogin !== cfg.botProtection ? { ...cfg, botProtection: effectiveBotLogin } : cfg;
+    if (
+      !(await guardBotProtection(ctx, cfgWithEffectiveBot as any, 'login', { email, clientId }))
+    ) {
+      const found = await cfg.accountStore.findByEmail(email);
       const account = found
         ? { fullName: found.name ?? null, globalRoles: found.globalRoles ?? [] }
-        : null
+        : null;
       return render(ctx, 'login', {
         ...(await this.#loginMethods(ctx, cfg)),
         uid: ctx.request.param('uid'),
@@ -255,21 +275,28 @@ export default class AuthInteractionController {
         error: translate(cfg.messages, 'errors.bot_protection_failed'),
         brand,
         botProtection: effectiveBotLogin?.widget,
-      })
+      });
     }
 
     // Verificamos as credenciais ANTES de finalizar a interaction, porque com MFA
     // ligado precisamos exigir o 2º fator e NÃO podemos chamar interactionFinished
     // ainda. A sequência verificação + lockout + auditoria de falha é centralizada
     // em attemptPasswordLogin; a renderização (lookup p/ personalização) fica aqui.
-    const result = await attemptPasswordLogin(cfg, { email, password, ip, clientId, settings: runtimeSettings, logger: ctx.logger })
+    const result = await attemptPasswordLogin(cfg, {
+      email,
+      password,
+      ip,
+      clientId,
+      settings: runtimeSettings,
+      logger: ctx.logger,
+    });
 
     if (!result.ok) {
       // Senha expirada: redireciona para o step de troca obrigatória.
       if (result.passwordExpired && (result as any).account) {
-        const expiredAcc = (result as any).account
-        const PASSWORD_EXPIRED_KEY = 'authkit_password_expired'
-        ctx.session.put(PASSWORD_EXPIRED_KEY, expiredAcc.id)
+        const expiredAcc = (result as any).account;
+        const PASSWORD_EXPIRED_KEY = 'authkit_password_expired';
+        ctx.session.put(PASSWORD_EXPIRED_KEY, expiredAcc.id);
         return render(ctx, 'login', {
           uid: ctx.request.param('uid'),
           csrfToken: ctx.request.csrfToken,
@@ -279,13 +306,13 @@ export default class AuthInteractionController {
           error: null,
           brand,
           botProtection: undefined,
-        })
+        });
       }
 
-      const found = await cfg.accountStore.findByEmail(email)
+      const found = await cfg.accountStore.findByEmail(email);
       const account = found
         ? { fullName: found.name ?? null, globalRoles: found.globalRoles ?? [] }
-        : null
+        : null;
       return render(ctx, 'login', {
         ...(await this.#loginMethods(ctx, cfg)),
         uid: ctx.request.param('uid'),
@@ -305,19 +332,21 @@ export default class AuthInteractionController {
                 ? translate(cfg.messages, 'errors.account_expired')
                 : translate(cfg.messages, 'errors.invalid_credentials'),
         brand,
-        botProtection: effectiveBotLogin?.on.includes('login') ? effectiveBotLogin.widget : undefined,
-      })
+        botProtection: effectiveBotLogin?.on.includes('login')
+          ? effectiveBotLogin.widget
+          : undefined,
+      });
     }
 
-    const acc = result.account
+    const acc = result.account;
 
     // Maintenance mode guard: credenciais válidas, mas manutenção ativa.
     // Contas admin (role em cfg.admin.roles) CONTINUAM podendo logar.
     // Contas comuns são bloqueadas com a tela de manutenção.
     if (maintenance.enabled) {
-      const adminRoles: string[] = cfg.admin?.roles ?? ['ADMIN']
-      const accountRoles: string[] = acc.globalRoles ?? []
-      const isAdmin = adminRoles.some((r: string) => accountRoles.includes(r))
+      const adminRoles: string[] = cfg.admin?.roles ?? ['ADMIN'];
+      const accountRoles: string[] = acc.globalRoles ?? [];
+      const isAdmin = adminRoles.some((r: string) => accountRoles.includes(r));
       if (!isAdmin) {
         return render(ctx, 'maintenance', {
           uid: details.uid,
@@ -326,18 +355,18 @@ export default class AuthInteractionController {
           brand,
           adminLoginAllowed: true,
           adminLoginNote: translate(cfg.messages, 'maintenance.admin_login_note'),
-        })
+        });
       }
       // Admin: prossegue normalmente (sem bloqueio).
     }
 
     // Step-up auth (acr_values): o client pode EXIGIR MFA nesta requisição
     // solicitando o `mfaAcr` em acr_values, mesmo que a conta tenha MFA opcional.
-    const mfaRequired = this.acrRequiresMfa(cfg, details)
+    const mfaRequired = this.acrRequiresMfa(cfg, details);
 
     // MFA gate: força o 2º fator se a conta tem TOTP ativo OU se o client exige MFA
     // via acr. Não finaliza a interaction agora — guarda o accountId pendente.
-    const mfa = (await cfg.accountStore.getMfaState?.(acc.id)) ?? { enabled: false }
+    const mfa = (await cfg.accountStore.getMfaState?.(acc.id)) ?? { enabled: false };
     if (mfa.enabled || mfaRequired) {
       if (mfaRequired && !mfa.enabled) {
         // Client exige MFA mas a conta não tem MFA enrolado: bloqueia este login
@@ -349,31 +378,31 @@ export default class AuthInteractionController {
           passkeyAvailable: false,
           error: translate(cfg.messages, 'mfa_challenge.required_no_enrollment'),
           noEnrollment: true,
-        })
+        });
       }
       // Trusted device: se o mecanismo está ligado, a conta JÁ tem MFA enrolado e
       // o request NÃO é um step-up (que sempre força o MFA), um cookie de confiança
       // válido para ESTA conta pula o 2º fator. amr fica `['pwd']` (sem acr de MFA).
       if (cfg.trustedDevices.enabled && mfa.enabled && !mfaRequired) {
-        const trusted = await this.checkTrustedDevice(ctx, acc.id, mfa.enabledAt ?? null)
+        const trusted = await this.checkTrustedDevice(ctx, acc.id, mfa.enabledAt ?? null);
         if (trusted) {
-          await service.interactions.completeLogin(ctx, acc.id, { amr: ['pwd'] })
+          await service.interactions.completeLogin(ctx, acc.id, { amr: ['pwd'] });
           await notifyLoginSuccess(ctx, cfg, {
             accountId: acc.id,
             email,
             ip,
             clientId,
             trustedDevice: true,
-          })
-          ctx.session.forget(SESSION_KEY)
-          return
+          });
+          ctx.session.forget(SESSION_KEY);
+          return;
         }
       }
 
-      ctx.session.put(MFA_PENDING_KEY, acc.id)
+      ctx.session.put(MFA_PENDING_KEY, acc.id);
       // Passkey disponível como alternativa ao TOTP se o store suporta E a conta
       // tem ao menos uma credencial registrada.
-      const passkeyAvailable = await this.hasPasskeys(cfg, acc.id)
+      const passkeyAvailable = await this.hasPasskeys(cfg, acc.id);
       return render(ctx, 'mfa-challenge', {
         uid: ctx.request.param('uid'),
         csrfToken: ctx.request.csrfToken,
@@ -381,54 +410,61 @@ export default class AuthInteractionController {
         passkeyAvailable,
         trustedDevicesEnabled: cfg.trustedDevices.enabled,
         trustedDeviceDays: cfg.trustedDevices.days,
-      })
+      });
     }
 
     // Sem MFA: finaliza a interaction (escreve o 303 de volta para o client).
     // Resolve session_policy para remember-me e single-session.
-    const sessionPolicy = await resolveEffectiveSessionPolicy(runtimeSettings, cfg.ttl?.session ? Math.ceil(cfg.ttl.session / 3600) : undefined)
+    const sessionPolicy = await resolveEffectiveSessionPolicy(
+      runtimeSettings,
+      cfg.ttl?.session ? Math.ceil(cfg.ttl.session / 3600) : undefined,
+    );
     // remember-me: lê o checkbox do form. Checkbox HTML ausente/desmarcado = sem valor.
     // Quando rememberEnabled=false, ignora o checkbox (sessão sempre transiente).
-    const rememberChecked = ctx.request.input('remember')
-    const rememberOn = rememberChecked === 'on' || rememberChecked === '1' || rememberChecked === 'true' || rememberChecked === true
-    const remember = sessionPolicy.rememberEnabled ? rememberOn : false
+    const rememberChecked = ctx.request.input('remember');
+    const rememberOn =
+      rememberChecked === 'on' ||
+      rememberChecked === '1' ||
+      rememberChecked === 'true' ||
+      rememberChecked === true;
+    const remember = sessionPolicy.rememberEnabled ? rememberOn : false;
 
     // single-session: lista sessões ANTES do login para saber quais existem.
     // Após o completeLogin, a sessão NOVA é criada; revogamos as ANTERIORES.
     // Obtemos os ids das sessões correntes para que possamos preservar a nova.
-    let prevSessionIds: Set<string> = new Set()
+    let prevSessionIds: Set<string> = new Set();
     if (sessionPolicy.singleSession) {
-      const sessionsSvc = new AdminSessionsService(service)
+      const sessionsSvc = new AdminSessionsService(service);
       if (sessionsSvc.canList) {
-        const prev = await sessionsSvc.listSessions(acc.id)
-        prevSessionIds = new Set(prev.map((s) => s.id))
+        const prev = await sessionsSvc.listSessions(acc.id);
+        prevSessionIds = new Set(prev.map((s) => s.id));
       }
     }
 
-    await service.interactions.completeLogin(ctx, acc.id, { remember })
-    await notifyLoginSuccess(ctx, cfg, { accountId: acc.id, email, ip, clientId })
+    await service.interactions.completeLogin(ctx, acc.id, { remember });
+    await notifyLoginSuccess(ctx, cfg, { accountId: acc.id, email, ip, clientId });
 
     // single-session: após o completeLogin, revoga sessões que existiam ANTES.
     // A sessão nova foi criada pelo provider no resume — ela NÃO está em prevSessionIds.
     if (sessionPolicy.singleSession && prevSessionIds.size > 0) {
-      const sessionsSvc = new AdminSessionsService(service)
+      const sessionsSvc = new AdminSessionsService(service);
       if (sessionsSvc.canList) {
-        const current = await sessionsSvc.listSessions(acc.id)
-        const newSession = current.find((s) => !prevSessionIds.has(s.id))
-        const exceptId = newSession?.id ?? '__none__'
-        await sessionsSvc.revokeAllExcept(acc.id, exceptId)
+        const current = await sessionsSvc.listSessions(acc.id);
+        const newSession = current.find((s) => !prevSessionIds.has(s.id));
+        const exceptId = newSession?.id ?? '__none__';
+        await sessionsSvc.revokeAllExcept(acc.id, exceptId);
         await cfg.audit?.record({
           type: 'session.single_enforced',
           accountId: acc.id,
           ip,
           clientId,
           metadata: { revokedCount: prevSessionIds.size },
-        })
+        });
       }
     }
 
     // Clean up the session key after a successful login.
-    ctx.session.forget(SESSION_KEY)
+    ctx.session.forget(SESSION_KEY);
   }
 
   /**
@@ -437,33 +473,33 @@ export default class AuthInteractionController {
    * OU um recovery code (`recoveryCode`). Em caso de sucesso finaliza a interaction.
    */
   async mfaVerify(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const render = cfg.render!
-    const details = await service.interactions.details(ctx)
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const render = cfg.render!;
+    const details = await service.interactions.details(ctx);
     const brand = brandFor(
       cfg.branding!,
       details.params.client_id as string | undefined,
-      details.params.audience as string | undefined
-    )
-    const accountId = ctx.session.get(MFA_PENDING_KEY) as string | undefined
-    const ip = ctx.request.ip?.() ?? null
-    const clientId = (details.params.client_id as string | undefined) ?? null
+      details.params.audience as string | undefined,
+    );
+    const accountId = ctx.session.get(MFA_PENDING_KEY) as string | undefined;
+    const ip = ctx.request.ip?.() ?? null;
+    const clientId = (details.params.client_id as string | undefined) ?? null;
 
     if (!accountId) {
       // Sessão expirou/foi adulterada — volta ao início do login.
-      return ctx.response.redirect(`/auth/interaction/${ctx.request.param('uid')}`)
+      return ctx.response.redirect(`/auth/interaction/${ctx.request.param('uid')}`);
     }
 
-    const { code, recoveryCode } = ctx.request.only(['code', 'recoveryCode'])
+    const { code, recoveryCode } = ctx.request.only(['code', 'recoveryCode']);
 
     // Resolve OTP lockout settings (fail-safe).
-    const runtimeForOtp = await getRuntimeSettings(ctx)
-    const otpLockoutCfg = await resolveEffectiveOtpLockout(runtimeForOtp)
-    const otpLockout = createOtpLockout(otpLockoutCfg, ctx.logger)
+    const runtimeForOtp = await getRuntimeSettings(ctx);
+    const otpLockoutCfg = await resolveEffectiveOtpLockout(runtimeForOtp);
+    const otpLockout = createOtpLockout(otpLockoutCfg, ctx.logger);
 
     // Verifica se o fator OTP está travado ANTES de tentar verificar.
-    if (otpLockoutCfg.enabled && await otpLockout.isLocked(accountId)) {
+    if (otpLockoutCfg.enabled && (await otpLockout.isLocked(accountId))) {
       return render(ctx, 'mfa-challenge', {
         uid: ctx.request.param('uid'),
         csrfToken: ctx.request.csrfToken,
@@ -473,16 +509,16 @@ export default class AuthInteractionController {
         trustedDevicesEnabled: cfg.trustedDevices.enabled,
         trustedDeviceDays: cfg.trustedDevices.days,
         otpLocked: true,
-      })
+      });
     }
 
-    let ok = false
-    let usedRecovery = false
+    let ok = false;
+    let usedRecovery = false;
     if (recoveryCode) {
-      ok = (await cfg.accountStore.consumeRecoveryCode?.(accountId, recoveryCode)) ?? false
-      usedRecovery = ok
+      ok = (await cfg.accountStore.consumeRecoveryCode?.(accountId, recoveryCode)) ?? false;
+      usedRecovery = ok;
     } else if (code) {
-      ok = (await cfg.accountStore.verifyTotp?.(accountId, code)) ?? false
+      ok = (await cfg.accountStore.verifyTotp?.(accountId, code)) ?? false;
     }
 
     if (!ok) {
@@ -492,14 +528,14 @@ export default class AuthInteractionController {
         ip,
         clientId,
         metadata: { stage: 'mfa' },
-      })
+      });
 
       // Registra falha OTP e verifica se deve travar.
-      const nowLocked = await otpLockout.recordFailure(accountId, { sink: cfg.audit, ip })
+      const nowLocked = await otpLockout.recordFailure(accountId, { sink: cfg.audit, ip });
 
       if (nowLocked) {
         // Emite e-mail de desbloqueio (best-effort, fail-safe).
-        await this.sendOtpUnlockEmailIfAble(ctx, cfg, accountId, otpLockoutCfg.unlockTtlHours)
+        await this.sendOtpUnlockEmailIfAble(ctx, cfg, accountId, otpLockoutCfg.unlockTtlHours);
 
         return render(ctx, 'mfa-challenge', {
           uid: ctx.request.param('uid'),
@@ -510,7 +546,7 @@ export default class AuthInteractionController {
           trustedDevicesEnabled: cfg.trustedDevices.enabled,
           trustedDeviceDays: cfg.trustedDevices.days,
           otpLocked: true,
-        })
+        });
       }
 
       return render(ctx, 'mfa-challenge', {
@@ -521,30 +557,30 @@ export default class AuthInteractionController {
         passkeyAvailable: await this.hasPasskeys(cfg, accountId),
         trustedDevicesEnabled: cfg.trustedDevices.enabled,
         trustedDeviceDays: cfg.trustedDevices.days,
-      })
+      });
     }
 
     // Código correto: zera o contador de falhas OTP.
-    await otpLockout.clearFailures(accountId)
+    await otpLockout.clearFailures(accountId);
 
     // Sucesso no 2º fator: opcionalmente confia neste dispositivo (checkbox).
-    await this.maybeTrustDevice(ctx, cfg, accountId)
+    await this.maybeTrustDevice(ctx, cfg, accountId);
     // Finaliza a interaction para o accountId pendente.
-    ctx.session.forget(MFA_PENDING_KEY)
-    ctx.session.forget(SESSION_KEY)
+    ctx.session.forget(MFA_PENDING_KEY);
+    ctx.session.forget(SESSION_KEY);
     await notifyLoginSuccess(ctx, cfg, {
       accountId,
       ip,
       clientId,
       metadata: { mfa: usedRecovery ? 'recovery' : 'totp' },
-    })
+    });
     // Step-up: um 2º fator foi de fato verificado — carimba acr/amr no id_token
     // se o client solicitou o mfaAcr nesta requisição.
     await service.interactions.completeLogin(
       ctx,
       accountId,
-      this.stepUpExtra(cfg, details, usedRecovery ? 'recovery' : 'totp')
-    )
+      this.stepUpExtra(cfg, details, usedRecovery ? 'recovery' : 'totp'),
+    );
   }
 
   /**
@@ -552,11 +588,11 @@ export default class AuthInteractionController {
    * config de step-up). `acr_values` é a string separada por espaços padrão OIDC.
    */
   private acrRequiresMfa(cfg: any, details: any): boolean {
-    const mfaAcr = cfg.stepUp?.mfaAcr as string | undefined
-    if (!mfaAcr) return false
-    const raw = details?.params?.acr_values
-    if (typeof raw !== 'string' || !raw) return false
-    return raw.split(/\s+/).includes(mfaAcr)
+    const mfaAcr = cfg.stepUp?.mfaAcr as string | undefined;
+    if (!mfaAcr) return false;
+    const raw = details?.params?.acr_values;
+    if (typeof raw !== 'string' || !raw) return false;
+    return raw.split(/\s+/).includes(mfaAcr);
   }
 
   /**
@@ -567,17 +603,17 @@ export default class AuthInteractionController {
   private stepUpExtra(
     cfg: any,
     details: any,
-    method: string
+    method: string,
   ): { acr: string; amr: string[] } | undefined {
-    if (!this.acrRequiresMfa(cfg, details)) return undefined
-    return { acr: cfg.stepUp.mfaAcr, amr: ['mfa', method] }
+    if (!this.acrRequiresMfa(cfg, details)) return undefined;
+    return { acr: cfg.stepUp.mfaAcr, amr: ['mfa', method] };
   }
 
   /** true se o store suporta passkeys E a conta tem ao menos uma registrada. */
   private async hasPasskeys(cfg: any, accountId: string): Promise<boolean> {
-    if (!supportsPasskeys(cfg.accountStore)) return false
-    const list = await cfg.accountStore.listPasskeys(accountId)
-    return Array.isArray(list) && list.length > 0
+    if (!supportsPasskeys(cfg.accountStore)) return false;
+    const list = await cfg.accountStore.listPasskeys(accountId);
+    return Array.isArray(list) && list.length > 0;
   }
 
   /**
@@ -589,13 +625,13 @@ export default class AuthInteractionController {
   private async checkTrustedDevice(
     ctx: HttpContext,
     accountId: string,
-    mfaEnabledAt: number | null
+    mfaEnabledAt: number | null,
   ): Promise<boolean> {
     try {
-      const payload = ctx.request.encryptedCookie(TRUSTED_DEVICE_COOKIE)
-      return isTrustedDeviceValid(payload, { accountId, mfaEnabledAt })
+      const payload = ctx.request.encryptedCookie(TRUSTED_DEVICE_COOKIE);
+      return isTrustedDeviceValid(payload, { accountId, mfaEnabledAt });
     } catch {
-      return false
+      return false;
     }
   }
 
@@ -604,17 +640,17 @@ export default class AuthInteractionController {
    * grava o cookie encriptado de confiança para a conta (skip MFA por N dias).
    */
   private async maybeTrustDevice(ctx: HttpContext, cfg: any, accountId: string): Promise<void> {
-    if (!cfg.trustedDevices.enabled) return
-    const checked = ctx.request.input('trustDevice')
+    if (!cfg.trustedDevices.enabled) return;
+    const checked = ctx.request.input('trustDevice');
     // Checkbox HTML: presente ('on'/'true'/'1') = marcado.
-    const on = checked === 'on' || checked === 'true' || checked === '1' || checked === true
-    if (!on) return
-    const payload = buildTrustedDevicePayload(accountId, cfg.trustedDevices)
+    const on = checked === 'on' || checked === 'true' || checked === '1' || checked === true;
+    if (!on) return;
+    const payload = buildTrustedDevicePayload(accountId, cfg.trustedDevices);
     ctx.response.encryptedCookie(TRUSTED_DEVICE_COOKIE, payload, {
       httpOnly: true,
       sameSite: 'lax',
       maxAge: cfg.trustedDevices.days * 24 * 60 * 60,
-    })
+    });
   }
 
   /**
@@ -625,32 +661,32 @@ export default class AuthInteractionController {
     ctx: HttpContext,
     cfg: any,
     accountId: string,
-    unlockTtlHours: number
+    unlockTtlHours: number,
   ): Promise<void> {
     try {
-      const account = await cfg.accountStore.findById(accountId)
-      if (!account?.email) return
+      const account = await cfg.accountStore.findById(accountId);
+      if (!account?.email) return;
 
       // Gera o token e persiste no campo passwordResetToken (com prefixo `ou:`).
       // Reutiliza a coluna existente sem nova migração (padrão magic-link/email-change).
-      const { raw, dbValue } = generateOtpUnlockToken()
-      const store = cfg.accountStore
-      const row = await (store as any).__getRawRow?.(accountId)
+      const { raw, dbValue } = generateOtpUnlockToken();
+      const store = cfg.accountStore;
+      const row = await (store as any).__getRawRow?.(accountId);
       if (row) {
-        row.passwordResetToken = dbValue
+        row.passwordResetToken = dbValue;
         // Expira em unlockTtlHours horas.
-        const { DateTime } = await import('luxon')
-        row.passwordResetExpiresAt = DateTime.now().plus({ hours: unlockTtlHours })
-        await row.save()
+        const { DateTime } = await import('luxon');
+        row.passwordResetExpiresAt = DateTime.now().plus({ hours: unlockTtlHours });
+        await row.save();
       }
 
-      const origin = `${ctx.request.protocol()}://${ctx.request.host()}`
-      const unlockUrl = `${origin}/auth/otp-unlock/${encodeURIComponent(raw)}`
+      const origin = `${ctx.request.protocol()}://${ctx.request.host()}`;
+      const unlockUrl = `${origin}/auth/otp-unlock/${encodeURIComponent(raw)}`;
 
       if (cfg.mail?.onOtpUnlock) {
-        await cfg.mail.onOtpUnlock({ email: account.email, unlockUrl, token: raw }).catch(() => {})
+        await cfg.mail.onOtpUnlock({ email: account.email, unlockUrl, token: raw }).catch(() => {});
       } else {
-        await sendOtpUnlockEmail(ctx, { email: account.email, unlockUrl }).catch(() => {})
+        await sendOtpUnlockEmail(ctx, { email: account.email, unlockUrl }).catch(() => {});
       }
     } catch {
       // Best-effort: nunca propaga erro para o fluxo de login.
@@ -664,14 +700,14 @@ export default class AuthInteractionController {
    * a conta existe E tem ao menos uma passkey.
    */
   private async resolvePasskeyAccountId(ctx: HttpContext, cfg: any): Promise<string | undefined> {
-    const pending = ctx.session.get(MFA_PENDING_KEY) as string | undefined
-    if (pending) return pending
-    if (!cfg.passwordless?.passkeyFirst) return undefined
-    const email = ctx.session.get(SESSION_KEY) as string | undefined
-    if (!email) return undefined
-    const acc = await cfg.accountStore.findByEmail(email)
-    if (!acc) return undefined
-    return (await this.hasPasskeys(cfg, acc.id)) ? acc.id : undefined
+    const pending = ctx.session.get(MFA_PENDING_KEY) as string | undefined;
+    if (pending) return pending;
+    if (!cfg.passwordless?.passkeyFirst) return undefined;
+    const email = ctx.session.get(SESSION_KEY) as string | undefined;
+    if (!email) return undefined;
+    const acc = await cfg.accountStore.findByEmail(email);
+    if (!acc) return undefined;
+    return (await this.hasPasskeys(cfg, acc.id)) ? acc.id : undefined;
   }
 
   /**
@@ -681,20 +717,20 @@ export default class AuthInteractionController {
    * independentemente de a conta existir (anti-enumeração). Throttled como o login.
    */
   async magicLinkRequest(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const render = cfg.render!
-    const details = await service.interactions.details(ctx)
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const render = cfg.render!;
+    const details = await service.interactions.details(ctx);
     const brand = brandFor(
       cfg.branding!,
       details.params.client_id as string | undefined,
-      details.params.audience as string | undefined
-    )
-    const email = ctx.session.get(SESSION_KEY) as string | undefined
-    const uid = ctx.request.param('uid')
+      details.params.audience as string | undefined,
+    );
+    const email = ctx.session.get(SESSION_KEY) as string | undefined;
+    const uid = ctx.request.param('uid');
 
     if (cfg.passwordless.magicLink && supportsMagicLink(cfg.accountStore) && email) {
-      const issued = await cfg.accountStore.issueMagicLinkToken(email)
+      const issued = await cfg.accountStore.issueMagicLinkToken(email);
       if (issued) {
         await cfg.audit?.record({
           type: 'login.magic_link_sent',
@@ -702,13 +738,13 @@ export default class AuthInteractionController {
           email,
           ip: ctx.request.ip?.() ?? null,
           clientId: (details.params.client_id as string | undefined) ?? null,
-        })
-        const origin = `${ctx.request.protocol()}://${ctx.request.host()}`
-        const magicUrl = `${origin}/auth/interaction/${uid}/magic?token=${encodeURIComponent(issued.token)}`
+        });
+        const origin = `${ctx.request.protocol()}://${ctx.request.host()}`;
+        const magicUrl = `${origin}/auth/interaction/${uid}/magic?token=${encodeURIComponent(issued.token)}`;
         if (cfg.mail?.onMagicLink) {
-          await cfg.mail.onMagicLink({ email, magicUrl, token: issued.token })
+          await cfg.mail.onMagicLink({ email, magicUrl, token: issued.token });
         } else {
-          await sendMagicLinkEmail(ctx, { email, magicUrl })
+          await sendMagicLinkEmail(ctx, { email, magicUrl });
         }
       }
     }
@@ -723,7 +759,7 @@ export default class AuthInteractionController {
       account: null,
       brand,
       magicLinkSent: true,
-    })
+    });
   }
 
   /**
@@ -732,24 +768,31 @@ export default class AuthInteractionController {
    * inválido/expirado volta ao início do login.
    */
   async magicLinkConsume(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const uid = ctx.request.param('uid')
-    const ip = ctx.request.ip?.() ?? null
-    const clientId = (await service.interactions.details(ctx)).params.client_id as string | undefined
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const uid = ctx.request.param('uid');
+    const ip = ctx.request.ip?.() ?? null;
+    const clientId = (await service.interactions.details(ctx)).params.client_id as
+      | string
+      | undefined;
 
-    const token = (ctx.request.qs().token as string) ?? ''
+    const token = (ctx.request.qs().token as string) ?? '';
     if (!cfg.passwordless.magicLink || !supportsMagicLink(cfg.accountStore) || !token) {
-      return ctx.response.redirect(`/auth/interaction/${uid}`)
+      return ctx.response.redirect(`/auth/interaction/${uid}`);
     }
-    const acc = await cfg.accountStore.consumeMagicLinkToken(token)
+    const acc = await cfg.accountStore.consumeMagicLinkToken(token);
     if (!acc) {
-      await cfg.audit?.record({ type: 'login.failure', ip, clientId, metadata: { stage: 'magic_link' } })
-      return ctx.response.redirect(`/auth/interaction/${uid}`)
+      await cfg.audit?.record({
+        type: 'login.failure',
+        ip,
+        clientId,
+        metadata: { stage: 'magic_link' },
+      });
+      return ctx.response.redirect(`/auth/interaction/${uid}`);
     }
     // E-mail não verificado (LGPD/compliance): mesmo com o link válido, não
     // materializa a sessão se a política exige verificação. Volta ao login com erro.
-    const magicLinkRuntimeSettings = await getRuntimeSettings(ctx)
+    const magicLinkRuntimeSettings = await getRuntimeSettings(ctx);
     if (await isEmailUnverifiedBlock(cfg, acc.id, magicLinkRuntimeSettings)) {
       await cfg.audit?.record({
         type: 'login.failure',
@@ -758,8 +801,8 @@ export default class AuthInteractionController {
         ip,
         clientId,
         metadata: { stage: 'magic_link', reason: 'unverified' },
-      })
-      const render = cfg.render!
+      });
+      const render = cfg.render!;
       return render(ctx, 'login', {
         ...(await this.#loginMethods(ctx, cfg)),
         uid,
@@ -769,7 +812,7 @@ export default class AuthInteractionController {
         account: null,
         brand: brandFor(cfg.branding!, clientId ?? undefined, undefined),
         error: translate(cfg.messages, 'errors.email_unverified'),
-      })
+      });
     }
     await notifyLoginSuccess(ctx, cfg, {
       accountId: acc.id,
@@ -777,9 +820,9 @@ export default class AuthInteractionController {
       ip,
       clientId: clientId ?? null,
       metadata: { method: 'magic_link' },
-    })
-    ctx.session.forget(SESSION_KEY)
-    await service.interactions.completeLogin(ctx, acc.id, { amr: ['email'] })
+    });
+    ctx.session.forget(SESSION_KEY);
+    await service.interactions.completeLogin(ctx, acc.id, { amr: ['email'] });
   }
 
   /**
@@ -802,40 +845,45 @@ export default class AuthInteractionController {
    * Guarda o challenge na sessão e devolve as opções JSON.
    */
   async passkeyOptions(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
 
     // Tenta resolver o accountId do contexto corrente (MFA gate ou passkey-first).
-    const accountId = await this.resolvePasskeyAccountId(ctx, cfg)
+    const accountId = await this.resolvePasskeyAccountId(ctx, cfg);
 
     if (!accountId) {
       // Modo discoverable: sem accountId na sessão, gera options sem restrição
       // de credenciais (allowCredentials vazio = o browser apresenta todas).
       if (!supportsPasskeys(cfg.accountStore)) {
-        return ctx.response.badRequest({ message: translate(cfg.messages, 'errors.passkeys_unavailable'), discoverable: false })
+        return ctx.response.badRequest({
+          message: translate(cfg.messages, 'errors.passkeys_unavailable'),
+          discoverable: false,
+        });
       }
       // Passa '__discoverable__' como sentinel — o store (LucidStore) detecta e
       // retorna options com allowCredentials:[] se suportar; caso contrário null.
-      const generated = await cfg.accountStore.generatePasskeyAuthenticationOptions?.(
-        '__discoverable__'
-      )
+      const generated =
+        await cfg.accountStore.generatePasskeyAuthenticationOptions?.('__discoverable__');
       if (!generated) {
         // Store não suporta discoverable credentials — autofill não disponível.
-        return ctx.response.badRequest({ message: translate(cfg.messages, 'errors.passkeys_unavailable'), discoverable: false })
+        return ctx.response.badRequest({
+          message: translate(cfg.messages, 'errors.passkeys_unavailable'),
+          discoverable: false,
+        });
       }
-      ctx.session.put(PASSKEY_AUTH_CHALLENGE_KEY, generated.challenge)
-      return { ...generated.options, _discoverable: true }
+      ctx.session.put(PASSKEY_AUTH_CHALLENGE_KEY, generated.challenge);
+      return { ...generated.options, _discoverable: true };
     }
 
     // Modo normal: opções restritas à conta.
-    const generated = await cfg.accountStore.generatePasskeyAuthenticationOptions?.(accountId)
+    const generated = await cfg.accountStore.generatePasskeyAuthenticationOptions?.(accountId);
     if (!generated) {
       return ctx.response.notFound({
         message: translate(cfg.messages, 'errors.no_passkey_registered'),
-      })
+      });
     }
-    ctx.session.put(PASSKEY_AUTH_CHALLENGE_KEY, generated.challenge)
-    return generated.options
+    ctx.session.put(PASSKEY_AUTH_CHALLENGE_KEY, generated.challenge);
+    return generated.options;
   }
 
   /**
@@ -846,23 +894,23 @@ export default class AuthInteractionController {
    * submete o JSON da assertion no campo `response` e segue o redirect normalmente.
    */
   async passkeyVerify(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const render = cfg.render!
-    const details = await service.interactions.details(ctx)
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const render = cfg.render!;
+    const details = await service.interactions.details(ctx);
     const brand = brandFor(
       cfg.branding!,
       details.params.client_id as string | undefined,
-      details.params.audience as string | undefined
-    )
-    let accountId = await this.resolvePasskeyAccountId(ctx, cfg)
-    const challenge = ctx.session.get(PASSKEY_AUTH_CHALLENGE_KEY) as string | undefined
-    const ip = ctx.request.ip?.() ?? null
-    const clientId = (details.params.client_id as string | undefined) ?? null
+      details.params.audience as string | undefined,
+    );
+    let accountId = await this.resolvePasskeyAccountId(ctx, cfg);
+    const challenge = ctx.session.get(PASSKEY_AUTH_CHALLENGE_KEY) as string | undefined;
+    const ip = ctx.request.ip?.() ?? null;
+    const clientId = (details.params.client_id as string | undefined) ?? null;
 
     if (!challenge) {
       // Sessão expirou/foi adulterada — volta ao início do login.
-      return ctx.response.redirect(`/auth/interaction/${ctx.request.param('uid')}`)
+      return ctx.response.redirect(`/auth/interaction/${ctx.request.param('uid')}`);
     }
 
     // Modo discoverable: quando não temos accountId na sessão, precisamos
@@ -870,31 +918,36 @@ export default class AuthInteractionController {
     // pode implementar `findByPasskeyCredentialId` para isso; se não suportar,
     // não podemos completar o autofill e redirecionamos para o início.
     if (!accountId) {
-      const rawResponse = ctx.request.input('response') as string | undefined
-      let parsedEarly: any = null
-      try { parsedEarly = rawResponse ? JSON.parse(rawResponse) : null } catch { parsedEarly = null }
-      const credId = parsedEarly?.id ?? parsedEarly?.rawId ?? null
+      const rawResponse = ctx.request.input('response') as string | undefined;
+      let parsedEarly: any = null;
+      try {
+        parsedEarly = rawResponse ? JSON.parse(rawResponse) : null;
+      } catch {
+        parsedEarly = null;
+      }
+      const credId = parsedEarly?.id ?? parsedEarly?.rawId ?? null;
       if (credId && typeof (cfg.accountStore as any).findByPasskeyCredentialId === 'function') {
-        const found = await (cfg.accountStore as any).findByPasskeyCredentialId(credId)
-        accountId = found?.id ?? null
+        const found = await (cfg.accountStore as any).findByPasskeyCredentialId(credId);
+        accountId = found?.id ?? null;
       }
       if (!accountId) {
-        return ctx.response.redirect(`/auth/interaction/${ctx.request.param('uid')}`)
+        return ctx.response.redirect(`/auth/interaction/${ctx.request.param('uid')}`);
       }
     }
 
     // A assertion vem serializada como JSON no campo `response` do form.
-    const raw = ctx.request.input('response') as string | undefined
-    let parsed: unknown = null
+    const raw = ctx.request.input('response') as string | undefined;
+    let parsed: unknown = null;
     try {
-      parsed = raw ? JSON.parse(raw) : null
+      parsed = raw ? JSON.parse(raw) : null;
     } catch {
-      parsed = null
+      parsed = null;
     }
     const ok = parsed
-      ? ((await cfg.accountStore.verifyPasskeyAuthentication?.(accountId, parsed, challenge)) ?? false)
-      : false
-    ctx.session.forget(PASSKEY_AUTH_CHALLENGE_KEY)
+      ? ((await cfg.accountStore.verifyPasskeyAuthentication?.(accountId, parsed, challenge)) ??
+        false)
+      : false;
+    ctx.session.forget(PASSKEY_AUTH_CHALLENGE_KEY);
 
     if (!ok) {
       await cfg.audit?.record({
@@ -903,7 +956,7 @@ export default class AuthInteractionController {
         ip,
         clientId,
         metadata: { stage: 'mfa', method: 'webauthn' },
-      })
+      });
       return render(ctx, 'mfa-challenge', {
         uid: ctx.request.param('uid'),
         csrfToken: ctx.request.csrfToken,
@@ -912,13 +965,13 @@ export default class AuthInteractionController {
         passkeyAvailable: await this.hasPasskeys(cfg, accountId),
         trustedDevicesEnabled: cfg.trustedDevices.enabled,
         trustedDeviceDays: cfg.trustedDevices.days,
-      })
+      });
     }
 
     // E-mail não verificado (LGPD/compliance): bloqueia mesmo com a passkey válida.
     // Relevante sobretudo no passkey-first (a etapa de senha — que também checa —
     // não rodou). Volta à tela de desafio com o erro.
-    const passkeyRuntimeSettings = await getRuntimeSettings(ctx)
+    const passkeyRuntimeSettings = await getRuntimeSettings(ctx);
     if (await isEmailUnverifiedBlock(cfg, accountId, passkeyRuntimeSettings)) {
       await cfg.audit?.record({
         type: 'login.failure',
@@ -926,7 +979,7 @@ export default class AuthInteractionController {
         ip,
         clientId,
         metadata: { stage: 'mfa', method: 'webauthn', reason: 'unverified' },
-      })
+      });
       return render(ctx, 'mfa-challenge', {
         uid: ctx.request.param('uid'),
         csrfToken: ctx.request.csrfToken,
@@ -935,26 +988,26 @@ export default class AuthInteractionController {
         passkeyAvailable: await this.hasPasskeys(cfg, accountId),
         trustedDevicesEnabled: cfg.trustedDevices.enabled,
         trustedDeviceDays: cfg.trustedDevices.days,
-      })
+      });
     }
 
     // Passkey OK: opcionalmente confia neste dispositivo (checkbox no challenge).
-    await this.maybeTrustDevice(ctx, cfg, accountId)
-    ctx.session.forget(MFA_PENDING_KEY)
-    ctx.session.forget(SESSION_KEY)
+    await this.maybeTrustDevice(ctx, cfg, accountId);
+    ctx.session.forget(MFA_PENDING_KEY);
+    ctx.session.forget(SESSION_KEY);
     await notifyLoginSuccess(ctx, cfg, {
       accountId,
       ip,
       clientId,
       metadata: { mfa: 'webauthn' },
-    })
+    });
     // Step-up carimba acr/amr quando solicitado; senão a passkey conta como o fator
     // forte do login (amr `['webauthn']`) — vale tanto p/ MFA quanto passkey-first.
     await service.interactions.completeLogin(
       ctx,
       accountId,
-      this.stepUpExtra(cfg, details, 'webauthn') ?? { amr: ['webauthn'] }
-    )
+      this.stepUpExtra(cfg, details, 'webauthn') ?? { amr: ['webauthn'] },
+    );
   }
 
   /**
@@ -962,8 +1015,8 @@ export default class AuthInteractionController {
    * Clears the stored email and redirects back to step 1.
    */
   async switchIdentifier(ctx: HttpContext) {
-    ctx.session.forget(SESSION_KEY)
-    return ctx.response.redirect(`/auth/interaction/${ctx.request.param('uid')}`)
+    ctx.session.forget(SESSION_KEY);
+    return ctx.response.redirect(`/auth/interaction/${ctx.request.param('uid')}`);
   }
 
   /**
@@ -979,26 +1032,26 @@ export default class AuthInteractionController {
    * Capability-probed: sem `changePassword` → redireciona para o login.
    */
   async changeExpiredPassword(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const render = cfg.render!
-    const details = await service.interactions.details(ctx)
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const render = cfg.render!;
+    const details = await service.interactions.details(ctx);
     const brand = brandFor(
       cfg.branding!,
       details.params.client_id as string | undefined,
-      details.params.audience as string | undefined
-    )
+      details.params.audience as string | undefined,
+    );
 
-    const PASSWORD_EXPIRED_KEY = 'authkit_password_expired'
-    const accountId = ctx.session.get(PASSWORD_EXPIRED_KEY) as string | undefined
-    const ip = ctx.request.ip?.() ?? null
-    const clientId = (details.params.client_id as string | undefined) ?? null
+    const PASSWORD_EXPIRED_KEY = 'authkit_password_expired';
+    const accountId = ctx.session.get(PASSWORD_EXPIRED_KEY) as string | undefined;
+    const ip = ctx.request.ip?.() ?? null;
+    const clientId = (details.params.client_id as string | undefined) ?? null;
 
     if (!accountId) {
-      return ctx.response.redirect(`/auth/interaction/${ctx.request.param('uid')}`)
+      return ctx.response.redirect(`/auth/interaction/${ctx.request.param('uid')}`);
     }
 
-    const { newPassword } = ctx.request.only(['newPassword'])
+    const { newPassword } = ctx.request.only(['newPassword']);
 
     if (!newPassword) {
       return render(ctx, 'login', {
@@ -1010,18 +1063,18 @@ export default class AuthInteractionController {
         error: translate(cfg.messages, 'errors.invalid_credentials'),
         brand,
         botProtection: undefined,
-      })
+      });
     }
 
-    const { PasswordPolicyError } = await import('../../password/password_manager.js')
-    const { supportsAccountSecurity } = await import('../../accounts/account_store.js')
+    const { PasswordPolicyError } = await import('../../password/password_manager.js');
+    const { supportsAccountSecurity } = await import('../../accounts/account_store.js');
 
     if (!supportsAccountSecurity(cfg.accountStore)) {
-      return ctx.response.redirect(`/auth/interaction/${ctx.request.param('uid')}`)
+      return ctx.response.redirect(`/auth/interaction/${ctx.request.param('uid')}`);
     }
 
     try {
-      await cfg.accountStore.changePassword!(accountId, newPassword)
+      await cfg.accountStore.changePassword!(accountId, newPassword);
     } catch (error) {
       if (error instanceof PasswordPolicyError) {
         return render(ctx, 'login', {
@@ -1033,9 +1086,9 @@ export default class AuthInteractionController {
           error: translate(cfg.messages, error.key, error.params),
           brand,
           botProtection: undefined,
-        })
+        });
       }
-      throw error
+      throw error;
     }
 
     await cfg.audit?.record({
@@ -1044,16 +1097,16 @@ export default class AuthInteractionController {
       ip,
       clientId,
       metadata: { reason: 'expired_forced' },
-    })
+    });
 
     // Senha trocada: limpa o step e finaliza o login.
-    ctx.session.forget(PASSWORD_EXPIRED_KEY)
+    ctx.session.forget(PASSWORD_EXPIRED_KEY);
 
     // Verifica se precisa de MFA mesmo após a troca.
-    const mfa = (await cfg.accountStore.getMfaState?.(accountId)) ?? { enabled: false }
+    const mfa = (await cfg.accountStore.getMfaState?.(accountId)) ?? { enabled: false };
     if (mfa.enabled) {
-      ctx.session.put(MFA_PENDING_KEY, accountId)
-      const passkeyAvailable = await this.hasPasskeys(cfg, accountId)
+      ctx.session.put(MFA_PENDING_KEY, accountId);
+      const passkeyAvailable = await this.hasPasskeys(cfg, accountId);
       return render(ctx, 'mfa-challenge', {
         uid: ctx.request.param('uid'),
         csrfToken: ctx.request.csrfToken,
@@ -1061,22 +1114,22 @@ export default class AuthInteractionController {
         passkeyAvailable,
         trustedDevicesEnabled: cfg.trustedDevices.enabled,
         trustedDeviceDays: cfg.trustedDevices.days,
-      })
+      });
     }
 
-    await service.interactions.completeLogin(ctx, accountId)
-    const account = await cfg.accountStore.findById(accountId)
+    await service.interactions.completeLogin(ctx, accountId);
+    const account = await cfg.accountStore.findById(accountId);
     await notifyLoginSuccess(ctx, cfg, {
       accountId,
       email: account?.email ?? '',
       ip,
       clientId,
-    })
+    });
   }
 
   async consent(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make('authkit.server')
-    await service.interactions.consent(ctx)
+    const service = await ctx.containerResolver.make('authkit.server');
+    await service.interactions.consent(ctx);
   }
 
   /**
@@ -1085,61 +1138,70 @@ export default class AuthInteractionController {
    * zera o contador/lock, audita `otp.unlocked` e redireciona ao login com mensagem.
    */
   async otpUnlock(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const render = cfg.render!
-    const ip = ctx.request.ip?.() ?? null
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const render = cfg.render!;
+    const ip = ctx.request.ip?.() ?? null;
 
-    const raw = ctx.request.param('token') as string
+    const raw = ctx.request.param('token') as string;
     if (!raw) {
-      return render(ctx, 'otp-unlock', { ok: false })
+      return render(ctx, 'otp-unlock', { ok: false });
     }
 
-    const dbValue = rawToDbOtpUnlockToken(raw)
+    const dbValue = rawToDbOtpUnlockToken(raw);
 
     try {
       // Busca a conta pelo token (campo passwordResetToken).
-      const store = cfg.accountStore
+      const store = cfg.accountStore;
       // Usamos findByPasswordResetToken se disponível; senão fallback via raw row scan.
-      let row: any = null
+      let row: any = null;
       if (typeof (store as any).__findByTokenField === 'function') {
-        row = await (store as any).__findByTokenField('passwordResetToken', dbValue)
+        row = await (store as any).__findByTokenField('passwordResetToken', dbValue);
       } else {
         // Fallback: busca direto via raw query (Lucid model).
-        const Model = (store as any).__Model
+        const Model = (store as any).__Model;
         if (Model) {
-          row = await Model.query().where('passwordResetToken', dbValue).first()
+          row = await Model.query().where('passwordResetToken', dbValue).first();
         }
       }
 
       if (!row) {
-        await cfg.audit?.record({ type: 'otp.unlock_failed', ip, metadata: { reason: 'token_not_found' } })
-        return render(ctx, 'otp-unlock', { ok: false })
+        await cfg.audit?.record({
+          type: 'otp.unlock_failed',
+          ip,
+          metadata: { reason: 'token_not_found' },
+        });
+        return render(ctx, 'otp-unlock', { ok: false });
       }
 
       // Verifica TTL.
-      const { DateTime } = await import('luxon')
-      const expiresAt = row.passwordResetExpiresAt
+      const { DateTime } = await import('luxon');
+      const expiresAt = row.passwordResetExpiresAt;
       if (!expiresAt || expiresAt < DateTime.now()) {
-        await cfg.audit?.record({ type: 'otp.unlock_failed', accountId: row.id, ip, metadata: { reason: 'token_expired' } })
-        return render(ctx, 'otp-unlock', { ok: false, expired: true })
+        await cfg.audit?.record({
+          type: 'otp.unlock_failed',
+          accountId: row.id,
+          ip,
+          metadata: { reason: 'token_expired' },
+        });
+        return render(ctx, 'otp-unlock', { ok: false, expired: true });
       }
 
       // Token válido: zera o lock OTP + limpa o token do DB.
-      const runtimeForOtp = await getRuntimeSettings(ctx)
-      const otpLockoutCfg = await resolveEffectiveOtpLockout(runtimeForOtp)
-      const otpLockout = createOtpLockout(otpLockoutCfg, ctx.logger)
-      await otpLockout.unlock(row.id)
+      const runtimeForOtp = await getRuntimeSettings(ctx);
+      const otpLockoutCfg = await resolveEffectiveOtpLockout(runtimeForOtp);
+      const otpLockout = createOtpLockout(otpLockoutCfg, ctx.logger);
+      await otpLockout.unlock(row.id);
 
-      row.passwordResetToken = null
-      row.passwordResetExpiresAt = null
-      await row.save()
+      row.passwordResetToken = null;
+      row.passwordResetExpiresAt = null;
+      await row.save();
 
-      await cfg.audit?.record({ type: 'otp.unlocked', accountId: row.id, ip })
+      await cfg.audit?.record({ type: 'otp.unlocked', accountId: row.id, ip });
 
-      return render(ctx, 'otp-unlock', { ok: true })
+      return render(ctx, 'otp-unlock', { ok: true });
     } catch {
-      return render(ctx, 'otp-unlock', { ok: false })
+      return render(ctx, 'otp-unlock', { ok: false });
     }
   }
 }

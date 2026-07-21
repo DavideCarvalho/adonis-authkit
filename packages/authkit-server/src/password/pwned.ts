@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash } from 'node:crypto';
 
 /**
  * Checagem de senha vazada via HaveIBeenPwned Pwned Passwords (Range API), com
@@ -12,7 +12,7 @@ import { createHash } from 'node:crypto'
 
 /** Logger mínimo (subconjunto do logger do AdonisJS). */
 export interface PwnedLogger {
-  warn(obj: unknown, msg?: string): void
+  warn(obj: unknown, msg?: string): void;
 }
 
 /**
@@ -21,22 +21,22 @@ export interface PwnedLogger {
  */
 export type FetchLike = (
   url: string,
-  init?: { signal?: AbortSignal; headers?: Record<string, string> }
-) => Promise<{ ok: boolean; status: number; text(): Promise<string> }>
+  init?: { signal?: AbortSignal; headers?: Record<string, string> },
+) => Promise<{ ok: boolean; status: number; text(): Promise<string> }>;
 
-let fetchImpl: FetchLike | undefined
+let fetchImpl: FetchLike | undefined;
 
 /** Injeta um fetch fake para testes. `undefined` restaura o fetch nativo. */
 export function __setFetchForTests(impl: FetchLike | undefined): void {
-  fetchImpl = impl
+  fetchImpl = impl;
 }
 
 function getFetch(): FetchLike {
-  if (fetchImpl) return fetchImpl
-  return globalThis.fetch as unknown as FetchLike
+  if (fetchImpl) return fetchImpl;
+  return globalThis.fetch as unknown as FetchLike;
 }
 
-const HIBP_RANGE_URL = 'https://api.pwnedpasswords.com/range/'
+const HIBP_RANGE_URL = 'https://api.pwnedpasswords.com/range/';
 
 /**
  * Retorna `true` se a senha aparece na base do HIBP, `false` caso contrário OU
@@ -46,43 +46,43 @@ export async function isPasswordPwned(
   password: string,
   options: { timeoutMs: number; logger?: PwnedLogger; fetchImpl?: FetchLike } = {
     timeoutMs: 2000,
-  }
+  },
 ): Promise<boolean> {
-  const sha1 = createHash('sha1').update(password, 'utf8').digest('hex').toUpperCase()
-  const prefix = sha1.slice(0, 5)
-  const suffix = sha1.slice(5)
+  const sha1 = createHash('sha1').update(password, 'utf8').digest('hex').toUpperCase();
+  const prefix = sha1.slice(0, 5);
+  const suffix = sha1.slice(5);
 
-  const doFetch = options.fetchImpl ?? getFetch()
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), options.timeoutMs)
+  const doFetch = options.fetchImpl ?? getFetch();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), options.timeoutMs);
 
   try {
     const res = await doFetch(`${HIBP_RANGE_URL}${prefix}`, {
       signal: controller.signal,
       // Add-Padding obscurece o tamanho da resposta (k-anonymity reforçado).
       headers: { 'Add-Padding': 'true' },
-    })
+    });
     if (!res.ok) {
       options.logger?.warn(
         { status: res.status },
-        'authkit: HIBP range API returned a non-OK status — skipping pwned check (fail-safe).'
-      )
-      return false
+        'authkit: HIBP range API returned a non-OK status — skipping pwned check (fail-safe).',
+      );
+      return false;
     }
-    const body = await res.text()
+    const body = await res.text();
     // Cada linha: "<SUFIXO>:<count>". Linhas de padding têm count 0 — ignoradas.
     for (const line of body.split('\n')) {
-      const [candidate, countStr] = line.trim().split(':')
-      if (candidate === suffix && Number(countStr) > 0) return true
+      const [candidate, countStr] = line.trim().split(':');
+      if (candidate === suffix && Number(countStr) > 0) return true;
     }
-    return false
+    return false;
   } catch (error) {
     options.logger?.warn(
       { err: error },
-      'authkit: HIBP range API request failed (network/timeout) — skipping pwned check (fail-safe).'
-    )
-    return false
+      'authkit: HIBP range API request failed (network/timeout) — skipping pwned check (fail-safe).',
+    );
+    return false;
   } finally {
-    clearTimeout(timer)
+    clearTimeout(timer);
   }
 }

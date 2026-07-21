@@ -56,10 +56,7 @@
           "color": { "mode": "thresholds" },
           "thresholds": {
             "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 0.2 }
-            ]
+            "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 0.2 }]
           },
           "unit": "percentunit"
         },

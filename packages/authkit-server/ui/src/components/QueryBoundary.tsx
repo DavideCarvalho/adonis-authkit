@@ -1,6 +1,6 @@
-import React from 'react'
-import { ErrorBoundary, type FallbackProps } from 'react-error-boundary'
-import { useQueryErrorResetBoundary } from '@tanstack/react-query'
+import { useQueryErrorResetBoundary } from '@tanstack/react-query';
+import React from 'react';
+import { ErrorBoundary, type FallbackProps } from 'react-error-boundary';
 
 // ── Shared error-box style (matches globals.css .error-box) ──────────────────
 
@@ -10,7 +10,7 @@ function ErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
       ? error.message
       : typeof error === 'object' && error !== null && 'message' in error
         ? String((error as { message: unknown }).message)
-        : String(error)
+        : String(error);
 
   return (
     <div
@@ -27,7 +27,15 @@ function ErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ flexShrink: 0 }}>
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          style={{ flexShrink: 0 }}
+        >
           <circle cx="8" cy="8" r="6.5" />
           <path d="M8 5v3.5M8 10.5v.5" strokeLinecap="round" />
         </svg>
@@ -53,7 +61,7 @@ function ErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
         Try again
       </button>
     </div>
-  )
+  );
 }
 
 // ── QueryBoundary ─────────────────────────────────────────────────────────────
@@ -68,14 +76,14 @@ function ErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
 
 interface QueryBoundaryProps {
   /** Whether the primary query is loading */
-  isLoading?: boolean
+  isLoading?: boolean;
   /** Fetch error from the query (not a render error) */
-  error?: unknown
+  error?: unknown;
   /** Called when the user clicks "Try again" in the fetch-error state */
-  onRetry?: () => void
+  onRetry?: () => void;
   /** Skeleton shown while isLoading is true */
-  skeleton?: React.ReactNode
-  children: React.ReactNode
+  skeleton?: React.ReactNode;
+  children: React.ReactNode;
 }
 
 export function QueryBoundary({
@@ -85,30 +93,30 @@ export function QueryBoundary({
   skeleton,
   children,
 }: QueryBoundaryProps) {
-  const { reset } = useQueryErrorResetBoundary()
+  const { reset } = useQueryErrorResetBoundary();
 
   if (isLoading) {
-    return <>{skeleton ?? <DefaultSkeleton />}</>
+    return <>{skeleton ?? <DefaultSkeleton />}</>;
   }
 
   if (error) {
-    const err = error instanceof Error ? error : new Error(String(error))
+    const err = error instanceof Error ? error : new Error(String(error));
     return (
       <ErrorFallback
         error={err}
         resetErrorBoundary={() => {
-          reset()
-          onRetry?.()
+          reset();
+          onRetry?.();
         }}
       />
-    )
+    );
   }
 
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback} onReset={reset}>
       {children}
     </ErrorBoundary>
-  )
+  );
 }
 
 // ── Default skeleton (used when no skeleton prop is provided) ─────────────────
@@ -123,7 +131,8 @@ function DefaultSkeleton() {
             height: 14,
             borderRadius: 6,
             background: 'var(--bg3)',
-            backgroundImage: 'linear-gradient(90deg, var(--bg3) 0%, var(--bg2) 40%, var(--bg3) 100%)',
+            backgroundImage:
+              'linear-gradient(90deg, var(--bg3) 0%, var(--bg2) 40%, var(--bg3) 100%)',
             backgroundSize: '200% 100%',
             animation: 'sk-shimmer 1.6s ease-in-out infinite',
             width: i === 3 ? '55%' : '100%',
@@ -131,5 +140,5 @@ function DefaultSkeleton() {
         />
       ))}
     </div>
-  )
+  );
 }

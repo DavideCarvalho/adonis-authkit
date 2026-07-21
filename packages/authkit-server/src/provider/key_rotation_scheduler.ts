@@ -7,41 +7,46 @@
  * Toda a lógica é pura+injetada (testável sem app).
  */
 export interface KeyRotationSchedulerOptions {
-  policy: () => Promise<{ enabled: boolean; maxAgeDays: number; keep: number }>
-  ageDays: () => Promise<number | null>
-  rotateKeys: (keep: number) => Promise<void>
-  withLock: (fn: () => Promise<void>) => Promise<void>
-  intervalMs: number
-  onError?: (err: unknown) => void
+  policy: () => Promise<{ enabled: boolean; maxAgeDays: number; keep: number }>;
+  ageDays: () => Promise<number | null>;
+  rotateKeys: (keep: number) => Promise<void>;
+  withLock: (fn: () => Promise<void>) => Promise<void>;
+  intervalMs: number;
+  onError?: (err: unknown) => void;
 }
 
 export class KeyRotationScheduler {
-  #timer: ReturnType<typeof setInterval> | undefined
+  #timer: ReturnType<typeof setInterval> | undefined;
   constructor(private opts: KeyRotationSchedulerOptions) {}
 
   async tick(): Promise<void> {
     try {
-      const policy = await this.opts.policy()
-      if (!policy.enabled) return
-      const age = await this.opts.ageDays()
-      if (age === null || age < policy.maxAgeDays) return
+      const policy = await this.opts.policy();
+      if (!policy.enabled) return;
+      const age = await this.opts.ageDays();
+      if (age === null || age < policy.maxAgeDays) return;
       await this.opts.withLock(async () => {
         // re-check dentro do lock: outra instância pode ter rotacionado.
-        const age2 = await this.opts.ageDays()
-        if (age2 === null || age2 < policy.maxAgeDays) return
-        await this.opts.rotateKeys(policy.keep)
-      })
+        const age2 = await this.opts.ageDays();
+        if (age2 === null || age2 < policy.maxAgeDays) return;
+        await this.opts.rotateKeys(policy.keep);
+      });
     } catch (err) {
-      this.opts.onError?.(err)
+      this.opts.onError?.(err);
     }
   }
 
   start(): void {
-    if (this.#timer) return
-    this.#timer = setInterval(() => { void this.tick() }, this.opts.intervalMs)
-    if (typeof (this.#timer as any).unref === 'function') (this.#timer as any).unref()
+    if (this.#timer) return;
+    this.#timer = setInterval(() => {
+      void this.tick();
+    }, this.opts.intervalMs);
+    if (typeof (this.#timer as any).unref === 'function') (this.#timer as any).unref();
   }
   stop(): void {
-    if (this.#timer) { clearInterval(this.#timer); this.#timer = undefined }
+    if (this.#timer) {
+      clearInterval(this.#timer);
+      this.#timer = undefined;
+    }
   }
 }

@@ -1,14 +1,14 @@
-import { useCallback, useState } from 'react'
-import { useAuthkitConfig } from '../config.js'
-import { jsonRequest } from './use_resource.js'
+import { useCallback, useState } from 'react';
+import { useAuthkitConfig } from '../config.js';
+import { jsonRequest } from './use_resource.js';
 
 export interface UseSwitchOrganizationResult {
-  loading: boolean
-  error: Error | null
+  loading: boolean;
+  error: Error | null;
   /** Ativa uma org pelo id (POST /account/orgs/:id/activate). */
-  activate(orgId: string): Promise<void>
+  activate(orgId: string): Promise<void>;
   /** Desativa a org ativa (POST /account/orgs/deactivate). */
-  deactivate(): Promise<void>
+  deactivate(): Promise<void>;
 }
 
 /**
@@ -17,43 +17,43 @@ export interface UseSwitchOrganizationResult {
  * para refletir o novo estado.
  */
 export function useSwitchOrganization(): UseSwitchOrganizationResult {
-  const config = useAuthkitConfig()
-  const base = config.endpoints.orgs.replace('/json', '')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<Error | null>(null)
+  const config = useAuthkitConfig();
+  const base = config.endpoints.orgs.replace('/json', '');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
 
   const activate = useCallback(
     async (orgId: string) => {
-      setLoading(true)
-      setError(null)
+      setLoading(true);
+      setError(null);
       try {
         await jsonRequest(`${base}/${encodeURIComponent(orgId)}/activate`, {
           method: 'POST',
           csrfToken: config.csrfToken,
-        })
+        });
       } catch (err) {
-        setError(err as Error)
+        setError(err as Error);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
     },
-    [base, config.csrfToken]
-  )
+    [base, config.csrfToken],
+  );
 
   const deactivate = useCallback(async () => {
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
     try {
       await jsonRequest(`${base}/deactivate`, {
         method: 'POST',
         csrfToken: config.csrfToken,
-      })
+      });
     } catch (err) {
-      setError(err as Error)
+      setError(err as Error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [base, config.csrfToken])
+  }, [base, config.csrfToken]);
 
-  return { loading, error, activate, deactivate }
+  return { loading, error, activate, deactivate };
 }

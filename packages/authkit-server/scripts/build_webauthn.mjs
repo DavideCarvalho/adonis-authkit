@@ -22,20 +22,20 @@
  * Usa o esbuild que já vem com o `vite` (devDependency) — é um bundle trivial,
  * não precisa da pipeline do Vite.
  */
-import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs'
-import { createRequire } from 'node:module'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const require = createRequire(import.meta.url)
-const root = fileURLToPath(new URL('..', import.meta.url))
+const require = createRequire(import.meta.url);
+const root = fileURLToPath(new URL('..', import.meta.url));
 
-const outDir = join(root, 'src/host/assets')
-const outfile = join(outDir, 'webauthn.js')
+const outDir = join(root, 'src/host/assets');
+const outfile = join(outDir, 'webauthn.js');
 
-mkdirSync(outDir, { recursive: true })
+mkdirSync(outDir, { recursive: true });
 
-const esbuild = require('esbuild')
+const esbuild = require('esbuild');
 
 /**
  * `entryPoints` com `stdin` para reexportar só a superfície que as views usam.
@@ -66,7 +66,7 @@ await esbuild.build({
   minify: true,
   legalComments: 'none',
   outfile,
-})
+});
 
 /**
  * O `@simplewebauthn/browser` não expõe `./package.json` no campo `exports`,
@@ -74,29 +74,29 @@ await esbuild.build({
  * logar a versão empacotada (o bundle é commitado — saber a versão que gerou
  * o arquivo é o que torna o diff revisável).
  */
-let version = 'desconhecida'
+let version = 'desconhecida';
 try {
-  let dir = dirname(require.resolve('@simplewebauthn/browser'))
+  let dir = dirname(require.resolve('@simplewebauthn/browser'));
   for (let i = 0; i < 5; i++) {
-    const candidate = join(dir, 'package.json')
+    const candidate = join(dir, 'package.json');
     // `script/package.json` e `esm/package.json` existem só para fixar o
     // `type` do diretório e NÃO têm `version` — seguir subindo até o manifesto
     // real do pacote.
     if (existsSync(candidate)) {
-      const parsed = JSON.parse(readFileSync(candidate, 'utf-8'))
+      const parsed = JSON.parse(readFileSync(candidate, 'utf-8'));
       if (parsed.version) {
-        version = parsed.version
-        break
+        version = parsed.version;
+        break;
       }
     }
-    dir = dirname(dir)
+    dir = dirname(dir);
   }
 } catch {
   // Best-effort: nunca quebra o build por causa do log.
 }
 
-const size = statSync(outfile).size
+const size = statSync(outfile).size;
 console.log(
   `webauthn bundle: @simplewebauthn/browser@${version} → ` +
-    `src/host/assets/webauthn.js (${(size / 1024).toFixed(1)} KB)`
-)
+    `src/host/assets/webauthn.js (${(size / 1024).toFixed(1)} KB)`,
+);

@@ -1,10 +1,10 @@
-{{{
-  exports({ to: app.makePath('inertia/pages/authkit/login.tsx') })
-}}}
-import AuthShell, { type AuthBrand } from '../../components/auth_shell'
+{
+  exports({ to: app.makePath('inertia/pages/authkit/login.tsx') });
+}
+import AuthShell, { type AuthBrand } from '../../components/auth_shell';
 
 const inputClass =
-  'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-transparent focus:ring-2'
+  'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-transparent focus:ring-2';
 
 export default function AuthkitLogin({
   uid,
@@ -15,21 +15,21 @@ export default function AuthkitLogin({
   error,
   brand,
 }: {
-  uid: string
-  csrfToken: string
-  step?: 'identifier' | 'password'
-  email?: string
-  account?: { fullName: string | null; globalRoles: string[] } | null
-  error?: string
-  brand?: AuthBrand
+  uid: string;
+  csrfToken: string;
+  step?: 'identifier' | 'password';
+  email?: string;
+  account?: { fullName: string | null; globalRoles: string[] } | null;
+  error?: string;
+  brand?: AuthBrand;
 }) {
-  const accent = brand?.accent ?? '#111827'
-  const focusStyle = { ['--tw-ring-color' as any]: accent }
+  const accent = brand?.accent ?? '#111827';
+  const focusStyle = { ['--tw-ring-color' as any]: accent };
 
   if (step === 'identifier') {
     return (
       <AuthShell brand={brand}>
-        <form method="POST" action={'/auth/interaction/' + uid + '/identifier'}>
+        <form method="POST" action={`/auth/interaction/${uid}/identifier`}>
           <input type="hidden" name="_csrf" value={csrfToken} />
           <h1 className="text-xl font-semibold text-gray-900">Entrar</h1>
           <p className="mt-1 text-sm text-gray-500">Informe seu e-mail para continuar.</p>
@@ -45,7 +45,6 @@ export default function AuthkitLogin({
               name="email"
               type="email"
               required
-              autoFocus
               className={inputClass}
               style={focusStyle}
             />
@@ -60,7 +59,7 @@ export default function AuthkitLogin({
           </button>
 
           <div className="mt-4 flex justify-between text-sm text-gray-600">
-            <a href={'/auth/interaction/' + uid + '/signup'} className="hover:underline">
+            <a href={`/auth/interaction/${uid}/signup`} className="hover:underline">
               Criar conta
             </a>
             <a href="/auth/forgot-password" className="hover:underline">
@@ -76,7 +75,7 @@ export default function AuthkitLogin({
         </div>
 
         <a
-          href={'/auth/google/redirect/' + uid}
+          href={`/auth/google/redirect/${uid}`}
           className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
         >
           <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
@@ -100,15 +99,15 @@ export default function AuthkitLogin({
           Entrar com Google
         </a>
       </AuthShell>
-    )
+    );
   }
 
   // step === 'password'
-  const isAdmin = account?.globalRoles?.includes('ADMIN') ?? false
+  const isAdmin = account?.globalRoles?.includes('ADMIN') ?? false;
 
   return (
     <AuthShell brand={brand}>
-      <form method="POST" action={'/auth/interaction/' + uid + '/login'}>
+      <form method="POST" action={`/auth/interaction/${uid}/login`}>
         <input type="hidden" name="_csrf" value={csrfToken} />
 
         {account?.fullName ? (
@@ -127,7 +126,7 @@ export default function AuthkitLogin({
         <div className="mt-1 flex items-center gap-2">
           <span className="text-sm text-gray-500">{email}</span>
           <a
-            href={'/auth/interaction/' + uid + '/switch'}
+            href={`/auth/interaction/${uid}/switch`}
             className="text-xs font-medium hover:underline"
             style={{ color: accent }}
           >
@@ -146,7 +145,6 @@ export default function AuthkitLogin({
             name="password"
             type="password"
             required
-            autoFocus
             className={inputClass}
             style={focusStyle}
           />
@@ -167,5 +165,5 @@ export default function AuthkitLogin({
         </div>
       </form>
     </AuthShell>
-  )
+  );
 }

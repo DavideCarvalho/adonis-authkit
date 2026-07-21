@@ -1,4 +1,4 @@
-import type { Identity } from "@adonis-agora/authkit-core";
+import type { Identity } from '@adonis-agora/authkit-core';
 
 /**
  * Ponte estrutural (best-effort) entre a sessão resolvida do authkit e o
@@ -6,7 +6,7 @@ import type { Identity } from "@adonis-agora/authkit-core";
  * nunca importa `@adonis-agora/context` — e degrada para no-op quando o context
  * não está instalado. Mesmo idioma da `diagnostics_bridge`.
  */
-const SET_SLOT = Symbol.for("@agora/context:set");
+const SET_SLOT = Symbol.for('@agora/context:set');
 
 type SetFn = (patch: {
   userRef?: { type: string; id: string };
@@ -20,21 +20,19 @@ type SetFn = (patch: {
  * string não vazia) vira o `tenantId`. Não falha se nenhuma existir.
  */
 const TENANT_CLAIMS = [
-  "active_organization_id",
-  "org_id",
-  "organization_id",
-  "tenant_id",
-  "tid",
+  'active_organization_id',
+  'org_id',
+  'organization_id',
+  'tenant_id',
+  'tid',
 ] as const;
 
 /** Deriva o tenant ativo das claims cruas, ou `undefined` quando ausente. */
-function deriveTenant(
-  raw: Record<string, unknown> | undefined,
-): string | undefined {
+function deriveTenant(raw: Record<string, unknown> | undefined): string | undefined {
   if (!raw) return undefined;
   for (const claim of TENANT_CLAIMS) {
     const value = raw[claim];
-    if (typeof value === "string" && value.length > 0) return value;
+    if (typeof value === 'string' && value.length > 0) return value;
   }
   return undefined;
 }
@@ -47,13 +45,11 @@ function deriveTenant(
  */
 export function populateContext(identity: Identity): void {
   try {
-    const set = (globalThis as Record<symbol, unknown>)[SET_SLOT] as
-      | SetFn
-      | undefined;
+    const set = (globalThis as Record<symbol, unknown>)[SET_SLOT] as SetFn | undefined;
     if (!set) return;
     const tenant = deriveTenant(identity.raw);
     set({
-      userRef: { type: "user", id: identity.userId },
+      userRef: { type: 'user', id: identity.userId },
       globalRoles: identity.globalRoles,
       ...(tenant ? { tenantId: tenant } : {}),
     });

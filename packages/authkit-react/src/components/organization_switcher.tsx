@@ -1,13 +1,13 @@
-import { createElement, useState } from 'react'
-import { useAuthkitConfig } from '../config.js'
-import { useOrganizations, type OrgEntry } from '../hooks/use_organizations.js'
-import { useSwitchOrganization } from '../hooks/use_switch_organization.js'
-import { useAuth } from '../use_auth.js'
+import { createElement, useState } from 'react';
+import { useAuthkitConfig } from '../config.js';
+import { type OrgEntry, useOrganizations } from '../hooks/use_organizations.js';
+import { useSwitchOrganization } from '../hooks/use_switch_organization.js';
+import { useAuth } from '../use_auth.js';
 
 export interface OrganizationSwitcherProps {
   /** Rótulo da opção "Conta pessoal" (desativa org ativa). Default: 'Conta pessoal' */
-  personalAccountLabel?: string
-  className?: string
+  personalAccountLabel?: string;
+  className?: string;
 }
 
 /**
@@ -18,15 +18,15 @@ function OrganizationSwitcherInner({
   personalAccountLabel = 'Conta pessoal',
   className,
 }: OrganizationSwitcherProps) {
-  const { isAuthenticated } = useAuth()
-  const { data: orgs, activeOrgId, supported } = useOrganizations()
-  const { activate, deactivate, loading: switching } = useSwitchOrganization()
-  const [open, setOpen] = useState(false)
+  const { isAuthenticated } = useAuth();
+  const { data: orgs, activeOrgId, supported } = useOrganizations();
+  const { activate, deactivate, loading: switching } = useSwitchOrganization();
+  const [open, setOpen] = useState(false);
 
-  if (!isAuthenticated || !supported) return null
+  if (!isAuthenticated || !supported) return null;
 
-  const activeOrg = orgs?.find((o) => o.id === activeOrgId) ?? null
-  const label = activeOrg ? activeOrg.name : personalAccountLabel
+  const activeOrg = orgs?.find((o) => o.id === activeOrgId) ?? null;
+  const label = activeOrg ? activeOrg.name : personalAccountLabel;
 
   const trigger = createElement(
     'button',
@@ -39,8 +39,12 @@ function OrganizationSwitcherInner({
       onClick: () => setOpen((v) => !v),
     },
     createElement('span', { className: 'authkit-orgswitcher__label' }, label),
-    createElement('span', { className: 'authkit-orgswitcher__chevron', 'aria-hidden': 'true' }, '▾')
-  )
+    createElement(
+      'span',
+      { className: 'authkit-orgswitcher__chevron', 'aria-hidden': 'true' },
+      '▾',
+    ),
+  );
 
   const menu = open
     ? createElement(
@@ -60,11 +64,15 @@ function OrganizationSwitcherInner({
             role: 'option',
             'aria-selected': !activeOrgId,
             onClick: async () => {
-              setOpen(false)
-              if (activeOrgId) await deactivate()
+              setOpen(false);
+              if (activeOrgId) await deactivate();
             },
           },
-          createElement('span', { className: 'authkit-orgswitcher__item-name' }, personalAccountLabel)
+          createElement(
+            'span',
+            { className: 'authkit-orgswitcher__item-name' },
+            personalAccountLabel,
+          ),
         ),
         // Orgs
         ...(orgs ?? []).map((org: OrgEntry) =>
@@ -82,27 +90,23 @@ function OrganizationSwitcherInner({
               role: 'option',
               'aria-selected': org.isActive,
               onClick: async () => {
-                setOpen(false)
-                if (!org.isActive) await activate(org.id)
+                setOpen(false);
+                if (!org.isActive) await activate(org.id);
               },
             },
             createElement('span', { className: 'authkit-orgswitcher__item-name' }, org.name),
-            createElement(
-              'span',
-              { className: 'authkit-orgswitcher__item-role' },
-              org.role
-            )
-          )
-        )
+            createElement('span', { className: 'authkit-orgswitcher__item-role' }, org.role),
+          ),
+        ),
       )
-    : null
+    : null;
 
   return createElement(
     'div',
     { className: ['authkit-orgswitcher', className].filter(Boolean).join(' ') },
     trigger,
-    menu
-  )
+    menu,
+  );
 }
 
 /**
@@ -111,7 +115,7 @@ function OrganizationSwitcherInner({
  * inexistentes.
  */
 export function OrganizationSwitcher(props: Parameters<typeof OrganizationSwitcherInner>[0]) {
-  const { idp } = useAuthkitConfig()
-  if (idp === 'external') return null
-  return <OrganizationSwitcherInner {...props} />
+  const { idp } = useAuthkitConfig();
+  if (idp === 'external') return null;
+  return <OrganizationSwitcherInner {...props} />;
 }

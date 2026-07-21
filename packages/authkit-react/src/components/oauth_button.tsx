@@ -1,15 +1,8 @@
-import {
-  createElement,
-  type AnchorHTMLAttributes,
-  type ReactNode,
-} from "react";
-import { oauthRedirectUrl } from "../interaction/urls.js";
-import { buttonClass } from "../utils.js";
+import { type AnchorHTMLAttributes, type ReactNode, createElement } from 'react';
+import { oauthRedirectUrl } from '../interaction/urls.js';
+import { buttonClass } from '../utils.js';
 
-export interface OAuthButtonProps extends Omit<
-  AnchorHTMLAttributes<HTMLAnchorElement>,
-  "href"
-> {
+export interface OAuthButtonProps extends Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> {
   /** Provedor OAuth (ex.: `'google'`, `'github'`). */
   provider: string;
   /** O `uid` da interaction. */
@@ -39,10 +32,10 @@ export function OAuthButton({
   ...rest
 }: OAuthButtonProps) {
   return createElement(
-    "a",
+    'a',
     {
       href: oauthRedirectUrl(provider, uid, basePath),
-      className: buttonClass("authkit-button--ghost", className),
+      className: buttonClass('authkit-button--ghost', className),
       ...rest,
     },
     children ?? `Entrar com ${capitalize(provider)}`,

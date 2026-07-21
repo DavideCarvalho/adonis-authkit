@@ -1,18 +1,18 @@
-{{{
-  exports({ to: app.makePath('inertia/components/auth_shell.tsx') })
-}}}
-import type { ReactNode } from 'react'
+{
+  exports({ to: app.makePath('inertia/components/auth_shell.tsx') });
+}
+import type { ReactNode } from 'react';
 
 export interface AuthBrand {
-  appName: string
-  accent: string
-  accentSoft?: string
-  company?: string
-  tagline?: string
-  audienceLabel?: string
+  appName: string;
+  accent: string;
+  accentSoft?: string;
+  company?: string;
+  tagline?: string;
+  audienceLabel?: string;
 }
 
-const COMPANY_FALLBACK = 'Acme'
+const COMPANY_FALLBACK = 'Acme';
 
 /**
  * Layout de duas colunas para as telas de autenticacao do IdP.
@@ -22,14 +22,14 @@ export default function AuthShell({
   brand,
   children,
 }: {
-  brand?: AuthBrand
-  children: ReactNode
+  brand?: AuthBrand;
+  children: ReactNode;
 }) {
-  const accent = brand?.accent ?? '#111827'
-  const accentSoft = brand?.accentSoft ?? accent
-  const company = brand?.company ?? COMPANY_FALLBACK
-  const appName = brand?.appName ?? 'Sua conta'
-  const tagline = brand?.tagline ?? 'Acesso unificado'
+  const accent = brand?.accent ?? '#111827';
+  const accentSoft = brand?.accentSoft ?? accent;
+  const company = brand?.company ?? COMPANY_FALLBACK;
+  const appName = brand?.appName ?? 'Sua conta';
+  const tagline = brand?.tagline ?? 'Acesso unificado';
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
@@ -63,5 +63,5 @@ export default function AuthShell({
         <div className="p-8 md:p-10">{children}</div>
       </div>
     </div>
-  )
+  );
 }

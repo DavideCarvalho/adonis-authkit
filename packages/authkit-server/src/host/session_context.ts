@@ -1,7 +1,7 @@
-import type { ResolvedServerConfig } from '../define_config.js'
-import type { AdminSession } from './admin_sessions_service.js'
-import { parseUserAgent } from './user_agent.js'
-import { resolveGeoSafe } from './geo.js'
+import type { ResolvedServerConfig } from '../define_config.js';
+import type { AdminSession } from './admin_sessions_service.js';
+import { resolveGeoSafe } from './geo.js';
+import { parseUserAgent } from './user_agent.js';
 
 /**
  * ENRIQUECE sessões ativas com contexto de dispositivo (user-agent → browser/SO),
@@ -26,12 +26,12 @@ import { resolveGeoSafe } from './geo.js'
 export async function enrichSessionsWithContext(
   cfg: Pick<ResolvedServerConfig, 'audit' | 'resolveGeo'>,
   accountId: string,
-  sessions: AdminSession[]
+  sessions: AdminSession[],
 ): Promise<AdminSession[]> {
-  if (sessions.length === 0) return sessions
+  if (sessions.length === 0) return sessions;
 
   // Sem consulta de audit não há de onde puxar o contexto → devolve como veio.
-  if (typeof cfg.audit?.list !== 'function') return sessions
+  if (typeof cfg.audit?.list !== 'function') return sessions;
 
   // Janela recente de login.success da conta (limite são para não estourar memória).
   const page = await cfg.audit.list({
@@ -39,20 +39,20 @@ export async function enrichSessionsWithContext(
     subject: accountId,
     page: 1,
     limit: 200,
-  })
+  });
 
   const events = page.data.map((e) => ({
     ts: toEpochSeconds(e.createdAt),
     ip: e.ip ?? null,
     userAgent: (e.metadata?.userAgent as string | undefined) ?? null,
-  }))
+  }));
 
   return Promise.all(
     sessions.map(async (s) => {
-      const match = closestEvent(events, s.loginTs)
-      if (!match) return s
-      const { browser, os } = parseUserAgent(match.userAgent)
-      const location = await resolveGeoSafe(cfg.resolveGeo, match.ip)
+      const match = closestEvent(events, s.loginTs);
+      if (!match) return s;
+      const { browser, os } = parseUserAgent(match.userAgent);
+      const location = await resolveGeoSafe(cfg.resolveGeo, match.ip);
       return {
         ...s,
         userAgent: match.userAgent,
@@ -60,16 +60,16 @@ export async function enrichSessionsWithContext(
         os: match.userAgent ? os : null,
         ip: match.ip,
         location,
-      }
-    })
-  )
+      };
+    }),
+  );
 }
 
 /** Evento de login.success projetado para o join (ts em epoch-segundos). */
 interface LoginEvent {
-  ts: number | null
-  ip: string | null
-  userAgent: string | null
+  ts: number | null;
+  ip: string | null;
+  userAgent: string | null;
 }
 
 /**
@@ -78,28 +78,28 @@ interface LoginEvent {
  * quando não há eventos úteis.
  */
 function closestEvent(events: LoginEvent[], loginTs: number | undefined): LoginEvent | null {
-  const usable = events.filter((e) => e.ip !== null || e.userAgent !== null)
-  if (usable.length === 0) return null
+  const usable = events.filter((e) => e.ip !== null || e.userAgent !== null);
+  if (usable.length === 0) return null;
   if (loginTs === undefined) {
     // Sem loginTs: o primeiro (a listagem do sink vem desc por createdAt).
-    return usable[0]
+    return usable[0];
   }
-  let best: LoginEvent | null = null
-  let bestDelta = Number.POSITIVE_INFINITY
+  let best: LoginEvent | null = null;
+  let bestDelta = Number.POSITIVE_INFINITY;
   for (const e of usable) {
-    if (e.ts === null) continue
-    const delta = Math.abs(e.ts - loginTs)
+    if (e.ts === null) continue;
+    const delta = Math.abs(e.ts - loginTs);
     if (delta < bestDelta) {
-      bestDelta = delta
-      best = e
+      bestDelta = delta;
+      best = e;
     }
   }
-  return best ?? usable[0]
+  return best ?? usable[0];
 }
 
 /** Normaliza o createdAt do audit (Date | ISO string) para epoch-segundos. */
 function toEpochSeconds(createdAt: Date | string | null): number | null {
-  if (!createdAt) return null
-  const ms = createdAt instanceof Date ? createdAt.getTime() : Date.parse(createdAt)
-  return Number.isFinite(ms) ? Math.floor(ms / 1000) : null
+  if (!createdAt) return null;
+  const ms = createdAt instanceof Date ? createdAt.getTime() : Date.parse(createdAt);
+  return Number.isFinite(ms) ? Math.floor(ms / 1000) : null;
 }

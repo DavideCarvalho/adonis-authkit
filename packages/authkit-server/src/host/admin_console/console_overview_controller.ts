@@ -1,7 +1,7 @@
-import '../augmentations.js'
-import type { HttpContext } from '@adonisjs/core/http'
-import { AdminSessionsService } from '../admin_sessions_service.js'
-import { computeAdminStats } from '../admin_stats_service.js'
+import '../augmentations.js';
+import type { HttpContext } from '@adonisjs/core/http';
+import { AdminSessionsService } from '../admin_sessions_service.js';
+import { computeAdminStats } from '../admin_stats_service.js';
 
 /**
  * GET {prefix}/api/overview
@@ -14,15 +14,15 @@ import { computeAdminStats } from '../admin_stats_service.js'
  */
 export default class ConsoleOverviewController {
   async handle(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
 
-    const sessions = new AdminSessionsService(service)
-    const stats = await computeAdminStats(cfg, sessions)
-    const clientsCount = cfg.clients.length
+    const sessions = new AdminSessionsService(service);
+    const stats = await computeAdminStats(cfg, sessions);
+    const clientsCount = cfg.clients.length;
 
     const recentResult =
-      typeof cfg.audit?.list === 'function' ? await cfg.audit.list({ page: 1, limit: 5 }) : null
+      typeof cfg.audit?.list === 'function' ? await cfg.audit.list({ page: 1, limit: 5 }) : null;
 
     return {
       usersTotal: stats.totalUsers,
@@ -43,9 +43,8 @@ export default class ConsoleOverviewController {
         email: e.email ?? null,
         actorId: e.actorId ?? null,
         ip: e.ip ?? null,
-        createdAt:
-          e.createdAt instanceof Date ? e.createdAt.toISOString() : (e.createdAt ?? null),
+        createdAt: e.createdAt instanceof Date ? e.createdAt.toISOString() : (e.createdAt ?? null),
       })),
-    }
+    };
   }
 }

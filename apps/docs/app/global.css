@@ -1,6 +1,6 @@
-@import 'tailwindcss';
-@import 'fumadocs-ui/css/neutral.css';
-@import 'fumadocs-ui/css/preset.css';
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
 
 @source '../node_modules/fumadocs-ui/dist/**/*.js';
 
@@ -178,15 +178,15 @@ html > body[data-scroll-locked] {
 }
 
 /* Violet active-item indicator + subtle hover. */
-#nd-sidebar a[data-active='true'],
-#nd-sidebar [data-active='true'] {
+#nd-sidebar a[data-active="true"],
+#nd-sidebar [data-active="true"] {
   position: relative;
   color: var(--color-fd-primary);
   background-color: color-mix(in srgb, rgb(var(--ak-violet)) 10%, transparent);
 }
-#nd-sidebar a[data-active='true']::before,
-#nd-sidebar button[data-active='true']::before {
-  content: '';
+#nd-sidebar a[data-active="true"]::before,
+#nd-sidebar button[data-active="true"]::before {
+  content: "";
   position: absolute;
   inset-inline-start: 0;
   top: 50%;
@@ -197,20 +197,20 @@ html > body[data-scroll-locked] {
   background: rgb(var(--ak-violet-bright));
   box-shadow: 0 0 8px 0 color-mix(in srgb, rgb(var(--ak-violet)) 60%, transparent);
 }
-#nd-sidebar a[data-active='false']:hover {
+#nd-sidebar a[data-active="false"]:hover {
   background-color: var(--color-fd-accent);
 }
 
 /* ---- Table of contents: console feel ------------------------------------- */
 #nd-toc h3,
-#nd-toc [class*='font-medium']:first-child {
+#nd-toc [class*="font-medium"]:first-child {
   font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 0.6875rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-fd-muted-foreground);
 }
-#nd-toc a[data-active='true'] {
+#nd-toc a[data-active="true"] {
   color: var(--color-fd-primary) !important;
   font-weight: 500;
 }
@@ -223,7 +223,7 @@ figure.shiki {
   border-color: var(--color-fd-border);
 }
 figure.shiki::before {
-  content: '';
+  content: "";
   position: absolute;
   inset-inline: 0;
   top: 0;
@@ -271,22 +271,14 @@ figure.shiki > figcaption {
   position: relative;
 }
 #nd-docs-layout::before {
-  content: '';
+  content: "";
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background-image: radial-gradient(
-    circle at center,
-    var(--color-fd-border) 1px,
-    transparent 1px
-  );
+  background-image: radial-gradient(circle at center, var(--color-fd-border) 1px, transparent 1px);
   background-size: 24px 24px;
   opacity: 0.25;
-  -webkit-mask-image: radial-gradient(
-    ellipse 60% 50% at 50% -10%,
-    black,
-    transparent 70%
-  );
+  -webkit-mask-image: radial-gradient(ellipse 60% 50% at 50% -10%, black, transparent 70%);
   mask-image: radial-gradient(ellipse 60% 50% at 50% -10%, black, transparent 70%);
 }

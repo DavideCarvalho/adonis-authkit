@@ -1,14 +1,14 @@
-import { createElement, type ButtonHTMLAttributes, type ReactNode } from 'react'
-import { useSignIn, type SignInOptions } from '../hooks/use_sign_in.js'
-import { useAuth } from '../use_auth.js'
+import { type ButtonHTMLAttributes, type ReactNode, createElement } from 'react';
+import { type SignInOptions, useSignIn } from '../hooks/use_sign_in.js';
+import { useAuth } from '../use_auth.js';
 
 export interface SignInButtonProps
   extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick'> {
-  children?: ReactNode
+  children?: ReactNode;
   /** para onde voltar após o login */
-  returnTo?: string
+  returnTo?: string;
   /** renderiza mesmo se já autenticado (default: esconde quando autenticado) */
-  showWhenAuthenticated?: boolean
+  showWhenAuthenticated?: boolean;
 }
 
 /** Botão que inicia o fluxo de login (redirect OIDC). */
@@ -19,10 +19,10 @@ export function SignInButton({
   className,
   ...rest
 }: SignInButtonProps) {
-  const { signIn } = useSignIn()
-  const { isAuthenticated } = useAuth()
-  if (isAuthenticated && !showWhenAuthenticated) return null
-  const opts: SignInOptions | undefined = returnTo ? { returnTo } : undefined
+  const { signIn } = useSignIn();
+  const { isAuthenticated } = useAuth();
+  if (isAuthenticated && !showWhenAuthenticated) return null;
+  const opts: SignInOptions | undefined = returnTo ? { returnTo } : undefined;
   return createElement(
     'button',
     {
@@ -31,6 +31,6 @@ export function SignInButton({
       onClick: () => signIn(opts),
       ...rest,
     },
-    children
-  )
+    children,
+  );
 }

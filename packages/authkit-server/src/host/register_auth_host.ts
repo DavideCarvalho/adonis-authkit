@@ -1,31 +1,31 @@
-import type { Router } from '@adonisjs/core/http'
-import type { AuthSocialConfig, RateLimitConfigInput } from '../define_config.js'
-import { resolveRateLimit } from '../define_config.js'
-import { createAuthThrottles } from './rate_limit.js'
-import { ACCOUNT_SESSION_KEY } from './middleware/account_auth.js'
-import { accountHome } from './account_home.js'
-import { resolveAccountRoles } from './account_roles.js'
-import { adminApiGuard } from './admin_api/admin_api_guard.js'
+import type { Router } from '@adonisjs/core/http';
+import type { AuthSocialConfig, RateLimitConfigInput } from '../define_config.js';
+import { resolveRateLimit } from '../define_config.js';
+import { accountHome } from './account_home.js';
+import { getAccountLoginUrl, setAccountLoginUrl } from './account_login_url.js';
+import { resolveAccountRoles } from './account_roles.js';
+import { adminApiGuard } from './admin_api/admin_api_guard.js';
 import {
-  setAdminPrefix,
+  normalizeAdminApiPrefix,
   normalizeAdminPrefix,
   setAdminApiPrefix,
-  normalizeAdminApiPrefix,
-} from './admin_prefix.js'
-import { resolveRuntimeSettings } from './runtime_settings.js'
-import { resolveEffectiveSessionPolicy } from './runtime_toggles.js'
-import { getAuthHostConfig } from './auth_host_config.js'
-import { setAccountLoginUrl, getAccountLoginUrl } from './account_login_url.js'
+  setAdminPrefix,
+} from './admin_prefix.js';
+import { getAuthHostConfig } from './auth_host_config.js';
+import { ACCOUNT_SESSION_KEY } from './middleware/account_auth.js';
+import { createAuthThrottles } from './rate_limit.js';
+import { resolveRuntimeSettings } from './runtime_settings.js';
+import { resolveEffectiveSessionPolicy } from './runtime_toggles.js';
+import { passkey as sudoPasskey } from './sudo/methods/passkey.js';
+import { password as sudoPassword } from './sudo/methods/password.js';
 import {
   completeSudo,
   fail,
   guardSudoRoutes,
-  sudoContextFrom,
   setMountedSudoMethods,
-} from './sudo/runtime.js'
-import { password as sudoPassword } from './sudo/methods/password.js'
-import { passkey as sudoPasskey } from './sudo/methods/passkey.js'
-import type { SudoMethod, SudoRouteHelpers } from './sudo/types.js'
+  sudoContextFrom,
+} from './sudo/runtime.js';
+import type { SudoMethod, SudoRouteHelpers } from './sudo/types.js';
 
 /**
  * Métodos de sudo montados quando o host não passa `sudoMethods` —
@@ -36,10 +36,10 @@ import type { SudoMethod, SudoRouteHelpers } from './sudo/types.js'
  * seja, no resultado do `??` abaixo. Duas listas de default é como os dois
  * lados divergiam.
  */
-const SUDO_METHOD_DEFAULTS: SudoMethod[] = [sudoPassword(), sudoPasskey()]
+const SUDO_METHOD_DEFAULTS: SudoMethod[] = [sudoPassword(), sudoPasskey()];
 
 /** Chave da sessão Adonis que registra o timestamp da última atividade (idle timeout). */
-export const ACCOUNT_LAST_SEEN_KEY = 'authkit_last_seen'
+export const ACCOUNT_LAST_SEEN_KEY = 'authkit_last_seen';
 
 /**
  * Verifica o idle timeout da sessão do console de conta. Lê `idleTimeoutMinutes`
@@ -54,26 +54,26 @@ async function checkAndRefreshIdle(ctx: any): Promise<boolean> {
   try {
     // Fábrica canônica (searchPath-aware via a conexão do accountStore). Null =
     // container/DB indisponível → fail-safe: nunca encerra a sessão.
-    const runtimeSettings = await resolveRuntimeSettings(ctx)
-    if (!runtimeSettings) return false
-    const policy = await resolveEffectiveSessionPolicy(runtimeSettings)
-    const idleMs = policy.idleTimeoutMinutes * 60 * 1000
-    if (idleMs <= 0) return false // idle desligado
+    const runtimeSettings = await resolveRuntimeSettings(ctx);
+    if (!runtimeSettings) return false;
+    const policy = await resolveEffectiveSessionPolicy(runtimeSettings);
+    const idleMs = policy.idleTimeoutMinutes * 60 * 1000;
+    if (idleMs <= 0) return false; // idle desligado
 
-    const lastSeen = ctx.session?.get(ACCOUNT_LAST_SEEN_KEY) as number | undefined
-    const now = Date.now()
+    const lastSeen = ctx.session?.get(ACCOUNT_LAST_SEEN_KEY) as number | undefined;
+    const now = Date.now();
     if (lastSeen !== undefined && now - lastSeen > idleMs) {
       // Idle excedido: encerra a sessão.
-      ctx.session?.forget(ACCOUNT_SESSION_KEY)
-      ctx.session?.forget(ACCOUNT_LAST_SEEN_KEY)
-      return true
+      ctx.session?.forget(ACCOUNT_SESSION_KEY);
+      ctx.session?.forget(ACCOUNT_LAST_SEEN_KEY);
+      return true;
     }
     // Atualiza o timestamp de última atividade.
-    ctx.session?.put(ACCOUNT_LAST_SEEN_KEY, now)
-    return false
+    ctx.session?.put(ACCOUNT_LAST_SEEN_KEY, now);
+    return false;
   } catch {
     // FAIL-SAFE: nunca encerra a sessão em caso de erro.
-    return false
+    return false;
   }
 }
 
@@ -88,22 +88,22 @@ function buildLoginRedirect(ctx: any, extra?: string): string {
   // Destino configurável (`accountLoginUrl`): default `/account/login`, mas um
   // host que desmontou a tela de login (`account: { login: false }`) aponta para
   // a própria rota de login dele (ex.: `/login`). Ver `account_login_url.ts`.
-  const loginUrl = getAccountLoginUrl()
-  const url = ctx.request?.url?.() ?? ''
-  const qs = ctx.request?.parsedUrl?.search ?? ''
-  const dest = qs ? `${url}${qs}` : url
+  const loginUrl = getAccountLoginUrl();
+  const url = ctx.request?.url?.() ?? '';
+  const qs = ctx.request?.parsedUrl?.search ?? '';
+  const dest = qs ? `${url}${qs}` : url;
   // Só inclui return_to quando há um caminho real (não vazio, não é o próprio login).
   if (dest && dest !== '/' && !dest.startsWith(loginUrl)) {
-    const encoded = encodeURIComponent(dest)
-    const sep = loginUrl.includes('?') ? '&' : '?'
+    const encoded = encodeURIComponent(dest);
+    const sep = loginUrl.includes('?') ? '&' : '?';
     const base = extra
       ? `${loginUrl}${sep}${extra}&return_to=${encoded}`
-      : `${loginUrl}${sep}return_to=${encoded}`
-    return base
+      : `${loginUrl}${sep}return_to=${encoded}`;
+    return base;
   }
-  if (!extra) return loginUrl
-  const sep = loginUrl.includes('?') ? '&' : '?'
-  return `${loginUrl}${sep}${extra}`
+  if (!extra) return loginUrl;
+  const sep = loginUrl.includes('?') ? '&' : '?';
+  return `${loginUrl}${sep}${extra}`;
 }
 
 /**
@@ -114,15 +114,15 @@ function buildLoginRedirect(ctx: any, extra?: string): string {
  */
 const accountGuard = async (ctx: any, next: () => Promise<void>) => {
   if (!ctx.session?.get(ACCOUNT_SESSION_KEY)) {
-    return ctx.response.redirect(buildLoginRedirect(ctx))
+    return ctx.response.redirect(buildLoginRedirect(ctx));
   }
   // Idle timeout: encerra e redireciona com query param de motivo.
-  const idleExpired = await checkAndRefreshIdle(ctx)
+  const idleExpired = await checkAndRefreshIdle(ctx);
   if (idleExpired) {
-    return ctx.response.redirect(buildLoginRedirect(ctx, 'reason=idle'))
+    return ctx.response.redirect(buildLoginRedirect(ctx, 'reason=idle'));
   }
-  return next()
-}
+  return next();
+};
 
 /**
  * Guard do console admin (B6). Como o `accountGuard`, é uma closure inline (forma
@@ -136,38 +136,38 @@ const accountGuard = async (ctx: any, next: () => Promise<void>) => {
  * As roles permitidas são resolvidas em runtime do `authkit.server` (config lazy).
  */
 export const adminGuard = async (ctx: any, next: () => Promise<void>) => {
-  const service = await ctx.containerResolver.make('authkit.server')
-  const cfg = service.config
+  const service = await ctx.containerResolver.make('authkit.server');
+  const cfg = service.config;
   // Defesa contra flag-drift: as rotas são montadas com `admin: true` em tempo de
   // registro, ANTES de o config resolver. Se o config tiver `admin.enabled: false`,
   // as rotas existem mas o console deve estar desligado — 404 (não vaza a existência).
   if (!cfg.admin.enabled) {
-    return ctx.response.notFound()
+    return ctx.response.notFound();
   }
-  const accountId = ctx.session?.get(ACCOUNT_SESSION_KEY) as string | undefined
+  const accountId = ctx.session?.get(ACCOUNT_SESSION_KEY) as string | undefined;
   if (!accountId) {
     // `/account/login` é sempre o login da conta — NÃO muda com o prefixo admin.
-    return ctx.response.redirect(buildLoginRedirect(ctx))
+    return ctx.response.redirect(buildLoginRedirect(ctx));
   }
   // Idle timeout: também protege o console admin.
-  const idleExpired = await checkAndRefreshIdle(ctx)
+  const idleExpired = await checkAndRefreshIdle(ctx);
   if (idleExpired) {
-    return ctx.response.redirect(buildLoginRedirect(ctx, 'reason=idle'))
+    return ctx.response.redirect(buildLoginRedirect(ctx, 'reason=idle'));
   }
-  const allowed = cfg.admin.roles as string[]
-  const account = await cfg.accountStore.findById(accountId)
+  const allowed = cfg.admin.roles as string[];
+  const account = await cfg.accountStore.findById(accountId);
   // Resolve roles through the host's role authority (`resolveTokenRoles`) when set — the same source
   // the token claim is minted from — so an app-role admin reaches the console. Falls back to the
   // account's stored `globalRoles` when no hook is configured.
-  const roles = account ? await resolveAccountRoles(cfg, account) : []
-  const isAdmin = roles.some((r: string) => allowed.includes(r))
+  const roles = account ? await resolveAccountRoles(cfg, account) : [];
+  const isAdmin = roles.some((r: string) => allowed.includes(r));
   if (!isAdmin) {
     // Evita vazar a existência do console admin: redireciona para o accountHome
     // (sem mostrar a URL do admin).
-    return ctx.response.redirect(accountHome(cfg))
+    return ctx.response.redirect(accountHome(cfg));
   }
-  return next()
-}
+  return next();
+};
 
 /**
  * Opções de montagem das rotas do host-kit.
@@ -186,13 +186,13 @@ export interface AuthHostOptions {
    * Onde o provider OIDC é montado. Deve casar com o final do issuer. OPCIONAL:
    * quando omitido, vem do `config/authkit.ts` (lido no boot); default `/oidc`.
    */
-  mountPath?: string
+  mountPath?: string;
   /**
    * Login social opt-in; quando presente, monta as rotas sociais (usam ctx.ally).
    * Necessário aqui (e não só no config) porque a decisão de montar as rotas é
    * tomada em tempo de registro, antes do config (lazy) resolver.
    */
-  social?: AuthSocialConfig
+  social?: AuthSocialConfig;
   /**
    * Rate-limiting (anti-brute-force) das rotas sensíveis. Necessário aqui (e não
    * só no config) porque a aplicação do throttle acontece em tempo de registro de
@@ -200,7 +200,7 @@ export interface AuthHostOptions {
    * config/authkit.ts. Se `@adonisjs/limiter` não estiver configurado no host
    * (config/limiter.ts), o throttle vira no-op (fail-safe).
    */
-  rateLimit?: RateLimitConfigInput
+  rateLimit?: RateLimitConfigInput;
   /**
    * Console admin opt-in (B6).
    *
@@ -221,7 +221,7 @@ export interface AuthHostOptions {
    * // Prefixo customizado — console em /auth/admin
    * registerAuthHost(router, { mountPath: '/oidc', admin: { prefix: '/auth/admin' } })
    */
-  admin?: boolean | { prefix?: string }
+  admin?: boolean | { prefix?: string };
   /**
    * Admin REST API opt-in (R6).
    *
@@ -241,7 +241,7 @@ export interface AuthHostOptions {
    * // Prefixo customizado — API em /authkit/api
    * registerAuthHost(router, { mountPath: '/oidc', adminApi: { prefix: '/authkit/api' } })
    */
-  adminApi?: boolean | { prefix?: string }
+  adminApi?: boolean | { prefix?: string };
   /**
    * Métodos de sudo cujas rotas devem ser montadas. Necessário aqui (e não só
    * no config) porque a decisão de MONTAR rotas acontece em tempo de registro,
@@ -259,7 +259,7 @@ export interface AuthHostOptions {
    *
    * Ausente → `[password(), passkey()]`.
    */
-  sudoMethods?: SudoMethod[]
+  sudoMethods?: SudoMethod[];
   /**
    * Montagem por tela do console de conta (`/account/*`). Espelha o padrão
    * `admin`/`adminApi`: a decisão de MONTAR cada grupo de rotas é tomada em
@@ -293,7 +293,7 @@ export interface AuthHostOptions {
    *   accountLoginUrl: '/login',
    * })
    */
-  account?: false | AccountScreensOptions
+  account?: false | AccountScreensOptions;
   /**
    * Destino do redirect de "não-autenticado → faça login" do console de conta.
    * Default `/account/login`. Aponte para a rota de login do host quando a tela
@@ -303,7 +303,7 @@ export interface AuthHostOptions {
    * `adminGuard`, `AccountAuthMiddleware`, `consoleLoginUrl()`, os fallbacks dos
    * controllers de conta e a view `otp-unlock`. Ver `account_login_url.ts`.
    */
-  accountLoginUrl?: string
+  accountLoginUrl?: string;
 }
 
 /**
@@ -312,17 +312,17 @@ export interface AuthHostOptions {
  */
 export interface AccountScreensOptions {
   /** Tela de login por senha do console (`/account/login`, `/account/logout`). */
-  login?: boolean
+  login?: boolean;
   /** Personal Access Tokens (`/account/tokens*`). */
-  tokens?: boolean
+  tokens?: boolean;
   /** Organizations / multi-tenancy (`/account/orgs*`). */
-  orgs?: boolean
+  orgs?: boolean;
   /** Perfil, senha, troca de e-mail, export/LGPD e deleção (`/account/security*`). */
-  security?: boolean
+  security?: boolean;
   /** MFA — TOTP + passkeys (`/account/mfa*`). */
-  mfa?: boolean
+  mfa?: boolean;
   /** Apps com acesso / grants de consentimento OIDC (`/account/apps*`). */
-  apps?: boolean
+  apps?: boolean;
 }
 
 const C = {
@@ -359,7 +359,7 @@ const C = {
   apiKeys: () => import('./admin_api/api_keys_controller.js'),
   // Account self-service JSON API (session-authed, under /account/api/*).
   accountApi: () => import('./account_api/account_api_controller.js'),
-}
+};
 
 /**
  * Monta todas as rotas do host-kit do Authorization Server numa chamada.
@@ -370,58 +370,58 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
   // OVERRIDE. Elimina o drift: o consumidor pode chamar `registerAuthHost(router)`
   // e mountPath/social/rateLimit/admin/adminApi vêm do config/authkit.ts.
   // Fallback p/ defaults quando o stash não está disponível (ex.: testes sem boot).
-  const hostCfg = getAuthHostConfig()
+  const hostCfg = getAuthHostConfig();
 
-  const mount = opts.mountPath ?? hostCfg?.mountPath ?? '/oidc'
+  const mount = opts.mountPath ?? hostCfg?.mountPath ?? '/oidc';
 
   // social: opt explícito > config. admin/adminApi: opt explícito > (config.enabled → monta).
-  const social = opts.social ?? hostCfg?.social
-  const adminOpt = opts.admin ?? (hostCfg?.adminEnabled ? true : undefined)
-  const adminApiOpt = opts.adminApi ?? (hostCfg?.adminApiEnabled ? true : undefined)
+  const social = opts.social ?? hostCfg?.social;
+  const adminOpt = opts.admin ?? (hostCfg?.adminEnabled ? true : undefined);
+  const adminApiOpt = opts.adminApi ?? (hostCfg?.adminApiEnabled ? true : undefined);
 
   // Destino do redirect de "faça login" — persiste no singleton de processo para
   // que os guards (closures de tempo de registro), o middleware, os controllers e
   // as views leiam o mesmo valor. Só quando a opção foi passada (senão fica o
   // default `/account/login` do singleton — back-compat).
   if (opts.accountLoginUrl !== undefined) {
-    setAccountLoginUrl(opts.accountLoginUrl)
+    setAccountLoginUrl(opts.accountLoginUrl);
   }
 
   // Montagem por tela do console de conta. `undefined` → tudo montado;
   // `false` → nada; objeto → cada flag ausente default `true`.
-  const accountOpt = opts.account
+  const accountOpt = opts.account;
   const mountScreen = (key: keyof AccountScreensOptions): boolean => {
-    if (accountOpt === false) return false
-    if (accountOpt && typeof accountOpt === 'object') return accountOpt[key] !== false
-    return true
-  }
-  const mountLogin = mountScreen('login')
-  const mountTokens = mountScreen('tokens')
-  const mountOrgs = mountScreen('orgs')
-  const mountSecurity = mountScreen('security')
-  const mountMfa = mountScreen('mfa')
-  const mountApps = mountScreen('apps')
+    if (accountOpt === false) return false;
+    if (accountOpt && typeof accountOpt === 'object') return accountOpt[key] !== false;
+    return true;
+  };
+  const mountLogin = mountScreen('login');
+  const mountTokens = mountScreen('tokens');
+  const mountOrgs = mountScreen('orgs');
+  const mountSecurity = mountScreen('security');
+  const mountMfa = mountScreen('mfa');
+  const mountApps = mountScreen('apps');
 
   // Throttles opt-in (anti-brute-force). `undefined` quando rate-limit desligado.
   const resolvedRateLimit =
     opts.rateLimit !== undefined
       ? resolveRateLimit(opts.rateLimit)
-      : (hostCfg?.rateLimit ?? resolveRateLimit(undefined))
-  const throttles = createAuthThrottles(resolvedRateLimit)
+      : (hostCfg?.rateLimit ?? resolveRateLimit(undefined));
+  const throttles = createAuthThrottles(resolvedRateLimit);
   // Helpers: aplicam o middleware de throttle quando presente; senão no-op.
   const withLogin = (route: any): void => {
-    if (throttles) route.use([throttles.login])
-  }
+    if (throttles) route.use([throttles.login]);
+  };
   const withIntrospection = (route: ReturnType<Router['post']>): void => {
-    if (throttles) route.use([throttles.introspection])
-  }
+    if (throttles) route.use([throttles.introspection]);
+  };
   // Bucket PRÓPRIO das rotas de sudo. Antes elas levavam o `withLogin`, o que
   // funcionava mas somava dois orçamentos que medem coisas diferentes: login é
   // um anônimo adivinhando credenciais, sudo é um usuário JÁ autenticado
   // reprovando a própria identidade. Ver `ResolvedRateLimitConfig.sudo`.
   const withSudo = (route: any): void => {
-    if (throttles) route.use([throttles.sudo])
-  }
+    if (throttles) route.use([throttles.sudo]);
+  };
 
   // ─── Assets estáticos do host-kit (públicos, sem autenticação) ─────────────
   // Bundle do @simplewebauthn/browser servido pelo próprio app, no lugar do
@@ -433,73 +433,78 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
   //  • sem guard, porque é carregado NA tela de login, antes de haver sessão;
   //  • registrado ANTES do wildcard `${mount}/*` para que nenhum mountPath
   //    agressivo (ex.: '/') consiga engolir o asset e quebrar o login.
-  router.get('/authkit/assets/webauthn.js', [C.webauthnAsset]).as('authkit.assets.webauthn')
+  router.get('/authkit/assets/webauthn.js', [C.webauthnAsset]).as('authkit.assets.webauthn');
 
   // Provider OIDC (wildcard + root) — o que registerOidcRoutes fazia.
-  router.any(`${mount}/*`, [C.oidc]).as('authkit.oidc.wildcard')
-  router.any(mount, [C.oidc]).as('authkit.oidc.root')
+  router.any(`${mount}/*`, [C.oidc]).as('authkit.oidc.wildcard');
+  router.any(mount, [C.oidc]).as('authkit.oidc.root');
 
   // Interaction (login multi-step + consent + signup).
-  router.get('/auth/interaction/:uid', [C.interaction, 'show'])
-  router.post('/auth/interaction/:uid/identifier', [C.interaction, 'identifier'])
-  withLogin(router.post('/auth/interaction/:uid/login', [C.interaction, 'login']))
-  withLogin(router.post('/auth/interaction/:uid/mfa', [C.interaction, 'mfaVerify']))
+  router.get('/auth/interaction/:uid', [C.interaction, 'show']);
+  router.post('/auth/interaction/:uid/identifier', [C.interaction, 'identifier']);
+  withLogin(router.post('/auth/interaction/:uid/login', [C.interaction, 'login']));
+  withLogin(router.post('/auth/interaction/:uid/mfa', [C.interaction, 'mfaVerify']));
   // Troca de senha obrigatória quando a senha expirou (password expiration gate).
-  withLogin(router.post('/auth/interaction/:uid/password-expired', [C.interaction, 'changeExpiredPassword']))
+  withLogin(
+    router.post('/auth/interaction/:uid/password-expired', [
+      C.interaction,
+      'changeExpiredPassword',
+    ]),
+  );
   // Passkey como 2º fator alternativo no login (begin/finish; challenge na sessão).
-  router.post('/auth/interaction/:uid/passkey/options', [C.interaction, 'passkeyOptions'])
-  withLogin(router.post('/auth/interaction/:uid/passkey/verify', [C.interaction, 'passkeyVerify']))
+  router.post('/auth/interaction/:uid/passkey/options', [C.interaction, 'passkeyOptions']);
+  withLogin(router.post('/auth/interaction/:uid/passkey/verify', [C.interaction, 'passkeyVerify']));
   // Magic link (passwordless): POST emite (throttled), GET consome o token do link.
-  withLogin(router.post('/auth/interaction/:uid/magic', [C.interaction, 'magicLinkRequest']))
-  router.get('/auth/interaction/:uid/magic', [C.interaction, 'magicLinkConsume'])
-  router.post('/auth/interaction/:uid/consent', [C.interaction, 'consent'])
-  router.get('/auth/interaction/:uid/switch', [C.interaction, 'switchIdentifier'])
+  withLogin(router.post('/auth/interaction/:uid/magic', [C.interaction, 'magicLinkRequest']));
+  router.get('/auth/interaction/:uid/magic', [C.interaction, 'magicLinkConsume']);
+  router.post('/auth/interaction/:uid/consent', [C.interaction, 'consent']);
+  router.get('/auth/interaction/:uid/switch', [C.interaction, 'switchIdentifier']);
   // OTP unlock: link enviado por e-mail quando o fator TOTP/recovery é travado.
-  router.get('/auth/otp-unlock/:token', [C.interaction, 'otpUnlock'])
-  router.get('/auth/interaction/:uid/signup', [C.registration, 'showSignup'])
-  withLogin(router.post('/auth/interaction/:uid/signup', [C.registration, 'signup']))
+  router.get('/auth/otp-unlock/:token', [C.interaction, 'otpUnlock']);
+  router.get('/auth/interaction/:uid/signup', [C.registration, 'showSignup']);
+  withLogin(router.post('/auth/interaction/:uid/signup', [C.registration, 'signup']));
 
   // Recuperação de senha (standalone).
-  router.get('/auth/forgot-password', [C.registration, 'showForgot'])
-  withLogin(router.post('/auth/forgot-password', [C.registration, 'forgot']))
-  router.get('/auth/reset-password', [C.registration, 'showReset'])
-  withLogin(router.post('/auth/reset-password', [C.registration, 'reset']))
+  router.get('/auth/forgot-password', [C.registration, 'showForgot']);
+  withLogin(router.post('/auth/forgot-password', [C.registration, 'forgot']));
+  router.get('/auth/reset-password', [C.registration, 'showReset']);
+  withLogin(router.post('/auth/reset-password', [C.registration, 'reset']));
 
   // Verificação de e-mail (standalone, GET-only — consome o token do link).
-  router.get('/auth/verify-email', [C.registration, 'verifyEmail'])
+  router.get('/auth/verify-email', [C.registration, 'verifyEmail']);
 
   // Login social (opt-in — do config ou opts).
   if (social) {
-    router.get('/auth/:provider/redirect/:uid', [C.social, 'redirect'])
-    router.get('/auth/:provider/callback', [C.social, 'callback'])
+    router.get('/auth/:provider/redirect/:uid', [C.social, 'redirect']);
+    router.get('/auth/:provider/callback', [C.social, 'callback']);
   }
 
   // PAT introspection (server-to-server).
-  withIntrospection(router.post('/authkit/pat/introspect', [C.patIntrospection, 'handle']))
+  withIntrospection(router.post('/authkit/pat/introspect', [C.patIntrospection, 'handle']));
 
   // Organizations — invitation accept (sem guard: controller lida com não-autenticado).
   // Parte da tela `orgs`: desmontada junto (sem multi-tenancy, não há convite a aceitar).
   if (mountOrgs) {
-    router.get('/account/orgs/invitations/:token/accept', [C.accountOrgs, 'showAcceptInvitation'])
-    router.post('/account/orgs/invitations/:token/accept', [C.accountOrgs, 'acceptInvitation'])
+    router.get('/account/orgs/invitations/:token/accept', [C.accountOrgs, 'showAcceptInvitation']);
+    router.post('/account/orgs/invitations/:token/accept', [C.accountOrgs, 'acceptInvitation']);
   }
 
   // Console de conta (login de sessão do IdP + gerência de PAT).
   // Tela `login` desmontável: hosts passwordless delegam ao OIDC próprio e
   // apontam `accountLoginUrl` para a rota de login deles.
   if (mountLogin) {
-    router.get('/account/login', [C.accountSession, 'show'])
+    router.get('/account/login', [C.accountSession, 'show']);
     // L6: throttle por IP no login/logout do console de conta (anti-brute-force),
     // alinhado com as demais rotas de credencial (interaction, forgot, reset).
-    withLogin(router.post('/account/login', [C.accountSession, 'login']))
-    withLogin(router.post('/account/logout', [C.accountSession, 'logout']))
+    withLogin(router.post('/account/login', [C.accountSession, 'login']));
+    withLogin(router.post('/account/logout', [C.accountSession, 'logout']));
   }
 
   // Confirmação de troca de e-mail (standalone, GET-only — consome o token do link;
   // pode ser aberta em outro dispositivo, então NÃO exige sessão). Parte da tela
   // `security` (o terminal do fluxo de troca de e-mail).
   if (mountSecurity) {
-    router.get('/account/email/confirm', [C.accountSecurity, 'confirmEmail'])
+    router.get('/account/email/confirm', [C.accountSecurity, 'confirmEmail']);
   }
 
   // Rotas de tokens protegidas por AccountAuthMiddleware (redireciona para /account/login se não autenticado).
@@ -507,52 +512,52 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
     .group(() => {
       // Personal Access Tokens (tela `tokens`).
       if (mountTokens) {
-        router.get('/account/tokens', [C.accountTokens, 'index'])
-        router.post('/account/tokens', [C.accountTokens, 'store'])
-        router.post('/account/tokens/:id/revoke', [C.accountTokens, 'destroy'])
+        router.get('/account/tokens', [C.accountTokens, 'index']);
+        router.post('/account/tokens', [C.accountTokens, 'store']);
+        router.post('/account/tokens/:id/revoke', [C.accountTokens, 'destroy']);
       }
 
       // Segurança da conta: trocar senha + solicitar troca de e-mail + perfil (tela `security`).
       if (mountSecurity) {
-        router.get('/account/security', [C.accountSecurity, 'index'])
-        router.post('/account/security/password', [C.accountSecurity, 'changePassword'])
-        router.post('/account/security/email', [C.accountSecurity, 'changeEmail'])
-        router.post('/account/security/email/cancel', [C.accountSecurity, 'cancelEmailChange'])
-        router.post('/account/security/profile', [C.accountSecurity, 'updateProfile'])
+        router.get('/account/security', [C.accountSecurity, 'index']);
+        router.post('/account/security/password', [C.accountSecurity, 'changePassword']);
+        router.post('/account/security/email', [C.accountSecurity, 'changeEmail']);
+        router.post('/account/security/email/cancel', [C.accountSecurity, 'cancelEmailChange']);
+        router.post('/account/security/profile', [C.accountSecurity, 'updateProfile']);
         // LGPD/GDPR: export de dados (portabilidade) + deleção self-service (danger zone).
         // O export carrega o throttle de login (anti-abuso) quando o rate-limit existe.
-        withLogin(router.get('/account/security/export', [C.accountSecurity, 'exportData']))
-        router.post('/account/security/delete', [C.accountSecurity, 'deleteAccount'])
+        withLogin(router.get('/account/security/export', [C.accountSecurity, 'exportData']));
+        router.post('/account/security/delete', [C.accountSecurity, 'deleteAccount']);
         // Trusted devices: limpa o cookie de confiança DESTE navegador.
         router.post('/account/security/trusted-devices/revoke', [
           C.accountSecurity,
           'revokeTrustedDevices',
-        ])
+        ]);
       }
 
       // Apps com acesso (consentimento): lista os grants da conta + revogação por client (tela `apps`).
       if (mountApps) {
-        router.get('/account/apps', [C.accountApps, 'index'])
-        router.post('/account/apps/:clientId/revoke', [C.accountApps, 'revoke'])
+        router.get('/account/apps', [C.accountApps, 'index']);
+        router.post('/account/apps/:clientId/revoke', [C.accountApps, 'revoke']);
       }
 
       // MFA — TOTP + passkeys (tela `mfa`).
       if (mountMfa) {
         // MFA / TOTP (enrollment, confirmação, disable).
-        router.get('/account/mfa', [C.accountMfa, 'index'])
-        router.post('/account/mfa/enroll', [C.accountMfa, 'enroll'])
-        router.post('/account/mfa/confirm', [C.accountMfa, 'confirm'])
-        router.post('/account/mfa/disable', [C.accountMfa, 'disable'])
+        router.get('/account/mfa', [C.accountMfa, 'index']);
+        router.post('/account/mfa/enroll', [C.accountMfa, 'enroll']);
+        router.post('/account/mfa/confirm', [C.accountMfa, 'confirm']);
+        router.post('/account/mfa/disable', [C.accountMfa, 'disable']);
 
         // MFA / WebAuthn (passkeys): registro (begin/finish) + remoção.
-        router.post('/account/mfa/passkeys/options', [C.accountMfa, 'passkeyRegisterOptions'])
-        router.post('/account/mfa/passkeys/verify', [C.accountMfa, 'passkeyRegisterVerify'])
-        router.post('/account/mfa/passkeys/:id/remove', [C.accountMfa, 'passkeyRemove'])
+        router.post('/account/mfa/passkeys/options', [C.accountMfa, 'passkeyRegisterOptions']);
+        router.post('/account/mfa/passkeys/verify', [C.accountMfa, 'passkeyRegisterVerify']);
+        router.post('/account/mfa/passkeys/:id/remove', [C.accountMfa, 'passkeyRemove']);
       }
 
       // Sudo mode (confirm identity): o GET lista os métodos; cada método
       // registra suas próprias rotas de verificação (SPI `SudoMethod`).
-      router.get('/account/confirm', [C.accountConfirm, 'show'])
+      router.get('/account/confirm', [C.accountConfirm, 'show']);
 
       // Rotas próprias dos métodos de sudo — DENTRO do grupo com `accountGuard`.
       // O guard não é só "tem sessão": ele roda `checkAndRefreshIdle`, que apaga
@@ -568,8 +573,8 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
         contextFrom: sudoContextFrom,
         completeSudo,
         fail,
-      }
-      const sudoMethodsToMount = opts?.sudoMethods ?? SUDO_METHOD_DEFAULTS
+      };
+      const sudoMethodsToMount = opts?.sudoMethods ?? SUDO_METHOD_DEFAULTS;
       for (const method of sudoMethodsToMount) {
         // `guardSudoRoutes` embrulha os handlers que o método registrar, para
         // que `config.sudo.methods` os desabilite de fato mesmo que o método
@@ -585,72 +590,74 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
         // Bucket próprio, não o de login: mesmos limites, contagem separada —
         // errar a senha na tela de confirmação não pode gastar o orçamento de
         // login do IP, nem vice-versa.
-        method.register?.(guardSudoRoutes(router, method.id, helpers, withSudo), helpers)
+        method.register?.(guardSudoRoutes(router, method.id, helpers, withSudo), helpers);
       }
       // A lista montada é a fonte de verdade dos DOIS lados quando o host não
       // configura `config.sudo.methods`: a tela oferece exatamente isto, e os
       // handlers aceitam exatamente isto.
-      setMountedSudoMethods(sudoMethodsToMount)
+      setMountedSudoMethods(sudoMethodsToMount);
 
       // Organizations (multi-tenancy) — tela `orgs`. Montadas por default;
       // controller retorna 404/403 sem tabelas (capability-probed).
       if (mountOrgs) {
-        router.get('/account/orgs', [C.accountOrgs, 'index'])
-        router.post('/account/orgs', [C.accountOrgs, 'store'])
-        router.post('/account/orgs/deactivate', [C.accountOrgs, 'deactivate'])
-        router.post('/account/orgs/:id/activate', [C.accountOrgs, 'activate'])
-        router.post('/account/orgs/:id/leave', [C.accountOrgs, 'leave'])
-        router.post('/account/orgs/:id/invite', [C.accountOrgs, 'invite'])
-        router.post('/account/orgs/:id/members/:accountId/remove', [C.accountOrgs, 'removeMember'])
-        router.post('/account/orgs/:id/invitations/:invId/revoke', [C.accountOrgs, 'revokeInvitation'])
+        router.get('/account/orgs', [C.accountOrgs, 'index']);
+        router.post('/account/orgs', [C.accountOrgs, 'store']);
+        router.post('/account/orgs/deactivate', [C.accountOrgs, 'deactivate']);
+        router.post('/account/orgs/:id/activate', [C.accountOrgs, 'activate']);
+        router.post('/account/orgs/:id/leave', [C.accountOrgs, 'leave']);
+        router.post('/account/orgs/:id/invite', [C.accountOrgs, 'invite']);
+        router.post('/account/orgs/:id/members/:accountId/remove', [C.accountOrgs, 'removeMember']);
+        router.post('/account/orgs/:id/invitations/:invId/revoke', [
+          C.accountOrgs,
+          'revokeInvitation',
+        ]);
         // JSON endpoints for React hooks (authkit-react).
-        router.get('/account/orgs/json', [C.accountOrgs, 'listJson'])
-        router.get('/account/orgs/invitations/json', [C.accountOrgs, 'listInvitationsJson'])
-        router.get('/account/orgs/:id/json', [C.accountOrgs, 'showJson'])
+        router.get('/account/orgs/json', [C.accountOrgs, 'listJson']);
+        router.get('/account/orgs/invitations/json', [C.accountOrgs, 'listInvitationsJson']);
+        router.get('/account/orgs/:id/json', [C.accountOrgs, 'showJson']);
       }
 
       // ─── Account self-service JSON API (authkit-react TanStack hooks) ─────
       // ⚠️ ORDER MATTERS: fixed-segment routes before parameterised ones.
       // Registered INSIDE the accountGuard group → same session-auth protection.
       // Mutating routes use CSRF (shield middleware on the host app).
-      router.get('/account/api/me', [C.accountApi, 'me'])
-      router.get('/account/api/security', [C.accountApi, 'securityOverview'])
-      router.patch('/account/api/profile', [C.accountApi, 'updateProfile'])
-      router.post('/account/api/password', [C.accountApi, 'changePassword'])
+      router.get('/account/api/me', [C.accountApi, 'me']);
+      router.get('/account/api/security', [C.accountApi, 'securityOverview']);
+      router.patch('/account/api/profile', [C.accountApi, 'updateProfile']);
+      router.post('/account/api/password', [C.accountApi, 'changePassword']);
       // Email-change: cancel BEFORE the generic post to avoid pattern collision.
-      router.post('/account/api/email-change/cancel', [C.accountApi, 'cancelEmailChange'])
-      router.post('/account/api/email-change', [C.accountApi, 'requestEmailChange'])
+      router.post('/account/api/email-change/cancel', [C.accountApi, 'cancelEmailChange']);
+      router.post('/account/api/email-change', [C.accountApi, 'requestEmailChange']);
       // Sessions: fixed routes BEFORE :id.
-      router.get('/account/api/sessions', [C.accountApi, 'listSessions'])
-      router.post('/account/api/sessions/revoke-others', [C.accountApi, 'revokeOtherSessions'])
-      router.post('/account/api/sessions/revoke-all', [C.accountApi, 'revokeAllSessions'])
-      router.delete('/account/api/sessions/:id', [C.accountApi, 'revokeSession'])
+      router.get('/account/api/sessions', [C.accountApi, 'listSessions']);
+      router.post('/account/api/sessions/revoke-others', [C.accountApi, 'revokeOtherSessions']);
+      router.post('/account/api/sessions/revoke-all', [C.accountApi, 'revokeAllSessions']);
+      router.delete('/account/api/sessions/:id', [C.accountApi, 'revokeSession']);
       // Apps (grants).
-      router.get('/account/api/apps', [C.accountApi, 'listApps'])
-      router.delete('/account/api/apps/:clientId', [C.accountApi, 'revokeApp'])
+      router.get('/account/api/apps', [C.accountApi, 'listApps']);
+      router.delete('/account/api/apps/:clientId', [C.accountApi, 'revokeApp']);
       // MFA + passkeys.
-      router.get('/account/api/mfa', [C.accountApi, 'mfaStatus'])
-      router.get('/account/api/passkeys', [C.accountApi, 'listPasskeys'])
-      router.delete('/account/api/passkeys/:id', [C.accountApi, 'removePasskey'])
+      router.get('/account/api/mfa', [C.accountApi, 'mfaStatus']);
+      router.get('/account/api/passkeys', [C.accountApi, 'listPasskeys']);
+      router.delete('/account/api/passkeys/:id', [C.accountApi, 'removePasskey']);
       // PATs.
-      router.get('/account/api/tokens', [C.accountApi, 'listTokens'])
-      router.post('/account/api/tokens', [C.accountApi, 'createToken'])
-      router.delete('/account/api/tokens/:id', [C.accountApi, 'revokeToken'])
+      router.get('/account/api/tokens', [C.accountApi, 'listTokens']);
+      router.post('/account/api/tokens', [C.accountApi, 'createToken']);
+      router.delete('/account/api/tokens/:id', [C.accountApi, 'revokeToken']);
       // Orgs: invitations BEFORE :id (fixed segment before parameterised).
-      router.get('/account/api/orgs', [C.accountApi, 'listOrgs'])
-      router.get('/account/api/orgs/invitations', [C.accountApi, 'listOrgInvitations'])
-      router.get('/account/api/orgs/:id', [C.accountApi, 'showOrg'])
+      router.get('/account/api/orgs', [C.accountApi, 'listOrgs']);
+      router.get('/account/api/orgs/invitations', [C.accountApi, 'listOrgInvitations']);
+      router.get('/account/api/orgs/:id', [C.accountApi, 'showOrg']);
     })
-    .use([accountGuard])
+    .use([accountGuard]);
 
   // Console admin (do config.admin.enabled ou opts). Protegido pelo adminGuard (sessão + role global).
   if (adminOpt) {
     // Resolve o prefixo: `true` → '/admin' (default); objeto → usa prefix fornecido.
-    const rawPrefix =
-      typeof adminOpt === 'object' && adminOpt.prefix ? adminOpt.prefix : '/admin'
-    const ap = normalizeAdminPrefix(rawPrefix)
+    const rawPrefix = typeof adminOpt === 'object' && adminOpt.prefix ? adminOpt.prefix : '/admin';
+    const ap = normalizeAdminPrefix(rawPrefix);
     // Persiste no singleton de processo para que controllers e views usem o mesmo prefixo.
-    setAdminPrefix(ap)
+    setAdminPrefix(ap);
 
     router
       .group(() => {
@@ -663,72 +670,80 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
         // `/api/*` e devolve HTML onde a SPA espera JSON ("Unexpected token '<'").
 
         // ─── Assets estáticos do Vite build ───────────────────────────────────
-        router.get(`${ap}/assets/*`, [C.consoleShell, 'serveAsset']).as('authkit_console_assets')
+        router.get(`${ap}/assets/*`, [C.consoleShell, 'serveAsset']).as('authkit_console_assets');
 
         // ─── JSON API do console (session-authed via adminGuard upstream) ─────
         // GET {ap}/api/overview
-        router.get(`${ap}/api/overview`, [C.consoleOverview, 'handle'])
+        router.get(`${ap}/api/overview`, [C.consoleOverview, 'handle']);
         // Usuários.
-        router.get(`${ap}/api/users`, [C.consoleUsers, 'index'])
-        router.get(`${ap}/api/users/:id`, [C.consoleUsers, 'show'])
-        router.post(`${ap}/api/users`, [C.consoleUsers, 'store'])
-        router.patch(`${ap}/api/users/:id/roles`, [C.consoleUsers, 'updateRoles'])
-        router.post(`${ap}/api/users/:id/disable`, [C.consoleUsers, 'disable'])
-        router.post(`${ap}/api/users/:id/enable`, [C.consoleUsers, 'enable'])
-        router.post(`${ap}/api/users/:id/reset-password`, [C.consoleUsers, 'resetPassword'])
-        router.delete(`${ap}/api/users/:id`, [C.consoleUsers, 'destroy'])
+        router.get(`${ap}/api/users`, [C.consoleUsers, 'index']);
+        router.get(`${ap}/api/users/:id`, [C.consoleUsers, 'show']);
+        router.post(`${ap}/api/users`, [C.consoleUsers, 'store']);
+        router.patch(`${ap}/api/users/:id/roles`, [C.consoleUsers, 'updateRoles']);
+        router.post(`${ap}/api/users/:id/disable`, [C.consoleUsers, 'disable']);
+        router.post(`${ap}/api/users/:id/enable`, [C.consoleUsers, 'enable']);
+        router.post(`${ap}/api/users/:id/reset-password`, [C.consoleUsers, 'resetPassword']);
+        router.delete(`${ap}/api/users/:id`, [C.consoleUsers, 'destroy']);
         // Sessões.
-        router.get(`${ap}/api/sessions`, [C.consoleSessions, 'index'])
-        router.post(`${ap}/api/sessions/revoke-all`, [C.consoleSessions, 'revokeAll'])
+        router.get(`${ap}/api/sessions`, [C.consoleSessions, 'index']);
+        router.post(`${ap}/api/sessions/revoke-all`, [C.consoleSessions, 'revokeAll']);
         // Sessões por usuário (drawer do user — ANTES do catch-all para não receber HTML).
-        router.get(`${ap}/api/users/:id/sessions`, [C.consoleSessions, 'userSessions'])
-        router.post(`${ap}/api/users/:id/revoke-sessions`, [C.consoleSessions, 'userRevokeSessions'])
+        router.get(`${ap}/api/users/:id/sessions`, [C.consoleSessions, 'userSessions']);
+        router.post(`${ap}/api/users/:id/revoke-sessions`, [
+          C.consoleSessions,
+          'userRevokeSessions',
+        ]);
         // Clients OIDC.
-        router.get(`${ap}/api/clients`, [C.consoleClients, 'index'])
-        router.post(`${ap}/api/clients`, [C.consoleClients, 'store'])
-        router.patch(`${ap}/api/clients/:id`, [C.consoleClients, 'update'])
-        router.delete(`${ap}/api/clients/:id`, [C.consoleClients, 'destroy'])
-        router.post(`${ap}/api/clients/:id/regenerate-secret`, [C.consoleClients, 'regenerateSecret'])
+        router.get(`${ap}/api/clients`, [C.consoleClients, 'index']);
+        router.post(`${ap}/api/clients`, [C.consoleClients, 'store']);
+        router.patch(`${ap}/api/clients/:id`, [C.consoleClients, 'update']);
+        router.delete(`${ap}/api/clients/:id`, [C.consoleClients, 'destroy']);
+        router.post(`${ap}/api/clients/:id/regenerate-secret`, [
+          C.consoleClients,
+          'regenerateSecret',
+        ]);
         // Roles.
-        router.get(`${ap}/api/roles`, [C.consoleRoles, 'index'])
-        router.post(`${ap}/api/roles`, [C.consoleRoles, 'store'])
-        router.patch(`${ap}/api/roles/:name`, [C.consoleRoles, 'update'])
-        router.delete(`${ap}/api/roles/:name`, [C.consoleRoles, 'destroy'])
+        router.get(`${ap}/api/roles`, [C.consoleRoles, 'index']);
+        router.post(`${ap}/api/roles`, [C.consoleRoles, 'store']);
+        router.patch(`${ap}/api/roles/:name`, [C.consoleRoles, 'update']);
+        router.delete(`${ap}/api/roles/:name`, [C.consoleRoles, 'destroy']);
         // Organizações (capability-gated: 404 quando store não suporta).
         // ⚠️ Rotas fixas ANTES de parametrizadas para evitar shadowing.
-        router.get(`${ap}/api/orgs`, [C.consoleOrgs, 'index'])
-        router.post(`${ap}/api/orgs`, [C.consoleOrgs, 'store'])
-        router.get(`${ap}/api/orgs/:id`, [C.consoleOrgs, 'show'])
-        router.patch(`${ap}/api/orgs/:id`, [C.consoleOrgs, 'update'])
-        router.delete(`${ap}/api/orgs/:id`, [C.consoleOrgs, 'destroy'])
+        router.get(`${ap}/api/orgs`, [C.consoleOrgs, 'index']);
+        router.post(`${ap}/api/orgs`, [C.consoleOrgs, 'store']);
+        router.get(`${ap}/api/orgs/:id`, [C.consoleOrgs, 'show']);
+        router.patch(`${ap}/api/orgs/:id`, [C.consoleOrgs, 'update']);
+        router.delete(`${ap}/api/orgs/:id`, [C.consoleOrgs, 'destroy']);
         // Membros: PATCH (role) ANTES de DELETE para não colidir, ambos antes do catch-all.
-        router.post(`${ap}/api/orgs/:id/members`, [C.consoleOrgs, 'addMember'])
-        router.patch(`${ap}/api/orgs/:id/members/:accountId`, [C.consoleOrgs, 'updateMemberRole'])
-        router.delete(`${ap}/api/orgs/:id/members/:accountId`, [C.consoleOrgs, 'removeMember'])
+        router.post(`${ap}/api/orgs/:id/members`, [C.consoleOrgs, 'addMember']);
+        router.patch(`${ap}/api/orgs/:id/members/:accountId`, [C.consoleOrgs, 'updateMemberRole']);
+        router.delete(`${ap}/api/orgs/:id/members/:accountId`, [C.consoleOrgs, 'removeMember']);
         // Convites.
-        router.post(`${ap}/api/orgs/:id/invitations`, [C.consoleOrgs, 'createInvitation'])
-        router.delete(`${ap}/api/orgs/:id/invitations/:invitationId`, [C.consoleOrgs, 'revokeInvitation'])
+        router.post(`${ap}/api/orgs/:id/invitations`, [C.consoleOrgs, 'createInvitation']);
+        router.delete(`${ap}/api/orgs/:id/invitations/:invitationId`, [
+          C.consoleOrgs,
+          'revokeInvitation',
+        ]);
         // Auditoria (capability-gated: 404 quando sink não suporta consulta).
-        router.get(`${ap}/api/audit`, [C.consoleAudit, 'index'])
+        router.get(`${ap}/api/audit`, [C.consoleAudit, 'index']);
         // Settings.
-        router.get(`${ap}/api/settings`, [C.consoleSettings, 'index'])
-        router.put(`${ap}/api/settings/:key`, [C.consoleSettings, 'upsert'])
-        router.delete(`${ap}/api/settings/:key`, [C.consoleSettings, 'destroy'])
+        router.get(`${ap}/api/settings`, [C.consoleSettings, 'index']);
+        router.put(`${ap}/api/settings/:key`, [C.consoleSettings, 'upsert']);
+        router.delete(`${ap}/api/settings/:key`, [C.consoleSettings, 'destroy']);
         // Chave de assinatura managed (status + rotação ao vivo).
-        router.get(`${ap}/api/keys`, [C.consoleKeys, 'status'])
-        router.post(`${ap}/api/keys/rotate`, [C.consoleKeys, 'rotate'])
+        router.get(`${ap}/api/keys`, [C.consoleKeys, 'status']);
+        router.post(`${ap}/api/keys/rotate`, [C.consoleKeys, 'rotate']);
         // Impersonation (capability-gated: 404 quando desabilitado ou sem client).
-        router.get(`${ap}/api/impersonation/:userId`, [C.consoleImpersonation, 'handle'])
+        router.get(`${ap}/api/impersonation/:userId`, [C.consoleImpersonation, 'handle']);
 
         // ─── Shell HTML — POR ÚLTIMO (catch-all) ──────────────────────────────
         // Serve a SPA para todas as demais rotas GET do console; o roteamento
         // client-side (hash) é tratado pela SPA. Nomes explícitos: o mesmo par
         // controller.método em duas rotas colide no auto-naming do AdonisJS.
-        router.get(ap, [C.consoleShell, 'serve']).as('authkit_console_root')
-        router.get(`${ap}/*`, [C.consoleShell, 'serve']).as('authkit_console_shell')
-
+        router.get(ap, [C.consoleShell, 'serve']).as('authkit_console_root');
+        router.get(`${ap}/*`, [C.consoleShell, 'serve']).as('authkit_console_shell');
       })
-      .use([adminGuard])
+      .use([adminGuard]);
   }
 
   // Admin REST API (opt-in — R6). Superfície machine-to-machine atrás do
@@ -738,65 +753,78 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
     const rawApiPrefix =
       typeof adminApiOpt === 'object' && adminApiOpt.prefix
         ? adminApiOpt.prefix
-        : '/api/authkit/v1'
-    const aap = normalizeAdminApiPrefix(rawApiPrefix)
+        : '/api/authkit/v1';
+    const aap = normalizeAdminApiPrefix(rawApiPrefix);
     // Persiste no singleton de processo para que o SDK remoto e outros consumidores
     // usem o mesmo prefixo sem precisar receber a opção.
-    setAdminApiPrefix(aap)
+    setAdminApiPrefix(aap);
 
     // Aplica o throttle de introspecção a uma rota qualquer (GET ou escrita).
     const withApiThrottle = (route: any): any => {
-      if (throttles) route.use([throttles.introspection])
-      return route
-    }
+      if (throttles) route.use([throttles.introspection]);
+      return route;
+    };
     router
       .group(() => {
         // Usuários.
-        withApiThrottle(router.get('/users', [C.apiUsers, 'index']))
-        withApiThrottle(router.post('/users', [C.apiUsers, 'store']))
-        withApiThrottle(router.get('/users/:id', [C.apiUsers, 'show']))
-        withApiThrottle(router.patch('/users/:id', [C.apiUsers, 'update']))
-        withApiThrottle(router.delete('/users/:id', [C.apiUsers, 'destroy']))
-        withApiThrottle(router.post('/users/:id/disable', [C.apiUsers, 'disable']))
-        withApiThrottle(router.post('/users/:id/enable', [C.apiUsers, 'enable']))
-        withApiThrottle(router.post('/users/:id/reset-password', [C.apiUsers, 'resetPassword']))
-        withApiThrottle(router.get('/users/:id/sessions', [C.apiUsers, 'sessions']))
-        withApiThrottle(router.post('/users/:id/revoke-sessions', [C.apiUsers, 'revokeSessions']))
+        withApiThrottle(router.get('/users', [C.apiUsers, 'index']));
+        withApiThrottle(router.post('/users', [C.apiUsers, 'store']));
+        withApiThrottle(router.get('/users/:id', [C.apiUsers, 'show']));
+        withApiThrottle(router.patch('/users/:id', [C.apiUsers, 'update']));
+        withApiThrottle(router.delete('/users/:id', [C.apiUsers, 'destroy']));
+        withApiThrottle(router.post('/users/:id/disable', [C.apiUsers, 'disable']));
+        withApiThrottle(router.post('/users/:id/enable', [C.apiUsers, 'enable']));
+        withApiThrottle(router.post('/users/:id/reset-password', [C.apiUsers, 'resetPassword']));
+        withApiThrottle(router.get('/users/:id/sessions', [C.apiUsers, 'sessions']));
+        withApiThrottle(router.post('/users/:id/revoke-sessions', [C.apiUsers, 'revokeSessions']));
         // Clients OIDC.
-        withApiThrottle(router.get('/clients', [C.apiClients, 'index']))
-        withApiThrottle(router.post('/clients', [C.apiClients, 'store']))
-        withApiThrottle(router.get('/clients/:id', [C.apiClients, 'show']))
-        withApiThrottle(router.patch('/clients/:id', [C.apiClients, 'update']))
-        withApiThrottle(router.post('/clients/:id/regenerate-secret', [C.apiClients, 'regenerateSecret']))
-        withApiThrottle(router.delete('/clients/:id', [C.apiClients, 'destroy']))
+        withApiThrottle(router.get('/clients', [C.apiClients, 'index']));
+        withApiThrottle(router.post('/clients', [C.apiClients, 'store']));
+        withApiThrottle(router.get('/clients/:id', [C.apiClients, 'show']));
+        withApiThrottle(router.patch('/clients/:id', [C.apiClients, 'update']));
+        withApiThrottle(
+          router.post('/clients/:id/regenerate-secret', [C.apiClients, 'regenerateSecret']),
+        );
+        withApiThrottle(router.delete('/clients/:id', [C.apiClients, 'destroy']));
         // Organizações.
-        withApiThrottle(router.get('/organizations', [C.apiOrgs, 'index']))
-        withApiThrottle(router.post('/organizations', [C.apiOrgs, 'store']))
-        withApiThrottle(router.get('/organizations/:id', [C.apiOrgs, 'show']))
-        withApiThrottle(router.patch('/organizations/:id', [C.apiOrgs, 'update']))
-        withApiThrottle(router.delete('/organizations/:id', [C.apiOrgs, 'destroy']))
-        withApiThrottle(router.post('/organizations/:id/members', [C.apiOrgs, 'addMember']))
-        withApiThrottle(router.delete('/organizations/:id/members/:accountId', [C.apiOrgs, 'removeMember']))
-        withApiThrottle(router.patch('/organizations/:id/members/:accountId', [C.apiOrgs, 'updateMemberRole']))
-        withApiThrottle(router.post('/organizations/:id/invitations', [C.apiOrgs, 'createInvitation']))
-        withApiThrottle(router.delete('/organizations/:id/invitations/:invitationId', [C.apiOrgs, 'revokeInvitation']))
+        withApiThrottle(router.get('/organizations', [C.apiOrgs, 'index']));
+        withApiThrottle(router.post('/organizations', [C.apiOrgs, 'store']));
+        withApiThrottle(router.get('/organizations/:id', [C.apiOrgs, 'show']));
+        withApiThrottle(router.patch('/organizations/:id', [C.apiOrgs, 'update']));
+        withApiThrottle(router.delete('/organizations/:id', [C.apiOrgs, 'destroy']));
+        withApiThrottle(router.post('/organizations/:id/members', [C.apiOrgs, 'addMember']));
+        withApiThrottle(
+          router.delete('/organizations/:id/members/:accountId', [C.apiOrgs, 'removeMember']),
+        );
+        withApiThrottle(
+          router.patch('/organizations/:id/members/:accountId', [C.apiOrgs, 'updateMemberRole']),
+        );
+        withApiThrottle(
+          router.post('/organizations/:id/invitations', [C.apiOrgs, 'createInvitation']),
+        );
+        withApiThrottle(
+          router.delete('/organizations/:id/invitations/:invitationId', [
+            C.apiOrgs,
+            'revokeInvitation',
+          ]),
+        );
         // Auditoria + métricas + verificação de token.
-        withApiThrottle(router.get('/audit', [C.apiMisc, 'audit']))
-        withApiThrottle(router.get('/stats', [C.apiMisc, 'stats']))
-        withApiThrottle(router.post('/tokens/verify', [C.apiMisc, 'verify']))
+        withApiThrottle(router.get('/audit', [C.apiMisc, 'audit']));
+        withApiThrottle(router.get('/stats', [C.apiMisc, 'stats']));
+        withApiThrottle(router.post('/tokens/verify', [C.apiMisc, 'verify']));
         // Runtime settings CRUD.
-        withApiThrottle(router.get('/settings', [C.apiSettings, 'index']))
-        withApiThrottle(router.get('/settings/:key', [C.apiSettings, 'show']))
-        withApiThrottle(router.put('/settings/:key', [C.apiSettings, 'upsert']))
-        withApiThrottle(router.delete('/settings/:key', [C.apiSettings, 'destroy']))
+        withApiThrottle(router.get('/settings', [C.apiSettings, 'index']));
+        withApiThrottle(router.get('/settings/:key', [C.apiSettings, 'show']));
+        withApiThrottle(router.put('/settings/:key', [C.apiSettings, 'upsert']));
+        withApiThrottle(router.delete('/settings/:key', [C.apiSettings, 'destroy']));
         // Chave de assinatura managed (status + rotação ao vivo).
-        withApiThrottle(router.get('/keys', [C.apiKeys, 'status']))
-        withApiThrottle(router.post('/keys/rotate', [C.apiKeys, 'rotate']))
+        withApiThrottle(router.get('/keys', [C.apiKeys, 'status']));
+        withApiThrottle(router.post('/keys/rotate', [C.apiKeys, 'rotate']));
       })
       .prefix(aap)
       // Throttle por IP do grupo inteiro (M8): roda ANTES da guard, então tentativas
       // de Bearer key inválida do mesmo IP são limitadas mesmo quando a auth falha.
       // O `withApiThrottle` (introspection, por token) continua como camada adicional.
-      .use(throttles ? [throttles.adminIp, adminApiGuard] : [adminApiGuard])
+      .use(throttles ? [throttles.adminIp, adminApiGuard] : [adminApiGuard]);
   }
 }

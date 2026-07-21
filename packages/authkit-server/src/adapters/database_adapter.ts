@@ -1,26 +1,22 @@
-import type { Database } from '@adonisjs/lucid/database'
-import type {
-  EnumeratedArtifact,
-  OidcAdapter,
-  OidcPayload,
-} from './adapter_contract.js'
+import type { Database } from '@adonisjs/lucid/database';
+import type { EnumeratedArtifact, OidcAdapter, OidcPayload } from './adapter_contract.js';
 
-const TABLE = 'authkit_oidc_payloads'
+const TABLE = 'authkit_oidc_payloads';
 
 export class DatabaseAdapter implements OidcAdapter {
   constructor(
     private name: string,
-    private db: Database
+    private db: Database,
   ) {}
 
   #query() {
-    return this.db.query().from(TABLE).where('model_name', this.name)
+    return this.db.query().from(TABLE).where('model_name', this.name);
   }
 
   async upsert(id: string, payload: OidcPayload, expiresIn: number): Promise<void> {
     // Armazenamos como ISO string para que o parse de expiração seja determinístico
     // independente do backend (SQLite/Postgres) e do formato nativo de timestamp.
-    const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null
+    const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null;
     const row = {
       id,
       model_name: this.name,
@@ -29,48 +25,50 @@ export class DatabaseAdapter implements OidcAdapter {
       user_code: (payload.userCode as string) ?? null,
       uid: (payload.uid as string) ?? null,
       expires_at: expiresAt,
-    }
-    const existing = await this.#query().where('id', id).first()
+    };
+    const existing = await this.#query().where('id', id).first();
     if (existing) {
-      await this.#query().where('id', id).update(row)
+      await this.#query().where('id', id).update(row);
     } else {
-      await this.db.table(TABLE).insert(row)
+      await this.db.table(TABLE).insert(row);
     }
   }
 
   async #parse(record: any): Promise<OidcPayload | undefined> {
-    if (!record) return undefined
+    if (!record) return undefined;
     if (record.expires_at && new Date(record.expires_at).getTime() <= Date.now()) {
-      return undefined
+      return undefined;
     }
-    return JSON.parse(record.payload) as OidcPayload
+    return JSON.parse(record.payload) as OidcPayload;
   }
 
   async find(id: string): Promise<OidcPayload | undefined> {
-    return this.#parse(await this.#query().where('id', id).first())
+    return this.#parse(await this.#query().where('id', id).first());
   }
 
   async findByUid(uid: string): Promise<OidcPayload | undefined> {
-    return this.#parse(await this.#query().where('uid', uid).first())
+    return this.#parse(await this.#query().where('uid', uid).first());
   }
 
   async findByUserCode(userCode: string): Promise<OidcPayload | undefined> {
-    return this.#parse(await this.#query().where('user_code', userCode).first())
+    return this.#parse(await this.#query().where('user_code', userCode).first());
   }
 
   async consume(id: string): Promise<void> {
-    const found = await this.find(id)
-    if (!found) return
-    found.consumed = Math.floor(Date.now() / 1000)
-    await this.#query().where('id', id).update({ payload: JSON.stringify(found) })
+    const found = await this.find(id);
+    if (!found) return;
+    found.consumed = Math.floor(Date.now() / 1000);
+    await this.#query()
+      .where('id', id)
+      .update({ payload: JSON.stringify(found) });
   }
 
   async destroy(id: string): Promise<void> {
-    await this.#query().where('id', id).delete()
+    await this.#query().where('id', id).delete();
   }
 
   async revokeByGrantId(grantId: string): Promise<void> {
-    await this.db.query().from(TABLE).where('grant_id', grantId).delete()
+    await this.db.query().from(TABLE).where('grant_id', grantId).delete();
   }
 
   /**
@@ -79,14 +77,13 @@ export class DatabaseAdapter implements OidcAdapter {
    * console admin para listar `Client` (CRUD) e `Session`/`Grant`/tokens.
    */
   async list(): Promise<EnumeratedArtifact[]> {
-    const rows = await this.#query().orderBy('id', 'asc')
-    const now = Date.now()
-    const result: EnumeratedArtifact[] = []
+    const rows = await this.#query().orderBy('id', 'asc');
+    const now = Date.now();
+    const result: EnumeratedArtifact[] = [];
     for (const row of rows) {
-      if (row.expires_at && new Date(row.expires_at).getTime() <= now) continue
-      result.push({ id: row.id, payload: JSON.parse(row.payload) as Record<string, unknown> })
+      if (row.expires_at && new Date(row.expires_at).getTime() <= now) continue;
+      result.push({ id: row.id, payload: JSON.parse(row.payload) as Record<string, unknown> });
     }
-    return result
+    return result;
   }
-
 }

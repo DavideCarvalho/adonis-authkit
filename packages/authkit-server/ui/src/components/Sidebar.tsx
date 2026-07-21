@@ -1,7 +1,7 @@
-import React from 'react'
-import { useRouter, type Route } from '../lib/router'
-import { useTheme } from '../lib/theme'
-import { getConfig } from '../lib/config'
+import React from 'react';
+import { getConfig } from '../lib/config';
+import { type Route, useRouter } from '../lib/router';
+import { useTheme } from '../lib/theme';
 
 const navItems = [
   {
@@ -112,20 +112,23 @@ const navItems = [
         icon: (
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
             <circle cx="8" cy="8" r="2" />
-            <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.42 1.42M11.53 11.53l1.42 1.42M3.05 12.95l1.42-1.42M11.53 4.47l1.42-1.42" strokeLinecap="round" />
+            <path
+              d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.42 1.42M11.53 11.53l1.42 1.42M3.05 12.95l1.42-1.42M11.53 4.47l1.42-1.42"
+              strokeLinecap="round"
+            />
           </svg>
         ),
       },
     ],
   },
-]
+];
 
 export function Sidebar() {
-  const { route, navigate } = useRouter()
-  const { theme, toggle } = useTheme()
-  const cfg = getConfig()
+  const { route, navigate } = useRouter();
+  const { theme, toggle } = useTheme();
+  const cfg = getConfig();
 
-  const initials = cfg.currentUser?.email?.slice(0, 2).toUpperCase() ?? '?'
+  const initials = cfg.currentUser?.email?.slice(0, 2).toUpperCase() ?? '?';
 
   return (
     <aside className="sidebar">
@@ -138,7 +141,9 @@ export function Sidebar() {
           <div className="ring" />
         </div>
         <div className="brand-text">
-          <div className="brand-name">Auth<span>Kit</span></div>
+          <div className="brand-name">
+            Auth<span>Kit</span>
+          </div>
           <div className="brand-sub">Admin Console</div>
         </div>
       </div>
@@ -151,7 +156,10 @@ export function Sidebar() {
               <a
                 key={item.id}
                 className={`nav-item${route === item.id ? ' active' : ''}`}
-                onClick={(e) => { e.preventDefault(); navigate(item.id as Route) }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate(item.id as Route);
+                }}
                 href={item.id === 'overview' ? '?' : `?view=${item.id}`}
                 style={{ textDecoration: 'none' }}
               >
@@ -179,13 +187,34 @@ export function Sidebar() {
             style={{ flex: 1 }}
           >
             {theme === 'dark' ? (
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+              >
                 <circle cx="8" cy="8" r="3.5" />
-                <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06" strokeLinecap="round" />
+                <path
+                  d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"
+                  strokeLinecap="round"
+                />
               </svg>
             ) : (
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
-                <path d="M13.5 9A6 6 0 116.5 2.5a4.5 4.5 0 007 6.5z" strokeLinecap="round" strokeLinejoin="round" />
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+              >
+                <path
+                  d="M13.5 9A6 6 0 116.5 2.5a4.5 4.5 0 007 6.5z"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
             )}
             {theme === 'dark' ? 'Light mode' : 'Dark mode'}
@@ -196,12 +225,15 @@ export function Sidebar() {
               "desloga" mas continua logado. Por isso é um form POST com CSRF. */}
           <form method="POST" action="/account/logout" style={{ display: 'contents' }}>
             <input type="hidden" name="_csrf" value={getConfig().csrfToken ?? ''} />
-            <button
-              type="submit"
-              className="btn btn-ghost btn-sm"
-              title="Sign out"
-            >
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
+            <button type="submit" className="btn btn-ghost btn-sm" title="Sign out">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+              >
                 <path d="M10 11l4-3.5L10 4" strokeLinecap="round" strokeLinejoin="round" />
                 <path d="M14 7.5H5" strokeLinecap="round" />
                 <path d="M6 3H3a1 1 0 00-1 1v7a1 1 0 001 1h3" strokeLinecap="round" />
@@ -211,5 +243,5 @@ export function Sidebar() {
         </div>
       </div>
     </aside>
-  )
+  );
 }

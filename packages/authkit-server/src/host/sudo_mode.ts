@@ -14,29 +14,29 @@
  * `SUDO_ACCOUNT_SESSION_KEY`.
  */
 
-import type { HttpContext } from '@adonisjs/core/http'
-import type { SettingsCapability } from './runtime_settings.js'
-import { ACCOUNT_SESSION_KEY } from './middleware/account_auth.js'
-import { SETTING_KEYS } from './runtime_toggles.js'
+import type { HttpContext } from '@adonisjs/core/http';
+import { ACCOUNT_SESSION_KEY } from './middleware/account_auth.js';
+import type { SettingsCapability } from './runtime_settings.js';
+import { SETTING_KEYS } from './runtime_toggles.js';
 
 // ---------------------------------------------------------------------------
 // Setting shape + resolver
 // ---------------------------------------------------------------------------
 
 export interface SudoModeSetting {
-  enabled?: boolean
-  graceMinutes?: number
+  enabled?: boolean;
+  graceMinutes?: number;
 }
 
 export interface ResolvedSudoModeSetting {
-  enabled: boolean
-  graceMinutes: number
+  enabled: boolean;
+  graceMinutes: number;
 }
 
 export const SUDO_MODE_DEFAULTS: ResolvedSudoModeSetting = {
   enabled: true,
   graceMinutes: 15,
-}
+};
 
 /**
  * Resolve a setting `sudo_mode` em runtime (fail-safe).
@@ -54,22 +54,22 @@ export const SUDO_MODE_DEFAULTS: ResolvedSudoModeSetting = {
  * escolha, não descuido.
  */
 export async function resolveEffectiveSudoMode(
-  settings: SettingsCapability
+  settings: SettingsCapability,
 ): Promise<ResolvedSudoModeSetting> {
   try {
-    const raw = await settings.getSetting(SETTING_KEYS.SUDO_MODE)
-    if (raw === null || raw === undefined) return SUDO_MODE_DEFAULTS
-    if (typeof raw !== 'object' || Array.isArray(raw)) return SUDO_MODE_DEFAULTS
-    const s = raw as SudoModeSetting
+    const raw = await settings.getSetting(SETTING_KEYS.SUDO_MODE);
+    if (raw === null || raw === undefined) return SUDO_MODE_DEFAULTS;
+    if (typeof raw !== 'object' || Array.isArray(raw)) return SUDO_MODE_DEFAULTS;
+    const s = raw as SudoModeSetting;
     return {
       enabled: typeof s.enabled === 'boolean' ? s.enabled : SUDO_MODE_DEFAULTS.enabled,
       graceMinutes:
         typeof s.graceMinutes === 'number' && s.graceMinutes >= 0
           ? Math.floor(s.graceMinutes)
           : SUDO_MODE_DEFAULTS.graceMinutes,
-    }
+    };
   } catch {
-    return SUDO_MODE_DEFAULTS
+    return SUDO_MODE_DEFAULTS;
   }
 }
 
@@ -78,7 +78,7 @@ export async function resolveEffectiveSudoMode(
 // ---------------------------------------------------------------------------
 
 /** Chave da sessão Adonis que registra quando o sudo foi confirmado. */
-export const SUDO_SESSION_KEY = 'authkit_sudo_at'
+export const SUDO_SESSION_KEY = 'authkit_sudo_at';
 
 /**
  * Conta que CONFIRMOU o sudo registrado em `SUDO_SESSION_KEY`.
@@ -109,7 +109,7 @@ export const SUDO_SESSION_KEY = 'authkit_sudo_at'
  * `{ at, accountId }`. Bônus: as assinaturas públicas de `markSudo` /
  * `isSudoActive` (exportadas em `index.ts`) ficam intactas.
  */
-export const SUDO_ACCOUNT_SESSION_KEY = 'authkit_sudo_account'
+export const SUDO_ACCOUNT_SESSION_KEY = 'authkit_sudo_account';
 
 /**
  * Registra o timestamp de confirmação de sudo na sessão (NOW), VINCULADO à
@@ -131,10 +131,10 @@ export const SUDO_ACCOUNT_SESSION_KEY = 'authkit_sudo_account'
  * identidade.
  */
 export function markSudo(ctx: HttpContext): void {
-  const accountId = ctx.session.get(ACCOUNT_SESSION_KEY) as string | undefined
-  ctx.session.put(SUDO_SESSION_KEY, Date.now())
-  if (accountId) ctx.session.put(SUDO_ACCOUNT_SESSION_KEY, accountId)
-  else ctx.session.forget(SUDO_ACCOUNT_SESSION_KEY)
+  const accountId = ctx.session.get(ACCOUNT_SESSION_KEY) as string | undefined;
+  ctx.session.put(SUDO_SESSION_KEY, Date.now());
+  if (accountId) ctx.session.put(SUDO_ACCOUNT_SESSION_KEY, accountId);
+  else ctx.session.forget(SUDO_ACCOUNT_SESSION_KEY);
 }
 
 /**
@@ -153,18 +153,18 @@ export function markSudo(ctx: HttpContext): void {
  * @returns `true` se o sudo está ativo (dentro da graça); `false` caso contrário.
  */
 export function isSudoActive(ctx: HttpContext, graceMinutes: number): boolean {
-  const sudoAt = ctx.session.get(SUDO_SESSION_KEY) as number | undefined
-  if (!sudoAt) return false
+  const sudoAt = ctx.session.get(SUDO_SESSION_KEY) as number | undefined;
+  if (!sudoAt) return false;
 
   // A vinculação é checada ANTES da graça: uma marca de outra conta não é
   // "sudo expirado", é sudo que nunca valeu aqui.
-  const sudoAccountId = ctx.session.get(SUDO_ACCOUNT_SESSION_KEY) as string | undefined
-  if (!sudoAccountId) return false
-  const currentAccountId = ctx.session.get(ACCOUNT_SESSION_KEY) as string | undefined
-  if (!currentAccountId || sudoAccountId !== currentAccountId) return false
+  const sudoAccountId = ctx.session.get(SUDO_ACCOUNT_SESSION_KEY) as string | undefined;
+  if (!sudoAccountId) return false;
+  const currentAccountId = ctx.session.get(ACCOUNT_SESSION_KEY) as string | undefined;
+  if (!currentAccountId || sudoAccountId !== currentAccountId) return false;
 
-  const graceMs = graceMinutes * 60 * 1000
-  return Date.now() - sudoAt <= graceMs
+  const graceMs = graceMinutes * 60 * 1000;
+  return Date.now() - sudoAt <= graceMs;
 }
 
 /**
@@ -224,26 +224,26 @@ export function isSudoActive(ctx: HttpContext, graceMinutes: number): boolean {
  */
 export async function requireSudo(
   ctx: HttpContext,
-  settings: SettingsCapability | null
+  settings: SettingsCapability | null,
 ): Promise<true | unknown> {
   try {
-    const cfg = settings ? await resolveEffectiveSudoMode(settings) : SUDO_MODE_DEFAULTS
-    if (!cfg.enabled) return true
-    if (isSudoActive(ctx, cfg.graceMinutes)) return true
+    const cfg = settings ? await resolveEffectiveSudoMode(settings) : SUDO_MODE_DEFAULTS;
+    if (!cfg.enabled) return true;
+    if (isSudoActive(ctx, cfg.graceMinutes)) return true;
   } catch {
     // FAIL-SAFE: erro ao resolver a setting → deixa passar. Disponibilidade, não
     // identidade — ver o docblock acima para o porquê de isto NÃO contradizer o
     // fail-closed de `isSudoActive`.
-    return true
+    return true;
   }
 
   // Fora da graça: redireciona para confirmação.
-  const rawUrl = ctx.request.url?.() ?? ''
-  const qs = (ctx.request as any).parsedUrl?.search ?? ''
-  const dest = qs ? `${rawUrl}${qs}` : rawUrl
+  const rawUrl = ctx.request.url?.() ?? '';
+  const qs = (ctx.request as any).parsedUrl?.search ?? '';
+  const dest = qs ? `${rawUrl}${qs}` : rawUrl;
   const returnTo =
     dest && dest !== '/' && !dest.startsWith('/account/confirm')
       ? `?return_to=${encodeURIComponent(dest)}`
-      : ''
-  return ctx.response.redirect(`/account/confirm${returnTo}`)
+      : '';
+  return ctx.response.redirect(`/account/confirm${returnTo}`);
 }

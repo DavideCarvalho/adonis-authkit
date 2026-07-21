@@ -1,54 +1,85 @@
-import { test } from '@japa/runner'
-import { password } from '../../src/host/sudo/methods/password.js'
-import { passkey } from '../../src/host/sudo/methods/passkey.js'
+import { test } from '@japa/runner';
+import { passkey } from '../../src/host/sudo/methods/passkey.js';
+import { password } from '../../src/host/sudo/methods/password.js';
 
 function ctxWith(cfg: Record<string, unknown>) {
-  return { accountId: 'acc-1', account: { id: 'acc-1', email: 'u@e.com' }, returnTo: null, cfg, ctx: {} } as any
+  return {
+    accountId: 'acc-1',
+    account: { id: 'acc-1', email: 'u@e.com' },
+    returnTo: null,
+    cfg,
+    ctx: {},
+  } as any;
 }
 
 test.group('sudoMethods.password', () => {
   test('disponível quando a conta tem hash de senha', async ({ assert }) => {
-    const c = ctxWith({ accountStore: { async __getRawRow() { return { password: 'hash' } } } })
-    assert.isTrue(await password().isAvailable(c))
-  })
+    const c = ctxWith({
+      accountStore: {
+        async __getRawRow() {
+          return { password: 'hash' };
+        },
+      },
+    });
+    assert.isTrue(await password().isAvailable(c));
+  });
 
   test('indisponível quando o hash está vazio', async ({ assert }) => {
-    const c = ctxWith({ accountStore: { async __getRawRow() { return { password: '' } } } })
-    assert.isFalse(await password().isAvailable(c))
-  })
+    const c = ctxWith({
+      accountStore: {
+        async __getRawRow() {
+          return { password: '' };
+        },
+      },
+    });
+    assert.isFalse(await password().isAvailable(c));
+  });
 
   // Distinto do caso "não expõe __getRawRow": aqui o store SABE responder e diz
   // que não há linha. Saber que não há senha é diferente de não saber, e só o
   // segundo justifica o fallback conservador.
   test('indisponível quando __getRawRow devolve linha nula', async ({ assert }) => {
-    const c = ctxWith({ accountStore: { async __getRawRow() { return null } } })
-    assert.isFalse(await password().isAvailable(c))
-  })
-
-  test('disponível quando o store não expõe __getRawRow (fallback conservador)', async ({ assert }) => {
-    const c = ctxWith({ accountStore: {} })
-    assert.isTrue(await password().isAvailable(c))
-  })
-
-  test('disponível quando o store expõe __getRawRow e lança (fallback conservador)', async ({ assert }) => {
     const c = ctxWith({
       accountStore: {
         async __getRawRow() {
-          throw new Error('boom')
+          return null;
         },
       },
-    })
-    assert.isTrue(await password().isAvailable(c))
-  })
+    });
+    assert.isFalse(await password().isAvailable(c));
+  });
+
+  test('disponível quando o store não expõe __getRawRow (fallback conservador)', async ({
+    assert,
+  }) => {
+    const c = ctxWith({ accountStore: {} });
+    assert.isTrue(await password().isAvailable(c));
+  });
+
+  test('disponível quando o store expõe __getRawRow e lança (fallback conservador)', async ({
+    assert,
+  }) => {
+    const c = ctxWith({
+      accountStore: {
+        async __getRawRow() {
+          throw new Error('boom');
+        },
+      },
+    });
+    assert.isTrue(await password().isAvailable(c));
+  });
 
   test('descreve um form com o campo password', async ({ assert }) => {
-    const c = ctxWith({ accountStore: {} })
-    const d = await password().describe(c)
-    assert.equal(d.kind, 'form')
-    assert.equal(d.endpoint, '/account/confirm')
-    assert.deepEqual(d.fields?.map((f) => f.name), ['password'])
-  })
-})
+    const c = ctxWith({ accountStore: {} });
+    const d = await password().describe(c);
+    assert.equal(d.kind, 'form');
+    assert.equal(d.endpoint, '/account/confirm');
+    assert.deepEqual(
+      d.fields?.map((f) => f.name),
+      ['password'],
+    );
+  });
+});
 
 test.group('sudoMethods.passkey', () => {
   test('disponível quando há passkey cadastrada', async ({ assert }) => {
@@ -58,9 +89,9 @@ test.group('sudoMethods.passkey', () => {
         generatePasskeyAuthenticationOptions: async () => ({}),
         verifyPasskeyAuthentication: async () => true,
       },
-    })
-    assert.isTrue(await passkey().isAvailable(c))
-  })
+    });
+    assert.isTrue(await passkey().isAvailable(c));
+  });
 
   test('indisponível quando não há passkey cadastrada', async ({ assert }) => {
     const c = ctxWith({
@@ -69,22 +100,22 @@ test.group('sudoMethods.passkey', () => {
         generatePasskeyAuthenticationOptions: async () => ({}),
         verifyPasskeyAuthentication: async () => true,
       },
-    })
-    assert.isFalse(await passkey().isAvailable(c))
-  })
+    });
+    assert.isFalse(await passkey().isAvailable(c));
+  });
 
   test('indisponível quando o store não suporta passkeys', async ({ assert }) => {
-    const c = ctxWith({ accountStore: {} })
-    assert.isFalse(await passkey().isAvailable(c))
-  })
+    const c = ctxWith({ accountStore: {} });
+    assert.isFalse(await passkey().isAvailable(c));
+  });
 
   // 'webauthn', não 'action': o navegador precisa assinar o challenge antes do
   // POST. Com 'action' a tela renderiza um submit direto, o campo `response`
   // vai vazio e o handler recusa sempre — o botão de passkey nunca funciona.
   test('descreve um handshake webauthn na URL legada', async ({ assert }) => {
-    const c = ctxWith({ accountStore: {} })
-    const d = await passkey().describe(c)
-    assert.equal(d.kind, 'webauthn')
-    assert.equal(d.endpoint, '/account/confirm/passkey')
-  })
-})
+    const c = ctxWith({ accountStore: {} });
+    const d = await passkey().describe(c);
+    assert.equal(d.kind, 'webauthn');
+    assert.equal(d.endpoint, '/account/confirm/passkey');
+  });
+});

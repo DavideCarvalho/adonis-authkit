@@ -1,10 +1,10 @@
-import { test } from '@japa/runner'
-import { IgnitorFactory } from '@adonisjs/core/factories'
-import RedisMock from 'ioredis-mock'
-import { defineConfig, adapters } from '../src/define_config.js'
-import { fakeAccountStore } from './bootstrap.js'
+import { IgnitorFactory } from '@adonisjs/core/factories';
+import { test } from '@japa/runner';
+import RedisMock from 'ioredis-mock';
+import { adapters, defineConfig } from '../src/define_config.js';
+import { fakeAccountStore } from './bootstrap.js';
 
-const APP_ROOT = new URL('./fixtures/boot_app/', import.meta.url)
+const APP_ROOT = new URL('./fixtures/boot_app/', import.meta.url);
 
 /**
  * Regression (ITEM 2 — appKey ausente): antes desta mudança, um host sem
@@ -26,7 +26,7 @@ function buildApp(appConfig: Record<string, any>) {
     adapter: adapters.redis({ connection: 'main' }),
     jwks: { source: 'managed', algorithm: 'RS256' },
     accountStore: fakeAccountStore(),
-  })
+  });
 
   const ignitor = new IgnitorFactory()
     .withCoreProviders()
@@ -41,44 +41,48 @@ function buildApp(appConfig: Record<string, any>) {
         },
       },
     })
-    .create(APP_ROOT)
+    .create(APP_ROOT);
 
-  return ignitor.createApp('web')
+  return ignitor.createApp('web');
 }
 
 test.group('provider boot — appKey validation (ITEM 2)', () => {
   test('app real: AuthkitServerProvider#boot() rejeita alto e cedo quando app.appKey está ausente', async ({
     assert,
   }) => {
-    const app = buildApp({})
-    const { default: AuthkitServerProvider } = await import('../providers/authkit_server_provider.js')
+    const app = buildApp({});
+    const { default: AuthkitServerProvider } = await import(
+      '../providers/authkit_server_provider.js'
+    );
 
     // Boot da app REAL (core providers) — popula `app.config` de verdade.
-    await app.init()
-    app.container.singleton('redis' as any, async () => ({ connection: () => new RedisMock() }))
-    await app.boot()
+    await app.init();
+    app.container.singleton('redis' as any, async () => ({ connection: () => new RedisMock() }));
+    await app.boot();
 
     // O provider do authkit não está no `.adonisrc` deste app de teste — instanciamos
     // e chamamos seu ciclo de vida diretamente, exatamente como o AdonisJS faria.
-    const provider = new AuthkitServerProvider(app)
-    provider.register()
+    const provider = new AuthkitServerProvider(app);
+    provider.register();
 
-    await assert.rejects(() => provider.boot(), /APP_KEY ausente.*config\/app\.ts/s)
-  })
+    await assert.rejects(() => provider.boot(), /APP_KEY ausente.*config\/app\.ts/s);
+  });
 
   test('app real: AuthkitServerProvider#boot() sobe normalmente quando app.appKey está presente', async ({
     assert,
   }) => {
-    const app = buildApp({ appKey: 'a'.repeat(32) })
-    const { default: AuthkitServerProvider } = await import('../providers/authkit_server_provider.js')
+    const app = buildApp({ appKey: 'a'.repeat(32) });
+    const { default: AuthkitServerProvider } = await import(
+      '../providers/authkit_server_provider.js'
+    );
 
-    await app.init()
-    app.container.singleton('redis' as any, async () => ({ connection: () => new RedisMock() }))
-    await app.boot()
+    await app.init();
+    app.container.singleton('redis' as any, async () => ({ connection: () => new RedisMock() }));
+    await app.boot();
 
-    const provider = new AuthkitServerProvider(app)
-    provider.register()
+    const provider = new AuthkitServerProvider(app);
+    provider.register();
 
-    await assert.doesNotReject(() => provider.boot())
-  })
-})
+    await assert.doesNotReject(() => provider.boot());
+  });
+});

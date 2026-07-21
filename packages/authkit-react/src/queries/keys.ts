@@ -21,8 +21,7 @@ export const authkitKeys = {
     user: (id: string) => ['authkit', 'admin', 'users', id] as const,
     userSessions: (id: string) => ['authkit', 'admin', 'users', id, 'sessions'] as const,
 
-    sessions: (accountId?: string) =>
-      ['authkit', 'admin', 'sessions', accountId ?? null] as const,
+    sessions: (accountId?: string) => ['authkit', 'admin', 'sessions', accountId ?? null] as const,
 
     clients: () => ['authkit', 'admin', 'clients'] as const,
     client: (id: string) => ['authkit', 'admin', 'clients', id] as const,
@@ -63,4 +62,4 @@ export const authkitKeys = {
     org: (id: string) => ['authkit', 'account', 'orgs', id] as const,
     orgInvitations: () => ['authkit', 'account', 'orgs', 'invitations'] as const,
   },
-} as const
+} as const;

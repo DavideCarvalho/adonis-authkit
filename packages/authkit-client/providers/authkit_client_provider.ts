@@ -1,13 +1,13 @@
-import type { SessionResolver } from "@adonis-agora/authkit-core";
-import { configProvider } from "@adonisjs/core";
-import { RuntimeException } from "@adonisjs/core/exceptions";
-import type { HttpContext } from "@adonisjs/core/http";
-import type { ApplicationService } from "@adonisjs/core/types";
-import { Authenticator } from "../src/authenticator.js";
-import { validateLogoutToken } from "../src/backchannel_logout.js";
-import type { ResolvedClientConfig } from "../src/define_config.js";
-import { exchangeToken, refreshTokens } from "../src/oidc_login.js";
-import type { TokenSet } from "../src/types.js";
+import type { SessionResolver } from '@adonis-agora/authkit-core';
+import { configProvider } from '@adonisjs/core';
+import { RuntimeException } from '@adonisjs/core/exceptions';
+import type { HttpContext } from '@adonisjs/core/http';
+import type { ApplicationService } from '@adonisjs/core/types';
+import { Authenticator } from '../src/authenticator.js';
+import { validateLogoutToken } from '../src/backchannel_logout.js';
+import type { ResolvedClientConfig } from '../src/define_config.js';
+import { exchangeToken, refreshTokens } from '../src/oidc_login.js';
+import type { TokenSet } from '../src/types.js';
 
 /** Margem (ms) antes do `expiresAt` em que o access token é renovado proativamente. */
 const REFRESH_SKEW_MS = 60_000;
@@ -97,11 +97,11 @@ export class AuthkitClientManager {
    */
   async handleBackchannelLogout(ctx: HttpContext): Promise<unknown> {
     const { request, response } = ctx;
-    response.header("Cache-Control", "no-store");
+    response.header('Cache-Control', 'no-store');
 
-    const token = request.input("logout_token") as string | undefined;
-    if (!token || typeof token !== "string") {
-      return response.badRequest({ error: "invalid_request" });
+    const token = request.input('logout_token') as string | undefined;
+    if (!token || typeof token !== 'string') {
+      return response.badRequest({ error: 'invalid_request' });
     }
 
     let validated: { sid?: string; sub?: string };
@@ -111,7 +111,7 @@ export class AuthkitClientManager {
         clientId: this.config.clientId,
       });
     } catch {
-      return response.badRequest({ error: "invalid_request" });
+      return response.badRequest({ error: 'invalid_request' });
     }
 
     // Atualiza o índice local (se configurado) — revoga as sessões mapeadas.
@@ -145,7 +145,7 @@ export class AuthkitClientManager {
     const session = (ctx as any).session;
     const current = session?.get(this.config.sessionKey) as TokenSet | undefined;
     if (!current?.accessToken) {
-      throw new Error("Sem sessão ativa para impersonar a partir dela");
+      throw new Error('Sem sessão ativa para impersonar a partir dela');
     }
     const impersonated = await exchangeToken({
       issuer: this.config.issuer,
@@ -188,9 +188,9 @@ export class AuthkitClientManager {
   }
 }
 
-declare module "@adonisjs/core/types" {
+declare module '@adonisjs/core/types' {
   interface ContainerBindings {
-    "authkit.client": AuthkitClientManager;
+    'authkit.client': AuthkitClientManager;
   }
 }
 
@@ -198,8 +198,8 @@ export default class AuthkitClientProvider {
   constructor(protected app: ApplicationService) {}
 
   register() {
-    this.app.container.singleton("authkit.client", async () => {
-      const value = this.app.config.get("authkit_client");
+    this.app.container.singleton('authkit.client', async () => {
+      const value = this.app.config.get('authkit_client');
       const config = (await configProvider.resolve(this.app, value)) as ResolvedClientConfig | null;
       if (!config) {
         throw new RuntimeException(

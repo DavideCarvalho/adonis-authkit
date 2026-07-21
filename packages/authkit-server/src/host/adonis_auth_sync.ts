@@ -1,6 +1,6 @@
-import type { HttpContext } from '@adonisjs/core/http'
-import type { ResolvedServerConfig } from '../define_config.js'
-import type { AuthAccount } from '../accounts/account_store.js'
+import type { HttpContext } from '@adonisjs/core/http';
+import type { AuthAccount } from '../accounts/account_store.js';
+import type { ResolvedServerConfig } from '../define_config.js';
 
 /**
  * Sincroniza `ctx.auth` (`@adonisjs/auth`) com um login bem-sucedido no console
@@ -23,19 +23,19 @@ import type { AuthAccount } from '../accounts/account_store.js'
 export async function syncAdonisAuthLogin(
   ctx: HttpContext,
   cfg: Pick<ResolvedServerConfig, 'adonisAuth'>,
-  account: AuthAccount
+  account: AuthAccount,
 ): Promise<void> {
-  const guard = cfg.adonisAuth?.guard
-  const auth = (ctx as any).auth
-  if (!guard || !auth) return
+  const guard = cfg.adonisAuth?.guard;
+  const auth = (ctx as any).auth;
+  if (!guard || !auth) return;
   try {
-    await auth.use(guard).login(account)
+    await auth.use(guard).login(account);
   } catch (error) {
     ctx.logger?.warn(
       { err: error, guard },
       'authkit: falha ao sincronizar login com @adonisjs/auth (adonisAuth.guard) — ' +
-        'ctx.auth.user pode não refletir a conta logada; o cookie do authkit segue normal'
-    )
+        'ctx.auth.user pode não refletir a conta logada; o cookie do authkit segue normal',
+    );
   }
 }
 
@@ -45,17 +45,17 @@ export async function syncAdonisAuthLogin(
  */
 export async function syncAdonisAuthLogout(
   ctx: HttpContext,
-  cfg: Pick<ResolvedServerConfig, 'adonisAuth'>
+  cfg: Pick<ResolvedServerConfig, 'adonisAuth'>,
 ): Promise<void> {
-  const guard = cfg.adonisAuth?.guard
-  const auth = (ctx as any).auth
-  if (!guard || !auth) return
+  const guard = cfg.adonisAuth?.guard;
+  const auth = (ctx as any).auth;
+  if (!guard || !auth) return;
   try {
-    await auth.use(guard).logout()
+    await auth.use(guard).logout();
   } catch (error) {
     ctx.logger?.warn(
       { err: error, guard },
-      'authkit: falha ao sincronizar logout com @adonisjs/auth (adonisAuth.guard)'
-    )
+      'authkit: falha ao sincronizar logout com @adonisjs/auth (adonisAuth.guard)',
+    );
   }
 }

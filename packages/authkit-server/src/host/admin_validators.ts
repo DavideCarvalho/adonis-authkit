@@ -1,5 +1,5 @@
-import vine from '@vinejs/vine'
-import type { ClientInput, TokenEndpointAuthMethod } from './admin_clients_service.js'
+import vine from '@vinejs/vine';
+import type { ClientInput, TokenEndpointAuthMethod } from './admin_clients_service.js';
 
 /**
  * Validators VineJS dos recursos administrativos (Admin REST API + console admin).
@@ -37,17 +37,17 @@ import type { ClientInput, TokenEndpointAuthMethod } from './admin_clients_servi
  * protocolo ficam de fora.
  */
 
-const authMethod = vine.enum(['client_secret_basic', 'client_secret_post', 'none'] as const)
+const authMethod = vine.enum(['client_secret_basic', 'client_secret_post', 'none'] as const);
 
 /**
  * Opções de validação de URL (L10): exige protocolo (URI absoluta), restringe a
  * http/https (bloqueia `javascript:`, `ftp:`, etc.) e permite hosts de label única
  * (`require_tld:false`) p/ não rejeitar `localhost` ou hostnames internos legítimos.
  */
-const URL_OPTS = { require_protocol: true, require_tld: false, protocols: ['http', 'https'] }
+const URL_OPTS = { require_protocol: true, require_tld: false, protocols: ['http', 'https'] };
 
 /** Array de URIs ABSOLUTAS http/https. Rejeita strings que não são URL válida. */
-const urlArray = vine.array(vine.string().trim().url(URL_OPTS))
+const urlArray = vine.array(vine.string().trim().url(URL_OPTS));
 
 /**
  * Allowlist de grant_types aceitos no registro/edição de client (M10). Bloqueia
@@ -60,8 +60,8 @@ const ALLOWED_GRANT_TYPES = [
   'refresh_token',
   'client_credentials',
   'urn:ietf:params:oauth:grant-type:token-exchange',
-] as const
-const grantTypeArray = vine.array(vine.enum(ALLOWED_GRANT_TYPES))
+] as const;
+const grantTypeArray = vine.array(vine.enum(ALLOWED_GRANT_TYPES));
 // NOTA: `response_types` NÃO é input de client nesta lib — é derivado por
 // `AdminClientsService.create` (`['code']` quando há authorization_code, senão
 // `[]`). Logo já está restrito a `code` sem precisar de validator (M10 ✓).
@@ -89,20 +89,20 @@ export const clientInputValidator = vine.compile(
     // backchannel_logout_uri também precisa ser URI absoluta (L10).
     backchannelLogoutUri: vine.string().trim().url(URL_OPTS).optional(),
     backchannelLogoutSessionRequired: vine.boolean().optional(),
-  })
-)
+  }),
+);
 
 /** Forma validada de um client (saída do {@link clientInputValidator}). */
 export type ClientInputFields = {
-  clientId?: string
-  redirectUris?: string[]
-  postLogoutRedirectUris?: string[]
-  grantTypes?: string[]
-  grants?: string[]
-  tokenEndpointAuthMethod?: TokenEndpointAuthMethod
-  backchannelLogoutUri?: string
-  backchannelLogoutSessionRequired?: boolean
-}
+  clientId?: string;
+  redirectUris?: string[];
+  postLogoutRedirectUris?: string[];
+  grantTypes?: string[];
+  grants?: string[];
+  tokenEndpointAuthMethod?: TokenEndpointAuthMethod;
+  backchannelLogoutUri?: string;
+  backchannelLogoutSessionRequired?: boolean;
+};
 
 /** Mapeia o input validado para um {@link ClientInput} COMPLETO (create), com defaults. */
 export function clientCreateInput(v: ClientInputFields): ClientInput {
@@ -114,7 +114,7 @@ export function clientCreateInput(v: ClientInputFields): ClientInput {
     tokenEndpointAuthMethod: v.tokenEndpointAuthMethod ?? 'client_secret_basic',
     backchannelLogoutUri: v.backchannelLogoutUri || undefined,
     backchannelLogoutSessionRequired: v.backchannelLogoutSessionRequired,
-  }
+  };
 }
 
 /**
@@ -122,16 +122,18 @@ export function clientCreateInput(v: ClientInputFields): ClientInput {
  * os campos presentes; o `AdminClientsService.update` preserva o resto via merge.
  */
 export function clientPartialInput(v: ClientInputFields): Partial<ClientInput> {
-  const out: Partial<ClientInput> = {}
-  if (v.redirectUris !== undefined) out.redirectUris = v.redirectUris
-  if (v.postLogoutRedirectUris !== undefined) out.postLogoutRedirectUris = v.postLogoutRedirectUris
-  const grants = v.grantTypes ?? v.grants
-  if (grants !== undefined) out.grantTypes = grants
-  if (v.tokenEndpointAuthMethod !== undefined) out.tokenEndpointAuthMethod = v.tokenEndpointAuthMethod
-  if (v.backchannelLogoutUri !== undefined) out.backchannelLogoutUri = v.backchannelLogoutUri.trim() || undefined
+  const out: Partial<ClientInput> = {};
+  if (v.redirectUris !== undefined) out.redirectUris = v.redirectUris;
+  if (v.postLogoutRedirectUris !== undefined) out.postLogoutRedirectUris = v.postLogoutRedirectUris;
+  const grants = v.grantTypes ?? v.grants;
+  if (grants !== undefined) out.grantTypes = grants;
+  if (v.tokenEndpointAuthMethod !== undefined)
+    out.tokenEndpointAuthMethod = v.tokenEndpointAuthMethod;
+  if (v.backchannelLogoutUri !== undefined)
+    out.backchannelLogoutUri = v.backchannelLogoutUri.trim() || undefined;
   if (v.backchannelLogoutSessionRequired !== undefined)
-    out.backchannelLogoutSessionRequired = v.backchannelLogoutSessionRequired
-  return out
+    out.backchannelLogoutSessionRequired = v.backchannelLogoutSessionRequired;
+  return out;
 }
 
 // ─── Usuários ───────────────────────────────────────────────────────────────
@@ -149,8 +151,8 @@ export const adminUserCreateValidator = vine.compile(
     name: vine.string().trim().maxLength(255).optional(),
     password: vine.string().maxLength(255).optional(),
     invite: vine.boolean().optional(),
-  })
-)
+  }),
+);
 
 /** Atualização de usuário (PATCH): roles globais e/ou perfil. Tudo opcional. */
 export const adminUserUpdateValidator = vine.compile(
@@ -158,15 +160,15 @@ export const adminUserUpdateValidator = vine.compile(
     globalRoles: vine.array(vine.string().trim()).optional(),
     name: vine.string().trim().maxLength(255).nullable().optional(),
     avatarUrl: vine.string().trim().maxLength(2048).nullable().optional(),
-  })
-)
+  }),
+);
 
 /** Substituição de roles globais no console (PATCH /users/:id/roles). */
 export const adminUserRolesValidator = vine.compile(
   vine.object({
     roles: vine.array(vine.string().trim()).optional(),
-  })
-)
+  }),
+);
 
 // ─── Organizações ─────────────────────────────────────────────────────────────
 
@@ -177,39 +179,39 @@ export const orgCreateValidator = vine.compile(
     slug: vine.string().trim().minLength(1).maxLength(255),
     ownerAccountId: vine.string().trim().minLength(1),
     logoUrl: vine.string().trim().nullable().optional(),
-  })
-)
+  }),
+);
 
 /** Atualização de org (PATCH): nome e/ou logo, ambos opcionais. */
 export const orgUpdateValidator = vine.compile(
   vine.object({
     name: vine.string().trim().minLength(1).maxLength(255).optional(),
     logoUrl: vine.string().trim().nullable().optional(),
-  })
-)
+  }),
+);
 
 /** Adição de membro: accountId obrigatório; role opcional (default `member`). */
 export const orgAddMemberValidator = vine.compile(
   vine.object({
     accountId: vine.string().trim().minLength(1),
     role: vine.string().trim().minLength(1).optional(),
-  })
-)
+  }),
+);
 
 /** Troca de papel de membro: role obrigatório. */
 export const orgMemberRoleValidator = vine.compile(
   vine.object({
     role: vine.string().trim().minLength(1),
-  })
-)
+  }),
+);
 
 /** Criação de convite: e-mail obrigatório e validado; role opcional (default `member`). */
 export const orgInvitationValidator = vine.compile(
   vine.object({
     email: vine.string().trim().email(),
     role: vine.string().trim().minLength(1).optional(),
-  })
-)
+  }),
+);
 
 // ─── Catálogo de roles ──────────────────────────────────────────────────────
 
@@ -222,15 +224,15 @@ export const roleCreateValidator = vine.compile(
   vine.object({
     name: vine.string().trim().minLength(1),
     description: vine.string().trim().optional(),
-  })
-)
+  }),
+);
 
 /** Edição de role (PATCH): só `description` (o `name` vem da rota). */
 export const roleUpdateValidator = vine.compile(
   vine.object({
     description: vine.string().trim().optional(),
-  })
-)
+  }),
+);
 
 // ─── Introspecção de token ──────────────────────────────────────────────────
 
@@ -238,8 +240,8 @@ export const roleUpdateValidator = vine.compile(
 export const tokenVerifyValidator = vine.compile(
   vine.object({
     token: vine.string().trim().minLength(1),
-  })
-)
+  }),
+);
 
 // ─── Sessões ──────────────────────────────────────────────────────────────────
 
@@ -253,5 +255,5 @@ export const tokenVerifyValidator = vine.compile(
 export const sessionAccountValidator = vine.compile(
   vine.object({
     accountId: vine.string().trim().minLength(1),
-  })
-)
+  }),
+);

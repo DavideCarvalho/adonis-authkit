@@ -10,31 +10,31 @@
  * views mudam, e assim o pacote funciona tanto a partir de `src/` (dev)
  * quanto de `build/` (publicado) sem passo extra.
  */
-import { execFileSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
-const root = new URL('..', import.meta.url).pathname
-const tmp = mkdtempSync(join(tmpdir(), 'authkit-css-'))
+const root = new URL('..', import.meta.url).pathname;
+const tmp = mkdtempSync(join(tmpdir(), 'authkit-css-'));
 
-const input = join(tmp, 'input.css')
-const config = join(tmp, 'tailwind.config.mjs')
-const output = join(tmp, 'host.css')
+const input = join(tmp, 'input.css');
+const config = join(tmp, 'tailwind.config.mjs');
+const output = join(tmp, 'host.css');
 
-writeFileSync(input, '@tailwind base;\n@tailwind components;\n@tailwind utilities;\n')
+writeFileSync(input, '@tailwind base;\n@tailwind components;\n@tailwind utilities;\n');
 writeFileSync(
   config,
-  `export default { content: [${JSON.stringify(join(root, 'src/host/views/**/*.edge'))}] }\n`
-)
+  `export default { content: [${JSON.stringify(join(root, 'src/host/views/**/*.edge'))}] }\n`,
+);
 
 execFileSync('npx', ['tailwindcss', '-c', config, '-i', input, '-o', output, '--minify'], {
   cwd: root,
   stdio: ['ignore', 'ignore', 'inherit'],
-})
+});
 
-const css = readFileSync(output, 'utf-8')
-rmSync(tmp, { recursive: true, force: true })
+const css = readFileSync(output, 'utf-8');
+rmSync(tmp, { recursive: true, force: true });
 
 /**
  * Edge interpreta `{{ … }}`; CSS minificado nunca deve conter `{{`,
@@ -42,14 +42,14 @@ rmSync(tmp, { recursive: true, force: true })
  * um partial corrompido.
  */
 if (css.includes('{{')) {
-  throw new Error('Generated CSS contains "{{" — would break the Edge partial')
+  throw new Error('Generated CSS contains "{{" — would break the Edge partial');
 }
 
-const partialDir = join(root, 'src/host/views/partials')
-mkdirSync(partialDir, { recursive: true })
+const partialDir = join(root, 'src/host/views/partials');
+mkdirSync(partialDir, { recursive: true });
 writeFileSync(
   join(partialDir, 'styles.edge'),
-  `{{-- Gerado por scripts/build_host_css.mjs — não editar à mão. --}}\n<style>${css}</style>\n`
-)
+  `{{-- Gerado por scripts/build_host_css.mjs — não editar à mão. --}}\n<style>${css}</style>\n`,
+);
 
-console.log(`host css: ${(css.length / 1024).toFixed(1)} KB → src/host/views/partials/styles.edge`)
+console.log(`host css: ${(css.length / 1024).toFixed(1)} KB → src/host/views/partials/styles.edge`);

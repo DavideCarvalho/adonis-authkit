@@ -1,10 +1,10 @@
-import { createElement, useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useKeysQueryOptions, useRotateKeysMutationOptions } from '../queries/admin/index.js'
-import { authkitKeys } from '../queries/keys.js'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { createElement, useState } from 'react';
+import { useKeysQueryOptions, useRotateKeysMutationOptions } from '../queries/admin/index.js';
+import { authkitKeys } from '../queries/keys.js';
 
 export interface KeyRotationProps {
-  className?: string
+  className?: string;
 }
 
 /**
@@ -14,26 +14,26 @@ export interface KeyRotationProps {
  * (o admin console já provê ambos).
  */
 function KeyRotationInner({ className }: KeyRotationProps) {
-  const qc = useQueryClient()
-  const status = useQuery(useKeysQueryOptions())
+  const qc = useQueryClient();
+  const status = useQuery(useKeysQueryOptions());
   const rotate = useMutation({
     ...useRotateKeysMutationOptions(),
     onSuccess: () => qc.invalidateQueries({ queryKey: authkitKeys.admin.keys() }),
-  })
-  const [retire, setRetire] = useState(false)
+  });
+  const [retire, setRetire] = useState(false);
 
   if (status.isLoading && !status.data) {
-    return createElement('div', { className: 'authkit-keys__loading' }, 'Carregando…')
+    return createElement('div', { className: 'authkit-keys__loading' }, 'Carregando…');
   }
   if (status.error) {
     return createElement(
       'p',
       { className: 'authkit-error', role: 'alert' },
-      (status.error as Error).message
-    )
+      (status.error as Error).message,
+    );
   }
-  const data = status.data!
-  const p = data.policy
+  const data = status.data!;
+  const p = data.policy;
 
   return createElement(
     'div',
@@ -48,14 +48,14 @@ function KeyRotationInner({ className }: KeyRotationProps) {
       createElement(
         'dd',
         null,
-        p.enabled ? `a cada ${p.maxAgeDays}d (mantém ${p.keep})` : 'desligada'
+        p.enabled ? `a cada ${p.maxAgeDays}d (mantém ${p.keep})` : 'desligada',
       ),
       createElement('dt', null, 'Próxima rotação'),
       createElement(
         'dd',
         null,
-        data.nextRotationInDays === null ? '—' : `em ~${data.nextRotationInDays} dia(s)`
-      )
+        data.nextRotationInDays === null ? '—' : `em ~${data.nextRotationInDays} dia(s)`,
+      ),
     ),
     createElement(
       'label',
@@ -65,13 +65,13 @@ function KeyRotationInner({ className }: KeyRotationProps) {
         checked: retire,
         onChange: (e: React.ChangeEvent<HTMLInputElement>) => setRetire(e.target.checked),
       }),
-      ' Aposentar as chaves antigas de imediato'
+      ' Aposentar as chaves antigas de imediato',
     ),
     rotate.error
       ? createElement(
           'p',
           { className: 'authkit-error', role: 'alert' },
-          (rotate.error as Error).message
+          (rotate.error as Error).message,
         )
       : null,
     createElement(
@@ -82,11 +82,11 @@ function KeyRotationInner({ className }: KeyRotationProps) {
         disabled: rotate.isPending,
         onClick: () => rotate.mutate(retire ? { retire: true } : undefined),
       },
-      rotate.isPending ? 'Rotacionando…' : 'Rotacionar agora'
-    )
-  )
+      rotate.isPending ? 'Rotacionando…' : 'Rotacionar agora',
+    ),
+  );
 }
 
 export function KeyRotation(props: Parameters<typeof KeyRotationInner>[0]) {
-  return createElement(KeyRotationInner, props)
+  return createElement(KeyRotationInner, props);
 }

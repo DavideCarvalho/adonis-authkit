@@ -12,10 +12,10 @@
  * (ex.: "São Paulo, BR"). Recebe o IP e devolve a string OU `null` quando não
  * resolve. Pode ser síncrono ou assíncrono.
  */
-export type ResolveGeo = (ip: string) => Promise<string | null> | (string | null)
+export type ResolveGeo = (ip: string) => Promise<string | null> | (string | null);
 
 /** Timeout default (ms) da resolução de geo — curto para não atrasar listagens. */
-export const GEO_RESOLVE_TIMEOUT_MS = 1500
+export const GEO_RESOLVE_TIMEOUT_MS = 1500;
 
 /**
  * Aplica o `resolveGeo` do host a um IP de forma defensiva: sem hook, sem IP, ou
@@ -25,30 +25,30 @@ export const GEO_RESOLVE_TIMEOUT_MS = 1500
 export async function resolveGeoSafe(
   resolveGeo: ResolveGeo | undefined,
   ip: string | null | undefined,
-  timeoutMs: number = GEO_RESOLVE_TIMEOUT_MS
+  timeoutMs: number = GEO_RESOLVE_TIMEOUT_MS,
 ): Promise<string | null> {
-  if (!resolveGeo || !ip) return null
+  if (!resolveGeo || !ip) return null;
   try {
-    const result = await withTimeout(Promise.resolve(resolveGeo(ip)), timeoutMs)
-    return typeof result === 'string' && result.length > 0 ? result : null
+    const result = await withTimeout(Promise.resolve(resolveGeo(ip)), timeoutMs);
+    return typeof result === 'string' && result.length > 0 ? result : null;
   } catch {
-    return null
+    return null;
   }
 }
 
 /** Rejeita após `ms` se a promise não resolver antes (limpa o timer ao fim). */
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('geo resolve timeout')), ms)
+    const timer = setTimeout(() => reject(new Error('geo resolve timeout')), ms);
     promise.then(
       (value) => {
-        clearTimeout(timer)
-        resolve(value)
+        clearTimeout(timer);
+        resolve(value);
       },
       (error) => {
-        clearTimeout(timer)
-        reject(error)
-      }
-    )
-  })
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
 }

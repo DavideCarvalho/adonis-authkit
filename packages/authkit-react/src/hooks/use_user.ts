@@ -1,9 +1,9 @@
-import { useAuth } from '../use_auth.js'
-import type { AuthUser } from '../types.js'
+import type { AuthUser } from '../types.js';
+import { useAuth } from '../use_auth.js';
 
 export interface UseUserResult {
-  user: AuthUser | null
-  isAuthenticated: boolean
+  user: AuthUser | null;
+  isAuthenticated: boolean;
 }
 
 /**
@@ -11,6 +11,6 @@ export interface UseUserResult {
  * `user` é `null` quando não autenticado.
  */
 export function useUser(): UseUserResult {
-  const { user, isAuthenticated } = useAuth()
-  return { user, isAuthenticated }
+  const { user, isAuthenticated } = useAuth();
+  return { user, isAuthenticated };
 }

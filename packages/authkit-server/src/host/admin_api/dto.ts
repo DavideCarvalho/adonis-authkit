@@ -1,9 +1,9 @@
-import type { AuthAccount } from '../../accounts/account_store.js'
-import type { OrgSummary, OrgMember, OrgInvitation } from '../../accounts/account_store.js'
-import type { OrgDetail } from './admin_orgs_service.js'
-import type { AdminClient, CreatedClient } from '../admin_clients_service.js'
-import type { AdminSession, AdminGrant } from '../admin_sessions_service.js'
-import type { StoredAuditEvent } from '../../audit/audit_sink.js'
+import type { AuthAccount } from '../../accounts/account_store.js';
+import type { OrgInvitation, OrgMember, OrgSummary } from '../../accounts/account_store.js';
+import type { StoredAuditEvent } from '../../audit/audit_sink.js';
+import type { AdminClient, CreatedClient } from '../admin_clients_service.js';
+import type { AdminGrant, AdminSession } from '../admin_sessions_service.js';
+import type { OrgDetail } from './admin_orgs_service.js';
 
 /** Projeta uma conta para a forma JSON (camelCase) da Admin REST API. */
 export function userDto(account: AuthAccount, disabled = false) {
@@ -14,7 +14,7 @@ export function userDto(account: AuthAccount, disabled = false) {
     avatarUrl: account.avatarUrl ?? null,
     globalRoles: account.globalRoles ?? [],
     disabled,
-  }
+  };
 }
 
 export function clientDto(client: AdminClient) {
@@ -27,7 +27,7 @@ export function clientDto(client: AdminClient) {
     tokenEndpointAuthMethod: client.tokenEndpointAuthMethod,
     backchannelLogoutUri: client.backchannelLogoutUri ?? null,
     backchannelLogoutSessionRequired: client.backchannelLogoutSessionRequired ?? false,
-  }
+  };
 }
 
 /** Inclui o secret (mostrado UMA vez) em create/regenerate. */
@@ -35,7 +35,7 @@ export function createdClientDto(created: CreatedClient) {
   return {
     clientId: created.clientId,
     clientSecret: created.clientSecret ?? null,
-  }
+  };
 }
 
 export function sessionDto(session: AdminSession) {
@@ -50,7 +50,7 @@ export function sessionDto(session: AdminSession) {
     os: session.os ?? null,
     ip: session.ip ?? null,
     location: session.location ?? null,
-  }
+  };
 }
 
 export function grantDto(grant: AdminGrant) {
@@ -60,7 +60,7 @@ export function grantDto(grant: AdminGrant) {
     clientId: grant.clientId ?? null,
     accessTokens: grant.accessTokens,
     refreshTokens: grant.refreshTokens,
-  }
+  };
 }
 
 export function auditDto(event: StoredAuditEvent) {
@@ -74,7 +74,7 @@ export function auditDto(event: StoredAuditEvent) {
     ip: event.ip ?? null,
     metadata: event.metadata ?? null,
     createdAt: event.createdAt instanceof Date ? event.createdAt.toISOString() : event.createdAt,
-  }
+  };
 }
 
 export function orgDto(org: OrgSummary & { memberCount?: number }) {
@@ -86,7 +86,7 @@ export function orgDto(org: OrgSummary & { memberCount?: number }) {
     metadata: org.metadata ?? null,
     createdAt: org.createdAt,
     ...(org.memberCount !== undefined ? { memberCount: org.memberCount } : {}),
-  }
+  };
 }
 
 export function orgMemberDto(member: OrgMember) {
@@ -95,7 +95,7 @@ export function orgMemberDto(member: OrgMember) {
     email: member.email ?? null,
     role: member.role,
     joinedAt: member.joinedAt,
-  }
+  };
 }
 
 export function orgInvitationDto(inv: OrgInvitation) {
@@ -108,7 +108,7 @@ export function orgInvitationDto(inv: OrgInvitation) {
     expiresAt: inv.expiresAt,
     acceptedAt: inv.acceptedAt ?? null,
     createdAt: inv.createdAt,
-  }
+  };
 }
 
 export function orgDetailDto(detail: OrgDetail) {
@@ -116,27 +116,28 @@ export function orgDetailDto(detail: OrgDetail) {
     ...orgDto(detail),
     members: detail.members.map(orgMemberDto),
     pendingInvitations: detail.pendingInvitations.map(orgInvitationDto),
-  }
+  };
 }
 
 /** Envelope de erro padrão da Admin REST API. */
 export function apiError(code: string, message: string, details?: Record<string, unknown>) {
-  return { error: { code, message, ...(details ? { details } : {}) } }
+  return { error: { code, message, ...(details ? { details } : {}) } };
 }
 
-import type { SettingRow } from '../runtime_settings.js'
-import { isSettingLocked } from '../config_locks.js'
+import { isSettingLocked } from '../config_locks.js';
+import type { SettingRow } from '../runtime_settings.js';
 
 export function settingDto(row: SettingRow) {
-  const locked = isSettingLocked(row.key)
+  const locked = isSettingLocked(row.key);
   return {
     key: row.key,
     organizationId: row.organizationId ?? null,
     value: row.value,
-    updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : (row.updatedAt ?? null),
+    updatedAt:
+      row.updatedAt instanceof Date ? row.updatedAt.toISOString() : (row.updatedAt ?? null),
     updatedBy: row.updatedBy ?? null,
     /** Travada via defineConfig → UI deve desabilitar a edição e mostrar aviso. */
     locked,
     ...(locked ? { lockedBy: 'config' as const } : {}),
-  }
+  };
 }

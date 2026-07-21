@@ -1,10 +1,7 @@
-import { createHash, randomBytes } from "node:crypto";
-import { base64url } from "jose";
-import type { TokenSet } from "./types.js";
-import {
-  resilientFetch,
-  type ResiliencePolicy,
-} from "./http/resilient_fetch.js";
+import { createHash, randomBytes } from 'node:crypto';
+import { base64url } from 'jose';
+import { type ResiliencePolicy, resilientFetch } from './http/resilient_fetch.js';
+import type { TokenSet } from './types.js';
 
 /**
  * Gera um par PKCE (code_verifier + code_challenge) usando o método S256.
@@ -16,10 +13,8 @@ import {
  */
 export async function generatePkce() {
   const verifier = base64url.encode(randomBytes(32));
-  const challenge = base64url.encode(
-    createHash("sha256").update(verifier).digest(),
-  );
-  return { verifier, challenge, method: "S256" as const };
+  const challenge = base64url.encode(createHash('sha256').update(verifier).digest());
+  return { verifier, challenge, method: 'S256' as const };
 }
 
 export interface AuthorizeParams {
@@ -44,17 +39,16 @@ export interface AuthorizeParams {
 
 export function buildAuthorizeUrl(p: AuthorizeParams): string {
   const url = new URL(p.authorizationEndpoint ?? `${p.issuer}/auth`);
-  url.searchParams.set("client_id", p.clientId);
-  url.searchParams.set("response_type", "code");
-  url.searchParams.set("redirect_uri", p.redirectUri);
-  url.searchParams.set("scope", p.scopes.join(" "));
-  url.searchParams.set("state", p.state);
-  url.searchParams.set("code_challenge", p.codeChallenge);
-  url.searchParams.set("code_challenge_method", "S256");
+  url.searchParams.set('client_id', p.clientId);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('redirect_uri', p.redirectUri);
+  url.searchParams.set('scope', p.scopes.join(' '));
+  url.searchParams.set('state', p.state);
+  url.searchParams.set('code_challenge', p.codeChallenge);
+  url.searchParams.set('code_challenge_method', 'S256');
   if (p.extraParams) {
     for (const [key, value] of Object.entries(p.extraParams)) {
-      if (value !== undefined && value !== null)
-        url.searchParams.set(key, String(value));
+      if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
     }
   }
   return url.toString();
@@ -87,12 +81,12 @@ export interface EndSessionParams {
  */
 export function buildEndSessionUrl(p: EndSessionParams): string {
   const url = new URL(p.endSessionEndpoint ?? `${p.issuer}/session/end`);
-  if (p.idToken) url.searchParams.set("id_token_hint", p.idToken);
+  if (p.idToken) url.searchParams.set('id_token_hint', p.idToken);
   if (p.postLogoutRedirectUri) {
-    url.searchParams.set("post_logout_redirect_uri", p.postLogoutRedirectUri);
+    url.searchParams.set('post_logout_redirect_uri', p.postLogoutRedirectUri);
   }
-  if (p.clientId) url.searchParams.set("client_id", p.clientId);
-  if (p.state) url.searchParams.set("state", p.state);
+  if (p.clientId) url.searchParams.set('client_id', p.clientId);
+  if (p.state) url.searchParams.set('state', p.state);
   return url.toString();
 }
 
@@ -119,8 +113,8 @@ async function tokenEndpoint(
   const res = await resilientFetch(
     endpoint ?? `${issuer}/token`,
     {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: body.toString(),
     },
     resilience,
@@ -130,12 +124,10 @@ async function tokenEndpoint(
 
   const json = (await res.json()) as TokenEndpointResponse;
   return {
-    idToken: json.id_token ?? "",
+    idToken: json.id_token ?? '',
     accessToken: json.access_token,
     refreshToken: json.refresh_token,
-    expiresAt: json.expires_in
-      ? Date.now() + json.expires_in * 1000
-      : undefined,
+    expiresAt: json.expires_in ? Date.now() + json.expires_in * 1000 : undefined,
   };
 }
 
@@ -155,21 +147,15 @@ export interface ExchangeParams {
 
 export async function exchangeCode(p: ExchangeParams): Promise<TokenSet> {
   const body = new URLSearchParams({
-    grant_type: "authorization_code",
+    grant_type: 'authorization_code',
     code: p.code,
     redirect_uri: p.redirectUri,
     client_id: p.clientId,
     code_verifier: p.codeVerifier,
   });
-  if (p.clientSecret) body.set("client_secret", p.clientSecret);
+  if (p.clientSecret) body.set('client_secret', p.clientSecret);
 
-  return tokenEndpoint(
-    p.issuer,
-    body,
-    p.fetchImpl,
-    p.tokenEndpoint,
-    p.resilience,
-  );
+  return tokenEndpoint(p.issuer, body, p.fetchImpl, p.tokenEndpoint, p.resilience);
 }
 
 export interface RefreshParams {
@@ -196,20 +182,14 @@ export interface RefreshParams {
  */
 export async function refreshTokens(p: RefreshParams): Promise<TokenSet> {
   const body = new URLSearchParams({
-    grant_type: "refresh_token",
+    grant_type: 'refresh_token',
     refresh_token: p.refreshToken,
     client_id: p.clientId,
   });
-  if (p.scope) body.set("scope", p.scope);
-  if (p.clientSecret) body.set("client_secret", p.clientSecret);
+  if (p.scope) body.set('scope', p.scope);
+  if (p.clientSecret) body.set('client_secret', p.clientSecret);
 
-  return tokenEndpoint(
-    p.issuer,
-    body,
-    p.fetchImpl,
-    p.tokenEndpoint,
-    p.resilience,
-  );
+  return tokenEndpoint(p.issuer, body, p.fetchImpl, p.tokenEndpoint, p.resilience);
 }
 
 export interface ExchangeTokenParams {
@@ -231,20 +211,14 @@ export interface ExchangeTokenParams {
 /** Troca o token do ator por um token do usuário-alvo (RFC 8693), p/ impersonation. */
 export async function exchangeToken(p: ExchangeTokenParams): Promise<TokenSet> {
   const body = new URLSearchParams({
-    grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
+    grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
     subject_token: p.subjectToken,
-    subject_token_type: "urn:ietf:params:oauth:token-type:access_token",
+    subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
     requested_subject: p.requestedSubject,
     client_id: p.clientId,
   });
-  if (p.scope) body.set("scope", p.scope);
-  if (p.clientSecret) body.set("client_secret", p.clientSecret);
+  if (p.scope) body.set('scope', p.scope);
+  if (p.clientSecret) body.set('client_secret', p.clientSecret);
 
-  return tokenEndpoint(
-    p.issuer,
-    body,
-    p.fetchImpl,
-    p.tokenEndpoint,
-    p.resilience,
-  );
+  return tokenEndpoint(p.issuer, body, p.fetchImpl, p.tokenEndpoint, p.resilience);
 }

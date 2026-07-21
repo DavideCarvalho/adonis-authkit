@@ -1,20 +1,20 @@
-import { createElement } from 'react'
+import { createElement } from 'react';
 import {
-  usePasswordStrength,
   type PasswordScorer,
   type PasswordStrengthScore,
-} from '../hooks/use_password_strength.js'
+  usePasswordStrength,
+} from '../hooks/use_password_strength.js';
 
 export interface PasswordStrengthMeterProps {
   /** A senha a avaliar. */
-  password: string
+  password: string;
   /** Scorer plugável (default: heurística leve embutida). */
-  scorer?: PasswordScorer
+  scorer?: PasswordScorer;
   /** Mostra a lista de dicas (feedback) abaixo da barra. Default: true. */
-  showFeedback?: boolean
+  showFeedback?: boolean;
   /** Rótulos por score (0..4). Override para i18n. */
-  labels?: [string, string, string, string, string]
-  className?: string
+  labels?: [string, string, string, string, string];
+  className?: string;
 }
 
 const DEFAULT_LABELS: [string, string, string, string, string] = [
@@ -23,7 +23,7 @@ const DEFAULT_LABELS: [string, string, string, string, string] = [
   'Fair',
   'Good',
   'Strong',
-]
+];
 
 /**
  * Medidor visual de força de senha sobre {@link usePasswordStrength}. Estilizado
@@ -37,21 +37,18 @@ export function PasswordStrengthMeter({
   labels = DEFAULT_LABELS,
   className,
 }: PasswordStrengthMeterProps) {
-  const { score, feedback } = usePasswordStrength(password, { scorer })
-  const cls = ['authkit-strength', className].filter(Boolean).join(' ')
+  const { score, feedback } = usePasswordStrength(password, { scorer });
+  const cls = ['authkit-strength', className].filter(Boolean).join(' ');
 
   // Quatro segmentos: preenchidos até `score` (score 0 = nenhum preenchido).
   const segments = [0, 1, 2, 3].map((i) =>
     createElement('span', {
       key: i,
-      className: [
-        'authkit-strength__segment',
-        i < score ? 'authkit-strength__segment--filled' : '',
-      ]
+      className: ['authkit-strength__segment', i < score ? 'authkit-strength__segment--filled' : '']
         .filter(Boolean)
         .join(' '),
-    })
-  )
+    }),
+  );
 
   const children = [
     createElement(
@@ -66,24 +63,24 @@ export function PasswordStrengthMeter({
         'aria-label': labels[score as PasswordStrengthScore],
         'data-score': score,
       },
-      segments
+      segments,
     ),
     createElement(
       'span',
       { key: 'label', className: 'authkit-strength__label' },
-      labels[score as PasswordStrengthScore]
+      labels[score as PasswordStrengthScore],
     ),
-  ]
+  ];
 
   if (showFeedback && feedback && feedback.length > 0) {
     children.push(
       createElement(
         'ul',
         { key: 'feedback', className: 'authkit-strength__feedback' },
-        feedback.map((tip, i) => createElement('li', { key: i }, tip))
-      )
-    )
+        feedback.map((tip, i) => createElement('li', { key: i }, tip)),
+      ),
+    );
   }
 
-  return createElement('div', { className: cls }, children)
+  return createElement('div', { className: cls }, children);
 }

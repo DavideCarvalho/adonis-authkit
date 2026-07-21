@@ -1,4 +1,4 @@
-import type { ApplicationService } from '@adonisjs/core/types'
+import type { ApplicationService } from '@adonisjs/core/types';
 
 /**
  * A {@link ApplicationService} BOOTADA, capturada por `AuthkitServerProvider.register()` — que o app
@@ -12,11 +12,11 @@ import type { ApplicationService } from '@adonisjs/core/types'
  * provider recebe é SEMPRE a bootada, então lê-la aqui é imune a splits de cópia / variantes de peer
  * do core — o mesmo hazard de dual-package que já corrigimos no `'lucid.db'`.
  */
-let bootedApp: ApplicationService | undefined
+let bootedApp: ApplicationService | undefined;
 
 /** Registra o app bootado. Chamado uma vez pelo {@link AuthkitServerProvider} no `register()`. */
 export function setBootedApp(app: ApplicationService): void {
-  bootedApp = app
+  bootedApp = app;
 }
 
 /**
@@ -26,8 +26,8 @@ export function setBootedApp(app: ApplicationService): void {
 export function getBootedApp(): ApplicationService {
   if (!bootedApp) {
     throw new Error(
-      '@adonis-agora/authkit-server: app acessado antes de AuthkitServerProvider registrar. Adicione "@adonis-agora/authkit-server/authkit_server_provider" aos providers do adonisrc.ts.'
-    )
+      '@adonis-agora/authkit-server: app acessado antes de AuthkitServerProvider registrar. Adicione "@adonis-agora/authkit-server/authkit_server_provider" aos providers do adonisrc.ts.',
+    );
   }
-  return bootedApp
+  return bootedApp;
 }

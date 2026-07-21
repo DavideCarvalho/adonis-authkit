@@ -1,10 +1,10 @@
-import '../augmentations.js'
-import type { HttpContext } from '@adonisjs/core/http'
-import { AdminSessionsService } from '../admin_sessions_service.js'
-import { enrichSessionsWithContext } from '../session_context.js'
-import { sessionDto, grantDto, apiError } from '../admin_api/dto.js'
-import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
-import { sessionAccountValidator } from '../admin_validators.js'
+import '../augmentations.js';
+import type { HttpContext } from '@adonisjs/core/http';
+import { apiError, grantDto, sessionDto } from '../admin_api/dto.js';
+import { AdminSessionsService } from '../admin_sessions_service.js';
+import { sessionAccountValidator } from '../admin_validators.js';
+import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js';
+import { enrichSessionsWithContext } from '../session_context.js';
 
 /**
  * Endpoints JSON de sessões/grants do console admin React.
@@ -20,76 +20,76 @@ export default class ConsoleSessionsController {
    * Retorna o shape UserSessionsResult: { supported, truncated, sessions, grants }.
    */
   private async listForAccount(ctx: HttpContext, accountId: string) {
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const adminSvc = new AdminSessionsService(service)
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const adminSvc = new AdminSessionsService(service);
 
     if (!adminSvc.canList) {
-      return { supported: false, sessions: [], grants: [] }
+      return { supported: false, sessions: [], grants: [] };
     }
 
-    const account = await cfg.accountStore.findById(accountId)
-    if (!account) return ctx.response.notFound(apiError('not_found', 'Usuário não encontrado.'))
+    const account = await cfg.accountStore.findById(accountId);
+    if (!account) return ctx.response.notFound(apiError('not_found', 'Usuário não encontrado.'));
 
-    const rawSessions = await adminSvc.listSessions(accountId)
-    const enriched = await enrichSessionsWithContext(cfg, accountId, rawSessions)
-    const grants = await adminSvc.listGrants(accountId)
+    const rawSessions = await adminSvc.listSessions(accountId);
+    const enriched = await enrichSessionsWithContext(cfg, accountId, rawSessions);
+    const grants = await adminSvc.listGrants(accountId);
 
     return {
       supported: true,
       truncated: false,
       sessions: enriched.map(sessionDto),
       grants: grants.map(grantDto),
-    }
+    };
   }
 
   /** GET {prefix}/api/sessions?accountId= */
   async index(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make('authkit.server')
-    const accountId = (ctx.request.input('accountId', '') as string).trim()
-    const adminSvc = new AdminSessionsService(service)
+    const service = await ctx.containerResolver.make('authkit.server');
+    const accountId = (ctx.request.input('accountId', '') as string).trim();
+    const adminSvc = new AdminSessionsService(service);
 
     if (!adminSvc.canList) {
-      return { supported: false, sessions: [], grants: [] }
+      return { supported: false, sessions: [], grants: [] };
     }
 
     // Sem accountId → listagem global de todas as sessões ativas
     if (!accountId) {
-      const { sessions: rawSessions, truncated } = await adminSvc.listAllSessions()
+      const { sessions: rawSessions, truncated } = await adminSvc.listAllSessions();
       return {
         supported: true,
         truncated,
         sessions: rawSessions.map(sessionDto),
         grants: [],
-      }
+      };
     }
 
     // Com accountId → delega ao helper por-conta
-    return this.listForAccount(ctx, accountId)
+    return this.listForAccount(ctx, accountId);
   }
 
   /** GET {prefix}/api/users/:id/sessions */
   async userSessions(ctx: HttpContext) {
-    const accountId = (ctx.params.id as string).trim()
+    const accountId = (ctx.params.id as string).trim();
     if (!accountId) {
-      return ctx.response.badRequest(apiError('invalid_request', 'O parâmetro id é obrigatório.'))
+      return ctx.response.badRequest(apiError('invalid_request', 'O parâmetro id é obrigatório.'));
     }
-    return this.listForAccount(ctx, accountId)
+    return this.listForAccount(ctx, accountId);
   }
 
   /** POST {prefix}/api/users/:id/revoke-sessions */
   async userRevokeSessions(ctx: HttpContext) {
-    const accountId = (ctx.params.id as string).trim()
+    const accountId = (ctx.params.id as string).trim();
     if (!accountId) {
-      return ctx.response.badRequest(apiError('invalid_request', 'O parâmetro id é obrigatório.'))
+      return ctx.response.badRequest(apiError('invalid_request', 'O parâmetro id é obrigatório.'));
     }
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const actorId = (ctx.session?.get(ACCOUNT_SESSION_KEY) as string) ?? null
-    const ip = ctx.request.ip?.() ?? null
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const actorId = (ctx.session?.get(ACCOUNT_SESSION_KEY) as string) ?? null;
+    const ip = ctx.request.ip?.() ?? null;
 
-    const sessions = new AdminSessionsService(service)
-    const result = await sessions.revokeAll(accountId)
+    const sessions = new AdminSessionsService(service);
+    const result = await sessions.revokeAll(accountId);
 
     await cfg.audit?.record({
       type: 'session.revoked_all',
@@ -103,17 +103,17 @@ export default class ConsoleSessionsController {
         refreshTokens: result.refreshTokens,
         source: 'admin-console',
       },
-    })
+    });
 
-    return { ok: true, ...result }
+    return { ok: true, ...result };
   }
 
   /** POST {prefix}/api/sessions/revoke-all?accountId= */
   async revokeAll(ctx: HttpContext) {
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const actorId = (ctx.session?.get(ACCOUNT_SESSION_KEY) as string) ?? null
-    const ip = ctx.request.ip?.() ?? null
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const actorId = (ctx.session?.get(ACCOUNT_SESSION_KEY) as string) ?? null;
+    const ip = ctx.request.ip?.() ?? null;
 
     // accountId pode vir por query/body OU route param — Vine valida o valor já
     // coalescido (validate() aceita qualquer dado, não só request.all()).
@@ -121,10 +121,10 @@ export default class ConsoleSessionsController {
       accountId:
         (ctx.request.input('accountId') as string | undefined) ??
         (ctx.request.param('accountId') as string | undefined),
-    })
+    });
 
-    const sessions = new AdminSessionsService(service)
-    const result = await sessions.revokeAll(accountId)
+    const sessions = new AdminSessionsService(service);
+    const result = await sessions.revokeAll(accountId);
 
     await cfg.audit?.record({
       type: 'session.revoked_all',
@@ -138,8 +138,8 @@ export default class ConsoleSessionsController {
         refreshTokens: result.refreshTokens,
         source: 'admin-console',
       },
-    })
+    });
 
-    return { ok: true, ...result }
+    return { ok: true, ...result };
   }
 }

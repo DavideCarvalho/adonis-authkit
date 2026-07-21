@@ -9,23 +9,21 @@
  *   5. setting off não injeta autofill (passkeyAutofill=false resolve)
  */
 
-import { test } from '@japa/runner'
-import { resolveEffectiveAuthMethods } from '../../src/host/runtime_toggles.js'
-import type { SettingsCapability } from '../../src/host/runtime_settings.js'
+import { test } from '@japa/runner';
+import type { SettingsCapability } from '../../src/host/runtime_settings.js';
+import { resolveEffectiveAuthMethods } from '../../src/host/runtime_toggles.js';
 
 // ---------------------------------------------------------------------------
 // Stubs
 // ---------------------------------------------------------------------------
 
-function makeSettings(
-  value: Record<string, unknown> | null
-): SettingsCapability {
+function makeSettings(value: Record<string, unknown> | null): SettingsCapability {
   return {
     getSetting: async () => value,
     setSetting: async () => {},
     deleteSetting: async () => {},
     listSettings: async () => [],
-  }
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -33,57 +31,70 @@ function makeSettings(
 // ---------------------------------------------------------------------------
 
 test.group('passkeyAutofill — resolveEffectiveAuthMethods', () => {
-  test('passkeyAutofill defaults to true when passkey capable and no setting', async ({ assert }) => {
-    const settings = makeSettings(null)
+  test('passkeyAutofill defaults to true when passkey capable and no setting', async ({
+    assert,
+  }) => {
+    const settings = makeSettings(null);
     const result = await resolveEffectiveAuthMethods(settings, {
       passkeyCapable: true,
       magicLinkCapable: false,
       configuredSocialProviders: [],
-    })
-    assert.isTrue(result.passkeyAutofill, 'passkeyAutofill deve ser true por padrão quando passkey=true')
-  })
+    });
+    assert.isTrue(
+      result.passkeyAutofill,
+      'passkeyAutofill deve ser true por padrão quando passkey=true',
+    );
+  });
 
   test('passkeyAutofill defaults to false when passkey NOT capable', async ({ assert }) => {
-    const settings = makeSettings(null)
+    const settings = makeSettings(null);
     const result = await resolveEffectiveAuthMethods(settings, {
       passkeyCapable: false,
       magicLinkCapable: false,
       configuredSocialProviders: [],
-    })
-    assert.isFalse(result.passkeyAutofill, 'passkeyAutofill deve ser false quando passkey=false')
-  })
+    });
+    assert.isFalse(result.passkeyAutofill, 'passkeyAutofill deve ser false quando passkey=false');
+  });
 
   test('passkeyAutofill can be explicitly disabled via setting', async ({ assert }) => {
-    const settings = makeSettings({ passkey: true, passkeyAutofill: false })
+    const settings = makeSettings({ passkey: true, passkeyAutofill: false });
     const result = await resolveEffectiveAuthMethods(settings, {
       passkeyCapable: true,
       magicLinkCapable: false,
       configuredSocialProviders: [],
-    })
-    assert.isFalse(result.passkeyAutofill, 'passkeyAutofill=false na setting deve desligar o autofill')
-  })
+    });
+    assert.isFalse(
+      result.passkeyAutofill,
+      'passkeyAutofill=false na setting deve desligar o autofill',
+    );
+  });
 
-  test('passkeyAutofill is false when passkey is disabled via setting even if explicitly true', async ({ assert }) => {
+  test('passkeyAutofill is false when passkey is disabled via setting even if explicitly true', async ({
+    assert,
+  }) => {
     // Se passkey está off, autofill nunca faz sentido.
-    const settings = makeSettings({ passkey: false, passkeyAutofill: true })
+    const settings = makeSettings({ passkey: false, passkeyAutofill: true });
     const result = await resolveEffectiveAuthMethods(settings, {
       passkeyCapable: true,
       magicLinkCapable: false,
       configuredSocialProviders: [],
-    })
-    assert.isFalse(result.passkeyAutofill, 'passkeyAutofill deve ser false quando passkey está off')
-  })
+    });
+    assert.isFalse(
+      result.passkeyAutofill,
+      'passkeyAutofill deve ser false quando passkey está off',
+    );
+  });
 
   test('passkeyAutofill=true preserved when passkey is on', async ({ assert }) => {
-    const settings = makeSettings({ passkey: true, passkeyAutofill: true })
+    const settings = makeSettings({ passkey: true, passkeyAutofill: true });
     const result = await resolveEffectiveAuthMethods(settings, {
       passkeyCapable: true,
       magicLinkCapable: false,
       configuredSocialProviders: [],
-    })
-    assert.isTrue(result.passkeyAutofill)
-  })
-})
+    });
+    assert.isTrue(result.passkeyAutofill);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // passkeyOptions discoverable mode — verifica a lógica de sentinel
@@ -95,21 +106,25 @@ test.group('passkeyOptions — discoverable mode', () => {
    * Em produção, o store recebe '__discoverable__' e deve retornar options com
    * allowCredentials:[]. Aqui testamos o comportamento de fallback (sem store real).
    */
-  test('store that returns null for __discoverable__ → passkey options unavailable', async ({ assert }) => {
+  test('store that returns null for __discoverable__ → passkey options unavailable', async ({
+    assert,
+  }) => {
     // Simula um store que NÃO suporta discoverable credentials (retorna null).
     const mockStore = {
       listPasskeys: async () => [],
       generatePasskeyAuthenticationOptions: async (accountId: string) => {
-        if (accountId === '__discoverable__') return null
-        return { options: { challenge: 'xyz' }, challenge: 'xyz' }
+        if (accountId === '__discoverable__') return null;
+        return { options: { challenge: 'xyz' }, challenge: 'xyz' };
       },
-    }
+    };
 
-    const result = await mockStore.generatePasskeyAuthenticationOptions('__discoverable__')
-    assert.isNull(result, 'store que não suporta discoverable deve retornar null')
-  })
+    const result = await mockStore.generatePasskeyAuthenticationOptions('__discoverable__');
+    assert.isNull(result, 'store que não suporta discoverable deve retornar null');
+  });
 
-  test('store that supports discoverable returns options with empty allowCredentials', async ({ assert }) => {
+  test('store that supports discoverable returns options with empty allowCredentials', async ({
+    assert,
+  }) => {
     // Simula um store que suporta discoverable credentials.
     const mockStore = {
       generatePasskeyAuthenticationOptions: async (accountId: string) => {
@@ -121,7 +136,7 @@ test.group('passkeyOptions — discoverable mode', () => {
               userVerification: 'preferred',
             },
             challenge: 'disc-challenge-base64',
-          }
+          };
         }
         return {
           options: {
@@ -129,15 +144,19 @@ test.group('passkeyOptions — discoverable mode', () => {
             allowCredentials: [{ id: 'cred1', type: 'public-key' }],
           },
           challenge: 'normal-challenge',
-        }
+        };
       },
-    }
+    };
 
-    const result = await mockStore.generatePasskeyAuthenticationOptions('__discoverable__')
-    assert.isNotNull(result)
-    assert.deepEqual(result!.options.allowCredentials, [], 'discoverable options deve ter allowCredentials vazio')
-  })
-})
+    const result = await mockStore.generatePasskeyAuthenticationOptions('__discoverable__');
+    assert.isNotNull(result);
+    assert.deepEqual(
+      result!.options.allowCredentials,
+      [],
+      'discoverable options deve ter allowCredentials vazio',
+    );
+  });
+});
 
 // ---------------------------------------------------------------------------
 // usePasskeyAutofill React hook — SSR-safe test (sem DOM)
@@ -151,26 +170,26 @@ test.group('usePasskeyAutofill — SSR-safe', () => {
    */
   test('hook is exported and is a function', async ({ assert }) => {
     // Importa o hook diretamente
-    const mod = await import('../../src/host/runtime_toggles.js')
+    const mod = await import('../../src/host/runtime_toggles.js');
     // O hook vive no pacote react — verificamos apenas que o toggle resolve
     // corretamente (a lógica do hook é testada acima via resolveEffectiveAuthMethods)
-    assert.isFunction(mod.resolveEffectiveAuthMethods)
-  })
+    assert.isFunction(mod.resolveEffectiveAuthMethods);
+  });
 
   test('AbortController: enabled=false should not run the ceremony', async ({ assert }) => {
     // Simula o comportamento do hook com enabled=false:
     // O effect deve retornar cedo sem iniciar a cerimônia.
-    let ceremonyStarted = false
+    let ceremonyStarted = false;
 
     const fakeEffect = (enabled: boolean) => {
-      if (!enabled) return // Early return — nenhuma cerimônia inicia
-      ceremonyStarted = true
-    }
+      if (!enabled) return; // Early return — nenhuma cerimônia inicia
+      ceremonyStarted = true;
+    };
 
-    fakeEffect(false)
-    assert.isFalse(ceremonyStarted, 'com enabled=false, a cerimônia não deve iniciar')
+    fakeEffect(false);
+    assert.isFalse(ceremonyStarted, 'com enabled=false, a cerimônia não deve iniciar');
 
-    fakeEffect(true)
-    assert.isTrue(ceremonyStarted, 'com enabled=true, a cerimônia deve iniciar')
-  })
-})
+    fakeEffect(true);
+    assert.isTrue(ceremonyStarted, 'com enabled=true, a cerimônia deve iniciar');
+  });
+});

@@ -1,16 +1,16 @@
-import type { OidcService } from "../provider/oidc_service.js";
-import type { ResolvedServerConfig } from "../define_config.js";
-import type { AuthAccount } from "../accounts/account_store.js";
+import type { AuthAccount } from '../accounts/account_store.js';
 import {
   supportsAccountDeletion,
   supportsMfa,
   supportsOrganizations,
   supportsPasskeys,
   supportsProviderIdentity,
-} from "../accounts/account_store.js";
-import { AdminSessionsService } from "./admin_sessions_service.js";
-import { deleteAvatar } from "./avatar_storage.js";
-import type { DeletionActor } from "./account_deletion_service.js";
+} from '../accounts/account_store.js';
+import type { ResolvedServerConfig } from '../define_config.js';
+import type { OidcService } from '../provider/oidc_service.js';
+import type { DeletionActor } from './account_deletion_service.js';
+import { AdminSessionsService } from './admin_sessions_service.js';
+import { deleteAvatar } from './avatar_storage.js';
 
 /**
  * As 9 etapas do cascade de deleção de conta (LGPD/GDPR) extraídas em operações
@@ -64,7 +64,7 @@ export async function auditDeleted(
   actor: DeletionActor,
 ): Promise<void> {
   await cfg.audit?.record({
-    type: "account.deleted",
+    type: 'account.deleted',
     accountId: snapshot.id,
     email: snapshot.email,
     actorId: actor.actorId,
@@ -124,10 +124,7 @@ export async function removePasskeys(
 }
 
 /** 5) Desliga o MFA (limpa segredo TOTP + recovery codes) (capability-probed). */
-export async function disableMfa(
-  cfg: ResolvedServerConfig,
-  accountId: string,
-): Promise<void> {
+export async function disableMfa(cfg: ResolvedServerConfig, accountId: string): Promise<void> {
   const store = cfg.accountStore;
   if (!supportsMfa(store)) return;
   await store.disableMfa(accountId);
@@ -150,8 +147,7 @@ export async function removeFromOrgs(
   accountId: string,
 ): Promise<{ orgMemberships: number; orgInvitations: number }> {
   const store = cfg.accountStore;
-  if (!supportsOrganizations(store))
-    return { orgMemberships: 0, orgInvitations: 0 };
+  if (!supportsOrganizations(store)) return { orgMemberships: 0, orgInvitations: 0 };
   const orgResult = await store.removeAccountFromAllOrgs(accountId);
   return {
     orgMemberships: orgResult.memberships,
@@ -174,7 +170,7 @@ export async function anonymizeAudit(
   cfg: ResolvedServerConfig,
   accountId: string,
 ): Promise<{ auditAnonymized: number }> {
-  if (cfg.audit && typeof cfg.audit.anonymizeAccount === "function") {
+  if (cfg.audit && typeof cfg.audit.anonymizeAccount === 'function') {
     const auditAnonymized = await cfg.audit.anonymizeAccount(accountId);
     return { auditAnonymized };
   }

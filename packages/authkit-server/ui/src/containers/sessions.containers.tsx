@@ -1,22 +1,22 @@
-import React from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { useSessionsQueryOptions } from '@adonis-agora/authkit-react'
-import { Pagination } from '../components/Pagination'
-import { QueryBoundary } from '../components/QueryBoundary'
-import { SkeletonPanelTable } from '../components/Skeleton'
+import { useSessionsQueryOptions } from '@adonis-agora/authkit-react';
+import { useQuery } from '@tanstack/react-query';
+import React from 'react';
+import { Pagination } from '../components/Pagination';
+import { QueryBoundary } from '../components/QueryBoundary';
+import { SkeletonPanelTable } from '../components/Skeleton';
 
-const PER_PAGE = 20
+const PER_PAGE = 20;
 
 interface SessionsTableContainerProps {
-  page: number
-  onPage: (p: number) => void
+  page: number;
+  onPage: (p: number) => void;
 }
 
 export function SessionsTableContainer({ page, onPage }: SessionsTableContainerProps) {
-  const { data, isLoading, error, refetch } = useQuery(useSessionsQueryOptions())
-  const allSessions = data?.sessions ?? []
-  const total = allSessions.length
-  const sessions = allSessions.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+  const { data, isLoading, error, refetch } = useQuery(useSessionsQueryOptions());
+  const allSessions = data?.sessions ?? [];
+  const total = allSessions.length;
+  const sessions = allSessions.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   return (
     <div className="panel">
@@ -53,20 +53,39 @@ export function SessionsTableContainer({ page, onPage }: SessionsTableContainerP
                   <tr key={s.id} style={{ cursor: 'default' }}>
                     <td>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        {s.email && <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)' }}>{s.email}</span>}
-                        <span className="mono text-sm" style={{ color: s.email ? 'var(--faint)' : undefined }}>{s.accountId}</span>
+                        {s.email && (
+                          <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)' }}>
+                            {s.email}
+                          </span>
+                        )}
+                        <span
+                          className="mono text-sm"
+                          style={{ color: s.email ? 'var(--faint)' : undefined }}
+                        >
+                          {s.accountId}
+                        </span>
                       </div>
                     </td>
                     <td>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <span style={{ color: 'var(--text)', fontWeight: 500, fontSize: 12 }}>{s.browser ?? '—'}</span>
+                        <span style={{ color: 'var(--text)', fontWeight: 500, fontSize: 12 }}>
+                          {s.browser ?? '—'}
+                        </span>
                         <span style={{ color: 'var(--faint)', fontSize: 11 }}>{s.os ?? ''}</span>
                       </div>
                     </td>
-                    <td><span className="code">{s.ip ?? '—'}</span></td>
-                    <td><span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{s.location ?? '—'}</span></td>
                     <td>
-                      <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--faint)' }}>
+                      <span className="code">{s.ip ?? '—'}</span>
+                    </td>
+                    <td>
+                      <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>
+                        {s.location ?? '—'}
+                      </span>
+                    </td>
+                    <td>
+                      <span
+                        style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--faint)' }}
+                      >
                         {s.loginTs ? new Date(s.loginTs).toLocaleString() : '—'}
                       </span>
                     </td>
@@ -74,9 +93,13 @@ export function SessionsTableContainer({ page, onPage }: SessionsTableContainerP
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                         {s.amr.length === 0 ? (
                           <span className="badge badge-muted">—</span>
-                        ) : s.amr.map((m) => (
-                          <span key={m} className="badge badge-muted">{m}</span>
-                        ))}
+                        ) : (
+                          s.amr.map((m) => (
+                            <span key={m} className="badge badge-muted">
+                              {m}
+                            </span>
+                          ))
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -90,11 +113,11 @@ export function SessionsTableContainer({ page, onPage }: SessionsTableContainerP
         )}
       </QueryBoundary>
     </div>
-  )
+  );
 }
 
 // Re-export total for the page header
 export function useSessionsTotal() {
-  const { data } = useQuery(useSessionsQueryOptions())
-  return data?.sessions.length ?? 0
+  const { data } = useQuery(useSessionsQueryOptions());
+  return data?.sessions.length ?? 0;
 }

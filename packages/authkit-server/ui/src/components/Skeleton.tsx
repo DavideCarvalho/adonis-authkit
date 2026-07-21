@@ -1,16 +1,22 @@
-import React from 'react'
+import React from 'react';
 
 // ── Base shimmer ──────────────────────────────────────────────────────────────
 
 interface SkeletonProps {
-  width?: string | number
-  height?: string | number
-  borderRadius?: string | number
-  style?: React.CSSProperties
-  className?: string
+  width?: string | number;
+  height?: string | number;
+  borderRadius?: string | number;
+  style?: React.CSSProperties;
+  className?: string;
 }
 
-export function Skeleton({ width, height = 14, borderRadius = 6, style, className }: SkeletonProps) {
+export function Skeleton({
+  width,
+  height = 14,
+  borderRadius = 6,
+  style,
+  className,
+}: SkeletonProps) {
   return (
     <div
       className={className}
@@ -26,45 +32,41 @@ export function Skeleton({ width, height = 14, borderRadius = 6, style, classNam
         ...style,
       }}
     />
-  )
+  );
 }
 
 // ── Inject keyframes once ─────────────────────────────────────────────────────
 
 if (typeof document !== 'undefined') {
-  const id = '__sk_shimmer_kf'
+  const id = '__sk_shimmer_kf';
   if (!document.getElementById(id)) {
-    const style = document.createElement('style')
-    style.id = id
+    const style = document.createElement('style');
+    style.id = id;
     style.textContent = `
       @keyframes sk-shimmer {
         0%   { background-position: 200% 0; }
         100% { background-position: -200% 0; }
       }
-    `
-    document.head.appendChild(style)
+    `;
+    document.head.appendChild(style);
   }
 }
 
 // ── Variant: text lines ───────────────────────────────────────────────────────
 
 interface SkeletonLinesProps {
-  lines?: number
-  lastWidth?: string
+  lines?: number;
+  lastWidth?: string;
 }
 
 export function SkeletonLines({ lines = 3, lastWidth = '60%' }: SkeletonLinesProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {Array.from({ length: lines }).map((_, i) => (
-        <Skeleton
-          key={i}
-          width={i === lines - 1 ? lastWidth : '100%'}
-          height={13}
-        />
+        <Skeleton key={i} width={i === lines - 1 ? lastWidth : '100%'} height={13} />
       ))}
     </div>
-  )
+  );
 }
 
 // ── Variant: stat card ────────────────────────────────────────────────────────
@@ -86,14 +88,14 @@ export function SkeletonCard() {
       <Skeleton width={60} height={28} borderRadius={8} />
       <Skeleton width={100} height={11} />
     </div>
-  )
+  );
 }
 
 // ── Variant: cards grid ───────────────────────────────────────────────────────
 
 interface SkeletonCardsProps {
-  count?: number
-  columns?: number
+  count?: number;
+  columns?: number;
 }
 
 export function SkeletonCards({ count = 6, columns = 3 }: SkeletonCardsProps) {
@@ -109,14 +111,14 @@ export function SkeletonCards({ count = 6, columns = 3 }: SkeletonCardsProps) {
         <SkeletonCard key={i} />
       ))}
     </div>
-  )
+  );
 }
 
 // ── Variant: table rows ───────────────────────────────────────────────────────
 
 interface SkeletonTableProps {
-  rows?: number
-  cols?: number
+  rows?: number;
+  cols?: number;
 }
 
 export function SkeletonTable({ rows = 5, cols = 4 }: SkeletonTableProps) {
@@ -149,19 +151,23 @@ export function SkeletonTable({ rows = 5, cols = 4 }: SkeletonTableProps) {
           }}
         >
           {Array.from({ length: cols }).map((_, c) => (
-            <Skeleton key={c} height={13} width={c === 0 ? '80%' : c === cols - 1 ? '40%' : '65%'} />
+            <Skeleton
+              key={c}
+              height={13}
+              width={c === 0 ? '80%' : c === cols - 1 ? '40%' : '65%'}
+            />
           ))}
         </div>
       ))}
     </div>
-  )
+  );
 }
 
 // ── Variant: panel with header + table ───────────────────────────────────────
 
 interface SkeletonPanelTableProps {
-  rows?: number
-  cols?: number
+  rows?: number;
+  cols?: number;
 }
 
 export function SkeletonPanelTable({ rows = 5, cols = 4 }: SkeletonPanelTableProps) {
@@ -180,7 +186,7 @@ export function SkeletonPanelTable({ rows = 5, cols = 4 }: SkeletonPanelTablePro
       </div>
       <SkeletonTable rows={rows} cols={cols} />
     </div>
-  )
+  );
 }
 
 // ── Variant: drawer section ───────────────────────────────────────────────────
@@ -207,5 +213,5 @@ export function SkeletonDrawerSection() {
         <SkeletonLines lines={3} lastWidth="50%" />
       </div>
     </div>
-  )
+  );
 }

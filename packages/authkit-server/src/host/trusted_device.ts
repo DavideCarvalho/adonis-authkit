@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto'
+import { randomBytes } from 'node:crypto';
 
 /**
  * "Trusted devices" — pular o 2º fator (MFA) neste dispositivo por N dias.
@@ -22,18 +22,18 @@ import { randomBytes } from 'node:crypto'
  */
 
 /** Nome do cookie de dispositivo confiável. */
-export const TRUSTED_DEVICE_COOKIE = 'authkit_trusted_device'
+export const TRUSTED_DEVICE_COOKIE = 'authkit_trusted_device';
 
 /** Payload guardado (encriptado) no cookie de dispositivo confiável. */
 export interface TrustedDevicePayload {
   /** accountId ao qual a confiança pertence. */
-  a: string
+  a: string;
   /** id opaco do dispositivo (para futura revogação por-dispositivo). */
-  d: string
+  d: string;
   /** issued-at (epoch ms). */
-  iat: number
+  iat: number;
   /** expiry (epoch ms). */
-  exp: number
+  exp: number;
 }
 
 /**
@@ -45,31 +45,31 @@ export interface TrustedDevicesConfigInput {
 }
 
 export interface ResolvedTrustedDevicesConfig {
-  enabled: boolean
-  days: number
+  enabled: boolean;
+  days: number;
 }
 
 export function resolveTrustedDevices(
-  _input?: TrustedDevicesConfigInput
+  _input?: TrustedDevicesConfigInput,
 ): ResolvedTrustedDevicesConfig {
   return {
     enabled: true,
     days: 30,
-  }
+  };
 }
 
 /** Constrói o payload de um novo cookie de confiança para a conta. */
 export function buildTrustedDevicePayload(
   accountId: string,
   cfg: ResolvedTrustedDevicesConfig,
-  now: number = Date.now()
+  now: number = Date.now(),
 ): TrustedDevicePayload {
   return {
     a: accountId,
     d: randomBytes(16).toString('hex'),
     iat: now,
     exp: now + cfg.days * 24 * 60 * 60 * 1000,
-  }
+  };
 }
 
 /**
@@ -84,17 +84,17 @@ export function buildTrustedDevicePayload(
  */
 export function isTrustedDeviceValid(
   payload: unknown,
-  opts: { accountId: string; mfaEnabledAt?: number | null; now?: number }
+  opts: { accountId: string; mfaEnabledAt?: number | null; now?: number },
 ): boolean {
-  const now = opts.now ?? Date.now()
-  if (!payload || typeof payload !== 'object') return false
-  const p = payload as Partial<TrustedDevicePayload>
+  const now = opts.now ?? Date.now();
+  if (!payload || typeof payload !== 'object') return false;
+  const p = payload as Partial<TrustedDevicePayload>;
   if (typeof p.a !== 'string' || typeof p.iat !== 'number' || typeof p.exp !== 'number') {
-    return false
+    return false;
   }
-  if (p.a !== opts.accountId) return false
-  if (p.exp <= now) return false
+  if (p.a !== opts.accountId) return false;
+  if (p.exp <= now) return false;
   // Re-enrollment do MFA revoga cookies emitidos antes dele.
-  if (typeof opts.mfaEnabledAt === 'number' && p.iat < opts.mfaEnabledAt) return false
-  return true
+  if (typeof opts.mfaEnabledAt === 'number' && p.iat < opts.mfaEnabledAt) return false;
+  return true;
 }

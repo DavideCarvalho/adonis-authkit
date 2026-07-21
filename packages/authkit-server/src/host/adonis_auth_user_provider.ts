@@ -1,14 +1,14 @@
-import { configProvider } from '@adonisjs/core'
-import { RuntimeException } from '@adonisjs/core/exceptions'
-import type { ApplicationService, ConfigProvider } from '@adonisjs/core/types'
 // `import type` só — apagado no build (mesmo padrão de `augmentations.ts` p/
 // @adonisjs/ally/@adonisjs/session). Dá tipagem completa a quem consome este
 // provider em `config/auth.ts` SEM criar uma dependência de runtime do peer
 // opcional `@adonisjs/auth` — o import de verdade é dinâmico, dentro do
 // resolver, e só roda quando o HOST resolve este `ConfigProvider` (ou seja,
 // quando o host já escolheu configurar `@adonisjs/auth`).
-import type { SessionUserProviderContract } from '@adonisjs/auth/types/session'
-import type { AuthAccount } from '../accounts/account_store.js'
+import type { SessionUserProviderContract } from '@adonisjs/auth/types/session';
+import { configProvider } from '@adonisjs/core';
+import { RuntimeException } from '@adonisjs/core/exceptions';
+import type { ApplicationService, ConfigProvider } from '@adonisjs/core/types';
+import type { AuthAccount } from '../accounts/account_store.js';
 
 /**
  * User provider de `@adonisjs/auth` (session guard) apoiado no `accountStore`
@@ -46,17 +46,17 @@ import type { AuthAccount } from '../accounts/account_store.js'
  */
 export function authkitUserProvider(): ConfigProvider<SessionUserProviderContract<AuthAccount>> {
   return configProvider.create(async (app: ApplicationService) => {
-    let PROVIDER_REAL_USER: symbol
+    let PROVIDER_REAL_USER: symbol;
     try {
-      const auth = (await import('@adonisjs/auth')) as { symbols: { PROVIDER_REAL_USER: symbol } }
-      PROVIDER_REAL_USER = auth.symbols.PROVIDER_REAL_USER
+      const auth = (await import('@adonisjs/auth')) as { symbols: { PROVIDER_REAL_USER: symbol } };
+      PROVIDER_REAL_USER = auth.symbols.PROVIDER_REAL_USER;
     } catch (error) {
       throw new RuntimeException(
         'authkitUserProvider() precisa de "@adonisjs/auth" instalado (é um peer opcional do ' +
           '@adonis-agora/authkit-server, só necessário se você plugar este provider em config/auth.ts). ' +
           'Rode `npm i @adonisjs/auth` (ou pnpm/yarn) e configure um sessionGuard em config/auth.ts.',
-        { cause: error }
-      )
+        { cause: error },
+      );
     }
 
     // `PROVIDER_REAL_USER` chega em runtime como um `symbol` (não um "unique
@@ -69,19 +69,19 @@ export function authkitUserProvider(): ConfigProvider<SessionUserProviderContrac
         return {
           getId: () => user.id,
           getOriginal: () => user,
-        }
+        };
       },
       async findById(identifier: string | number | bigint) {
-        const store = await app.container.make('authkit.accountStore')
-        const account = await store.findById(String(identifier))
-        if (!account) return null
+        const store = await app.container.make('authkit.accountStore');
+        const account = await store.findById(String(identifier));
+        if (!account) return null;
         return {
           getId: () => account.id,
           getOriginal: () => account,
-        }
+        };
       },
-    }
+    };
 
-    return provider as unknown as SessionUserProviderContract<AuthAccount>
-  })
+    return provider as unknown as SessionUserProviderContract<AuthAccount>;
+  });
 }

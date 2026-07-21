@@ -7,5 +7,5 @@
  * aterrissar usuário comum numa tela de Personal Access Tokens é hostil.
  */
 export function accountHome(cfg: { accountHome?: string }): string {
-  return cfg.accountHome ?? '/account/security'
+  return cfg.accountHome ?? '/account/security';
 }

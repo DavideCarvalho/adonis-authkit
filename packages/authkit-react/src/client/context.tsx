@@ -24,15 +24,15 @@
  * ```
  */
 
-import { createContext, createElement, useContext, type ReactNode } from 'react'
-import { QueryClient } from '@tanstack/react-query'
-import { type AuthkitClient, type AuthkitClientOptions, createAuthkitClient } from './client.js'
+import { QueryClient } from '@tanstack/react-query';
+import { type ReactNode, createContext, createElement, useContext } from 'react';
+import { type AuthkitClient, type AuthkitClientOptions, createAuthkitClient } from './client.js';
 
 // ---------------------------------------------------------------------------
 // Contexto
 // ---------------------------------------------------------------------------
 
-const AuthkitClientContext = createContext<AuthkitClient | null>(null)
+const AuthkitClientContext = createContext<AuthkitClient | null>(null);
 
 // ---------------------------------------------------------------------------
 // Hook
@@ -43,14 +43,14 @@ const AuthkitClientContext = createContext<AuthkitClient | null>(null)
  * Lança erro descritivo se chamado fora de `<AuthkitClientProvider>`.
  */
 export function useAuthkitClient(): AuthkitClient {
-  const client = useContext(AuthkitClientContext)
+  const client = useContext(AuthkitClientContext);
   if (!client) {
     throw new Error(
       '[AuthkitClient] useAuthkitClient() chamado fora de <AuthkitClientProvider>. ' +
-        'Envolva sua árvore com <AuthkitClientProvider>.'
-    )
+        'Envolva sua árvore com <AuthkitClientProvider>.',
+    );
   }
-  return client
+  return client;
 }
 
 // ---------------------------------------------------------------------------
@@ -62,13 +62,13 @@ export interface AuthkitClientProviderProps {
    * Instância do client. Se omitida, o provider cria uma com `createAuthkitClient(opts)`.
    * Passe uma instância explícita em testes ou topologias custom.
    */
-  client?: AuthkitClient
+  client?: AuthkitClient;
   /**
    * Opções passadas para `createAuthkitClient()` quando `client` não é fornecido.
    * Ignorado quando `client` é fornecido.
    */
-  opts?: AuthkitClientOptions
-  children: ReactNode
+  opts?: AuthkitClientOptions;
+  children: ReactNode;
 }
 
 /**
@@ -79,8 +79,8 @@ export interface AuthkitClientProviderProps {
  * um `QueryClient` com configuração recomendada para o AuthKit.
  */
 export function AuthkitClientProvider({ client, opts, children }: AuthkitClientProviderProps) {
-  const resolved = client ?? createAuthkitClient(opts)
-  return createElement(AuthkitClientContext.Provider, { value: resolved }, children)
+  const resolved = client ?? createAuthkitClient(opts);
+  return createElement(AuthkitClientContext.Provider, { value: resolved }, children);
 }
 
 // ---------------------------------------------------------------------------
@@ -107,5 +107,5 @@ export function createAuthkitQueryClient(): QueryClient {
         refetchOnWindowFocus: false,
       },
     },
-  })
+  });
 }

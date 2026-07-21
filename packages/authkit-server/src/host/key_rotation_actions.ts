@@ -1,6 +1,6 @@
-import { resolveEffectiveKeyRotation, type ResolvedKeyRotationSetting } from './key_rotation.js'
-import type { SettingsCapability } from './runtime_settings.js'
-import type { ManagedKeyInfo } from '../keys/keystore.js'
+import type { ManagedKeyInfo } from '../keys/keystore.js';
+import { type ResolvedKeyRotationSetting, resolveEffectiveKeyRotation } from './key_rotation.js';
+import type { SettingsCapability } from './runtime_settings.js';
 
 /**
  * Ações compartilhadas de rotação de chave. Funções puras-ish que tanto a Admin
@@ -9,10 +9,10 @@ import type { ManagedKeyInfo } from '../keys/keystore.js'
  */
 
 export interface KeysStatus {
-  ageDays: number
-  policy: ResolvedKeyRotationSetting
-  nextRotationInDays: number | null
-  keys: ManagedKeyInfo[]
+  ageDays: number;
+  policy: ResolvedKeyRotationSetting;
+  nextRotationInDays: number | null;
+  keys: ManagedKeyInfo[];
 }
 
 /**
@@ -22,19 +22,19 @@ export interface KeysStatus {
  */
 export async function buildKeysStatus(
   svc: {
-    keystoreAgeDays(): Promise<number | null>
-    listManagedKeys(): Promise<ManagedKeyInfo[]>
+    keystoreAgeDays(): Promise<number | null>;
+    listManagedKeys(): Promise<ManagedKeyInfo[]>;
   },
-  settings: SettingsCapability | null
+  settings: SettingsCapability | null,
 ): Promise<KeysStatus | null> {
-  const ageDays = await svc.keystoreAgeDays()
-  if (ageDays === null) return null
+  const ageDays = await svc.keystoreAgeDays();
+  if (ageDays === null) return null;
   const policy = settings
     ? await resolveEffectiveKeyRotation(settings)
-    : { enabled: false, maxAgeDays: 90, keep: 2 }
-  const nextRotationInDays = policy.enabled ? Math.max(0, policy.maxAgeDays - ageDays) : null
-  const keys = await svc.listManagedKeys()
-  return { ageDays, policy, nextRotationInDays, keys }
+    : { enabled: false, maxAgeDays: 90, keep: 2 };
+  const nextRotationInDays = policy.enabled ? Math.max(0, policy.maxAgeDays - ageDays) : null;
+  const keys = await svc.listManagedKeys();
+  return { ageDays, policy, nextRotationInDays, keys };
 }
 
 /**
@@ -43,12 +43,15 @@ export async function buildKeysStatus(
  */
 export async function rotateNow(
   svc: {
-    rotateKeys(keep: number, retire?: boolean): Promise<{ newKid: string; retiredKids: string[]; keptKids: string[] }>
+    rotateKeys(
+      keep: number,
+      retire?: boolean,
+    ): Promise<{ newKid: string; retiredKids: string[]; keptKids: string[] }>;
   },
-  body: { retire?: boolean; keep?: number } | undefined
+  body: { retire?: boolean; keep?: number } | undefined,
 ): Promise<{ rotated: true; newKid: string; retiredKids: string[]; keptKids: string[] }> {
-  const retire = body?.retire === true
-  const keep = typeof body?.keep === 'number' && body.keep >= 1 ? Math.floor(body.keep) : 2
-  const res = await svc.rotateKeys(keep, retire)
-  return { rotated: true, ...res }
+  const retire = body?.retire === true;
+  const keep = typeof body?.keep === 'number' && body.keep >= 1 ? Math.floor(body.keep) : 2;
+  const res = await svc.rotateKeys(keep, retire);
+  return { rotated: true, ...res };
 }

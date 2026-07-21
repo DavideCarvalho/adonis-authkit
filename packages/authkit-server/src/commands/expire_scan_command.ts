@@ -20,12 +20,12 @@
  * Designed pra cron do host (ex.: `0 2 * * * node ace authkit:accounts:expire-scan --warn`).
  */
 
-import type { ApplicationService } from '@adonisjs/core/types'
-import { resolveAuthkitConfig } from './resolve_config.js'
-import { RuntimeSettings } from '../host/runtime_settings.js'
-import { resolveEffectiveAccountExpiration } from '../host/runtime_toggles.js'
-import type { AuditSink } from '../audit/audit_sink.js'
-import type { AccountStore, AuthAccount } from '../accounts/account_store.js'
+import type { ApplicationService } from '@adonisjs/core/types';
+import type { AccountStore, AuthAccount } from '../accounts/account_store.js';
+import type { AuditSink } from '../audit/audit_sink.js';
+import { RuntimeSettings } from '../host/runtime_settings.js';
+import { resolveEffectiveAccountExpiration } from '../host/runtime_toggles.js';
+import { resolveAuthkitConfig } from './resolve_config.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -33,23 +33,23 @@ import type { AccountStore, AuthAccount } from '../accounts/account_store.js'
 
 export interface ExpireScanResult {
   /** Contas já expiradas (bloqueadas no login). */
-  expired: Array<{ accountId: string; email: string; lastActivityDaysAgo: number | null }>
+  expired: Array<{ accountId: string; email: string; lastActivityDaysAgo: number | null }>;
   /** Contas a expirar em até warnDays dias. */
-  warnSoon: Array<{ accountId: string; email: string; expiresInDays: number }>
+  warnSoon: Array<{ accountId: string; email: string; expiresInDays: number }>;
   /** Avisos enviados por e-mail (quando --warn). */
-  warned: number
+  warned: number;
   /** Contas ignoradas por já terem sido avisadas na janela. */
-  deduped: number
+  deduped: number;
   /** Resumo do scan. */
   summary: {
-    scanned: number
-    expired: number
-    warnSoon: number
-    inactiveDays: number
-    warnDays: number
-    auditSupported: boolean
-    dryRun: boolean
-  }
+    scanned: number;
+    expired: number;
+    warnSoon: number;
+    inactiveDays: number;
+    warnDays: number;
+    auditSupported: boolean;
+    dryRun: boolean;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -59,80 +59,82 @@ export interface ExpireScanResult {
 export async function runExpireScan(
   app: ApplicationService,
   opts: {
-    dryRun?: boolean
-    warn?: boolean
-    json?: boolean
-    logger: { info: (m: string) => void; warn: (m: string) => void; error: (m: string) => void }
-  }
+    dryRun?: boolean;
+    warn?: boolean;
+    json?: boolean;
+    logger: { info: (m: string) => void; warn: (m: string) => void; error: (m: string) => void };
+  },
 ): Promise<ExpireScanResult> {
-  const { dryRun = false, warn = false, logger } = opts
+  const { dryRun = false, warn = false, logger } = opts;
 
   // ---- resolve config ----
-  const raw = app.config?.get?.('authkit') ?? null
-  const cfg = await resolveAuthkitConfig(app, raw)
+  const raw = app.config?.get?.('authkit') ?? null;
+  const cfg = await resolveAuthkitConfig(app, raw);
   if (!cfg) {
-    logger.error('[expire-scan] Could not resolve authkit config.')
-    return emptyResult(dryRun, 0, 0)
+    logger.error('[expire-scan] Could not resolve authkit config.');
+    return emptyResult(dryRun, 0, 0);
   }
 
-  const accountStore = cfg.accountStore as AccountStore
-  const audit = cfg.audit as AuditSink | undefined
+  const accountStore = cfg.accountStore as AccountStore;
+  const audit = cfg.audit as AuditSink | undefined;
 
   // ---- audit capability check ----
   if (typeof audit?.list !== 'function') {
     logger.warn(
-      '[expire-scan] Audit sink does not support list(). Account expiration requires a queryable audit (e.g. lucidAuditSink). Feature unavailable.'
-    )
-    return emptyResult(dryRun, 0, 0, false)
+      '[expire-scan] Audit sink does not support list(). Account expiration requires a queryable audit (e.g. lucidAuditSink). Feature unavailable.',
+    );
+    return emptyResult(dryRun, 0, 0, false);
   }
 
   // ---- resolve setting ----
-  let runtimeSettings: RuntimeSettings | null = null
+  let runtimeSettings: RuntimeSettings | null = null;
   try {
-    const db = await app.container.make('lucid.db' as any)
-    const connection: string | undefined = (accountStore as any)?.connectionName
-    runtimeSettings = new RuntimeSettings(db, connection ? { connection } : {})
+    const db = await app.container.make('lucid.db' as any);
+    const connection: string | undefined = (accountStore as any)?.connectionName;
+    runtimeSettings = new RuntimeSettings(db, connection ? { connection } : {});
   } catch {
     // Sem DB → usa defaults.
   }
 
   const expiration = runtimeSettings
     ? await resolveEffectiveAccountExpiration(runtimeSettings)
-    : { enabled: false, inactiveDays: 365, warnDays: 14 }
+    : { enabled: false, inactiveDays: 365, warnDays: 14 };
 
   if (!expiration.enabled && !dryRun) {
-    logger.warn('[expire-scan] account_expiration setting is disabled. Pass --dry-run to scan anyway.')
-    return emptyResult(dryRun, expiration.inactiveDays, expiration.warnDays)
+    logger.warn(
+      '[expire-scan] account_expiration setting is disabled. Pass --dry-run to scan anyway.',
+    );
+    return emptyResult(dryRun, expiration.inactiveDays, expiration.warnDays);
   }
 
-  const { inactiveDays, warnDays } = expiration
-  const nowMs = Date.now()
-  const expiryCutoffMs = nowMs - inactiveDays * 24 * 60 * 60 * 1000
-  const warnCutoffMs = nowMs - (inactiveDays - warnDays) * 24 * 60 * 60 * 1000
+  const { inactiveDays, warnDays } = expiration;
+  const nowMs = Date.now();
+  const expiryCutoffMs = nowMs - inactiveDays * 24 * 60 * 60 * 1000;
+  const warnCutoffMs = nowMs - (inactiveDays - warnDays) * 24 * 60 * 60 * 1000;
 
   // ---- scan accounts ----
-  const expired: ExpireScanResult['expired'] = []
-  const warnSoon: ExpireScanResult['warnSoon'] = []
-  let warnedCount = 0
-  let dedupedCount = 0
-  let scanned = 0
-  let page = 1
-  const limit = 100
+  const expired: ExpireScanResult['expired'] = [];
+  const warnSoon: ExpireScanResult['warnSoon'] = [];
+  let warnedCount = 0;
+  let dedupedCount = 0;
+  let scanned = 0;
+  let page = 1;
+  const limit = 100;
 
   while (true) {
-    const batch = await accountStore.listAccounts({ page, limit })
-    if (batch.data.length === 0) break
+    const batch = await accountStore.listAccounts({ page, limit });
+    if (batch.data.length === 0) break;
 
     for (const account of batch.data) {
-      scanned++
-      const lastMs = await getLastLoginMs(audit, account.id)
+      scanned++;
+      const lastMs = await getLastLoginMs(audit, account.id);
 
       if (lastMs === null) {
         // Nunca logou → trata como ativa (conta nova).
-        continue
+        continue;
       }
 
-      const daysAgo = (nowMs - lastMs) / (24 * 60 * 60 * 1000)
+      const daysAgo = (nowMs - lastMs) / (24 * 60 * 60 * 1000);
 
       if (lastMs < expiryCutoffMs) {
         // Expirada.
@@ -140,35 +142,41 @@ export async function runExpireScan(
           accountId: account.id,
           email: account.email,
           lastActivityDaysAgo: Math.floor(daysAgo),
-        })
+        });
       } else if (warnDays > 0 && lastMs < warnCutoffMs) {
         // A expirar em breve.
-        const daysUntilExpiry = Math.ceil((lastMs + inactiveDays * 24 * 60 * 60 * 1000 - nowMs) / (24 * 60 * 60 * 1000))
-        warnSoon.push({ accountId: account.id, email: account.email, expiresInDays: daysUntilExpiry })
+        const daysUntilExpiry = Math.ceil(
+          (lastMs + inactiveDays * 24 * 60 * 60 * 1000 - nowMs) / (24 * 60 * 60 * 1000),
+        );
+        warnSoon.push({
+          accountId: account.id,
+          email: account.email,
+          expiresInDays: daysUntilExpiry,
+        });
 
         if (warn && !dryRun) {
           // Verifica se já foi avisado dentro da janela de warnDays dias.
-          const alreadyWarned = await wasWarnedRecently(audit, account.id, warnDays)
+          const alreadyWarned = await wasWarnedRecently(audit, account.id, warnDays);
           if (alreadyWarned) {
-            dedupedCount++
+            dedupedCount++;
           } else {
             // Envia e-mail de aviso.
-            await sendWarnEmail(cfg, account, daysUntilExpiry)
+            await sendWarnEmail(cfg, account, daysUntilExpiry);
             // Audita para deduplicação.
             await audit.record({
               type: 'account.expiration_warned',
               accountId: account.id,
               email: account.email,
               metadata: { expiresInDays: daysUntilExpiry },
-            })
-            warnedCount++
+            });
+            warnedCount++;
           }
         }
       }
     }
 
-    if (batch.data.length < limit) break
-    page++
+    if (batch.data.length < limit) break;
+    page++;
   }
 
   const result: ExpireScanResult = {
@@ -185,9 +193,9 @@ export async function runExpireScan(
       auditSupported: true,
       dryRun,
     },
-  }
+  };
 
-  return result
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -197,14 +205,19 @@ export async function runExpireScan(
 /** Retorna o timestamp em ms do último login.success da conta, ou null se nunca logou. */
 async function getLastLoginMs(audit: AuditSink, accountId: string): Promise<number | null> {
   try {
-    const result = await audit.list!({ type: 'login.success', subject: accountId, page: 1, limit: 1 })
-    if (result.data.length === 0) return null
-    const createdAt = result.data[0].createdAt
-    if (!createdAt) return null
-    const ms = createdAt instanceof Date ? createdAt.getTime() : Date.parse(createdAt as string)
-    return Number.isFinite(ms) ? ms : null
+    const result = await audit.list!({
+      type: 'login.success',
+      subject: accountId,
+      page: 1,
+      limit: 1,
+    });
+    if (result.data.length === 0) return null;
+    const createdAt = result.data[0].createdAt;
+    if (!createdAt) return null;
+    const ms = createdAt instanceof Date ? createdAt.getTime() : Date.parse(createdAt as string);
+    return Number.isFinite(ms) ? ms : null;
   } catch {
-    return null
+    return null;
   }
 }
 
@@ -212,45 +225,59 @@ async function getLastLoginMs(audit: AuditSink, accountId: string): Promise<numb
  * Verifica se a conta já foi avisada sobre expiração dentro da janela de `warnDays` dias.
  * Usa o audit `account.expiration_warned` para deduplicação.
  */
-async function wasWarnedRecently(audit: AuditSink, accountId: string, warnDays: number): Promise<boolean> {
+async function wasWarnedRecently(
+  audit: AuditSink,
+  accountId: string,
+  warnDays: number,
+): Promise<boolean> {
   try {
-    const result = await audit.list!({ type: 'account.expiration_warned', subject: accountId, page: 1, limit: 1 })
-    if (result.data.length === 0) return false
-    const lastWarned = result.data[0].createdAt
-    if (!lastWarned) return false
-    const lastMs = lastWarned instanceof Date ? lastWarned.getTime() : Date.parse(lastWarned as string)
-    if (!Number.isFinite(lastMs)) return false
-    const windowMs = warnDays * 24 * 60 * 60 * 1000
-    return Date.now() - lastMs < windowMs
+    const result = await audit.list!({
+      type: 'account.expiration_warned',
+      subject: accountId,
+      page: 1,
+      limit: 1,
+    });
+    if (result.data.length === 0) return false;
+    const lastWarned = result.data[0].createdAt;
+    if (!lastWarned) return false;
+    const lastMs =
+      lastWarned instanceof Date ? lastWarned.getTime() : Date.parse(lastWarned as string);
+    if (!Number.isFinite(lastMs)) return false;
+    const windowMs = warnDays * 24 * 60 * 60 * 1000;
+    return Date.now() - lastMs < windowMs;
   } catch {
-    return false
+    return false;
   }
 }
 
 /** Envia e-mail de aviso de expiração iminente. Best-effort (silencioso em caso de erro). */
-async function sendWarnEmail(cfg: Record<string, any>, account: AuthAccount, expiresInDays: number): Promise<void> {
+async function sendWarnEmail(
+  cfg: Record<string, any>,
+  account: AuthAccount,
+  expiresInDays: number,
+): Promise<void> {
   try {
     if (cfg.mail?.onAccountExpirationWarning) {
-      await cfg.mail.onAccountExpirationWarning({ email: account.email, expiresInDays })
-      return
+      await cfg.mail.onAccountExpirationWarning({ email: account.email, expiresInDays });
+      return;
     }
     // Default: tenta via @adonisjs/mail se disponível.
-    const mailSpecifier = '@adonisjs/mail/services/main'
-    const mailMod = await import(mailSpecifier).catch(() => null)
-    const mail = mailMod?.default ?? null
-    if (!mail) return // Sem mail configurado — silêncio.
+    const mailSpecifier = '@adonisjs/mail/services/main';
+    const mailMod = await import(mailSpecifier).catch(() => null);
+    const mail = mailMod?.default ?? null;
+    if (!mail) return; // Sem mail configurado — silêncio.
 
     await mail.send((message: any) => {
       message
         .to(account.email)
-        .subject(`Your account will be deactivated due to inactivity`)
+        .subject('Your account will be deactivated due to inactivity')
         .html(
-          `<p>Your account will be deactivated in <strong>${expiresInDays} day(s)</strong> due to inactivity. Sign in to keep your account active.</p>`
+          `<p>Your account will be deactivated in <strong>${expiresInDays} day(s)</strong> due to inactivity. Sign in to keep your account active.</p>`,
         )
         .text(
-          `Your account will be deactivated in ${expiresInDays} day(s) due to inactivity. Sign in to keep your account active.`
-        )
-    })
+          `Your account will be deactivated in ${expiresInDays} day(s) due to inactivity. Sign in to keep your account active.`,
+        );
+    });
   } catch {
     // Best-effort: nunca propaga erros de e-mail.
   }
@@ -260,7 +287,7 @@ function emptyResult(
   dryRun: boolean,
   inactiveDays: number,
   warnDays: number,
-  auditSupported = false
+  auditSupported = false,
 ): ExpireScanResult {
   return {
     expired: [],
@@ -276,5 +303,5 @@ function emptyResult(
       auditSupported,
       dryRun,
     },
-  }
+  };
 }

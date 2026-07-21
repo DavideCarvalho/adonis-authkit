@@ -1,8 +1,8 @@
-import type { SudoContext, SudoMethod } from '../types.js'
+import type { SudoContext, SudoMethod } from '../types.js';
 
 export interface OidcStepUpOptions {
   /** Rota do HOST que inicia a reautenticação. Ex.: '/auth/step-up'. */
-  url: string
+  url: string;
 }
 
 /**
@@ -72,16 +72,16 @@ export function oidcStepUp(opts: OidcStepUpOptions): SudoMethod {
     id: 'oidc-step-up',
 
     async isAvailable() {
-      return true
+      return true;
     },
 
     async describe(c: SudoContext) {
-      const qs = c.returnTo ? `?return_to=${encodeURIComponent(c.returnTo)}` : ''
+      const qs = c.returnTo ? `?return_to=${encodeURIComponent(c.returnTo)}` : '';
       return {
         labelKey: 'account.confirm.method.oidc_step_up',
         kind: 'redirect' as const,
         endpoint: `${opts.url}${qs}`,
-      }
+      };
     },
-  }
+  };
 }

@@ -1,9 +1,9 @@
-import './global.css'
-import { RootProvider } from 'fumadocs-ui/provider'
-import { Inter } from 'next/font/google'
-import type { ReactNode } from 'react'
+import './global.css';
+import { RootProvider } from 'fumadocs-ui/provider';
+import { Inter } from 'next/font/google';
+import type { ReactNode } from 'react';
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata = {
   title: {
@@ -12,7 +12,7 @@ export const metadata = {
   },
   description:
     'A drop-in OpenID Connect provider for AdonisJS — PAT, impersonation, MFA, audit, and RP-initiated logout, deployable standalone or embedded.',
-}
+};
 
 export default function Layout({ children }: { children: ReactNode }) {
   return (
@@ -21,5 +21,5 @@ export default function Layout({ children }: { children: ReactNode }) {
         <RootProvider>{children}</RootProvider>
       </body>
     </html>
-  )
+  );
 }

@@ -15,14 +15,14 @@
  * adicionar campos extras de domínio (por isso o index signature).
  */
 export interface AuthUser {
-  id: string
-  email: string
-  name?: string
-  avatarUrl?: string
+  id: string;
+  email: string;
+  name?: string;
+  avatarUrl?: string;
   /** papéis globais, vindos do IdP via claim de roles */
-  globalRoles: string[]
+  globalRoles: string[];
   /** escape hatch: o host pode anexar campos extras de domínio */
-  [key: string]: unknown
+  [key: string]: unknown;
 }
 
 /**
@@ -42,21 +42,21 @@ export interface AuthUser {
  */
 export interface AuthSharedProps {
   authkit: {
-    user: AuthUser | null
-    globalRoles: string[]
-  }
+    user: AuthUser | null;
+    globalRoles: string[];
+  };
   /** o Inertia `PageProps` exige index signature; o host pode ter outras props */
-  [key: string]: unknown
+  [key: string]: unknown;
 }
 
 /**
  * Estado de autenticação retornado por `useAuth()`.
  */
 export interface AuthState {
-  user: AuthUser | null
-  isAuthenticated: boolean
-  globalRoles: string[]
-  hasGlobalRole(role: string): boolean
-  hasAnyGlobalRole(roles: string[]): boolean
-  hasAllGlobalRoles(roles: string[]): boolean
+  user: AuthUser | null;
+  isAuthenticated: boolean;
+  globalRoles: string[];
+  hasGlobalRole(role: string): boolean;
+  hasAnyGlobalRole(roles: string[]): boolean;
+  hasAllGlobalRoles(roles: string[]): boolean;
 }

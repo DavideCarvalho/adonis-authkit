@@ -10,24 +10,24 @@
  */
 export interface PasswordPolicyInput {
   /** Comprimento mínimo. Default: 8. */
-  minLength?: number
+  minLength?: number;
   /** Exige ao menos uma letra maiúscula. Default: false. */
-  requireUppercase?: boolean
+  requireUppercase?: boolean;
   /** Exige ao menos uma letra minúscula. Default: false. */
-  requireLowercase?: boolean
+  requireLowercase?: boolean;
   /** Exige ao menos um dígito. Default: false. */
-  requireNumbers?: boolean
+  requireNumbers?: boolean;
   /** Exige ao menos um símbolo (não alfanumérico). Default: false. */
-  requireSymbols?: boolean
+  requireSymbols?: boolean;
 }
 
 /** Política resolvida (todos os campos presentes). */
 export interface ResolvedPasswordPolicy {
-  minLength: number
-  requireUppercase: boolean
-  requireLowercase: boolean
-  requireNumbers: boolean
-  requireSymbols: boolean
+  minLength: number;
+  requireUppercase: boolean;
+  requireLowercase: boolean;
+  requireNumbers: boolean;
+  requireSymbols: boolean;
 }
 
 /**
@@ -35,15 +35,15 @@ export interface ResolvedPasswordPolicy {
  * `true`, usa os defaults; um objeto permite ajustar o timeout. FAIL-SAFE: erro
  * de rede/timeout/5xx NÃO bloqueia a senha (loga warning e permite).
  */
-export type CheckPwnedInput = boolean | { timeoutMs?: number }
+export type CheckPwnedInput = boolean | { timeoutMs?: number };
 
 /** Config de senha resolvida, carregada pelo store/controllers. */
 export interface ResolvedPasswordConfig {
-  policy: ResolvedPasswordPolicy
-  checkPwned: { enabled: boolean; timeoutMs: number }
+  policy: ResolvedPasswordPolicy;
+  checkPwned: { enabled: boolean; timeoutMs: number };
 }
 
-export const DEFAULT_PWNED_TIMEOUT_MS = 2000
+export const DEFAULT_PWNED_TIMEOUT_MS = 2000;
 
 /**
  * Chave i18n da regra de política violada (estável — os catálogos en/pt-BR
@@ -54,7 +54,7 @@ export type PasswordPolicyViolation =
   | 'password.policy.uppercase'
   | 'password.policy.lowercase'
   | 'password.policy.numbers'
-  | 'password.policy.symbols'
+  | 'password.policy.symbols';
 
 export function resolvePasswordPolicy(input?: PasswordPolicyInput): ResolvedPasswordPolicy {
   return {
@@ -63,23 +63,26 @@ export function resolvePasswordPolicy(input?: PasswordPolicyInput): ResolvedPass
     requireLowercase: input?.requireLowercase ?? false,
     requireNumbers: input?.requireNumbers ?? false,
     requireSymbols: input?.requireSymbols ?? false,
-  }
+  };
 }
 
-export function resolveCheckPwned(input?: CheckPwnedInput): { enabled: boolean; timeoutMs: number } {
-  if (!input) return { enabled: false, timeoutMs: DEFAULT_PWNED_TIMEOUT_MS }
-  if (input === true) return { enabled: true, timeoutMs: DEFAULT_PWNED_TIMEOUT_MS }
-  return { enabled: true, timeoutMs: input.timeoutMs ?? DEFAULT_PWNED_TIMEOUT_MS }
+export function resolveCheckPwned(input?: CheckPwnedInput): {
+  enabled: boolean;
+  timeoutMs: number;
+} {
+  if (!input) return { enabled: false, timeoutMs: DEFAULT_PWNED_TIMEOUT_MS };
+  if (input === true) return { enabled: true, timeoutMs: DEFAULT_PWNED_TIMEOUT_MS };
+  return { enabled: true, timeoutMs: input.timeoutMs ?? DEFAULT_PWNED_TIMEOUT_MS };
 }
 
 export function resolvePasswordConfig(input?: {
-  policy?: PasswordPolicyInput
-  checkPwned?: CheckPwnedInput
+  policy?: PasswordPolicyInput;
+  checkPwned?: CheckPwnedInput;
 }): ResolvedPasswordConfig {
   return {
     policy: resolvePasswordPolicy(input?.policy),
     checkPwned: resolveCheckPwned(input?.checkPwned),
-  }
+  };
 }
 
 /**
@@ -89,14 +92,14 @@ export function resolvePasswordConfig(input?: {
  */
 export function checkPasswordPolicy(
   password: string,
-  policy: ResolvedPasswordPolicy
+  policy: ResolvedPasswordPolicy,
 ): PasswordPolicyViolation | null {
-  if (password.length < policy.minLength) return 'password.policy.min_length'
-  if (policy.requireUppercase && !/[A-Z]/.test(password)) return 'password.policy.uppercase'
-  if (policy.requireLowercase && !/[a-z]/.test(password)) return 'password.policy.lowercase'
-  if (policy.requireNumbers && !/[0-9]/.test(password)) return 'password.policy.numbers'
-  if (policy.requireSymbols && !/[^A-Za-z0-9]/.test(password)) return 'password.policy.symbols'
-  return null
+  if (password.length < policy.minLength) return 'password.policy.min_length';
+  if (policy.requireUppercase && !/[A-Z]/.test(password)) return 'password.policy.uppercase';
+  if (policy.requireLowercase && !/[a-z]/.test(password)) return 'password.policy.lowercase';
+  if (policy.requireNumbers && !/[0-9]/.test(password)) return 'password.policy.numbers';
+  if (policy.requireSymbols && !/[^A-Za-z0-9]/.test(password)) return 'password.policy.symbols';
+  return null;
 }
 
 /**
@@ -105,8 +108,8 @@ export function checkPasswordPolicy(
  */
 export function policyViolationParams(
   violation: PasswordPolicyViolation,
-  policy: ResolvedPasswordPolicy
+  policy: ResolvedPasswordPolicy,
 ): Record<string, string | number> | undefined {
-  if (violation === 'password.policy.min_length') return { min: policy.minLength }
-  return undefined
+  if (violation === 'password.policy.min_length') return { min: policy.minLength };
+  return undefined;
 }

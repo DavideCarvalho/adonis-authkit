@@ -1,6 +1,6 @@
-import type { Router } from '@adonisjs/core/http'
-import { isSudoMethodEnabled } from '../runtime.js'
-import type { SudoContext, SudoMethod, SudoRouteHelpers } from '../types.js'
+import type { Router } from '@adonisjs/core/http';
+import { isSudoMethodEnabled } from '../runtime.js';
+import type { SudoContext, SudoMethod, SudoRouteHelpers } from '../types.js';
 
 /**
  * Confirmação por senha — o método histórico.
@@ -47,16 +47,16 @@ export function password(): SudoMethod {
      * escondida não é nem descobrível.
      */
     async isAvailable(c: SudoContext) {
-      const getRawRow = (c.cfg.accountStore as any).__getRawRow
-      if (typeof getRawRow !== 'function') return true
+      const getRawRow = (c.cfg.accountStore as any).__getRawRow;
+      if (typeof getRawRow !== 'function') return true;
 
       try {
-        const row = await getRawRow.call(c.cfg.accountStore, c.accountId)
+        const row = await getRawRow.call(c.cfg.accountStore, c.accountId);
         // Store expõe a função e respondeu (linha nula ou hash vazio/nulo): sabemos
         // que não há senha → indisponível.
-        return Boolean(row?.password)
+        return Boolean(row?.password);
       } catch {
-        return true
+        return true;
       }
     },
 
@@ -66,14 +66,18 @@ export function password(): SudoMethod {
         kind: 'form' as const,
         endpoint: '/account/confirm',
         fields: [
-          { name: 'password', type: 'password' as const, labelKey: 'account.confirm.password_label' },
+          {
+            name: 'password',
+            type: 'password' as const,
+            labelKey: 'account.confirm.password_label',
+          },
         ],
-      }
+      };
     },
 
     register(router: Router, h: SudoRouteHelpers) {
       router.post('/account/confirm', async (ctx: any) => {
-        const c = await h.contextFrom(ctx)
+        const c = await h.contextFrom(ctx);
 
         // ANTES de qualquer verificação: o host desligou este método?
         // A rota é montada incondicionalmente (decisão de tempo de registro),
@@ -81,20 +85,20 @@ export function password(): SudoMethod {
         // recusar. Responde `fail` — o mesmo redirect+flash de uma senha
         // errada — em vez de 404: assim a resposta não distingue "método
         // desligado" de "senha incorreta" e não vaza a config do host.
-        if (!isSudoMethodEnabled(c.cfg, 'password')) return h.fail(c, 'account.confirm.error')
+        if (!isSudoMethodEnabled(c.cfg, 'password')) return h.fail(c, 'account.confirm.error');
 
-        const { password: submitted } = ctx.request.only(['password'])
+        const { password: submitted } = ctx.request.only(['password']);
 
         // `c.account` é nullable (sessão viva de conta apagada → findById null)
         // e `email` pode vir vazio de um store customizado; sem e-mail não há
         // como verificar credenciais.
-        if (!submitted || !c.account || !c.account.email) return h.fail(c, 'account.confirm.error')
+        if (!submitted || !c.account || !c.account.email) return h.fail(c, 'account.confirm.error');
 
-        const ok = await c.cfg.accountStore.verifyCredentials(c.account.email, submitted)
-        if (!ok) return h.fail(c, 'account.confirm.error')
+        const ok = await c.cfg.accountStore.verifyCredentials(c.account.email, submitted);
+        if (!ok) return h.fail(c, 'account.confirm.error');
 
-        return h.completeSudo(c, 'password')
-      })
+        return h.completeSudo(c, 'password');
+      });
     },
-  }
+  };
 }

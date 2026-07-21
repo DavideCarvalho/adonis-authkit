@@ -1,15 +1,15 @@
-import type { AuthAccount } from '../accounts/account_store.js'
+import type { AuthAccount } from '../accounts/account_store.js';
 
 /** The slice of the resolved config the role resolution needs (structurally typed). */
 type RoleResolverConfig = {
   resolveTokenRoles?: (
     account: AuthAccount,
     context: {
-      clientId?: string
-      activeOrg?: { orgId: string; orgSlug: string; orgRole: string } | null
+      clientId?: string;
+      activeOrg?: { orgId: string; orgSlug: string; orgRole: string } | null;
     },
-  ) => string[] | Promise<string[]>
-}
+  ) => string[] | Promise<string[]>;
+};
 
 /**
  * An account's effective roles for host-side gating (the admin console).
@@ -28,7 +28,7 @@ export async function resolveAccountRoles(
   account: AuthAccount,
 ): Promise<string[]> {
   if (cfg.resolveTokenRoles) {
-    return cfg.resolveTokenRoles(account, { clientId: undefined, activeOrg: null })
+    return cfg.resolveTokenRoles(account, { clientId: undefined, activeOrg: null });
   }
-  return account.globalRoles ?? []
+  return account.globalRoles ?? [];
 }

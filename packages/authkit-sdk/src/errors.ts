@@ -3,13 +3,13 @@
  * status. Parsed from the API's `{ error: { code, message } }` envelope.
  */
 export class AuthkitApiError extends Error {
-  readonly status: number
-  readonly code: string
+  readonly status: number;
+  readonly code: string;
 
   constructor(status: number, code: string, message: string) {
-    super(message)
-    this.name = 'AuthkitApiError'
-    this.status = status
-    this.code = code
+    super(message);
+    this.name = 'AuthkitApiError';
+    this.status = status;
+    this.code = code;
   }
 }

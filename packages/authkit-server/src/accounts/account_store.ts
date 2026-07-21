@@ -1,43 +1,43 @@
 /** DTO público da conta — o que o provider e os controllers enxergam. Nunca um model Lucid. */
 export interface AuthAccount {
-  id: string
-  email: string
-  globalRoles?: string[]
-  name?: string
-  avatarUrl?: string
+  id: string;
+  email: string;
+  globalRoles?: string[];
+  name?: string;
+  avatarUrl?: string;
 }
 
 export interface CreateAccountInput {
-  email: string
-  password: string
-  fullName?: string | null
-  globalRoles?: string[]
+  email: string;
+  password: string;
+  fullName?: string | null;
+  globalRoles?: string[];
   /** social/Google entra como true (provider já verificou o email). Default: false. */
-  emailVerified?: boolean
+  emailVerified?: boolean;
 }
 
 /** Dados para ligar uma identidade de provider a uma conta. */
 export interface LinkProviderIdentityInput {
-  accountId: string
-  provider: string
-  providerUserId: string
-  email?: string
+  accountId: string;
+  provider: string;
+  providerUserId: string;
+  email?: string;
 }
 
 /** Parâmetros de listagem paginada de contas (console admin). */
 export interface ListAccountsParams {
   /** Filtro por e-mail (substring, case-insensitive). */
-  search?: string
+  search?: string;
   /** Página (1-based). Default: 1. */
-  page?: number
+  page?: number;
   /** Itens por página. Default: 20. */
-  limit?: number
+  limit?: number;
 }
 
 /** Página de resultados + total absoluto (para paginação na UI). */
 export interface Paginated<T> {
-  data: T[]
-  total: number
+  data: T[];
+  total: number;
 }
 
 /**
@@ -46,11 +46,11 @@ export interface Paginated<T> {
  */
 export interface PasskeySummary {
   /** Credential id (base64url). */
-  id: string
+  id: string;
   /** Rótulo legível opcional (ex.: nome do dispositivo). */
-  label?: string
+  label?: string;
   /** ISO timestamp de criação. */
-  createdAt: string
+  createdAt: string;
 }
 
 /**
@@ -64,17 +64,19 @@ export interface PasskeySummary {
  */
 export interface CoreAccountStore extends AdminCapability {
   // Provider-facing
-  findById(id: string): Promise<AuthAccount | null>
-  verifyCredentials(email: string, password: string): Promise<AuthAccount | null>
+  findById(id: string): Promise<AuthAccount | null>;
+  verifyCredentials(email: string, password: string): Promise<AuthAccount | null>;
   // Cadastro / social
-  findByEmail(email: string): Promise<AuthAccount | null>
-  create(input: CreateAccountInput): Promise<AuthAccount>
+  findByEmail(email: string): Promise<AuthAccount | null>;
+  create(input: CreateAccountInput): Promise<AuthAccount>;
   // Reset de senha
-  issuePasswordResetToken(email: string): Promise<{ token: string; account: AuthAccount } | null>
-  consumePasswordResetToken(token: string, newPassword: string): Promise<boolean>
+  issuePasswordResetToken(email: string): Promise<{ token: string; account: AuthAccount } | null>;
+  consumePasswordResetToken(token: string, newPassword: string): Promise<boolean>;
   // Verificação de e-mail
-  issueEmailVerificationToken(email: string): Promise<{ token: string; account: AuthAccount } | null>
-  consumeEmailVerificationToken(token: string): Promise<boolean>
+  issueEmailVerificationToken(
+    email: string,
+  ): Promise<{ token: string; account: AuthAccount } | null>;
+  consumeEmailVerificationToken(token: string): Promise<boolean>;
 }
 
 /**
@@ -84,9 +86,9 @@ export interface CoreAccountStore extends AdminCapability {
  */
 export interface AdminCapability {
   /** Lista contas paginadas, opcionalmente filtrando por e-mail. */
-  listAccounts(params: ListAccountsParams): Promise<Paginated<AuthAccount>>
+  listAccounts(params: ListAccountsParams): Promise<Paginated<AuthAccount>>;
   /** Substitui as roles globais de uma conta. */
-  setGlobalRoles(accountId: string, roles: string[]): Promise<void>
+  setGlobalRoles(accountId: string, roles: string[]): Promise<void>;
   /**
    * Capacidade OPCIONAL: conta eficientemente quantas contas possuem a role
    * global `role` (ex.: para a invariante de "último admin", evitando paginar
@@ -100,7 +102,7 @@ export interface AdminCapability {
    *
    * Use {@link supportsCountByGlobalRole} para estreitar em runtime.
    */
-  countByGlobalRole?(role: string): Promise<number>
+  countByGlobalRole?(role: string): Promise<number>;
 }
 
 /**
@@ -122,7 +124,7 @@ export interface AccountSecurityCapability {
    * via {@link CoreAccountStore.verifyCredentials}). Retorna false se a conta não
    * existe.
    */
-  changePassword(accountId: string, newPassword: string): Promise<boolean>
+  changePassword(accountId: string, newPassword: string): Promise<boolean>;
   /**
    * Inicia a troca de e-mail: gera um token de confirmação para o `newEmail` e o
    * persiste. Retorna o token + a conta, ou null se a conta não existe OU se o
@@ -130,8 +132,8 @@ export interface AccountSecurityCapability {
    */
   requestEmailChange(
     accountId: string,
-    newEmail: string
-  ): Promise<{ token: string; account: AuthAccount; newEmail: string } | null>
+    newEmail: string,
+  ): Promise<{ token: string; account: AuthAccount; newEmail: string } | null>;
   /**
    * Confirma a troca de e-mail consumindo o token (single-use). Em caso de
    * sucesso aplica o novo e-mail, marca-o como verificado e limpa o token.
@@ -140,8 +142,10 @@ export interface AccountSecurityCapability {
    * endereço antigo e auditoria). `account.email` já reflete o novo endereço.
    */
   confirmEmailChange(
-    token: string
-  ): Promise<{ ok: true; account: AuthAccount; oldEmail: string; newEmail: string } | { ok: false }>
+    token: string,
+  ): Promise<
+    { ok: true; account: AuthAccount; oldEmail: string; newEmail: string } | { ok: false }
+  >;
 }
 
 /**
@@ -159,11 +163,11 @@ export interface AccountSecurityCapability {
  */
 export interface AccountStatusCapability {
   /** Desabilita a conta (impede login). No-op se a conta não existe. */
-  disableAccount(accountId: string): Promise<void>
+  disableAccount(accountId: string): Promise<void>;
   /** Reabilita a conta. No-op se a conta não existe. */
-  enableAccount(accountId: string): Promise<void>
+  enableAccount(accountId: string): Promise<void>;
   /** Indica se a conta está desabilitada (false se a conta não existe). */
-  isDisabled(accountId: string): Promise<boolean>
+  isDisabled(accountId: string): Promise<boolean>;
 }
 
 /**
@@ -179,8 +183,8 @@ export interface ProfileCapability {
    */
   updateProfile(
     accountId: string,
-    patch: { name?: string | null; avatarUrl?: string | null }
-  ): Promise<AuthAccount | null>
+    patch: { name?: string | null; avatarUrl?: string | null },
+  ): Promise<AuthAccount | null>;
 }
 
 /**
@@ -192,28 +196,28 @@ export interface ProfileCapability {
  */
 export interface ProviderIdentityCapability {
   /** Acha a conta ligada a uma identidade de provider; null se desconhecida. */
-  findByProviderIdentity(provider: string, providerUserId: string): Promise<AuthAccount | null>
+  findByProviderIdentity(provider: string, providerUserId: string): Promise<AuthAccount | null>;
   /** Liga (upsert idempotente na chave única) uma identidade de provider a uma conta. */
-  linkProviderIdentity(data: LinkProviderIdentityInput): Promise<void>
+  linkProviderIdentity(data: LinkProviderIdentityInput): Promise<void>;
   /**
    * Remove TODAS as identidades de provider ligadas a uma conta (usado na deleção
    * de conta — LGPD). Retorna quantas foram removidas. No-op (0) se a conta não tem
    * identidades.
    */
-  unlinkAllProviderIdentities(accountId: string): Promise<number>
+  unlinkAllProviderIdentities(accountId: string): Promise<number>;
   /**
    * Lista as identidades de provider de uma conta (usado no export de dados —
    * LGPD). NUNCA expõe tokens/segredos do provider — só provider + providerUserId +
    * email (quando presente).
    */
-  listProviderIdentities(accountId: string): Promise<ProviderIdentitySummary[]>
+  listProviderIdentities(accountId: string): Promise<ProviderIdentitySummary[]>;
 }
 
 /** Resumo de uma identidade de provider para export/exibição (sem tokens). */
 export interface ProviderIdentitySummary {
-  provider: string
-  providerUserId: string
-  email?: string | null
+  provider: string;
+  providerUserId: string;
+  email?: string | null;
 }
 
 /**
@@ -228,12 +232,12 @@ export interface MfaCapability {
    * instante é considerado inválido (re-enrolar MFA revoga a confiança). Pode ser
    * `null`/ausente quando o MFA não está ativo ou o store não rastreia o instante.
    */
-  getMfaState(accountId: string): Promise<{ enabled: boolean; enabledAt?: number | null }>
+  getMfaState(accountId: string): Promise<{ enabled: boolean; enabledAt?: number | null }>;
   /**
    * Inicia o enrollment TOTP: gera um segredo PENDENTE (mfaEnabledAt continua
    * null) e devolve o segredo + otpauth URI (keyuri). Não ativa o MFA ainda.
    */
-  startTotpEnrollment(accountId: string): Promise<{ secret: string; otpauthUri: string } | null>
+  startTotpEnrollment(accountId: string): Promise<{ secret: string; otpauthUri: string } | null>;
   /**
    * Confirma o enrollment: verifica o código contra o segredo pendente; em caso
    * de sucesso ativa o MFA, gera N recovery codes e devolve os códigos em claro
@@ -241,14 +245,14 @@ export interface MfaCapability {
    */
   confirmTotpEnrollment(
     accountId: string,
-    code: string
-  ): Promise<{ ok: boolean; recoveryCodes?: string[] }>
+    code: string,
+  ): Promise<{ ok: boolean; recoveryCodes?: string[] }>;
   /** Verifica um código TOTP contra o segredo ativo. */
-  verifyTotp(accountId: string, code: string): Promise<boolean>
+  verifyTotp(accountId: string, code: string): Promise<boolean>;
   /** Consome (single-use) um recovery code; true se casou e foi removido. */
-  consumeRecoveryCode(accountId: string, code: string): Promise<boolean>
+  consumeRecoveryCode(accountId: string, code: string): Promise<boolean>;
   /** Desliga o MFA: limpa segredo + mfaEnabledAt + recovery codes. */
-  disableMfa(accountId: string): Promise<void>
+  disableMfa(accountId: string): Promise<void>;
 }
 
 /**
@@ -267,8 +271,8 @@ export interface WebauthnCapability {
    * `challenge` (base64url) para guardar na sessão. null = conta inexistente.
    */
   generatePasskeyRegistrationOptions(
-    accountId: string
-  ): Promise<{ options: Record<string, unknown>; challenge: string } | null>
+    accountId: string,
+  ): Promise<{ options: Record<string, unknown>; challenge: string } | null>;
   /**
    * Finaliza o registro: verifica a resposta do browser
    * (`verifyRegistrationResponse`) contra o `expectedChallenge` guardado. Em caso
@@ -278,16 +282,16 @@ export interface WebauthnCapability {
   verifyPasskeyRegistration(
     accountId: string,
     response: unknown,
-    expectedChallenge: string
-  ): Promise<boolean>
+    expectedChallenge: string,
+  ): Promise<boolean>;
   /**
    * Inicia a autenticação por passkey no login: gera as opções
    * (`generateAuthenticationOptions`) restritas às credenciais da conta. Devolve
    * as opções JSON + o `challenge` para guardar na sessão. null = conta sem passkeys.
    */
   generatePasskeyAuthenticationOptions(
-    accountId: string
-  ): Promise<{ options: Record<string, unknown>; challenge: string } | null>
+    accountId: string,
+  ): Promise<{ options: Record<string, unknown>; challenge: string } | null>;
   /**
    * Verifica a resposta de autenticação por passkey
    * (`verifyAuthenticationResponse`) contra o `expectedChallenge` guardado. Em
@@ -296,12 +300,12 @@ export interface WebauthnCapability {
   verifyPasskeyAuthentication(
     accountId: string,
     response: unknown,
-    expectedChallenge: string
-  ): Promise<boolean>
+    expectedChallenge: string,
+  ): Promise<boolean>;
   /** Lista as passkeys da conta (sem expor chave pública / counter). */
-  listPasskeys(accountId: string): Promise<PasskeySummary[]>
+  listPasskeys(accountId: string): Promise<PasskeySummary[]>;
   /** Remove uma passkey (por credential id) da conta. */
-  removePasskey(accountId: string, credentialId: string): Promise<void>
+  removePasskey(accountId: string, credentialId: string): Promise<void>;
 }
 
 /**
@@ -314,7 +318,7 @@ export interface WebauthnCapability {
  */
 export interface EmailVerificationStatusCapability {
   /** True se o e-mail da conta está verificado. False se a conta não existe. */
-  isEmailVerified(accountId: string): Promise<boolean>
+  isEmailVerified(accountId: string): Promise<boolean>;
 }
 
 /**
@@ -327,7 +331,7 @@ export interface EmailVerificationStatusCapability {
  */
 export interface AccountDeletionCapability {
   /** Apaga a linha da conta. Retorna false se a conta não existe. */
-  deleteAccount(accountId: string): Promise<boolean>
+  deleteAccount(accountId: string): Promise<boolean>;
 }
 
 /**
@@ -350,17 +354,17 @@ export interface PasswordHistoryCapability {
     accountId: string,
     plainPassword: string,
     count: number,
-    nativeVerify?: ((hashed: string, plain: string) => Promise<boolean>) | null
-  ): Promise<boolean>
+    nativeVerify?: ((hashed: string, plain: string) => Promise<boolean>) | null,
+  ): Promise<boolean>;
   /**
    * Grava o hash ATUAL antes de substituí-lo (chamado ANTES de `changePassword`
    * ou equivalente). Best-effort: falha silenciosa não impede a troca.
    */
-  recordPasswordHistory(accountId: string, oldHash: string): Promise<void>
+  recordPasswordHistory(accountId: string, oldHash: string): Promise<void>;
   /**
    * Remove entradas de histórico além dos últimos `count` por conta. Best-effort.
    */
-  prunePasswordHistory(accountId: string, count: number): Promise<void>
+  prunePasswordHistory(accountId: string, count: number): Promise<void>;
 }
 
 /**
@@ -373,17 +377,17 @@ export interface PasswordExpirationCapability {
    * Retorna o timestamp da última troca de senha, ou null se nunca foi definida
    * (conta legacy sem a coluna / coluna NULL).
    */
-  getPasswordChangedAt(accountId: string): Promise<Date | null>
+  getPasswordChangedAt(accountId: string): Promise<Date | null>;
   /**
    * Atualiza a coluna `password_changed_at` para o momento atual. Chamado após
    * toda troca/criação de senha. Best-effort: falha não impede a operação.
    */
-  touchPasswordChangedAt(accountId: string): Promise<void>
+  touchPasswordChangedAt(accountId: string): Promise<void>;
 }
 
 /** Entrada do import de uma conta (comando `authkit:users:import`). */
 export interface ImportAccountInput {
-  email: string
+  email: string;
   /**
    * Hash de senha JÁ pronto, vindo do sistema de origem (qualquer formato:
    * bcrypt `$2y$`, scrypt, pbkdf2, etc.). Inserido COMO ESTÁ — sem re-hash. O
@@ -391,10 +395,10 @@ export interface ImportAccountInput {
    * exclusivo com nada: se ausente, a conta nasce sem senha utilizável (até um
    * reset). NÃO passa pela política de senha (dado legado/confiável).
    */
-  passwordHash?: string | null
-  fullName?: string | null
-  globalRoles?: string[]
-  emailVerified?: boolean
+  passwordHash?: string | null;
+  fullName?: string | null;
+  globalRoles?: string[];
+  emailVerified?: boolean;
 }
 
 /**
@@ -408,7 +412,7 @@ export interface AccountImportCapability {
    * Insere uma conta com o hash de senha já pronto (sem re-hash, sem política).
    * Retorna a conta criada, ou null se o e-mail já existe (skip).
    */
-  importAccount(input: ImportAccountInput): Promise<AuthAccount | null>
+  importAccount(input: ImportAccountInput): Promise<AuthAccount | null>;
 }
 
 /**
@@ -429,49 +433,49 @@ export interface MagicLinkCapability {
    * conta não existe (o controller SEMPRE renderiza "link enviado" para não vazar
    * a existência de contas).
    */
-  issueMagicLinkToken(email: string): Promise<{ token: string; account: AuthAccount } | null>
+  issueMagicLinkToken(email: string): Promise<{ token: string; account: AuthAccount } | null>;
   /**
    * Consome (single-use) um magic link. Retorna a conta autenticada ou null se o
    * token é inválido/expirado. NÃO altera a senha.
    */
-  consumeMagicLinkToken(token: string): Promise<AuthAccount | null>
+  consumeMagicLinkToken(token: string): Promise<AuthAccount | null>;
 }
 
 /** DTO público de uma organização. */
 export interface OrgSummary {
-  id: string
-  name: string
-  slug: string
-  logoUrl?: string | null
-  metadata?: Record<string, unknown> | null
-  createdAt: string
+  id: string;
+  name: string;
+  slug: string;
+  logoUrl?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
 }
 
 /** Membro de uma organização. */
 export interface OrgMember {
-  accountId: string
-  email?: string | null
-  role: string
-  joinedAt: string
+  accountId: string;
+  email?: string | null;
+  role: string;
+  joinedAt: string;
 }
 
 /** Convite pendente de uma organização. */
 export interface OrgInvitation {
-  id: string
-  organizationId: string
-  email: string
-  role: string
-  invitedBy: string
-  expiresAt: string
-  acceptedAt?: string | null
-  createdAt: string
+  id: string;
+  organizationId: string;
+  email: string;
+  role: string;
+  invitedBy: string;
+  expiresAt: string;
+  acceptedAt?: string | null;
+  createdAt: string;
 }
 
 /** Informações da org ativa de uma conta (para emissão de claims). */
 export interface ActiveOrgInfo {
-  orgId: string
-  orgSlug: string
-  orgRole: string
+  orgId: string;
+  orgSlug: string;
+  orgRole: string;
 }
 
 /**
@@ -481,42 +485,74 @@ export interface ActiveOrgInfo {
  */
 export interface OrganizationsCapability {
   // --- Org CRUD ---
-  createOrg(input: { name: string; slug: string; logoUrl?: string | null; metadata?: Record<string, unknown> | null; ownerAccountId: string }): Promise<OrgSummary>
-  findOrgById(orgId: string): Promise<OrgSummary | null>
-  findOrgBySlug(slug: string): Promise<OrgSummary | null>
-  listOrgsForAccount(accountId: string): Promise<Array<OrgSummary & { role: string }>>
-  updateOrg(orgId: string, patch: { name?: string; logoUrl?: string | null; metadata?: Record<string, unknown> | null }): Promise<OrgSummary | null>
-  deleteOrg(orgId: string): Promise<boolean>
+  createOrg(input: {
+    name: string;
+    slug: string;
+    logoUrl?: string | null;
+    metadata?: Record<string, unknown> | null;
+    ownerAccountId: string;
+  }): Promise<OrgSummary>;
+  findOrgById(orgId: string): Promise<OrgSummary | null>;
+  findOrgBySlug(slug: string): Promise<OrgSummary | null>;
+  listOrgsForAccount(accountId: string): Promise<Array<OrgSummary & { role: string }>>;
+  updateOrg(
+    orgId: string,
+    patch: { name?: string; logoUrl?: string | null; metadata?: Record<string, unknown> | null },
+  ): Promise<OrgSummary | null>;
+  deleteOrg(orgId: string): Promise<boolean>;
 
   // --- Members ---
-  listOrgMembers(orgId: string): Promise<OrgMember[]>
-  addOrgMember(orgId: string, accountId: string, role: string): Promise<void>
-  removeOrgMember(orgId: string, accountId: string): Promise<{ ok: boolean; reason?: 'not_found' | 'last_owner' }>
-  updateOrgMemberRole(orgId: string, accountId: string, newRole: string): Promise<{ ok: boolean; reason?: 'not_found' | 'last_owner' }>
-  getOrgMembership(orgId: string, accountId: string): Promise<{ role: string } | null>
+  listOrgMembers(orgId: string): Promise<OrgMember[]>;
+  addOrgMember(orgId: string, accountId: string, role: string): Promise<void>;
+  removeOrgMember(
+    orgId: string,
+    accountId: string,
+  ): Promise<{ ok: boolean; reason?: 'not_found' | 'last_owner' }>;
+  updateOrgMemberRole(
+    orgId: string,
+    accountId: string,
+    newRole: string,
+  ): Promise<{ ok: boolean; reason?: 'not_found' | 'last_owner' }>;
+  getOrgMembership(orgId: string, accountId: string): Promise<{ role: string } | null>;
 
   // --- Invitations ---
-  createOrgInvitation(input: { organizationId: string; email: string; role: string; invitedBy: string; ttlHours: number }): Promise<{ invitation: OrgInvitation; token: string }>
-  findInvitationByTokenHash(tokenHash: string): Promise<OrgInvitation | null>
-  listPendingInvitationsForOrg(orgId: string): Promise<OrgInvitation[]>
-  listPendingInvitationsForEmail(email: string): Promise<OrgInvitation[]>
-  acceptInvitation(invitationId: string, accountId: string): Promise<{ ok: boolean; reason?: 'not_found' | 'expired' | 'email_mismatch' | 'already_member' }>
+  createOrgInvitation(input: {
+    organizationId: string;
+    email: string;
+    role: string;
+    invitedBy: string;
+    ttlHours: number;
+  }): Promise<{ invitation: OrgInvitation; token: string }>;
+  findInvitationByTokenHash(tokenHash: string): Promise<OrgInvitation | null>;
+  listPendingInvitationsForOrg(orgId: string): Promise<OrgInvitation[]>;
+  listPendingInvitationsForEmail(email: string): Promise<OrgInvitation[]>;
+  acceptInvitation(
+    invitationId: string,
+    accountId: string,
+  ): Promise<{
+    ok: boolean;
+    reason?: 'not_found' | 'expired' | 'email_mismatch' | 'already_member';
+  }>;
   /**
    * Revoga (deleta) um convite pendente. ESCOPADO POR ORG: o convite só é
    * deletado se pertencer à `organizationId` informada — previne IDOR cross-org
    * onde um owner/admin de outra org revogaria o convite sabendo apenas o id.
    * Retorna `false` quando o convite não existe OU não pertence à org (not-found).
    */
-  revokeInvitation(organizationId: string, invitationId: string): Promise<boolean>
+  revokeInvitation(organizationId: string, invitationId: string): Promise<boolean>;
 
   // --- Cascade LGPD ---
   /** Remove todas as memberships e convites enviados pela conta. Best-effort. */
-  removeAccountFromAllOrgs(accountId: string): Promise<{ memberships: number; invitations: number }>
+  removeAccountFromAllOrgs(
+    accountId: string,
+  ): Promise<{ memberships: number; invitations: number }>;
 }
 
 /** Type guard: o store implementa a capacidade de Organizations. */
-export function supportsOrganizations(store: AccountStore): store is AccountStore & OrganizationsCapability {
-  return typeof (store as any).createOrg === 'function'
+export function supportsOrganizations(
+  store: AccountStore,
+): store is AccountStore & OrganizationsCapability {
+  return typeof (store as any).createOrg === 'function';
 }
 
 /**
@@ -538,7 +574,7 @@ export type AccountStore = CoreAccountStore & {
    * opcional, não um método de capacidade — por isso `readonly` e fora dos
    * blocos `Partial<...>` de capacidades probáveis.
    */
-  readonly connectionName?: string
+  readonly connectionName?: string;
 } & Partial<
     MfaCapability &
       WebauthnCapability &
@@ -553,11 +589,11 @@ export type AccountStore = CoreAccountStore & {
       OrganizationsCapability &
       PasswordHistoryCapability &
       PasswordExpirationCapability
-  >
+  >;
 
 /** Type guard: o store implementa a capacidade de MFA / TOTP. */
 export function supportsMfa(store: AccountStore): store is AccountStore & MfaCapability {
-  return typeof store.getMfaState === 'function'
+  return typeof store.getMfaState === 'function';
 }
 
 /**
@@ -566,80 +602,80 @@ export function supportsMfa(store: AccountStore): store is AccountStore & MfaCap
  * fallback de scan paginado.
  */
 export function supportsCountByGlobalRole(
-  store: AccountStore
+  store: AccountStore,
 ): store is AccountStore & { countByGlobalRole(role: string): Promise<number> } {
-  return typeof store.countByGlobalRole === 'function'
+  return typeof store.countByGlobalRole === 'function';
 }
 
 /** Type guard: o store implementa a capacidade de passkeys / WebAuthn. */
 export function supportsPasskeys(store: AccountStore): store is AccountStore & WebauthnCapability {
-  return typeof store.listPasskeys === 'function'
+  return typeof store.listPasskeys === 'function';
 }
 
 /** Type guard: o store implementa account linking por identidade de provider. */
 export function supportsProviderIdentity(
-  store: AccountStore
+  store: AccountStore,
 ): store is AccountStore & ProviderIdentityCapability {
-  return typeof store.findByProviderIdentity === 'function'
+  return typeof store.findByProviderIdentity === 'function';
 }
 
 /** Type guard: o store implementa o self-service de segurança (senha/e-mail). */
 export function supportsAccountSecurity(
-  store: AccountStore
+  store: AccountStore,
 ): store is AccountStore & AccountSecurityCapability {
-  return typeof store.changePassword === 'function'
+  return typeof store.changePassword === 'function';
 }
 
 /** Type guard: o store implementa habilitar/desabilitar conta. */
 export function supportsAccountStatus(
-  store: AccountStore
+  store: AccountStore,
 ): store is AccountStore & AccountStatusCapability {
-  return typeof store.disableAccount === 'function'
+  return typeof store.disableAccount === 'function';
 }
 
 /** Type guard: o store implementa a edição de perfil (nome/avatar). */
 export function supportsProfile(store: AccountStore): store is AccountStore & ProfileCapability {
-  return typeof store.updateProfile === 'function'
+  return typeof store.updateProfile === 'function';
 }
 
 /** Type guard: o store implementa login por magic link (passwordless). */
 export function supportsMagicLink(
-  store: AccountStore
+  store: AccountStore,
 ): store is AccountStore & MagicLinkCapability {
-  return typeof store.issueMagicLinkToken === 'function'
+  return typeof store.issueMagicLinkToken === 'function';
 }
 
 /** Type guard: o store consegue dizer se o e-mail de uma conta está verificado. */
 export function supportsEmailVerificationStatus(
-  store: AccountStore
+  store: AccountStore,
 ): store is AccountStore & EmailVerificationStatusCapability {
-  return typeof store.isEmailVerified === 'function'
+  return typeof store.isEmailVerified === 'function';
 }
 
 /** Type guard: o store implementa a deleção (hard delete) da conta. */
 export function supportsAccountDeletion(
-  store: AccountStore
+  store: AccountStore,
 ): store is AccountStore & AccountDeletionCapability {
-  return typeof store.deleteAccount === 'function'
+  return typeof store.deleteAccount === 'function';
 }
 
 /** Type guard: o store implementa o import em massa de contas. */
 export function supportsAccountImport(
-  store: AccountStore
+  store: AccountStore,
 ): store is AccountStore & AccountImportCapability {
-  return typeof store.importAccount === 'function'
+  return typeof store.importAccount === 'function';
 }
 
 /** Type guard: o store implementa histórico de senhas (disallow_password_reuse). */
 export function supportsPasswordHistory(
-  store: AccountStore
+  store: AccountStore,
 ): store is AccountStore & PasswordHistoryCapability {
-  return typeof store.isPasswordReused === 'function'
+  return typeof store.isPasswordReused === 'function';
 }
 
 /** Type guard: o store implementa expiração de senha (password_changed_at coluna). */
 export function supportsPasswordExpiration(
-  store: AccountStore
+  store: AccountStore,
 ): store is AccountStore & PasswordExpirationCapability {
-  return typeof store.getPasswordChangedAt === 'function'
+  return typeof store.getPasswordChangedAt === 'function';
 }

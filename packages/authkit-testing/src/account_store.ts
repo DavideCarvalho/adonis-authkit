@@ -3,24 +3,24 @@
  * pacote de testing não depender do server em runtime (que arrasta Lucid etc.).
  */
 export interface FakeAuthAccount {
-  id: string
-  email: string
-  globalRoles?: string[]
-  name?: string
-  avatarUrl?: string
+  id: string;
+  email: string;
+  globalRoles?: string[];
+  name?: string;
+  avatarUrl?: string;
 }
 
 export interface FakeAccountStoreOptions {
   /** conta fixa retornada por findById/verifyCredentials/findByEmail. */
-  account?: FakeAuthAccount
+  account?: FakeAuthAccount;
   /** inclui métodos da capacidade MfaCapability (supportsMfa → true). */
-  withMfa?: boolean
+  withMfa?: boolean;
   /** inclui métodos da capacidade WebauthnCapability (supportsPasskeys → true). */
-  withPasskeys?: boolean
+  withPasskeys?: boolean;
   /** inclui métodos da capacidade AccountSecurityCapability (supportsAccountSecurity → true). */
-  withAccountSecurity?: boolean
+  withAccountSecurity?: boolean;
   /** sobrescreve qualquer método individualmente. */
-  overrides?: Record<string, unknown>
+  overrides?: Record<string, unknown>;
 }
 
 /**
@@ -34,7 +34,7 @@ export function fakeAccountStore(options: FakeAccountStoreOptions = {}): Record<
     id: 'u1',
     email: 'a@b.com',
     globalRoles: ['ADMIN'],
-  }
+  };
 
   const core: Record<string, unknown> = {
     findById: async (id: string) => ({ ...fixed, id }),
@@ -53,25 +53,25 @@ export function fakeAccountStore(options: FakeAccountStoreOptions = {}): Record<
     consumeEmailVerificationToken: async () => false,
     listAccounts: async () => ({ data: [{ ...fixed }], total: 1 }),
     setGlobalRoles: async () => {},
-  }
+  };
 
   if (options.withMfa) {
-    core.getMfaState = async () => ({ enabled: false })
-    core.enableMfa = async () => {}
-    core.disableMfa = async () => {}
+    core.getMfaState = async () => ({ enabled: false });
+    core.enableMfa = async () => {};
+    core.disableMfa = async () => {};
   }
 
   if (options.withPasskeys) {
-    core.listPasskeys = async () => []
-    core.registerPasskey = async () => {}
-    core.deletePasskey = async () => {}
+    core.listPasskeys = async () => [];
+    core.registerPasskey = async () => {};
+    core.deletePasskey = async () => {};
   }
 
   if (options.withAccountSecurity) {
-    core.changePassword = async () => true
-    core.requestEmailChange = async () => null
-    core.confirmEmailChange = async () => ({ ok: false })
+    core.changePassword = async () => true;
+    core.requestEmailChange = async () => null;
+    core.confirmEmailChange = async () => ({ ok: false });
   }
 
-  return { ...core, ...(options.overrides ?? {}) }
+  return { ...core, ...(options.overrides ?? {}) };
 }

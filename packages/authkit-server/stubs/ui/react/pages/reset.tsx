@@ -1,19 +1,19 @@
-{{{
-  exports({ to: app.makePath('inertia/pages/authkit/reset.tsx') })
-}}}
-import AuthShell from '../../components/auth_shell'
+{
+  exports({ to: app.makePath('inertia/pages/authkit/reset.tsx') });
+}
+import AuthShell from '../../components/auth_shell';
 
 const inputClass =
-  'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-transparent focus:ring-2 focus:ring-gray-800'
+  'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-transparent focus:ring-2 focus:ring-gray-800';
 
 export default function AuthkitReset({
   token,
   csrfToken,
   done,
 }: {
-  token: string
-  csrfToken: string
-  done?: boolean
+  token: string;
+  csrfToken: string;
+  done?: boolean;
 }) {
   if (done) {
     return (
@@ -21,7 +21,7 @@ export default function AuthkitReset({
         <h1 className="text-xl font-semibold text-gray-900">Senha redefinida</h1>
         <p className="mt-2 text-sm text-gray-600">Você já pode entrar com a nova senha.</p>
       </AuthShell>
-    )
+    );
   }
 
   return (
@@ -54,5 +54,5 @@ export default function AuthkitReset({
         </button>
       </form>
     </AuthShell>
-  )
+  );
 }

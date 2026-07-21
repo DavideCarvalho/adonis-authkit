@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext } from 'react';
 
 /**
  * Endpoints JSON que os hooks de dados (`useProfile`, `useSessions`,
@@ -47,7 +47,7 @@ export interface AuthkitEndpoints {
  *   não existem; `SignInButton`/`SignOutButton`/`useAuth`/`Avatar`
  *   continuam funcionando normalmente.
  */
-export type AuthkitIdpMode = "authkit" | "external";
+export type AuthkitIdpMode = 'authkit' | 'external';
 
 export interface AuthkitConfig {
   /** URL de início de login (OIDC é redirect-based). Default: `/auth/login` */
@@ -84,18 +84,18 @@ export interface ResolvedAuthkitConfig {
 }
 
 export const DEFAULT_CONFIG: ResolvedAuthkitConfig = {
-  idp: "authkit",
-  loginUrl: "/auth/login",
-  logoutUrl: "/account/logout",
-  profileUrl: "/account/security",
+  idp: 'authkit',
+  loginUrl: '/auth/login',
+  logoutUrl: '/account/logout',
+  profileUrl: '/account/security',
   endpoints: {
-    profile: "/account/security/profile",
-    sessions: "/account/security",
-    apps: "/account/apps",
-    passkeys: "/account/mfa/passkeys",
-    orgs: "/account/orgs/json",
-    orgInvitations: "/account/orgs/invitations/json",
-    can: "/authz/can",
+    profile: '/account/security/profile',
+    sessions: '/account/security',
+    apps: '/account/apps',
+    passkeys: '/account/mfa/passkeys',
+    orgs: '/account/orgs/json',
+    orgInvitations: '/account/orgs/invitations/json',
+    can: '/authz/can',
   },
 };
 
@@ -110,22 +110,15 @@ export function resolveConfig(config?: AuthkitConfig): ResolvedAuthkitConfig {
     profileUrl: config?.profileUrl ?? DEFAULT_CONFIG.profileUrl,
     endpoints: {
       profile: config?.endpoints?.profile ?? DEFAULT_CONFIG.endpoints.profile,
-      sessions:
-        config?.endpoints?.sessions ?? DEFAULT_CONFIG.endpoints.sessions,
+      sessions: config?.endpoints?.sessions ?? DEFAULT_CONFIG.endpoints.sessions,
       apps: config?.endpoints?.apps ?? DEFAULT_CONFIG.endpoints.apps,
-      passkeys:
-        config?.endpoints?.passkeys ?? DEFAULT_CONFIG.endpoints.passkeys,
+      passkeys: config?.endpoints?.passkeys ?? DEFAULT_CONFIG.endpoints.passkeys,
       orgs: config?.endpoints?.orgs ?? DEFAULT_CONFIG.endpoints.orgs,
-      orgInvitations:
-        config?.endpoints?.orgInvitations ??
-        DEFAULT_CONFIG.endpoints.orgInvitations,
-      can:
-        config?.endpoints?.can ??
-        config?.canPath ??
-        DEFAULT_CONFIG.endpoints.can,
+      orgInvitations: config?.endpoints?.orgInvitations ?? DEFAULT_CONFIG.endpoints.orgInvitations,
+      can: config?.endpoints?.can ?? config?.canPath ?? DEFAULT_CONFIG.endpoints.can,
     },
     csrfToken: config?.csrfToken,
-    idp: config?.idp ?? "authkit",
+    idp: config?.idp ?? 'authkit',
   };
 }
 
@@ -135,12 +128,11 @@ export function resolveConfig(config?: AuthkitConfig): ResolvedAuthkitConfig {
  */
 export function buildAuthUrl(base: string, returnTo?: string): string {
   if (!returnTo) return base;
-  const sep = base.includes("?") ? "&" : "?";
+  const sep = base.includes('?') ? '&' : '?';
   return `${base}${sep}returnTo=${encodeURIComponent(returnTo)}`;
 }
 
-export const AuthkitConfigContext =
-  createContext<ResolvedAuthkitConfig>(DEFAULT_CONFIG);
+export const AuthkitConfigContext = createContext<ResolvedAuthkitConfig>(DEFAULT_CONFIG);
 
 /** Lê a config resolvida do `<AuthkitProvider>` (ou defaults). */
 export function useAuthkitConfig(): ResolvedAuthkitConfig {

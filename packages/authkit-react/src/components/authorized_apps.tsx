@@ -1,11 +1,11 @@
-import { createElement } from 'react'
-import { useAuthkitConfig } from '../config.js'
-import { useAuthorizedApps, type AuthorizedApp } from '../hooks/use_authorized_apps.js'
+import { createElement } from 'react';
+import { useAuthkitConfig } from '../config.js';
+import { type AuthorizedApp, useAuthorizedApps } from '../hooks/use_authorized_apps.js';
 
 export interface AuthorizedAppsProps {
-  className?: string
-  revokeLabel?: string
-  emptyLabel?: string
+  className?: string;
+  revokeLabel?: string;
+  emptyLabel?: string;
 }
 
 /**
@@ -16,17 +16,17 @@ function AuthorizedAppsInner({
   revokeLabel = 'Revogar',
   emptyLabel = 'Nenhum app autorizado.',
 }: AuthorizedAppsProps) {
-  const { data, loading, error, actions } = useAuthorizedApps()
+  const { data, loading, error, actions } = useAuthorizedApps();
 
   if (loading && !data) {
-    return createElement('div', { className: 'authkit-apps__loading' }, 'Carregando…')
+    return createElement('div', { className: 'authkit-apps__loading' }, 'Carregando…');
   }
   if (error) {
-    return createElement('p', { className: 'authkit-error', role: 'alert' }, error.message)
+    return createElement('p', { className: 'authkit-error', role: 'alert' }, error.message);
   }
-  const apps = data ?? []
+  const apps = data ?? [];
   if (apps.length === 0) {
-    return createElement('p', { className: 'authkit-apps__empty' }, emptyLabel)
+    return createElement('p', { className: 'authkit-apps__empty' }, emptyLabel);
   }
 
   return createElement(
@@ -46,7 +46,7 @@ function AuthorizedAppsInner({
                 alt: '',
               })
             : null,
-          createElement('span', { className: 'authkit-apps__name' }, app.name ?? app.clientId)
+          createElement('span', { className: 'authkit-apps__name' }, app.name ?? app.clientId),
         ),
         createElement(
           'button',
@@ -55,11 +55,11 @@ function AuthorizedAppsInner({
             className: 'authkit-button authkit-button--danger',
             onClick: () => void actions.revoke(app.clientId),
           },
-          revokeLabel
-        )
-      )
-    )
-  )
+          revokeLabel,
+        ),
+      ),
+    ),
+  );
 }
 
 /**
@@ -68,7 +68,7 @@ function AuthorizedAppsInner({
  * inexistentes.
  */
 export function AuthorizedApps(props: Parameters<typeof AuthorizedAppsInner>[0]) {
-  const { idp } = useAuthkitConfig()
-  if (idp === 'external') return null
-  return <AuthorizedAppsInner {...props} />
+  const { idp } = useAuthkitConfig();
+  if (idp === 'external') return null;
+  return <AuthorizedAppsInner {...props} />;
 }

@@ -1,15 +1,15 @@
-import '../augmentations.js'
-import type { HttpContext } from '@adonisjs/core/http'
-import { supportsOrganizations } from '../../accounts/account_store.js'
-import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
-import { getAccountLoginUrl } from '../account_login_url.js'
-import { resolveRuntimeSettings } from '../runtime_settings.js'
-import { isRoleInCatalog } from '../runtime_toggles.js'
+import '../augmentations.js';
+import type { HttpContext } from '@adonisjs/core/http';
+import { supportsOrganizations } from '../../accounts/account_store.js';
+import { getAccountLoginUrl } from '../account_login_url.js';
 import {
   ACTIVE_ORG_COOKIE,
   ACTIVE_ORG_COOKIE_TTL,
   encodeActiveOrgCookie,
-} from '../active_org_cookie.js'
+} from '../active_org_cookie.js';
+import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js';
+import { resolveRuntimeSettings } from '../runtime_settings.js';
+import { isRoleInCatalog } from '../runtime_toggles.js';
 
 /**
  * Console de conta — Organizations. Server-rendered, padrão dos outros controllers
@@ -20,45 +20,45 @@ import {
  */
 export default class AccountOrgsController {
   async index(ctx: HttpContext) {
-    const { session, response, request } = ctx
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const store = cfg.accountStore
-    const messages = cfg.messages
+    const { session, response, request } = ctx;
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const store = cfg.accountStore;
+    const messages = cfg.messages;
 
     if (!supportsOrganizations(store)) {
       return cfg.render
         ? cfg.render(ctx, 'account/orgs', { supported: false, messages })
-        : response.notFound()
+        : response.notFound();
     }
 
-    const accountId = session.get(ACCOUNT_SESSION_KEY) as string
-    const account = await store.findById(accountId)
-    if (!account) return response.redirect(getAccountLoginUrl())
+    const accountId = session.get(ACCOUNT_SESSION_KEY) as string;
+    const account = await store.findById(accountId);
+    if (!account) return response.redirect(getAccountLoginUrl());
 
-    const orgs = await store.listOrgsForAccount(accountId)
-    const pendingInvitations = await store.listPendingInvitationsForEmail!(account.email)
+    const orgs = await store.listOrgsForAccount(accountId);
+    const pendingInvitations = await store.listPendingInvitationsForEmail!(account.email);
 
     // Enriquece convites com o nome da org
     const invitationsWithOrg = await Promise.all(
       pendingInvitations.map(async (inv) => {
-        const org = await store.findOrgById!(inv.organizationId)
-        return { ...inv, orgName: org?.name ?? inv.organizationId }
-      })
-    )
+        const org = await store.findOrgById!(inv.organizationId);
+        return { ...inv, orgName: org?.name ?? inv.organizationId };
+      }),
+    );
 
     // Detecta org ativa do cookie
-    const activeOrgRaw = request.cookie(ACTIVE_ORG_COOKIE)
-    const activeOrgId = activeOrgRaw ? activeOrgRaw.split('\t')[0] : null
+    const activeOrgRaw = request.cookie(ACTIVE_ORG_COOKIE);
+    const activeOrgId = activeOrgRaw ? activeOrgRaw.split('\t')[0] : null;
 
     // Para cada org onde o user é owner/admin, carrega membros
     const orgsWithMembers = await Promise.all(
       orgs.map(async (org) => {
-        const canManage = org.role === 'owner' || org.role === 'admin'
-        const members = canManage ? await store.listOrgMembers!(org.id) : []
-        return { ...org, members, canManage, isActive: org.id === activeOrgId }
-      })
-    )
+        const canManage = org.role === 'owner' || org.role === 'admin';
+        const members = canManage ? await store.listOrgMembers!(org.id) : [];
+        return { ...org, members, canManage, isActive: org.id === activeOrgId };
+      }),
+    );
 
     const props = {
       supported: true,
@@ -67,122 +67,132 @@ export default class AccountOrgsController {
       allowSelfCreate: cfg.organizations.allowSelfCreate,
       availableRoles: cfg.organizations.roles,
       messages,
-    }
+    };
 
-    return cfg.render
-      ? cfg.render(ctx, 'account/orgs', props)
-      : response.notFound()
+    return cfg.render ? cfg.render(ctx, 'account/orgs', props) : response.notFound();
   }
 
   /** POST /account/orgs — criar nova org (requer allowSelfCreate). */
   async store(ctx: HttpContext) {
-    const { session, response, request } = ctx
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const store = cfg.accountStore
-    const accountId = session.get(ACCOUNT_SESSION_KEY) as string
+    const { session, response, request } = ctx;
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const store = cfg.accountStore;
+    const accountId = session.get(ACCOUNT_SESSION_KEY) as string;
 
     if (!supportsOrganizations(store) || !cfg.organizations.allowSelfCreate) {
-      return response.forbidden()
+      return response.forbidden();
     }
 
-    const name = request.input('name', '').trim()
-    const slug = request.input('slug', '').trim()
-    if (!name || !slug) return response.redirect('/account/orgs')
+    const name = request.input('name', '').trim();
+    const slug = request.input('slug', '').trim();
+    if (!name || !slug) return response.redirect('/account/orgs');
 
     try {
-      await store.createOrg!({ name, slug, ownerAccountId: accountId })
-      await cfg.audit?.record({ type: 'organization.created', accountId, metadata: { slug } })
+      await store.createOrg!({ name, slug, ownerAccountId: accountId });
+      await cfg.audit?.record({ type: 'organization.created', accountId, metadata: { slug } });
     } catch {
       // slug duplicado ou outro erro — redireciona sem mensagem de erro específica
     }
-    return response.redirect('/account/orgs')
+    return response.redirect('/account/orgs');
   }
 
   /** POST /account/orgs/:id/activate — define org ativa (valida membership). */
   async activate(ctx: HttpContext) {
-    const { session, response, params } = ctx
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const store = cfg.accountStore
-    const accountId = session.get(ACCOUNT_SESSION_KEY) as string
+    const { session, response, params } = ctx;
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const store = cfg.accountStore;
+    const accountId = session.get(ACCOUNT_SESSION_KEY) as string;
 
-    if (!supportsOrganizations(store)) return response.forbidden()
+    if (!supportsOrganizations(store)) return response.forbidden();
 
-    const orgId = params.id
-    const membership = await store.getOrgMembership!(orgId, accountId)
-    if (!membership) return response.redirect('/account/orgs')
+    const orgId = params.id;
+    const membership = await store.getOrgMembership!(orgId, accountId);
+    if (!membership) return response.redirect('/account/orgs');
 
-    const org = await store.findOrgById!(orgId)
-    if (!org) return response.redirect('/account/orgs')
+    const org = await store.findOrgById!(orgId);
+    if (!org) return response.redirect('/account/orgs');
 
     // Grava cookie de org ativa
-    const cookieValue = encodeActiveOrgCookie({ orgId, orgSlug: org.slug, orgRole: membership.role })
+    const cookieValue = encodeActiveOrgCookie({
+      orgId,
+      orgSlug: org.slug,
+      orgRole: membership.role,
+    });
     ctx.response.cookie(ACTIVE_ORG_COOKIE, cookieValue, {
       httpOnly: true,
       sameSite: 'lax',
       maxAge: ACTIVE_ORG_COOKIE_TTL,
       secure: ctx.request.secure(),
       path: '/',
-    })
+    });
 
-    await cfg.audit?.record({ type: 'organization.switched', accountId, metadata: { orgId, orgSlug: org.slug } })
-    return response.redirect('/account/orgs')
+    await cfg.audit?.record({
+      type: 'organization.switched',
+      accountId,
+      metadata: { orgId, orgSlug: org.slug },
+    });
+    return response.redirect('/account/orgs');
   }
 
   /** POST /account/orgs/deactivate — remove org ativa. */
   async deactivate(ctx: HttpContext) {
-    const { session, response } = ctx
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const accountId = session.get(ACCOUNT_SESSION_KEY) as string
+    const { session, response } = ctx;
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const accountId = session.get(ACCOUNT_SESSION_KEY) as string;
 
-    ctx.response.clearCookie(ACTIVE_ORG_COOKIE, { path: '/' })
-    await cfg.audit?.record({ type: 'organization.deactivated', accountId })
-    return response.redirect('/account/orgs')
+    ctx.response.clearCookie(ACTIVE_ORG_COOKIE, { path: '/' });
+    await cfg.audit?.record({ type: 'organization.deactivated', accountId });
+    return response.redirect('/account/orgs');
   }
 
   /** POST /account/orgs/:id/leave — sai da org (verifica last_owner). */
   async leave(ctx: HttpContext) {
-    const { session, response, params } = ctx
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const store = cfg.accountStore
-    const accountId = session.get(ACCOUNT_SESSION_KEY) as string
+    const { session, response, params } = ctx;
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const store = cfg.accountStore;
+    const accountId = session.get(ACCOUNT_SESSION_KEY) as string;
 
-    if (!supportsOrganizations(store)) return response.forbidden()
+    if (!supportsOrganizations(store)) return response.forbidden();
 
-    const result = await store.removeOrgMember!(params.id, accountId)
+    const result = await store.removeOrgMember!(params.id, accountId);
     if (result.ok) {
-      await cfg.audit?.record({ type: 'organization.member_removed', accountId, metadata: { orgId: params.id, self: true } })
+      await cfg.audit?.record({
+        type: 'organization.member_removed',
+        accountId,
+        metadata: { orgId: params.id, self: true },
+      });
     }
-    return response.redirect('/account/orgs')
+    return response.redirect('/account/orgs');
   }
 
   /** POST /account/orgs/:id/invite — convida membro por e-mail. */
   async invite(ctx: HttpContext) {
-    const { session, response, params, request } = ctx
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const store = cfg.accountStore
-    const accountId = session.get(ACCOUNT_SESSION_KEY) as string
+    const { session, response, params, request } = ctx;
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const store = cfg.accountStore;
+    const accountId = session.get(ACCOUNT_SESSION_KEY) as string;
 
-    if (!supportsOrganizations(store)) return response.forbidden()
+    if (!supportsOrganizations(store)) return response.forbidden();
 
     // Verifica que o invitador é owner ou admin
-    const membership = await store.getOrgMembership!(params.id, accountId)
+    const membership = await store.getOrgMembership!(params.id, accountId);
     if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
-      return response.forbidden()
+      return response.forbidden();
     }
 
-    const email = request.input('email', '').trim()
-    const role = request.input('role', 'member').trim()
-    if (!email) return response.redirect('/account/orgs')
+    const email = request.input('email', '').trim();
+    const role = request.input('role', 'member').trim();
+    if (!email) return response.redirect('/account/orgs');
 
     // H4: valida o role contra o catálogo efetivo de roles da org (runtime →
     // config → defaults). Role fora do catálogo é rejeitada (não cria convite).
     // Usa o helper PURO `isRoleInCatalog` (mesmo ponto de verdade do caminho admin).
-    const settings = await resolveRuntimeSettings(ctx)
+    const settings = await resolveRuntimeSettings(ctx);
     const roleValid = await isRoleInCatalog(
       role,
       settings,
@@ -191,16 +201,18 @@ export default class AccountOrgsController {
         allowSelfCreate: cfg.organizations.allowSelfCreate,
         invitationTtlHours: cfg.organizations.invitationTtlHours,
       },
-      params.id
-    )
+      params.id,
+    );
     if (!roleValid) {
-      return response.unprocessableEntity({ error: { code: 'invalid_role', message: 'Role inválida.' } })
+      return response.unprocessableEntity({
+        error: { code: 'invalid_role', message: 'Role inválida.' },
+      });
     }
 
     // H4: no fluxo member-facing, só um OWNER pode conceder a role `owner`.
     // Um admin (não-owner) tentando convidar como `owner` é escalonamento.
     if (role === 'owner' && membership.role !== 'owner') {
-      return response.forbidden()
+      return response.forbidden();
     }
 
     const { invitation, token } = await store.createOrgInvitation!({
@@ -209,12 +221,12 @@ export default class AccountOrgsController {
       role,
       invitedBy: accountId,
       ttlHours: cfg.organizations.invitationTtlHours,
-    })
+    });
 
     // Dispara e-mail via mail hook (best-effort)
     if (cfg.mail?.onOrgInvitation) {
-      const org = await store.findOrgById!(params.id)
-      const acceptUrl = `${ctx.request.protocol()}://${ctx.request.host()}/account/orgs/invitations/${token}/accept`
+      const org = await store.findOrgById!(params.id);
+      const acceptUrl = `${ctx.request.protocol()}://${ctx.request.host()}/account/orgs/invitations/${token}/accept`;
       try {
         await cfg.mail.onOrgInvitation({
           email,
@@ -224,7 +236,7 @@ export default class AccountOrgsController {
           role,
           acceptUrl,
           token,
-        })
+        });
       } catch {
         // best-effort
       }
@@ -234,120 +246,126 @@ export default class AccountOrgsController {
       type: 'organization.invitation_sent',
       accountId,
       metadata: { orgId: params.id, email, role },
-    })
-    return response.redirect('/account/orgs')
+    });
+    return response.redirect('/account/orgs');
   }
 
   /** GET /account/orgs/invitations/:token/accept — mostra tela de aceite. */
   async showAcceptInvitation(ctx: HttpContext) {
-    const { session, response, params } = ctx
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const store = cfg.accountStore
-    const { createHash } = await import('node:crypto')
+    const { session, response, params } = ctx;
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const store = cfg.accountStore;
+    const { createHash } = await import('node:crypto');
 
-    if (!supportsOrganizations(store)) return response.notFound()
+    if (!supportsOrganizations(store)) return response.notFound();
 
-    const accountId = session.get(ACCOUNT_SESSION_KEY) as string | undefined
+    const accountId = session.get(ACCOUNT_SESSION_KEY) as string | undefined;
     if (!accountId) {
       // Não logado: redireciona para login (configurável) com return URL
-      const loginUrl = getAccountLoginUrl()
-      const returnTo = encodeURIComponent(`/account/orgs/invitations/${params.token}/accept`)
-      const sep = loginUrl.includes('?') ? '&' : '?'
-      return response.redirect(`${loginUrl}${sep}returnTo=${returnTo}`)
+      const loginUrl = getAccountLoginUrl();
+      const returnTo = encodeURIComponent(`/account/orgs/invitations/${params.token}/accept`);
+      const sep = loginUrl.includes('?') ? '&' : '?';
+      return response.redirect(`${loginUrl}${sep}returnTo=${returnTo}`);
     }
 
-    const tokenHash = createHash('sha256').update(params.token).digest('hex')
-    const invitation = await store.findInvitationByTokenHash!(tokenHash)
+    const tokenHash = createHash('sha256').update(params.token).digest('hex');
+    const invitation = await store.findInvitationByTokenHash!(tokenHash);
 
     const props = {
       invitation,
       token: params.token,
       messages: cfg.messages,
-    }
+    };
 
     return cfg.render
       ? cfg.render(ctx, 'account/orgs', { ...props, subview: 'accept-invitation' })
-      : response.notFound()
+      : response.notFound();
   }
 
   /** POST /account/orgs/invitations/:token/accept — processa aceite. */
   async acceptInvitation(ctx: HttpContext) {
-    const { session, response, params } = ctx
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const store = cfg.accountStore
-    const { createHash } = await import('node:crypto')
+    const { session, response, params } = ctx;
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const store = cfg.accountStore;
+    const { createHash } = await import('node:crypto');
 
-    if (!supportsOrganizations(store)) return response.notFound()
+    if (!supportsOrganizations(store)) return response.notFound();
 
-    const accountId = session.get(ACCOUNT_SESSION_KEY) as string | undefined
-    if (!accountId) return response.redirect(getAccountLoginUrl())
+    const accountId = session.get(ACCOUNT_SESSION_KEY) as string | undefined;
+    if (!accountId) return response.redirect(getAccountLoginUrl());
 
-    const tokenHash = createHash('sha256').update(params.token).digest('hex')
-    const invitation = await store.findInvitationByTokenHash!(tokenHash)
-    if (!invitation) return response.redirect('/account/orgs')
+    const tokenHash = createHash('sha256').update(params.token).digest('hex');
+    const invitation = await store.findInvitationByTokenHash!(tokenHash);
+    if (!invitation) return response.redirect('/account/orgs');
 
-    const result = await store.acceptInvitation!(invitation.id, accountId)
+    const result = await store.acceptInvitation!(invitation.id, accountId);
     if (result.ok) {
       await cfg.audit?.record({
         type: 'organization.invitation_accepted',
         accountId,
         metadata: { orgId: invitation.organizationId, invitationId: invitation.id },
-      })
+      });
     }
-    return response.redirect('/account/orgs')
+    return response.redirect('/account/orgs');
   }
 
   /** POST /account/orgs/:id/members/:accountId/remove */
   async removeMember(ctx: HttpContext) {
-    const { session, response, params } = ctx
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const store = cfg.accountStore
-    const actorId = session.get(ACCOUNT_SESSION_KEY) as string
+    const { session, response, params } = ctx;
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const store = cfg.accountStore;
+    const actorId = session.get(ACCOUNT_SESSION_KEY) as string;
 
-    if (!supportsOrganizations(store)) return response.forbidden()
+    if (!supportsOrganizations(store)) return response.forbidden();
 
-    const actorMembership = await store.getOrgMembership!(params.id, actorId)
-    if (!actorMembership || (actorMembership.role !== 'owner' && actorMembership.role !== 'admin')) {
-      return response.forbidden()
+    const actorMembership = await store.getOrgMembership!(params.id, actorId);
+    if (
+      !actorMembership ||
+      (actorMembership.role !== 'owner' && actorMembership.role !== 'admin')
+    ) {
+      return response.forbidden();
     }
 
-    const result = await store.removeOrgMember!(params.id, params.accountId)
+    const result = await store.removeOrgMember!(params.id, params.accountId);
     if (result.ok) {
       await cfg.audit?.record({
         type: 'organization.member_removed',
         actorId,
         metadata: { orgId: params.id, targetAccountId: params.accountId },
-      })
+      });
     }
-    return response.redirect('/account/orgs')
+    return response.redirect('/account/orgs');
   }
 
   /** POST /account/orgs/:id/invitations/:invId/revoke */
   async revokeInvitation(ctx: HttpContext) {
-    const { session, response, params } = ctx
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const store = cfg.accountStore
-    const actorId = session.get(ACCOUNT_SESSION_KEY) as string
+    const { session, response, params } = ctx;
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const store = cfg.accountStore;
+    const actorId = session.get(ACCOUNT_SESSION_KEY) as string;
 
-    if (!supportsOrganizations(store)) return response.forbidden()
+    if (!supportsOrganizations(store)) return response.forbidden();
 
-    const actorMembership = await store.getOrgMembership!(params.id, actorId)
-    if (!actorMembership || (actorMembership.role !== 'owner' && actorMembership.role !== 'admin')) {
-      return response.forbidden()
+    const actorMembership = await store.getOrgMembership!(params.id, actorId);
+    if (
+      !actorMembership ||
+      (actorMembership.role !== 'owner' && actorMembership.role !== 'admin')
+    ) {
+      return response.forbidden();
     }
 
     // Escopado por org (params.id já validado acima): impede IDOR cross-org.
-    await store.revokeInvitation!(params.id, params.invId)
+    await store.revokeInvitation!(params.id, params.invId);
     await cfg.audit?.record({
       type: 'organization.invitation_revoked',
       actorId,
       metadata: { orgId: params.id, invitationId: params.invId },
-    })
-    return response.redirect('/account/orgs')
+    });
+    return response.redirect('/account/orgs');
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -359,20 +377,20 @@ export default class AccountOrgsController {
    * Usado pelo hook `useOrganizations()`.
    */
   async listJson(ctx: HttpContext) {
-    const { session, response, request } = ctx
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const store = cfg.accountStore
+    const { session, response, request } = ctx;
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const store = cfg.accountStore;
 
-    if (!supportsOrganizations(store)) return { supported: false, orgs: [], activeOrgId: null }
+    if (!supportsOrganizations(store)) return { supported: false, orgs: [], activeOrgId: null };
 
-    const accountId = session.get(ACCOUNT_SESSION_KEY) as string
-    if (!accountId) return response.unauthorized({ message: 'Not authenticated.' })
+    const accountId = session.get(ACCOUNT_SESSION_KEY) as string;
+    if (!accountId) return response.unauthorized({ message: 'Not authenticated.' });
 
-    const orgs = await store.listOrgsForAccount(accountId)
+    const orgs = await store.listOrgsForAccount(accountId);
 
-    const activeOrgRaw = request.cookie(ACTIVE_ORG_COOKIE)
-    const activeOrgId = activeOrgRaw ? activeOrgRaw.split('\t')[0] : null
+    const activeOrgRaw = request.cookie(ACTIVE_ORG_COOKIE);
+    const activeOrgId = activeOrgRaw ? activeOrgRaw.split('\t')[0] : null;
 
     return {
       supported: true,
@@ -385,7 +403,7 @@ export default class AccountOrgsController {
         role: org.role,
         isActive: org.id === activeOrgId,
       })),
-    }
+    };
   }
 
   /**
@@ -393,30 +411,36 @@ export default class AccountOrgsController {
    * Só retorna se o usuário é membro.
    */
   async showJson(ctx: HttpContext) {
-    const { session, response, params } = ctx
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const store = cfg.accountStore
+    const { session, response, params } = ctx;
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const store = cfg.accountStore;
 
-    if (!supportsOrganizations(store)) return response.notFound({ message: 'Not supported.' })
+    if (!supportsOrganizations(store)) return response.notFound({ message: 'Not supported.' });
 
-    const accountId = session.get(ACCOUNT_SESSION_KEY) as string
-    if (!accountId) return response.unauthorized({ message: 'Not authenticated.' })
+    const accountId = session.get(ACCOUNT_SESSION_KEY) as string;
+    if (!accountId) return response.unauthorized({ message: 'Not authenticated.' });
 
-    const membership = await store.getOrgMembership!(params.id, accountId)
-    if (!membership) return response.notFound({ message: 'Organization not found or not a member.' })
+    const membership = await store.getOrgMembership!(params.id, accountId);
+    if (!membership)
+      return response.notFound({ message: 'Organization not found or not a member.' });
 
-    const org = await store.findOrgById!(params.id)
-    if (!org) return response.notFound({ message: 'Organization not found.' })
+    const org = await store.findOrgById!(params.id);
+    if (!org) return response.notFound({ message: 'Organization not found.' });
 
-    const canManage = membership.role === 'owner' || membership.role === 'admin'
-    const members = canManage ? await store.listOrgMembers!(params.id) : []
+    const canManage = membership.role === 'owner' || membership.role === 'admin';
+    const members = canManage ? await store.listOrgMembers!(params.id) : [];
     const enrichedMembers = await Promise.all(
       members.map(async (m) => {
-        const account = await store.findById(m.accountId)
-        return { accountId: m.accountId, email: account?.email ?? null, role: m.role, joinedAt: m.joinedAt }
-      })
-    )
+        const account = await store.findById(m.accountId);
+        return {
+          accountId: m.accountId,
+          email: account?.email ?? null,
+          role: m.role,
+          joinedAt: m.joinedAt,
+        };
+      }),
+    );
 
     return {
       id: org.id,
@@ -426,7 +450,7 @@ export default class AccountOrgsController {
       role: membership.role,
       canManage,
       members: enrichedMembers,
-    }
+    };
   }
 
   /**
@@ -434,23 +458,23 @@ export default class AccountOrgsController {
    * Usado pelo hook `useOrgInvitations()`.
    */
   async listInvitationsJson(ctx: HttpContext) {
-    const { session, response } = ctx
-    const service = await ctx.containerResolver.make('authkit.server')
-    const cfg = service.config
-    const store = cfg.accountStore
+    const { session, response } = ctx;
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const store = cfg.accountStore;
 
-    if (!supportsOrganizations(store)) return { invitations: [] }
+    if (!supportsOrganizations(store)) return { invitations: [] };
 
-    const accountId = session.get(ACCOUNT_SESSION_KEY) as string
-    if (!accountId) return response.unauthorized({ message: 'Not authenticated.' })
+    const accountId = session.get(ACCOUNT_SESSION_KEY) as string;
+    if (!accountId) return response.unauthorized({ message: 'Not authenticated.' });
 
-    const account = await store.findById(accountId)
-    if (!account) return response.unauthorized({ message: 'Not authenticated.' })
+    const account = await store.findById(accountId);
+    if (!account) return response.unauthorized({ message: 'Not authenticated.' });
 
-    const invitations = await store.listPendingInvitationsForEmail!(account.email)
+    const invitations = await store.listPendingInvitationsForEmail!(account.email);
     const enriched = await Promise.all(
       invitations.map(async (inv) => {
-        const org = await store.findOrgById!(inv.organizationId)
+        const org = await store.findOrgById!(inv.organizationId);
         return {
           id: inv.id,
           organizationId: inv.organizationId,
@@ -460,10 +484,10 @@ export default class AccountOrgsController {
           role: inv.role,
           expiresAt: inv.expiresAt,
           createdAt: inv.createdAt,
-        }
-      })
-    )
+        };
+      }),
+    );
 
-    return { invitations: enriched }
+    return { invitations: enriched };
   }
 }

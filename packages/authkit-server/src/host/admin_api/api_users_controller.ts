@@ -1,15 +1,12 @@
-import "../augmentations.js";
-import type { HttpContext } from "@adonisjs/core/http";
-import type { AuthAccount } from "../../accounts/account_store.js";
-import { AdminUsersService } from "./admin_users_service.js";
-import { AdminSessionsService } from "../admin_sessions_service.js";
-import { enrichSessionsWithContext } from "../session_context.js";
-import { resolveRuntimeSettings } from "../runtime_settings.js";
-import { userDto, sessionDto, grantDto, apiError } from "./dto.js";
-import {
-  adminUserCreateValidator,
-  adminUserUpdateValidator,
-} from "../admin_validators.js";
+import '../augmentations.js';
+import type { HttpContext } from '@adonisjs/core/http';
+import type { AuthAccount } from '../../accounts/account_store.js';
+import { AdminSessionsService } from '../admin_sessions_service.js';
+import { adminUserCreateValidator, adminUserUpdateValidator } from '../admin_validators.js';
+import { resolveRuntimeSettings } from '../runtime_settings.js';
+import { enrichSessionsWithContext } from '../session_context.js';
+import { AdminUsersService } from './admin_users_service.js';
+import { apiError, grantDto, sessionDto, userDto } from './dto.js';
 
 const PAGE_SIZE = 20;
 
@@ -20,12 +17,12 @@ const PAGE_SIZE = 20;
  * vazar o segredo. `null` apenas se a guard não anexou (defensivo).
  */
 async function ctxBits(ctx: HttpContext) {
-  const service = await ctx.containerResolver.make("authkit.server");
+  const service = await ctx.containerResolver.make('authkit.server');
   const cfg = service.config;
   const actor = {
     actorId: ctx.adminApiKeyId ?? null,
     ip: ctx.request.ip?.() ?? null,
-    source: "admin-api" as const,
+    source: 'admin-api' as const,
   };
   return { service, cfg, actor };
 }
@@ -38,26 +35,20 @@ export default class ApiUsersController {
   /** GET /users — listagem paginada com busca por e-mail. */
   async index(ctx: HttpContext) {
     const { cfg } = await ctxBits(ctx);
-    const search = (ctx.request.input("search", "") as string).trim();
-    const page = Math.max(
-      1,
-      Number.parseInt(ctx.request.input("page", "1"), 10) || 1,
-    );
+    const search = (ctx.request.input('search', '') as string).trim();
+    const page = Math.max(1, Number.parseInt(ctx.request.input('page', '1'), 10) || 1);
     const limit = Math.max(
       1,
       Math.min(
         100,
-        Number.parseInt(ctx.request.input("limit", String(PAGE_SIZE)), 10) ||
-          PAGE_SIZE,
+        Number.parseInt(ctx.request.input('limit', String(PAGE_SIZE)), 10) || PAGE_SIZE,
       ),
     );
 
     const result = await cfg.accountStore.listAccounts({ search, page, limit });
     const users = new AdminUsersService(cfg);
     const data = await Promise.all(
-      result.data.map(async (u: AuthAccount) =>
-        userDto(u, await users.isDisabled(u.id)),
-      ),
+      result.data.map(async (u: AuthAccount) => userDto(u, await users.isDisabled(u.id))),
     );
     return { data, total: result.total, page, limit };
   }
@@ -65,12 +56,9 @@ export default class ApiUsersController {
   /** GET /users/:id */
   async show(ctx: HttpContext) {
     const { cfg } = await ctxBits(ctx);
-    const id = ctx.request.param("id");
+    const id = ctx.request.param('id');
     const account = await cfg.accountStore.findById(id);
-    if (!account)
-      return ctx.response.notFound(
-        apiError("not_found", "Usuário não encontrado."),
-      );
+    if (!account) return ctx.response.notFound(apiError('not_found', 'Usuário não encontrado.'));
     const disabled = await new AdminUsersService(cfg).isDisabled(id);
     return userDto(account, disabled);
   }
@@ -78,9 +66,8 @@ export default class ApiUsersController {
   /** POST /users — { email, name?, password? | invite?:true }. */
   async store(ctx: HttpContext) {
     const { cfg, actor } = await ctxBits(ctx);
-    const { email, name, password, invite } = await ctx.request.validateUsing(
-      adminUserCreateValidator,
-    );
+    const { email, name, password, invite } =
+      await ctx.request.validateUsing(adminUserCreateValidator);
 
     const users = new AdminUsersService(cfg);
     const result = await users.create(
@@ -94,17 +81,12 @@ export default class ApiUsersController {
       actor,
     );
     if (!result.ok) {
-      if (result.reason === "password_policy") {
+      if (result.reason === 'password_policy') {
         return ctx.response.badRequest(
-          apiError(
-            "password_policy",
-            cfg.messages[result.messageKey] ?? result.messageKey,
-          ),
+          apiError('password_policy', cfg.messages[result.messageKey] ?? result.messageKey),
         );
       }
-      return ctx.response.conflict(
-        apiError("email_taken", "Já existe uma conta com este e-mail."),
-      );
+      return ctx.response.conflict(apiError('email_taken', 'Já existe uma conta com este e-mail.'));
     }
     ctx.response.status(201);
     return { ...userDto(result.account), invited: result.invited };
@@ -113,12 +95,9 @@ export default class ApiUsersController {
   /** PATCH /users/:id — { globalRoles?, name?, avatarUrl? }. */
   async update(ctx: HttpContext) {
     const { cfg, actor } = await ctxBits(ctx);
-    const id = ctx.request.param("id");
+    const id = ctx.request.param('id');
     const account = await cfg.accountStore.findById(id);
-    if (!account)
-      return ctx.response.notFound(
-        apiError("not_found", "Usuário não encontrado."),
-      );
+    if (!account) return ctx.response.notFound(apiError('not_found', 'Usuário não encontrado.'));
 
     const users = new AdminUsersService(cfg);
     const {
@@ -127,30 +106,24 @@ export default class ApiUsersController {
       avatarUrl,
     } = await ctx.request.validateUsing(adminUserUpdateValidator);
     if (Array.isArray(roles)) {
-      const normalized = Array.from(
-        new Set(roles.map((r) => r.trim()).filter(Boolean)),
-      );
+      const normalized = Array.from(new Set(roles.map((r) => r.trim()).filter(Boolean)));
 
       // Proteções de escalonamento/lockout: último admin + auto-rebaixamento.
       // O actorId vem do id da API key (M9); self-demote só aplica se identificável.
-      const guard = await users.guardGlobalRolesChange(
-        id,
-        normalized,
-        actor.actorId,
-      );
-      if (guard === "last_admin") {
+      const guard = await users.guardGlobalRolesChange(id, normalized, actor.actorId);
+      if (guard === 'last_admin') {
         return ctx.response.conflict(
           apiError(
-            "last_admin",
-            "Não é possível remover a última conta com a role de administrador.",
+            'last_admin',
+            'Não é possível remover a última conta com a role de administrador.',
           ),
         );
       }
-      if (guard === "cannot_self_demote") {
+      if (guard === 'cannot_self_demote') {
         return ctx.response.conflict(
           apiError(
-            "cannot_self_demote",
-            "Você não pode remover a sua própria role de administrador.",
+            'cannot_self_demote',
+            'Você não pode remover a sua própria role de administrador.',
           ),
         );
       }
@@ -158,15 +131,11 @@ export default class ApiUsersController {
       // Valida contra o catálogo (mesmo caminho do console) — roles fora do
       // catálogo (e que o usuário não tinha) → 422.
       const settings = await resolveRuntimeSettings(ctx);
-      const errorKey = await users.setGlobalRolesValidated(
-        id,
-        normalized,
-        settings,
-      );
+      const errorKey = await users.setGlobalRolesValidated(id, normalized, settings);
       if (errorKey) {
         return ctx.response
           .status(422)
-          .send(apiError("invalid_role", cfg.messages[errorKey] ?? errorKey));
+          .send(apiError('invalid_role', cfg.messages[errorKey] ?? errorKey));
       }
     }
 
@@ -184,34 +153,22 @@ export default class ApiUsersController {
   /** DELETE /users/:id — deleção completa (cascade) da conta. */
   async destroy(ctx: HttpContext) {
     const { service, cfg, actor } = await ctxBits(ctx);
-    const id = ctx.request.param("id");
+    const id = ctx.request.param('id');
     // OPT-IN durável: passa o enqueue (cascade async); senão delete() roda síncrono.
     const enqueue = cfg.accountLifecycle?.durable
-      ? (await import("../durable/index.js")).enqueueDeletionVia(
-          ctx.containerResolver,
-        )
+      ? (await import('../durable/index.js')).enqueueDeletionVia(ctx.containerResolver)
       : undefined;
-    const outcome = await new AdminUsersService(cfg).delete(
-      service,
-      id,
-      actor,
-      enqueue,
-    );
+    const outcome = await new AdminUsersService(cfg).delete(service, id, actor, enqueue);
     if (!outcome.ok) {
-      if (outcome.reason === "not_found") {
-        return ctx.response.notFound(
-          apiError("not_found", "Usuário não encontrado."),
-        );
+      if (outcome.reason === 'not_found') {
+        return ctx.response.notFound(apiError('not_found', 'Usuário não encontrado.'));
       }
       return ctx.response.conflict(
-        apiError(
-          "capability_unsupported",
-          "O store de contas não suporta deletar usuários.",
-        ),
+        apiError('capability_unsupported', 'O store de contas não suporta deletar usuários.'),
       );
     }
     // Modo durável: a deleção foi ENFILEIRADA (cascade async) — responde 202-style.
-    if ("enqueued" in outcome) {
+    if ('enqueued' in outcome) {
       return { id, deleted: true, enqueued: true, runId: outcome.runId };
     }
     return { id, deleted: true, ...outcome.result };
@@ -229,18 +186,11 @@ export default class ApiUsersController {
 
   async #setStatus(ctx: HttpContext, disable: boolean) {
     const { cfg, actor } = await ctxBits(ctx);
-    const id = ctx.request.param("id");
-    const applied = await new AdminUsersService(cfg).setStatus(
-      id,
-      disable,
-      actor,
-    );
+    const id = ctx.request.param('id');
+    const applied = await new AdminUsersService(cfg).setStatus(id, disable, actor);
     if (!applied) {
       return ctx.response.conflict(
-        apiError(
-          "capability_unsupported",
-          "O store de contas não suporta habilitar/desabilitar.",
-        ),
+        apiError('capability_unsupported', 'O store de contas não suporta habilitar/desabilitar.'),
       );
     }
     return { id, disabled: disable };
@@ -249,29 +199,18 @@ export default class ApiUsersController {
   /** POST /users/:id/reset-password — envia o e-mail de reset. */
   async resetPassword(ctx: HttpContext) {
     const { cfg, actor } = await ctxBits(ctx);
-    const id = ctx.request.param("id");
-    const account = await new AdminUsersService(cfg).resetPassword(
-      ctx,
-      id,
-      actor,
-    );
-    if (!account)
-      return ctx.response.notFound(
-        apiError("not_found", "Usuário não encontrado."),
-      );
+    const id = ctx.request.param('id');
+    const account = await new AdminUsersService(cfg).resetPassword(ctx, id, actor);
+    if (!account) return ctx.response.notFound(apiError('not_found', 'Usuário não encontrado.'));
     return { id, sent: true };
   }
 
   /** GET /users/:id/sessions — sessões (enriquecidas com contexto) + grants ativos. */
   async sessions(ctx: HttpContext) {
     const { service, cfg } = await ctxBits(ctx);
-    const id = ctx.request.param("id");
+    const id = ctx.request.param('id');
     const admin = new AdminSessionsService(service);
-    const sessions = await enrichSessionsWithContext(
-      cfg,
-      id,
-      await admin.listSessions(id),
-    );
+    const sessions = await enrichSessionsWithContext(cfg, id, await admin.listSessions(id));
     const grants = await admin.listGrants(id);
     return {
       canList: admin.canList,
@@ -283,10 +222,10 @@ export default class ApiUsersController {
   /** POST /users/:id/revoke-sessions — revoga todas as sessões/grants. */
   async revokeSessions(ctx: HttpContext) {
     const { service, cfg, actor } = await ctxBits(ctx);
-    const id = ctx.request.param("id");
+    const id = ctx.request.param('id');
     const result = await new AdminSessionsService(service).revokeAll(id);
     await cfg.audit?.record({
-      type: "session.revoked_all",
+      type: 'session.revoked_all',
       accountId: id,
       actorId: actor.actorId,
       ip: actor.ip,

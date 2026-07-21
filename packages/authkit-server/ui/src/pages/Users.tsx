@@ -1,46 +1,48 @@
-import React, { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useQueryState, parseAsInteger, parseAsString } from 'nuqs'
-import {
-  useCreateUserMutationOptions,
-  authkitKeys,
-} from '@adonis-agora/authkit-react'
-import { Modal } from '../components/Modal'
-import { useToast } from '../lib/toast'
-import { useDebounce } from '../lib/use_debounce'
-import { UsersTableContainer, UserDetailDrawer } from '../containers/users.containers'
+import { authkitKeys, useCreateUserMutationOptions } from '@adonis-agora/authkit-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { parseAsInteger, parseAsString, useQueryState } from 'nuqs';
+import React, { useState } from 'react';
+import { Modal } from '../components/Modal';
+import { UserDetailDrawer, UsersTableContainer } from '../containers/users.containers';
+import { useToast } from '../lib/toast';
+import { useDebounce } from '../lib/use_debounce';
 
 export function Users() {
-  const toast = useToast()
-  const queryClient = useQueryClient()
+  const toast = useToast();
+  const queryClient = useQueryClient();
 
   // Estado de rota (URL): paginação, busca e drawer de detalhe via nuqs.
-  const [page, setPage] = useQueryState('page', parseAsInteger.withDefault(1))
-  const [search, setSearch] = useQueryState('q', parseAsString.withDefault(''))
-  const [detailUserId, setDetailUserId] = useQueryState('user')
-  const dSearch = useDebounce(search, 300)
+  const [page, setPage] = useQueryState('page', parseAsInteger.withDefault(1));
+  const [search, setSearch] = useQueryState('q', parseAsString.withDefault(''));
+  const [detailUserId, setDetailUserId] = useQueryState('user');
+  const dSearch = useDebounce(search, 300);
 
   // Estado efêmero de UI (modal/form) permanece local.
-  const [createOpen, setCreateOpen] = useState(false)
-  const [createForm, setCreateForm] = useState({ email: '', name: '', password: '', invite: false })
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    email: '',
+    name: '',
+    password: '',
+    invite: false,
+  });
 
-  const createMutation = useMutation(useCreateUserMutationOptions())
+  const createMutation = useMutation(useCreateUserMutationOptions());
 
   async function handleCreate(e: React.FormEvent) {
-    e.preventDefault()
+    e.preventDefault();
     try {
       await createMutation.mutateAsync({
         email: createForm.email,
         name: createForm.name || undefined,
         password: createForm.password || undefined,
         invite: createForm.invite,
-      })
-      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.users() })
-      toast.success('User created')
-      setCreateOpen(false)
-      setCreateForm({ email: '', name: '', password: '', invite: false })
+      });
+      queryClient.invalidateQueries({ queryKey: authkitKeys.admin.users() });
+      toast.success('User created');
+      setCreateOpen(false);
+      setCreateForm({ email: '', name: '', password: '', invite: false });
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -64,7 +66,13 @@ export function Users() {
       <div className="panel" style={{ marginBottom: 0 }}>
         <div className="panel-head">
           <div className="search-input" style={{ flex: 1, maxWidth: 320 }}>
-            <svg className="search-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
+            <svg
+              className="search-ico"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+            >
               <circle cx="7" cy="7" r="4.5" />
               <path d="M10 10l3 3" strokeLinecap="round" />
             </svg>
@@ -72,7 +80,10 @@ export function Users() {
               className="input"
               placeholder="Search by email or name…"
               value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
             />
           </div>
         </div>
@@ -94,8 +105,14 @@ export function Users() {
         title="Create User"
         footer={
           <>
-            <button className="btn" onClick={() => setCreateOpen(false)}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleCreate} disabled={createMutation.isPending}>
+            <button className="btn" onClick={() => setCreateOpen(false)}>
+              Cancel
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={handleCreate}
+              disabled={createMutation.isPending}
+            >
               {createMutation.isPending ? <span className="spinner sm" /> : 'Create User'}
             </button>
           </>
@@ -152,5 +169,5 @@ export function Users() {
         />
       )}
     </div>
-  )
+  );
 }

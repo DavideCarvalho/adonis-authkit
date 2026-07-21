@@ -1,14 +1,11 @@
-import type {
-  AuthenticationResponseJSON,
-  RegistrationResponseJSON,
-} from '@simplewebauthn/server'
-import type { PasskeySummary, WebauthnCapability } from '../account_store.js'
+import type { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/server';
+import type { PasskeySummary, WebauthnCapability } from '../account_store.js';
 import {
-  buildMfaStateRepo,
   type LucidStoreContext,
   type ResolvedRp,
   type WebauthnCeremonies,
-} from './shared.js'
+  buildMfaStateRepo,
+} from './shared.js';
 
 /**
  * Capacidade de passkeys / WebAuthn (2º fator alternativo ao TOTP). Só é montada
@@ -19,18 +16,18 @@ export function buildWebauthn(
   ctx: LucidStoreContext,
   Credential: any,
   webauthn: ResolvedRp,
-  ceremonies: WebauthnCeremonies
+  ceremonies: WebauthnCeremonies,
 ): WebauthnCapability {
-  const { Model } = ctx
+  const { Model } = ctx;
   // Estado de MFA é LIB-OWNED (tabela `auth_mfa`): registrar uma passkey habilita
   // o MFA gravando `mfa_enabled_at` em `auth_mfa`, não numa coluna do model.
-  const mfaState = buildMfaStateRepo(Model)
+  const mfaState = buildMfaStateRepo(Model);
 
   return {
     async generatePasskeyRegistrationOptions(accountId) {
-      const row = await Model.find(accountId)
-      if (!row) return null
-      const existing = await Credential.query().where('accountId', accountId)
+      const row = await Model.find(accountId);
+      if (!row) return null;
+      const existing = await Credential.query().where('accountId', accountId);
       const options = await ceremonies.generateRegistrationOptions({
         rpName: webauthn.rpName,
         rpID: webauthn.rpId,
@@ -44,32 +41,32 @@ export function buildWebauthn(
           transports: (c.transports ?? undefined) as any,
         })),
         authenticatorSelection: { residentKey: 'preferred', userVerification: 'preferred' },
-      })
+      });
       return {
         options: options as unknown as Record<string, unknown>,
         challenge: options.challenge,
-      }
+      };
     },
 
     async verifyPasskeyRegistration(accountId, response, expectedChallenge) {
-      const row = await Model.find(accountId)
-      if (!row) return false
-      let verification
+      const row = await Model.find(accountId);
+      if (!row) return false;
+      let verification: Awaited<ReturnType<typeof ceremonies.verifyRegistrationResponse>>;
       try {
         verification = await ceremonies.verifyRegistrationResponse({
           response: response as RegistrationResponseJSON,
           expectedChallenge,
           expectedOrigin: webauthn.origin,
           expectedRPID: webauthn.rpId,
-        })
+        });
       } catch {
-        return false
+        return false;
       }
-      if (!verification.verified || !verification.registrationInfo) return false
+      if (!verification.verified || !verification.registrationInfo) return false;
 
-      const { credential } = verification.registrationInfo
+      const { credential } = verification.registrationInfo;
       // publicKey vem como Uint8Array → armazenamos como base64url (texto).
-      const publicKey = Buffer.from(credential.publicKey).toString('base64url')
+      const publicKey = Buffer.from(credential.publicKey).toString('base64url');
       await Credential.create({
         id: credential.id,
         accountId,
@@ -77,20 +74,20 @@ export function buildWebauthn(
         counter: credential.counter,
         transports: credential.transports ?? null,
         label: null,
-      })
+      });
       // Registrar uma passkey também habilita o MFA (2º fator presente). O estado
       // vive em `auth_mfa`: só seta `mfa_enabled_at` se ainda não estiver habilitado
       // (preserva o instante do enrollment original — importante p/ trusted-device).
-      const current = await mfaState.read(accountId)
+      const current = await mfaState.read(accountId);
       if (!current?.mfaEnabledAt) {
-        await mfaState.upsert(accountId, { mfaEnabledAt: Date.now() })
+        await mfaState.upsert(accountId, { mfaEnabledAt: Date.now() });
       }
-      return true
+      return true;
     },
 
     async generatePasskeyAuthenticationOptions(accountId) {
-      const creds = await Credential.query().where('accountId', accountId)
-      if (creds.length === 0) return null
+      const creds = await Credential.query().where('accountId', accountId);
+      if (creds.length === 0) return null;
       const options = await ceremonies.generateAuthenticationOptions({
         rpID: webauthn.rpId,
         allowCredentials: creds.map((c: any) => ({
@@ -98,22 +95,22 @@ export function buildWebauthn(
           transports: (c.transports ?? undefined) as any,
         })),
         userVerification: 'preferred',
-      })
+      });
       return {
         options: options as unknown as Record<string, unknown>,
         challenge: options.challenge,
-      }
+      };
     },
 
     async verifyPasskeyAuthentication(accountId, response, expectedChallenge) {
-      const resp = response as AuthenticationResponseJSON
+      const resp = response as AuthenticationResponseJSON;
       // O credential id vem na resposta (base64url) → acha a credencial da conta.
       const cred = await Credential.query()
         .where('accountId', accountId)
         .where('id', resp?.id ?? '')
-        .first()
-      if (!cred) return false
-      let verification
+        .first();
+      if (!cred) return false;
+      let verification: Awaited<ReturnType<typeof ceremonies.verifyAuthenticationResponse>>;
       try {
         verification = await ceremonies.verifyAuthenticationResponse({
           response: resp,
@@ -126,30 +123,30 @@ export function buildWebauthn(
             counter: cred.counter,
             transports: (cred.transports ?? undefined) as any,
           },
-        })
+        });
       } catch {
-        return false
+        return false;
       }
-      if (!verification.verified) return false
+      if (!verification.verified) return false;
       // Atualiza o signature counter (anti-replay).
-      cred.counter = verification.authenticationInfo.newCounter
-      await cred.save()
-      return true
+      cred.counter = verification.authenticationInfo.newCounter;
+      await cred.save();
+      return true;
     },
 
     async listPasskeys(accountId): Promise<PasskeySummary[]> {
       const creds = await Credential.query()
         .where('accountId', accountId)
-        .orderBy('createdAt', 'asc')
+        .orderBy('createdAt', 'asc');
       return creds.map((c: any) => ({
         id: c.id,
         label: c.label ?? undefined,
         createdAt: c.createdAt?.toISO?.() ?? String(c.createdAt ?? ''),
-      }))
+      }));
     },
 
     async removePasskey(accountId, credentialId) {
-      await Credential.query().where('accountId', accountId).where('id', credentialId).delete()
+      await Credential.query().where('accountId', accountId).where('id', credentialId).delete();
     },
-  }
+  };
 }

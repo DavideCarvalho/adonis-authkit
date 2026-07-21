@@ -7,24 +7,24 @@
  * O hook `mail.onSecurityNotice` do config tem prioridade sobre o mailer default.
  */
 
-import type { HttpContext } from '@adonisjs/core/http'
-import type { MailHooks } from '../define_config.js'
-import type { AuditSink } from '../audit/audit_sink.js'
-import type { SecurityNotificationKind } from './runtime_toggles.js'
-import { resolveRuntimeSettings } from './runtime_settings.js'
-import { resolveEffectiveSecurityNotifications } from './runtime_toggles.js'
-import { sendSecurityNoticeEmail } from './default_mailer.js'
+import type { HttpContext } from '@adonisjs/core/http';
+import type { AuditSink } from '../audit/audit_sink.js';
+import type { MailHooks } from '../define_config.js';
+import { sendSecurityNoticeEmail } from './default_mailer.js';
+import { resolveRuntimeSettings } from './runtime_settings.js';
+import type { SecurityNotificationKind } from './runtime_toggles.js';
+import { resolveEffectiveSecurityNotifications } from './runtime_toggles.js';
 
 /**
  * Contexto para disparo de uma notificação de segurança.
  */
 export interface SecurityNoticeContext {
-  account: { id: string; email: string }
-  kind: SecurityNotificationKind
-  ip?: string | null
-  userAgent?: string | null
-  timestamp?: string
-  metadata?: Record<string, string>
+  account: { id: string; email: string };
+  kind: SecurityNotificationKind;
+  ip?: string | null;
+  userAgent?: string | null;
+  timestamp?: string;
+  metadata?: Record<string, string>;
 }
 
 /**
@@ -40,11 +40,11 @@ export async function dispatchSecurityNotice(
   ctx: HttpContext,
   notice: SecurityNoticeContext,
   mailHooks: Pick<MailHooks, 'onSecurityNotice'> | undefined,
-  audit: AuditSink | undefined
+  audit: AuditSink | undefined,
 ): Promise<void> {
   try {
     // Resolve settings em runtime (fail-safe: sem tabela → defaults habilitados).
-    let enabled = true
+    let enabled = true;
     let enabledKinds: SecurityNotificationKind[] = [
       'password_changed',
       'mfa_enabled',
@@ -52,23 +52,23 @@ export async function dispatchSecurityNotice(
       'passkey_added',
       'passkey_removed',
       'email_changed',
-    ]
+    ];
 
     try {
-      const runtimeSettings = await resolveRuntimeSettings(ctx)
+      const runtimeSettings = await resolveRuntimeSettings(ctx);
       if (runtimeSettings && (await runtimeSettings.isTablePresent())) {
-        const resolved = await resolveEffectiveSecurityNotifications(runtimeSettings)
-        enabled = resolved.enabled
-        enabledKinds = resolved.kinds
+        const resolved = await resolveEffectiveSecurityNotifications(runtimeSettings);
+        enabled = resolved.enabled;
+        enabledKinds = resolved.kinds;
       }
     } catch {
       // DB não disponível ou tabela ausente → usa defaults (habilitado, todos os kinds).
     }
 
-    if (!enabled) return
-    if (!enabledKinds.includes(notice.kind)) return
+    if (!enabled) return;
+    if (!enabledKinds.includes(notice.kind)) return;
 
-    const timestamp = notice.timestamp ?? new Date().toISOString()
+    const timestamp = notice.timestamp ?? new Date().toISOString();
     const noticeData = {
       account: notice.account,
       kind: notice.kind,
@@ -76,11 +76,11 @@ export async function dispatchSecurityNotice(
       userAgent: notice.userAgent ?? null,
       timestamp,
       metadata: notice.metadata,
-    }
+    };
 
     // Hook do config tem prioridade; senão usa o mailer default.
     if (mailHooks?.onSecurityNotice) {
-      await mailHooks.onSecurityNotice(noticeData)
+      await mailHooks.onSecurityNotice(noticeData);
     } else {
       await sendSecurityNoticeEmail(ctx, {
         email: notice.account.email,
@@ -88,7 +88,7 @@ export async function dispatchSecurityNotice(
         timestamp,
         ip: notice.ip,
         metadata: notice.metadata,
-      })
+      });
     }
 
     // Audita o envio da notificação (best-effort).
@@ -97,14 +97,14 @@ export async function dispatchSecurityNotice(
       accountId: notice.account.id,
       ip: notice.ip ?? null,
       metadata: { kind: notice.kind },
-    })
+    });
   } catch (error) {
     // Fail-safe total: erro na notificação NUNCA quebra o fluxo principal.
     try {
       ctx.logger.error(
         { err: error, kind: notice.kind, accountId: notice.account.id },
-        'authkit: falha ao enviar notificação de segurança'
-      )
+        'authkit: falha ao enviar notificação de segurança',
+      );
     } catch {
       // Logger também falhou — silencioso.
     }

@@ -10,11 +10,8 @@
  * inteira no `verifyUrl`.
  */
 
-import { useCallback, useState } from "react";
-import {
-  authenticatePasskey,
-  submitPasskeyVerification,
-} from "../passkey/authenticate.js";
+import { useCallback, useState } from 'react';
+import { authenticatePasskey, submitPasskeyVerification } from '../passkey/authenticate.js';
 
 export interface UsePasskeyLoginOptions {
   /** Endpoint `passkey/options` do interaction controller (POST). */
@@ -42,9 +39,7 @@ export interface UsePasskeyLoginResult {
 /**
  * Hook headless de login por passkey. Retorna `{ authenticate, busy, failed }`.
  */
-export function usePasskeyLogin(
-  options: UsePasskeyLoginOptions,
-): UsePasskeyLoginResult {
+export function usePasskeyLogin(options: UsePasskeyLoginOptions): UsePasskeyLoginResult {
   const { optionsUrl, verifyUrl, csrfToken, onSuccess } = options;
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);

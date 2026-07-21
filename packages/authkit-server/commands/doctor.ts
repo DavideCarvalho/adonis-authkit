@@ -1,17 +1,23 @@
-import { BaseCommand } from '@adonisjs/core/ace'
-import type { CommandOptions } from '@adonisjs/core/types/ace'
-import { runAllChecks, hasErrors, signingKeyAgeFinding, type DoctorInput, type Finding } from '../src/doctor/checks.js'
-import { DatabaseAdapter } from '../src/adapters/database_adapter.js'
-import { resolveAuthkitConfig } from '../src/commands/resolve_config.js'
-import { KeystoreManager, resolveKeystoreVault } from '../src/keys/keystore_manager.js'
-import { KeystoreCodec } from '../src/keys/keystore_codec.js'
-import { signingKeyAgeDays } from '../src/keys/keystore.js'
-import { defaultEncryptForStore } from '../src/define_config.js'
-import { loadEncryptionService } from '../src/keys/keystore_crypto.js'
+import { BaseCommand } from '@adonisjs/core/ace';
+import type { CommandOptions } from '@adonisjs/core/types/ace';
+import { DatabaseAdapter } from '../src/adapters/database_adapter.js';
+import { resolveAuthkitConfig } from '../src/commands/resolve_config.js';
+import { defaultEncryptForStore } from '../src/define_config.js';
+import {
+  type DoctorInput,
+  type Finding,
+  hasErrors,
+  runAllChecks,
+  signingKeyAgeFinding,
+} from '../src/doctor/checks.js';
+import { signingKeyAgeDays } from '../src/keys/keystore.js';
+import { KeystoreCodec } from '../src/keys/keystore_codec.js';
+import { loadEncryptionService } from '../src/keys/keystore_crypto.js';
+import { KeystoreManager, resolveKeystoreVault } from '../src/keys/keystore_manager.js';
 
 /** Logger mínimo para reportar peers instalados-mas-quebrados. */
 interface CanImportLogger {
-  warning(msg: string): void
+  warning(msg: string): void;
 }
 
 /**
@@ -26,48 +32,46 @@ interface CanImportLogger {
  */
 async function canImport(specifier: string, logger?: CanImportLogger): Promise<boolean> {
   try {
-    await import(specifier)
-    return true
+    await import(specifier);
+    return true;
   } catch (err) {
-    const code = (err as { code?: string } | null)?.code
+    const code = (err as { code?: string } | null)?.code;
     if (code !== 'ERR_MODULE_NOT_FOUND' && code !== 'MODULE_NOT_FOUND') {
       logger?.warning(
-        `⚠️  ${specifier} está instalado mas falhou ao carregar: ${(err as Error).message}`
-      )
+        `⚠️  ${specifier} está instalado mas falhou ao carregar: ${(err as Error).message}`,
+      );
     }
-    return false
+    return false;
   }
 }
 
 export default class AuthkitDoctor extends BaseCommand {
-  static commandName = 'authkit:doctor'
+  static commandName = 'authkit:doctor';
   static description =
-    'Valida a configuração do AuthKit no host e imprime achados (✅/⚠️/❌). Sai com código !=0 se houver erros.'
+    'Valida a configuração do AuthKit no host e imprime achados (✅/⚠️/❌). Sai com código !=0 se houver erros.';
 
   static help = [
     'Roda uma bateria de checagens sobre a config `authkit` do host:',
     'issuer/mountPath, clients, accountStore + capacidades, session, shield,',
     'ally (social), rate-limit, admin, webauthn e jwks.',
-  ]
+  ];
 
-  static options: CommandOptions = { startApp: true }
+  static options: CommandOptions = { startApp: true };
 
   async run() {
-    const config = await this.app.container.make('config')
+    const config = await this.app.container.make('config');
 
     // `defineConfig` exporta um config provider — resolve antes de inspecionar,
     // senão todo campo aparece como "ausente" (provider cru não tem issuer etc.).
-    let authkitConfig: Record<string, any> | null = null
+    let authkitConfig: Record<string, any> | null = null;
     try {
-      authkitConfig = await resolveAuthkitConfig(this.app, config.get('authkit', null))
+      authkitConfig = await resolveAuthkitConfig(this.app, config.get('authkit', null));
     } catch (error) {
-      this.logger.logError(
-        `❌ config/authkit.ts falhou ao resolver: ${(error as Error).message}`
-      )
-      this.exitCode = 1
-      return
+      this.logger.logError(`❌ config/authkit.ts falhou ao resolver: ${(error as Error).message}`);
+      this.exitCode = 1;
+      return;
     }
-    const sessionConfig = (config.get('session', null) as Record<string, any> | null) ?? null
+    const sessionConfig = (config.get('session', null) as Record<string, any> | null) ?? null;
 
     const input: DoctorInput = {
       authkitConfig,
@@ -79,45 +83,52 @@ export default class AuthkitDoctor extends BaseCommand {
         limiter: await canImport('@adonisjs/limiter', this.logger),
       },
       __adapterClasses: { DatabaseAdapter },
-    }
+    };
 
-    const findings = runAllChecks(input)
+    const findings = runAllChecks(input);
 
     // Adiciona o finding de idade da chave de assinatura managed (best-effort).
-    const jwksInput = (authkitConfig?.jwksConfig ?? authkitConfig?.jwks) as any
+    const jwksInput = (authkitConfig?.jwksConfig ?? authkitConfig?.jwks) as any;
     if (jwksInput?.source === 'managed' && jwksInput?.store) {
       try {
-        const vault = resolveKeystoreVault(jwksInput.store, { makePath: (p) => this.app.makePath(p), container: this.app.container })
-        const encrypt = jwksInput.encrypt ?? defaultEncryptForStore(jwksInput.store)
-        const enc = encrypt ? await loadEncryptionService().catch(() => undefined) : undefined
-        const mgr = new KeystoreManager(vault, new KeystoreCodec({ encrypt, enc }), jwksInput.algorithm ?? 'RS256')
-        const store = await mgr.read().catch(() => null)
-        const maxAge = jwksInput.rotationDays ?? 90
-        findings.push(signingKeyAgeFinding(signingKeyAgeDays(store), maxAge))
+        const vault = resolveKeystoreVault(jwksInput.store, {
+          makePath: (p) => this.app.makePath(p),
+          container: this.app.container,
+        });
+        const encrypt = jwksInput.encrypt ?? defaultEncryptForStore(jwksInput.store);
+        const enc = encrypt ? await loadEncryptionService().catch(() => undefined) : undefined;
+        const mgr = new KeystoreManager(
+          vault,
+          new KeystoreCodec({ encrypt, enc }),
+          jwksInput.algorithm ?? 'RS256',
+        );
+        const store = await mgr.read().catch(() => null);
+        const maxAge = jwksInput.rotationDays ?? 90;
+        findings.push(signingKeyAgeFinding(signingKeyAgeDays(store), maxAge));
       } catch {
         /* idade é best-effort no doctor */
       }
     }
 
-    this.print(findings)
+    this.print(findings);
 
     if (hasErrors(findings)) {
-      this.exitCode = 1
+      this.exitCode = 1;
     }
   }
 
   private print(findings: Finding[]) {
-    const icon = (l: Finding['level']) => (l === 'ok' ? '✅' : l === 'warn' ? '⚠️ ' : '❌')
-    this.logger.info('AuthKit doctor — checagem da configuração do host\n')
+    const icon = (l: Finding['level']) => (l === 'ok' ? '✅' : l === 'warn' ? '⚠️ ' : '❌');
+    this.logger.info('AuthKit doctor — checagem da configuração do host\n');
     for (const f of findings) {
-      const line = `${icon(f.level)} ${f.message}`
-      if (f.level === 'error') this.logger.logError(line)
-      else if (f.level === 'warn') this.logger.warning(line)
-      else this.logger.success(line)
+      const line = `${icon(f.level)} ${f.message}`;
+      if (f.level === 'error') this.logger.logError(line);
+      else if (f.level === 'warn') this.logger.warning(line);
+      else this.logger.success(line);
     }
 
-    const errors = findings.filter((f) => f.level === 'error').length
-    const warns = findings.filter((f) => f.level === 'warn').length
-    this.logger.info(`\nResumo: ${errors} erro(s), ${warns} aviso(s).`)
+    const errors = findings.filter((f) => f.level === 'error').length;
+    const warns = findings.filter((f) => f.level === 'warn').length;
+    this.logger.info(`\nResumo: ${errors} erro(s), ${warns} aviso(s).`);
   }
 }

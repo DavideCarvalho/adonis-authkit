@@ -1,22 +1,22 @@
-import { useCallback } from 'react'
-import { useAuthkitConfig } from '../config.js'
-import { jsonRequest, useResource, type ResourceState } from './use_resource.js'
+import { useCallback } from 'react';
+import { useAuthkitConfig } from '../config.js';
+import { type ResourceState, jsonRequest, useResource } from './use_resource.js';
 
 export interface AuthSession {
-  id: string
-  device?: string
-  ip?: string
-  lastSeenAt?: string
-  current?: boolean
-  [key: string]: unknown
+  id: string;
+  device?: string;
+  ip?: string;
+  lastSeenAt?: string;
+  current?: boolean;
+  [key: string]: unknown;
 }
 
 export interface UseSessionsResult extends ResourceState<AuthSession[]> {
   actions: {
-    refetch(): Promise<void>
+    refetch(): Promise<void>;
     /** revoga uma sessão/dispositivo confiável (POST `${sessions}/:id/revoke`) */
-    revoke(id: string): Promise<void>
-  }
+    revoke(id: string): Promise<void>;
+  };
 }
 
 /**
@@ -24,22 +24,22 @@ export interface UseSessionsResult extends ResourceState<AuthSession[]> {
  * `sessions`) e expõe `revoke`.
  */
 export function useSessions(): UseSessionsResult {
-  const config = useAuthkitConfig()
+  const config = useAuthkitConfig();
   const { data, loading, error, refetch } = useResource<AuthSession[]>(
     config.endpoints.sessions,
-    config.csrfToken
-  )
+    config.csrfToken,
+  );
 
   const revoke = useCallback(
     async (id: string) => {
       await jsonRequest(`${config.endpoints.sessions}/${encodeURIComponent(id)}/revoke`, {
         method: 'POST',
         csrfToken: config.csrfToken,
-      })
-      await refetch()
+      });
+      await refetch();
     },
-    [config.endpoints.sessions, config.csrfToken, refetch]
-  )
+    [config.endpoints.sessions, config.csrfToken, refetch],
+  );
 
-  return { data, loading, error, actions: { refetch, revoke } }
+  return { data, loading, error, actions: { refetch, revoke } };
 }

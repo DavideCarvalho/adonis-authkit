@@ -1,10 +1,10 @@
-import { test } from '@japa/runner'
-import { fileURLToPath } from 'node:url'
-import { Edge } from 'edge.js'
-import { configProvider } from '@adonisjs/core'
-import { defineConfig, adapters } from '../../src/define_config.js'
-import AccountSessionController from '../../src/host/controllers/account_session_controller.js'
-import { fakeAccountStore } from '../bootstrap.js'
+import { fileURLToPath } from 'node:url';
+import { configProvider } from '@adonisjs/core';
+import { test } from '@japa/runner';
+import { Edge } from 'edge.js';
+import { adapters, defineConfig } from '../../src/define_config.js';
+import AccountSessionController from '../../src/host/controllers/account_session_controller.js';
+import { fakeAccountStore } from '../bootstrap.js';
 
 /**
  * Regression (ITEM 3 — `render` sem default): antes desta mudança,
@@ -24,7 +24,7 @@ import { fakeAccountStore } from '../bootstrap.js'
 async function resolveConfigWithoutRender() {
   const fakeApp = {
     container: { make: async () => ({ connection: () => ({}) }) },
-  } as any
+  } as any;
   return configProvider.resolve(
     fakeApp,
     defineConfig({
@@ -33,30 +33,30 @@ async function resolveConfigWithoutRender() {
       jwks: { source: 'managed', algorithm: 'RS256' },
       accountStore: fakeAccountStore(),
       // `render` OMITIDO DE PROPÓSITO — é exatamente o caso que quebrava.
-    })
-  ) as Promise<any>
+    }),
+  ) as Promise<any>;
 }
 
 function makeEdge() {
-  const dir = fileURLToPath(new URL('../../src/host/views/', import.meta.url))
-  const edge = new Edge()
-  edge.mount('authkit', dir)
-  return edge
+  const dir = fileURLToPath(new URL('../../src/host/views/', import.meta.url));
+  const edge = new Edge();
+  edge.mount('authkit', dir);
+  return edge;
 }
 
 test.group('render default (ITEM 3)', () => {
   test('defineConfig() sem `render` resolve com um default de runtime (não fica undefined)', async ({
     assert,
   }) => {
-    const cfg = await resolveConfigWithoutRender()
-    assert.isFunction(cfg.render)
-  })
+    const cfg = await resolveConfigWithoutRender();
+    assert.isFunction(cfg.render);
+  });
 
   test('GET /account/login sem `render` configurado renderiza a view de verdade (não estoura 500)', async ({
     assert,
   }) => {
-    const cfg = await resolveConfigWithoutRender()
-    const edge = makeEdge()
+    const cfg = await resolveConfigWithoutRender();
+    const edge = makeEdge();
 
     const ctx: any = {
       session: { get: () => undefined },
@@ -68,13 +68,13 @@ test.group('render default (ITEM 3)', () => {
       response: { redirect: () => {} },
       containerResolver: { make: async () => ({ config: cfg }) },
       view: edge,
-    }
+    };
 
-    const controller = new AccountSessionController()
-    const html = await controller.show(ctx)
+    const controller = new AccountSessionController();
+    const html = await controller.show(ctx);
 
-    assert.isString(html)
-    assert.include(html as string, '/account/login')
-    assert.include(html as string, 'name="_csrf"')
-  })
-})
+    assert.isString(html);
+    assert.include(html as string, '/account/login');
+    assert.include(html as string, 'name="_csrf"');
+  });
+});

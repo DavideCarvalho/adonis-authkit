@@ -15,19 +15,19 @@
 
 // ─── Console admin ───────────────────────────────────────────────────────────
 
-const DEFAULT_ADMIN_PREFIX = '/admin'
+const DEFAULT_ADMIN_PREFIX = '/admin';
 
-let _prefix: string = DEFAULT_ADMIN_PREFIX
+let _prefix: string = DEFAULT_ADMIN_PREFIX;
 
 /**
  * Normaliza o prefixo: começa com '/', sem trailing slash.
  * `'/'` → `''` (raiz) é improvável mas seguro.
  */
 export function normalizeAdminPrefix(raw: string): string {
-  let p = raw.trim()
-  if (!p.startsWith('/')) p = '/' + p
-  p = p.replace(/\/+$/, '')
-  return p || '/'
+  let p = raw.trim();
+  if (!p.startsWith('/')) p = `/${p}`;
+  p = p.replace(/\/+$/, '');
+  return p || '/';
 }
 
 /**
@@ -38,7 +38,7 @@ export function normalizeAdminPrefix(raw: string): string {
  *                Normalizado automaticamente.
  */
 export function setAdminPrefix(prefix: string): void {
-  _prefix = normalizeAdminPrefix(prefix)
+  _prefix = normalizeAdminPrefix(prefix);
 }
 
 /**
@@ -46,24 +46,24 @@ export function setAdminPrefix(prefix: string): void {
  * Usado pelos controllers e pelo `adminGuard` para construir redirects/links.
  */
 export function getAdminPrefix(): string {
-  return _prefix
+  return _prefix;
 }
 
 // ─── Admin REST API ───────────────────────────────────────────────────────────
 
-const DEFAULT_ADMIN_API_PREFIX = '/api/authkit/v1'
+const DEFAULT_ADMIN_API_PREFIX = '/api/authkit/v1';
 
-let _apiPrefix: string = DEFAULT_ADMIN_API_PREFIX
+let _apiPrefix: string = DEFAULT_ADMIN_API_PREFIX;
 
 /**
  * Normaliza o prefixo da Admin REST API: começa com '/', sem trailing slash.
  * Mesma semântica de `normalizeAdminPrefix`.
  */
 export function normalizeAdminApiPrefix(raw: string): string {
-  let p = raw.trim()
-  if (!p.startsWith('/')) p = '/' + p
-  p = p.replace(/\/+$/, '')
-  return p || '/'
+  let p = raw.trim();
+  if (!p.startsWith('/')) p = `/${p}`;
+  p = p.replace(/\/+$/, '');
+  return p || '/';
 }
 
 /**
@@ -74,7 +74,7 @@ export function normalizeAdminApiPrefix(raw: string): string {
  *                Normalizado automaticamente.
  */
 export function setAdminApiPrefix(prefix: string): void {
-  _apiPrefix = normalizeAdminApiPrefix(prefix)
+  _apiPrefix = normalizeAdminApiPrefix(prefix);
 }
 
 /**
@@ -82,7 +82,7 @@ export function setAdminApiPrefix(prefix: string): void {
  * Usado pelo `adminApiGuard` e pelo SDK remoto para construir as URLs.
  */
 export function getAdminApiPrefix(): string {
-  return _apiPrefix
+  return _apiPrefix;
 }
 
 // ─── Admin UI mode ────────────────────────────────────────────────────────────

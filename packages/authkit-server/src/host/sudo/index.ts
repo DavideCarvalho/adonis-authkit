@@ -17,6 +17,9 @@ import { magicLink } from './methods/magic_link.js'
  * resolver — mesma razão de `social`/`admin`/`rateLimit`. Divergiram, a tela
  * loga um aviso de flag-drift e o endpoint faltante dá 404.
  *
+ * SEM `config.sudo.methods` não há como divergir: a tela cai na própria lista
+ * montada por `registerAuthHost`, a mesma que os handlers aceitam.
+ *
  * ```ts
  * defineConfig({
  *   sudo: {
@@ -37,7 +40,6 @@ export type { SudoMethod, SudoContext, SudoMethodDescriptor, SudoRouteHelpers } 
 /**
  * Montagem do `SudoContext` a partir do `HttpContext`. Reexportado aqui por
  * simetria com `sudoMethods` e os tipos: quem escreve um método (ou a rota de
- * callback do `oidcStepUp`) precisa dos três, e não deveria ter de importar de
- * `controllers/account_confirm_controller.js` para pegar um.
+ * callback do `oidcStepUp`) precisa dos três.
  */
-export { sudoContextFrom } from '../controllers/account_confirm_controller.js'
+export { sudoContextFrom } from './runtime.js'

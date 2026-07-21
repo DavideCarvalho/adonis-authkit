@@ -5,7 +5,7 @@ import { ACCOUNT_SESSION_KEY } from '../../src/host/middleware/account_auth.js'
 import { DEFAULT_MESSAGES } from '../../src/host/i18n.js'
 import { password } from '../../src/host/sudo/methods/password.js'
 import { passkey, CONFIRM_PASSKEY_CHALLENGE_ACCOUNT_KEY } from '../../src/host/sudo/methods/passkey.js'
-import { completeSudo, fail } from '../../src/host/sudo/runtime.js'
+import { completeSudo, fail, setMountedSudoMethods } from '../../src/host/sudo/runtime.js'
 import { sudoContextFrom } from '../../src/host/controllers/account_confirm_controller.js'
 
 const ACCOUNT = { id: 'acc-1', email: 'user@example.com' }
@@ -33,6 +33,14 @@ function fakeConfirmCtx(opts: {
   session?: Record<string, unknown>
   cfg?: Record<string, unknown>
 } = {}) {
+  // Sem `config.sudo.methods`, a lista da TELA é a lista MONTADA (é assim que
+  // os dois lados param de divergir — ver `configuredSudoMethods`). No boot
+  // real quem a preenche é `registerAuthHost`; aqui o controller é exercido
+  // isolado, então a fixture reproduz o mesmo estado de boot: os defaults.
+  // Fica DENTRO da fixture de propósito — outras specs do mesmo processo também
+  // montam listas, e o teste não pode depender da ordem dos arquivos.
+  setMountedSudoMethods([password(), passkey()])
+
   const session: Record<string, unknown> = { [ACCOUNT_SESSION_KEY]: ACCOUNT.id, ...opts.session }
   const flashed: Record<string, unknown> = {}
   const rendered: Array<{ view: string; props: Record<string, unknown> }> = []

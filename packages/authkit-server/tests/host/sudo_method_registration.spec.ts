@@ -15,7 +15,14 @@
 import { test } from '@japa/runner'
 import { RouterFactory } from '@adonisjs/core/factories/http'
 import { registerAuthHost } from '../../src/host/register_auth_host.js'
-import { guardSudoRoutes, completeSudo, fail } from '../../src/host/sudo/runtime.js'
+import {
+  guardSudoRoutes,
+  completeSudo,
+  fail,
+  isSudoMethodEnabled,
+} from '../../src/host/sudo/runtime.js'
+import AccountConfirmController from '../../src/host/controllers/account_confirm_controller.js'
+import { magicLink } from '../../src/host/sudo/methods/magic_link.js'
 import { sudoContextFrom } from '../../src/host/sudo/index.js'
 import { password } from '../../src/host/sudo/methods/password.js'
 import { SUDO_SESSION_KEY } from '../../src/host/sudo_mode.js'
@@ -195,6 +202,100 @@ test.group('sudo — a barreira de config.sudo.methods é do ponto de registro',
     await router.routes.get('POST /account/confirm/custom')!(h.ctx)
 
     assert.isNumber(h.session[SUDO_SESSION_KEY])
+  })
+})
+
+/**
+ * CONVERGÊNCIA entre os dois lados no caso "host não configurou nada".
+ *
+ * A tela (`configuredSudoMethods`) e os handlers (`isSudoMethodEnabled`) tinham
+ * defaults DIFERENTES: a tela caía numa lista hardcoded (`password + passkey`),
+ * os handlers caíam em "o que tem rota montada". Um host que passasse só
+ * `registerAuthHost({ sudoMethods: [magicLink()] })` via a tela oferecer dois
+ * métodos 404 e esconder o único que funcionava.
+ */
+test.group('sudo — a tela oferece exatamente o que foi montado (sem config)', () => {
+  /** Contexto de render para o controller, com `mail.onSudoLink` (magic-link exige). */
+  function showCtx(cfgOverrides: Record<string, unknown> = {}) {
+    const rendered: Array<{ props: Record<string, unknown> }> = []
+    const h = fakeCtx({
+      mail: { onSudoLink: async () => {} },
+      render: async (_c: unknown, _v: string, props: Record<string, unknown>) => {
+        rendered.push({ props })
+        return {}
+      },
+      accountStore: {
+        async findById() {
+          return ACCOUNT
+        },
+        // Conta COM senha: se a tela ainda caísse nos defaults hardcoded,
+        // `password` apareceria — é justamente o que o teste precisa detectar.
+        async __getRawRow() {
+          return { password: 'hash-existente' }
+        },
+      },
+      ...cfgOverrides,
+    })
+    return { ...h, rendered }
+  }
+
+  test('montando só magicLink, a tela oferece magic-link e nada mais', async ({ assert }) => {
+    const router = capturingRouter()
+    registerAuthHost(router, { mountPath: '/oidc', sudoMethods: [magicLink()] })
+
+    const h = showCtx()
+    await new AccountConfirmController().show(h.ctx)
+
+    const ids = (h.rendered[0].props.methods as Array<{ id: string }>).map((m) => m.id)
+    assert.deepEqual(ids, ['magic-link'])
+    // Os métodos que a tela NÃO oferece são exatamente os que não têm rota.
+    assert.isFalse(router.routes.has('POST /account/confirm'))
+    assert.isFalse(router.routes.has('POST /account/confirm/passkey'))
+  })
+
+  test('o método oferecido pela tela é aceito pelo handler (mesma resposta dos dois lados)', async ({
+    assert,
+  }) => {
+    const router = capturingRouter()
+    registerAuthHost(router, { mountPath: '/oidc', sudoMethods: [magicLink()] })
+
+    const h = showCtx()
+    await new AccountConfirmController().show(h.ctx)
+    const offered = (h.rendered[0].props.methods as Array<{ id: string }>).map((m) => m.id)
+
+    // Lado da TELA e lado dos HANDLERS, sem `config.sudo.methods`: convergem.
+    for (const id of offered) {
+      assert.isTrue(isSudoMethodEnabled(h.cfg, id), `handler recusaria "${id}" que a tela oferece`)
+      assert.isTrue(router.routes.has('POST /account/confirm/magic-link'))
+    }
+  })
+
+  test('sem config, a tela segue o que o host montou — inclusive um método customizado', async ({
+    assert,
+  }) => {
+    const router = capturingRouter()
+    registerAuthHost(router, { mountPath: '/oidc', sudoMethods: [metodoDesatento()] })
+
+    const h = showCtx()
+    await new AccountConfirmController().show(h.ctx)
+
+    const ids = (h.rendered[0].props.methods as Array<{ id: string }>).map((m) => m.id)
+    assert.deepEqual(ids, ['custom'])
+  })
+
+  test('com config explícita, ela ainda manda na tela (e o drift volta a ser possível)', async ({
+    assert,
+  }) => {
+    const router = capturingRouter()
+    registerAuthHost(router, { mountPath: '/oidc', sudoMethods: [magicLink()] })
+
+    // Config explícita diverge do que foi montado: é o ÚNICO caso de drift que
+    // sobra, e é o que o aviso do controller existe para denunciar.
+    const h = showCtx({ sudo: { methods: [password()] } })
+    await new AccountConfirmController().show(h.ctx)
+
+    const ids = (h.rendered[0].props.methods as Array<{ id: string }>).map((m) => m.id)
+    assert.deepEqual(ids, ['password'])
   })
 })
 

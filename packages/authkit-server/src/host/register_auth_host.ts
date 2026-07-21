@@ -15,13 +15,27 @@ import {
 import { resolveRuntimeSettings } from './runtime_settings.js'
 import { resolveEffectiveSessionPolicy } from './runtime_toggles.js'
 import { getAuthHostConfig } from './auth_host_config.js'
-import { completeSudo, fail, guardSudoRoutes } from './sudo/runtime.js'
 import {
-  SUDO_METHOD_DEFAULTS,
+  completeSudo,
+  fail,
+  guardSudoRoutes,
   sudoContextFrom,
-  mountedSudoMethodIds,
-} from './controllers/account_confirm_controller.js'
+  setMountedSudoMethods,
+} from './sudo/runtime.js'
+import { password as sudoPassword } from './sudo/methods/password.js'
+import { passkey as sudoPasskey } from './sudo/methods/passkey.js'
 import type { SudoMethod, SudoRouteHelpers } from './sudo/types.js'
+
+/**
+ * Métodos de sudo montados quando o host não passa `sudoMethods` —
+ * comportamento histórico (senha + passkey).
+ *
+ * PONTO ÚNICO. A tela não tem mais uma cópia desta lista: sem
+ * `config.sudo.methods`, `configuredSudoMethods` cai no que FOI MONTADO, ou
+ * seja, no resultado do `??` abaixo. Duas listas de default é como os dois
+ * lados divergiam.
+ */
+const SUDO_METHOD_DEFAULTS: SudoMethod[] = [sudoPassword(), sudoPasskey()]
 
 /** Chave da sessão Adonis que registra o timestamp da última atividade (idle timeout). */
 export const ACCOUNT_LAST_SEEN_KEY = 'authkit_last_seen'
@@ -417,15 +431,17 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
         completeSudo,
         fail,
       }
-      for (const method of opts?.sudoMethods ?? SUDO_METHOD_DEFAULTS) {
+      const sudoMethodsToMount = opts?.sudoMethods ?? SUDO_METHOD_DEFAULTS
+      for (const method of sudoMethodsToMount) {
         // `guardSudoRoutes` embrulha os handlers que o método registrar, para
         // que `config.sudo.methods` os desabilite de fato mesmo que o método
         // não tenha checado nada por dentro. Ver o docblock lá.
         method.register?.(guardSudoRoutes(router, method.id, helpers), helpers)
-        // Registra o que de fato tem rota, para o controller detectar flag-drift
-        // contra `config.sudo.methods` (que só decide o que a TELA oferece).
-        mountedSudoMethodIds.add(method.id)
       }
+      // A lista montada é a fonte de verdade dos DOIS lados quando o host não
+      // configura `config.sudo.methods`: a tela oferece exatamente isto, e os
+      // handlers aceitam exatamente isto.
+      setMountedSudoMethods(sudoMethodsToMount)
 
       // Organizations (multi-tenancy) — sempre montadas; controller retorna 404/403 sem tabelas.
       router.get('/account/orgs', [C.accountOrgs, 'index'])

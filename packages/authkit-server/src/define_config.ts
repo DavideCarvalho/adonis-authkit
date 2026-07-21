@@ -929,7 +929,11 @@ export interface AuthServerConfigInput {
    * Métodos de confirmação de identidade (sudo mode). A ordem do array é a
    * ordem de exibição; o último método usado com sucesso é promovido ao topo.
    *
-   * Ausente → `[password(), passkey()]`, idêntico ao comportamento histórico.
+   * Ausente → a lista que `registerAuthHost` MONTOU (que por sua vez cai em
+   * `[password(), passkey()]` sem `AuthHostOptions.sudoMethods`, o
+   * comportamento histórico). É a mesma resposta que os handlers dão nesse
+   * caso — "vale o que tem rota" —, e é o que impede a tela de oferecer um
+   * método sem endpoint ou de esconder um que funciona.
    *
    * Host passwordless (autentica por OIDC/magic link) DEVE incluir ao menos um
    * método que não exija credencial previamente cadastrada — `oidcStepUp()` ou

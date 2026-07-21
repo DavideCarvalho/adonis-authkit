@@ -1,12 +1,66 @@
 import { markSudo } from '../sudo_mode.js'
 import { accountHome } from '../account_home.js'
 import { translate } from '../i18n.js'
+import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
+import { validateReturnTo } from '../controllers/account_session_controller.js'
 import type { HttpContext, Router } from '@adonisjs/core/http'
 import type { ResolvedServerConfig } from '../../define_config.js'
 import type { SudoContext, SudoMethod, SudoRouteHelpers } from './types.js'
 
 /** Último método usado com sucesso — só ordena a tela, não restringe nada. */
 export const LAST_METHOD_SESSION_KEY = 'authkit_sudo_last_method'
+
+/**
+ * Monta o `SudoContext` a partir do `HttpContext`.
+ *
+ * Mora AQUI, e não no controller, porque é o construtor canônico do contexto
+ * que `completeSudo`/`fail` recebem e que todo `SudoMethod` usa — é runtime do
+ * SPI, não detalhe da tela. Enquanto morava em `controllers/`, o barrel do SPI
+ * reexportava de lá só para esconder isso, e o ciclo
+ * `runtime → controller → runtime` era o que obrigava `configuredSudoMethods` a
+ * viver longe de `isSudoMethodEnabled` — origem do drift entre os dois lados.
+ */
+export async function sudoContextFrom(ctx: HttpContext): Promise<SudoContext> {
+  const service = await (ctx as any).containerResolver.make('authkit.server')
+  const cfg = service.config
+  const accountId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
+  const account = await cfg.accountStore.findById(accountId)
+
+  // PRECEDÊNCIA do return_to. Num GET a query string é a única fonte real. Num
+  // POST o alvo do redirect vem do campo hidden do form: deixar a query string
+  // vencer permitiria a um link `?return_to=...` sequestrar o destino de um form
+  // que o usuário já preencheu — e seria uma mudança silenciosa de um alvo de
+  // redirect em relação ao comportamento histórico (`request.input`, que no
+  // Adonis já dá precedência ao corpo). `validateReturnTo` roda nos dois casos.
+  const fromBody = ctx.request.input?.('return_to')
+  const fromQuery = (ctx.request as any).qs?.()?.return_to
+  const isPost = String((ctx.request as any).method?.() ?? '').toUpperCase() === 'POST'
+  const raw = isPost ? (fromBody ?? fromQuery) : (fromQuery ?? fromBody)
+
+  return { ctx, cfg, accountId, account, returnTo: validateReturnTo(raw) }
+}
+
+/**
+ * Métodos cujas rotas FORAM montadas por `registerAuthHost`, na ordem em que
+ * ele as montou. Guarda os OBJETOS, não só os ids, porque esta lista é também
+ * a lista efetiva da TELA quando o host não configura `config.sudo.methods` —
+ * ver `configuredSudoMethods`.
+ */
+const mountedSudoMethods: SudoMethod[] = []
+
+/**
+ * Registra a lista montada. Chamado UMA vez por `registerAuthHost`, e
+ * SUBSTITUI (não acumula): registrar o host de novo é redefinir o que existe,
+ * não somar ao que existia.
+ */
+export function setMountedSudoMethods(methods: SudoMethod[]): void {
+  mountedSudoMethods.splice(0, mountedSudoMethods.length, ...methods)
+}
+
+/** Um método com este id teve rotas montadas? Usado só para avisar de drift. */
+export function isSudoMethodMounted(methodId: string): boolean {
+  return mountedSudoMethods.some((m) => m?.id === methodId)
+}
 
 /**
  * Lista de métodos que o host configurou EXPLICITAMENTE, ou `null` quando ele
@@ -39,6 +93,29 @@ export function isSudoMethodEnabled(cfg: ResolvedServerConfig, methodId: string)
   const explicit = explicitSudoMethods(cfg)
   if (explicit === null) return true
   return explicit.some((m) => m?.id === methodId)
+}
+
+/**
+ * Lista efetiva de métodos da TELA — o irmão de `isSudoMethodEnabled`, e por
+ * isso mora coladinho nele.
+ *
+ * Sem config explícita cai na lista MONTADA, exatamente a mesma resposta que
+ * `isSudoMethodEnabled` dá do lado dos handlers ("vale o que tem rota"). Antes
+ * caía numa lista de defaults hardcoded, e os dois lados divergiam de verdade:
+ * um host que fizesse só
+ *
+ * ```ts
+ * registerAuthHost(router, { sudoMethods: [sudoMethods.magicLink()] })
+ * ```
+ *
+ * montava só magic-link, mas a tela oferecia password + passkey (ambos 404) e
+ * NÃO oferecia magic-link, que funcionava. Caindo na lista montada, o drift
+ * fica estruturalmente impossível no caso sem config: é literalmente a mesma
+ * lista. O aviso de flag-drift do controller passa a valer só para o caso que
+ * sobra — config explícita divergindo do que foi montado.
+ */
+export function configuredSudoMethods(cfg: ResolvedServerConfig): SudoMethod[] {
+  return explicitSudoMethods(cfg) ?? mountedSudoMethods
 }
 
 /**

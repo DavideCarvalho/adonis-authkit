@@ -371,7 +371,7 @@ export { completeSudo, fail as failSudo, LAST_METHOD_SESSION_KEY } from './src/h
 // junto porque sem ele o host teria de montar o contexto na mão (resolver o
 // service do container, carregar a conta, validar o `return_to`) — e um
 // `returnTo` montado na mão é um open redirect esperando acontecer.
-export { sudoContextFrom } from './src/host/controllers/account_confirm_controller.js'
+export { sudoContextFrom } from './src/host/sudo/runtime.js'
 export type {
   SudoMethod,
   SudoContext,

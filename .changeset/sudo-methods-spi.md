@@ -41,6 +41,18 @@ config (lazy) resolver — mesma razão de `social`/`admin`/`rateLimit`. Sem
 com endpoint 404 — e `magicLink()` não seria alcançável em runtime de jeito
 nenhum. Divergiram, a tela loga um aviso de flag-drift.
 
+**Sem `config.sudo.methods`, os dois lados não têm como divergir:** a tela
+oferece a lista que `registerAuthHost` MONTOU, que é exatamente a que os
+handlers aceitam. Um host que passe só
+
+```ts
+registerAuthHost(router, { sudoMethods: [sudoMethods.magicLink()] })
+```
+
+vê a tela oferecer magic-link, e só. (Antes ela caía numa lista de defaults
+própria e oferecia password + passkey, ambos 404, escondendo o único método
+que de fato funcionava.)
+
 `config.sudo.methods` desabilita o endpoint DE FATO, não só a opção da tela: o
 runtime embrulha os handlers no ponto de registro, então a barreira vale
 inclusive para um método customizado que nunca a tenha consultado — **desde que

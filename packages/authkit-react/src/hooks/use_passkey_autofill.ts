@@ -24,11 +24,8 @@
  * O hook é exportado do pacote principal `@adonis-agora/authkit-react`.
  */
 
-import { useEffect, useRef } from "react";
-import {
-  loadStartAuthentication,
-  type StartAuthenticationFn,
-} from "../passkey/authenticate.js";
+import { useEffect, useRef } from 'react';
+import { type StartAuthenticationFn, loadStartAuthentication } from '../passkey/authenticate.js';
 
 export interface UsePasskeyAutofillOptions {
   /**
@@ -68,20 +65,13 @@ export interface UsePasskeyAutofillOptions {
  * disponíveis diretamente no campo que tem `autocomplete="username webauthn"`.
  */
 export function usePasskeyAutofill(options: UsePasskeyAutofillOptions): void {
-  const {
-    optionsUrl,
-    verifyUrl,
-    onSuccess,
-    csrfToken,
-    enabled = true,
-  } = options;
+  const { optionsUrl, verifyUrl, onSuccess, csrfToken, enabled = true } = options;
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!enabled) return;
     // SSR guard
-    if (typeof window === "undefined" || typeof navigator === "undefined")
-      return;
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') return;
     if (!window.PublicKeyCredential) return;
 
     let cancelled = false;
@@ -92,11 +82,8 @@ export function usePasskeyAutofill(options: UsePasskeyAutofillOptions): void {
       try {
         // 1. Detecta suporte a conditional mediation.
         const supported =
-          typeof (PublicKeyCredential as any)
-            .isConditionalMediationAvailable === "function"
-            ? await (
-                PublicKeyCredential as any
-              ).isConditionalMediationAvailable()
+          typeof (PublicKeyCredential as any).isConditionalMediationAvailable === 'function'
+            ? await (PublicKeyCredential as any).isConditionalMediationAvailable()
             : false;
         if (!supported || cancelled) return;
 
@@ -112,12 +99,12 @@ export function usePasskeyAutofill(options: UsePasskeyAutofillOptions): void {
 
         // 3. Obtém as options discoverable do servidor.
         const headers: Record<string, string> = {
-          "content-type": "application/json",
+          'content-type': 'application/json',
         };
-        if (csrfToken) headers["x-csrf-token"] = csrfToken;
+        if (csrfToken) headers['x-csrf-token'] = csrfToken;
 
         const optRes = await fetch(optionsUrl, {
-          method: "POST",
+          method: 'POST',
           headers,
           body: JSON.stringify({}),
           signal: ac.signal,
@@ -125,7 +112,7 @@ export function usePasskeyAutofill(options: UsePasskeyAutofillOptions): void {
         if (!optRes.ok || cancelled) return;
         const optionsJSON = await optRes.json();
         // Remove flag interna (_discoverable) antes de passar ao browser.
-        delete optionsJSON._discoverable;
+        optionsJSON._discoverable = undefined;
         if (cancelled) return;
 
         // 4. Inicia conditional mediation — o browser bloqueia aqui até o usuário
@@ -155,6 +142,5 @@ export function usePasskeyAutofill(options: UsePasskeyAutofillOptions): void {
       ac.abort();
       abortRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, optionsUrl, verifyUrl, csrfToken]);
+  }, [enabled, optionsUrl, onSuccess, csrfToken]);
 }

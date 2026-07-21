@@ -89,6 +89,12 @@ export interface MailHooks {
     token: string;
   }) => Promise<void>;
   /**
+   * Envia o link de CONFIRMAÇÃO DE IDENTIDADE (sudo). Distinto de
+   * `onMagicLink`: aquele autentica, este só concede sudo a quem já está
+   * logado. Sem este hook, `sudoMethods.magicLink()` fica indisponível.
+   */
+  onSudoLink?: (data: { email: string; sudoUrl: string }) => Promise<void>;
+  /**
    * Disparado num login bem-sucedido a partir de um dispositivo NOVO (sem cookie
    * de dispositivo confiável válido para a conta). Best-effort, fire-and-forget:
    * uma falha aqui NUNCA quebra o login. Quando ausente mas o mail estiver

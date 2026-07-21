@@ -1,0 +1,158 @@
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
+import type { Router } from '@adonisjs/core/http'
+import { isSudoMethodEnabled } from '../runtime.js'
+import type { SudoContext, SudoMethod, SudoRouteHelpers } from '../types.js'
+
+/** Token de sudo pendente, guardado na sessão que o pediu. */
+export const SUDO_LINK_SESSION_KEY = 'authkit_sudo_link'
+
+/** Mesma janela dos magic links de login. */
+export const SUDO_LINK_TTL_MS = 5 * 60 * 1000
+
+interface PendingLink {
+  hash: string
+  expiresAt: number
+}
+
+const sha256 = (value: string) => createHash('sha256').update(value).digest('hex')
+
+/**
+ * Emite um token de sudo e guarda o HASH na sessão que pediu.
+ *
+ * O TOKEN É PRÓPRIO, DE ESCOPO SUDO — nunca o token de login
+ * (`issueMagicLinkToken`/`consumeMagicLinkToken` do `AccountStore`). Aquele é
+ * credencial de AUTENTICAÇÃO: reusá-lo faria de um link de sudo vazado uma
+ * sessão completa.
+ *
+ * | propriedade | valor | razão |
+ * |---|---|---|
+ * | geração | `randomBytes(32)` hex | entropia de credencial |
+ * | armazenamento | HASH na sessão que pediu | não guarda o segredo em claro |
+ * | escopo | só marca sudo | nunca autentica |
+ * | validade | 5 min | mesma janela dos magic links de login |
+ * | uso | único (apagado no consumo) | replay |
+ * | navegador | só o mesmo (vive na sessão) | step-up é reprova de QUEM ESTÁ ALI |
+ *
+ * O "só mesmo navegador" é propriedade desejada aqui, diferente do magic link
+ * de login, onde é limitação conhecida.
+ *
+ * Exportada (em vez de membro `__` do método) para ser testável sem furar a
+ * API pública do `SudoMethod`.
+ */
+export function issueSudoLinkToken(c: SudoContext): string {
+  const token = randomBytes(32).toString('hex')
+  const pending: PendingLink = { hash: sha256(token), expiresAt: Date.now() + SUDO_LINK_TTL_MS }
+  c.ctx.session.put(SUDO_LINK_SESSION_KEY, pending)
+  return token
+}
+
+/** Consome o token: single-use, expira em 5 min, comparação em tempo constante. */
+export function verifySudoLinkToken(c: SudoContext, token: string): boolean {
+  const pending = c.ctx.session.get(SUDO_LINK_SESSION_KEY) as PendingLink | undefined
+  if (!pending) return false
+
+  // Single-use: some na primeira tentativa, certa ou errada.
+  c.ctx.session.forget(SUDO_LINK_SESSION_KEY)
+
+  if (Date.now() > pending.expiresAt) return false
+
+  const a = Buffer.from(sha256(token), 'hex')
+  const b = Buffer.from(pending.hash, 'hex')
+  return a.length === b.length && timingSafeEqual(a, b)
+}
+
+/**
+ * Origem absoluta desta requisição, ou `null` se o request não a expõe.
+ *
+ * O link vai por E-MAIL: um caminho relativo (`/account/confirm/...`) não é
+ * clicável fora do navegador. É a mesma montagem do `onMagicLink` de login
+ * (interaction_controller.ts:706). O `null` é fallback defensivo — se o host
+ * usar um request sem `protocol()`/`host()`, cai para o caminho relativo em vez
+ * de mandar `undefined://undefined/...`.
+ */
+function requestOrigin(ctx: any): string | null {
+  const protocol = ctx?.request?.protocol?.()
+  const host = ctx?.request?.host?.()
+  return protocol && host ? `${protocol}://${host}` : null
+}
+
+/**
+ * Confirmação por link enviado ao e-mail da conta.
+ *
+ * Depende do hook `mail.onSudoLink`, DISTINTO de `mail.onMagicLink` justamente
+ * para que o host não confunda um link que autentica com um que só concede
+ * sudo a quem já está logado. Sem o hook, o método fica indisponível.
+ */
+export function magicLink(): SudoMethod {
+  return {
+    id: 'magic-link',
+
+    async isAvailable(c: SudoContext) {
+      if (!c.account?.email) return false
+      return typeof c.cfg?.mail?.onSudoLink === 'function'
+    },
+
+    async describe() {
+      return {
+        labelKey: 'account.confirm.method.magic_link',
+        kind: 'action' as const,
+        endpoint: '/account/confirm/magic-link',
+      }
+    },
+
+    register(router: Router, h: SudoRouteHelpers) {
+      router.post('/account/confirm/magic-link', async (ctx: any) => {
+        const c = await h.contextFrom(ctx)
+
+        // ANTES de qualquer coisa: o host desligou este método? A rota é montada
+        // incondicionalmente, então só o handler faz `config.sudo.methods` valer.
+        // Responde `fail` (o mesmo redirect+flash de um erro comum) em vez de
+        // 404 para não vazar a config do host.
+        if (!isSudoMethodEnabled(c.cfg, 'magic-link')) return h.fail(c, 'account.confirm.error')
+
+        // `c.account` é nullable (sessão viva de conta apagada → findById null)
+        // e sem e-mail não há para onde mandar o link.
+        if (!c.account?.email) return h.fail(c, 'account.confirm.error')
+
+        // Checado ANTES de emitir: um token emitido sem ninguém para entregá-lo
+        // é lixo na sessão, e a `isAvailable` já prometeu que sem hook o método
+        // não existe.
+        const onSudoLink = c.cfg?.mail?.onSudoLink
+        if (typeof onSudoLink !== 'function') return h.fail(c, 'account.confirm.error')
+
+        const qs = c.returnTo ? `?return_to=${encodeURIComponent(c.returnTo)}` : ''
+        const token = issueSudoLinkToken(c)
+        const path = `/account/confirm/magic-link/${token}${qs}`
+        const origin = requestOrigin(ctx)
+
+        try {
+          await onSudoLink({ email: c.account.email, sudoUrl: origin ? `${origin}${path}` : path })
+        } catch {
+          // O envio falhou: apaga o pendente. Não é risco de segurança (o
+          // segredo não chegou a lugar nenhum), mas deixá-lo lá invalidaria
+          // silenciosamente um token anterior ainda válido do usuário.
+          c.ctx.session.forget(SUDO_LINK_SESSION_KEY)
+          return h.fail(c, 'account.confirm.error')
+        }
+
+        ctx.session.flash('confirmNotice', 'account.confirm.magic_link_sent')
+        return ctx.response.redirect(`/account/confirm${qs}`)
+      })
+
+      router.get('/account/confirm/magic-link/:token', async (ctx: any) => {
+        const c = await h.contextFrom(ctx)
+
+        if (!isSudoMethodEnabled(c.cfg, 'magic-link')) return h.fail(c, 'account.confirm.error')
+
+        // Sem conta resolvida não há a quem conceder sudo. O token vive na
+        // sessão, mas quem o consome precisa continuar sendo uma conta viva.
+        if (!c.account) return h.fail(c, 'account.confirm.error')
+
+        const token = ctx.params?.token as string | undefined
+        if (!token || !verifySudoLinkToken(c, token)) return h.fail(c, 'account.confirm.error')
+
+        return h.completeSudo(c, 'magic-link')
+      })
+    },
+  }
+}

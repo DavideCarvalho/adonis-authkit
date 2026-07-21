@@ -1,0 +1,326 @@
+/**
+ * Método de sudo `magicLink`.
+ *
+ * O ponto central destes testes é que o token de sudo NÃO é o token de login:
+ * ele nasce aqui (`randomBytes`), vive HASHEADO na sessão que o pediu, serve
+ * uma vez só e nunca toca `AccountStore.issueMagicLinkToken` /
+ * `consumeMagicLinkToken`.
+ */
+
+import { test } from '@japa/runner'
+import { createHash } from 'node:crypto'
+import {
+  magicLink,
+  issueSudoLinkToken,
+  verifySudoLinkToken,
+  SUDO_LINK_SESSION_KEY,
+  SUDO_LINK_TTL_MS,
+} from '../../src/host/sudo/methods/magic_link.js'
+import { password } from '../../src/host/sudo/methods/password.js'
+import { completeSudo, fail } from '../../src/host/sudo/runtime.js'
+import { sudoContextFrom } from '../../src/host/controllers/account_confirm_controller.js'
+import { SUDO_SESSION_KEY } from '../../src/host/sudo_mode.js'
+import { ACCOUNT_SESSION_KEY } from '../../src/host/middleware/account_auth.js'
+import { DEFAULT_MESSAGES } from '../../src/host/i18n.js'
+
+function ctxWith(opts: { email?: string | null; onSudoLink?: unknown; session?: Record<string, unknown> } = {}) {
+  const session: Record<string, unknown> = { ...opts.session }
+  return {
+    accountId: 'acc-1',
+    account: { id: 'acc-1', email: opts.email === undefined ? 'u@e.com' : opts.email },
+    returnTo: null,
+    cfg: { mail: opts.onSudoLink ? { onSudoLink: opts.onSudoLink } : {} },
+    ctx: {
+      session: {
+        get: (k: string) => session[k],
+        put: (k: string, v: unknown) => { session[k] = v },
+        forget: (k: string) => { delete session[k] },
+      },
+    },
+    _session: session,
+  } as any
+}
+
+const hash = (t: string) => createHash('sha256').update(t).digest('hex')
+
+test.group('sudoMethods.magicLink — disponibilidade', () => {
+  test('disponível quando há e-mail e hook de envio', async ({ assert }) => {
+    assert.isTrue(await magicLink().isAvailable(ctxWith({ onSudoLink: async () => {} })))
+  })
+
+  test('indisponível sem hook de envio', async ({ assert }) => {
+    assert.isFalse(await magicLink().isAvailable(ctxWith()))
+  })
+
+  test('indisponível sem e-mail na conta', async ({ assert }) => {
+    assert.isFalse(await magicLink().isAvailable(ctxWith({ email: null, onSudoLink: async () => {} })))
+  })
+})
+
+test.group('sudoMethods.magicLink — token', () => {
+  test('token válido é aceito uma vez', async ({ assert }) => {
+    const c = ctxWith({ onSudoLink: async () => {} })
+    c._session[SUDO_LINK_SESSION_KEY] = { hash: hash('tok-1'), expiresAt: Date.now() + SUDO_LINK_TTL_MS }
+
+    assert.isTrue(verifySudoLinkToken(c, 'tok-1'))
+  })
+
+  test('token NÃO serve duas vezes', async ({ assert }) => {
+    const c = ctxWith({ onSudoLink: async () => {} })
+    c._session[SUDO_LINK_SESSION_KEY] = { hash: hash('tok-1'), expiresAt: Date.now() + SUDO_LINK_TTL_MS }
+
+    assert.isTrue(verifySudoLinkToken(c, 'tok-1'))
+    assert.isFalse(verifySudoLinkToken(c, 'tok-1'))
+  })
+
+  test('token expirado é rejeitado', async ({ assert }) => {
+    const c = ctxWith({ onSudoLink: async () => {} })
+    c._session[SUDO_LINK_SESSION_KEY] = { hash: hash('tok-1'), expiresAt: Date.now() - 1 }
+
+    assert.isFalse(verifySudoLinkToken(c, 'tok-1'))
+  })
+
+  test('token de OUTRA sessão é rejeitado (nada guardado nesta)', async ({ assert }) => {
+    const c = ctxWith({ onSudoLink: async () => {} })
+    assert.isFalse(verifySudoLinkToken(c, 'tok-de-outro-browser'))
+  })
+
+  test('o segredo NÃO é guardado em claro na sessão', async ({ assert }) => {
+    const c = ctxWith({ onSudoLink: async () => {} })
+    issueSudoLinkToken(c)
+
+    const stored = c._session[SUDO_LINK_SESSION_KEY] as { hash: string }
+    assert.notInclude(JSON.stringify(stored), 'tok')
+    assert.lengthOf(stored.hash, 64)
+  })
+})
+
+const ACCOUNT = { id: 'acc-1', email: 'user@example.com' }
+
+/** Captura os handlers registrados pelo método, por `"<VERBO> <path>"`. */
+function captureHandlers() {
+  const routes = new Map<string, (ctx: any) => Promise<unknown>>()
+  const router = {
+    post: (p: string, h: any) => { routes.set(`POST ${p}`, h) },
+    get: (p: string, h: any) => { routes.set(`GET ${p}`, h) },
+  } as any
+  magicLink().register!(router, { contextFrom: sudoContextFrom, completeSudo, fail })
+  return routes
+}
+
+function fakeCtx(opts: {
+  params?: Record<string, unknown>
+  qs?: Record<string, unknown>
+  method?: string
+  session?: Record<string, unknown>
+  cfg?: Record<string, unknown>
+  onSudoLink?: (data: { email: string; sudoUrl: string }) => Promise<void>
+} = {}) {
+  // A sessão recebida é usada POR REFERÊNCIA (não copiada): o fluxo do magic
+  // link são duas requisições — o POST que emite e o GET que consome — e o
+  // token só vale se as duas enxergarem a MESMA sessão.
+  const session: Record<string, unknown> = opts.session ?? {}
+  session[ACCOUNT_SESSION_KEY] ??= ACCOUNT.id
+  const flashed: Record<string, unknown> = {}
+  const redirects: string[] = []
+  const sent: Array<{ email: string; sudoUrl: string }> = []
+
+  const cfg = {
+    messages: { ...DEFAULT_MESSAGES },
+    render: async () => ({}),
+    accountStore: {
+      async findById(id: string) { return id === ACCOUNT.id ? ACCOUNT : null },
+    },
+    mail: {
+      onSudoLink:
+        opts.onSudoLink ??
+        (async (data: { email: string; sudoUrl: string }) => { sent.push(data) }),
+    },
+    audit: { records: [] as unknown[], async record(e: unknown) { (cfg.audit.records as unknown[]).push(e) } },
+    ...opts.cfg,
+  } as any
+
+  const ctx = {
+    params: opts.params ?? {},
+    session: {
+      get: (k: string) => session[k],
+      put: (k: string, v: unknown) => { session[k] = v },
+      forget: (k: string) => { delete session[k] },
+      flash: (k: string, v: unknown) => { flashed[k] = v },
+      flashMessages: { get: (k: string) => flashed[k] ?? null },
+    },
+    request: {
+      csrfToken: 'csrf-token',
+      method: () => opts.method ?? 'POST',
+      only: (keys: string[]) => Object.fromEntries(keys.map((k) => [k, undefined])),
+      input: () => undefined,
+      qs: () => opts.qs ?? {},
+      ip: () => '203.0.113.1',
+      protocol: () => 'https',
+      host: () => 'app.example.com',
+    },
+    response: {
+      redirect: (url: string) => { redirects.push(url); return { _redirect: url } },
+      notFound: (body?: unknown) => ({ _notFound: body ?? null }),
+    },
+    containerResolver: { make: async () => ({ config: cfg }) },
+  } as any
+
+  return { ctx, cfg, session, flashed, redirects, sent }
+}
+
+/** Extrai o token do `sudoUrl` que o hook recebeu. */
+const tokenFrom = (sudoUrl: string) => sudoUrl.split('/account/confirm/magic-link/')[1]!.split('?')[0]!
+
+test.group('sudoMethods.magicLink — handler de emissão (POST)', () => {
+  test('emite o link e guarda só o hash na sessão', async ({ assert }) => {
+    const h = fakeCtx()
+    await captureHandlers().get('POST /account/confirm/magic-link')!(h.ctx)
+
+    assert.lengthOf(h.sent, 1)
+    assert.equal(h.sent[0]!.email, ACCOUNT.email)
+    // Link de e-mail precisa ser absoluto — caminho relativo não é clicável.
+    assert.isTrue(h.sent[0]!.sudoUrl.startsWith('https://app.example.com/account/confirm/magic-link/'))
+
+    const token = tokenFrom(h.sent[0]!.sudoUrl)
+    const stored = h.session[SUDO_LINK_SESSION_KEY] as { hash: string }
+    assert.notInclude(JSON.stringify(stored), token)
+    assert.equal(stored.hash, hash(token))
+  })
+
+  test('método fora de config.sudo.methods NÃO emite token nem envia e-mail', async ({ assert }) => {
+    const h = fakeCtx({ cfg: { sudo: { methods: [password()] } } })
+    await captureHandlers().get('POST /account/confirm/magic-link')!(h.ctx)
+
+    assert.isUndefined(h.session[SUDO_LINK_SESSION_KEY])
+    assert.lengthOf(h.sent, 0)
+    assert.isNotNull(h.flashed.confirmError)
+  })
+
+  test('conta inexistente NÃO emite token nem envia e-mail', async ({ assert }) => {
+    const h = fakeCtx({ cfg: { accountStore: { async findById() { return null } } } })
+    await captureHandlers().get('POST /account/confirm/magic-link')!(h.ctx)
+
+    assert.isUndefined(h.session[SUDO_LINK_SESSION_KEY])
+    assert.lengthOf(h.sent, 0)
+  })
+
+  test('falha no envio apaga o token pendente', async ({ assert }) => {
+    const h = fakeCtx({ onSudoLink: async () => { throw new Error('smtp caiu') } })
+    await captureHandlers().get('POST /account/confirm/magic-link')!(h.ctx)
+
+    assert.isUndefined(h.session[SUDO_LINK_SESSION_KEY])
+    assert.isNotNull(h.flashed.confirmError)
+  })
+
+  test('o return_to é preservado no link e no redirect', async ({ assert }) => {
+    const h = fakeCtx({ qs: { return_to: '/account/tokens' } })
+    await captureHandlers().get('POST /account/confirm/magic-link')!(h.ctx)
+
+    assert.include(h.sent[0]!.sudoUrl, '?return_to=%2Faccount%2Ftokens')
+    assert.deepEqual(h.redirects, ['/account/confirm?return_to=%2Faccount%2Ftokens'])
+  })
+})
+
+test.group('sudoMethods.magicLink — handler de consumo (GET)', () => {
+  /** Roda o POST e devolve o token que o hook recebeu, para o GET consumir. */
+  async function issueVia(h: ReturnType<typeof fakeCtx>) {
+    await captureHandlers().get('POST /account/confirm/magic-link')!(h.ctx)
+    return tokenFrom(h.sent[0]!.sudoUrl)
+  }
+
+  test('token emitido nesta sessão concede sudo', async ({ assert }) => {
+    const h = fakeCtx()
+    const token = await issueVia(h)
+
+    const get = fakeCtx({ method: 'GET', params: { token }, session: h.session, cfg: h.cfg })
+    await captureHandlers().get('GET /account/confirm/magic-link/:token')!(get.ctx)
+
+    assert.isNumber(h.session[SUDO_SESSION_KEY])
+    assert.deepInclude(h.cfg.audit.records[0], { type: 'sudo.confirmed', accountId: ACCOUNT.id })
+  })
+
+  test('o mesmo token não concede sudo duas vezes', async ({ assert }) => {
+    const h = fakeCtx()
+    const token = await issueVia(h)
+    const handler = captureHandlers().get('GET /account/confirm/magic-link/:token')!
+
+    await handler(fakeCtx({ method: 'GET', params: { token }, session: h.session, cfg: h.cfg }).ctx)
+    delete h.session[SUDO_SESSION_KEY]
+    await handler(fakeCtx({ method: 'GET', params: { token }, session: h.session, cfg: h.cfg }).ctx)
+
+    assert.isUndefined(h.session[SUDO_SESSION_KEY])
+  })
+
+  test('token de outro navegador não concede sudo (nada pendente nesta sessão)', async ({ assert }) => {
+    const h = fakeCtx()
+    const token = await issueVia(h)
+
+    // Sessão limpa: mesmo token, outro browser.
+    const other = fakeCtx({ method: 'GET', params: { token } })
+    await captureHandlers().get('GET /account/confirm/magic-link/:token')!(other.ctx)
+
+    assert.isUndefined(other.session[SUDO_SESSION_KEY])
+    assert.lengthOf(other.cfg.audit.records, 0)
+  })
+
+  test('método fora de config.sudo.methods não concede sudo mesmo com token válido', async ({ assert }) => {
+    const h = fakeCtx()
+    const token = await issueVia(h)
+    h.cfg.sudo = { methods: [password()] }
+
+    const get = fakeCtx({ method: 'GET', params: { token }, session: h.session, cfg: h.cfg })
+    await captureHandlers().get('GET /account/confirm/magic-link/:token')!(get.ctx)
+
+    assert.isUndefined(h.session[SUDO_SESSION_KEY])
+    assert.lengthOf(h.cfg.audit.records, 0)
+  })
+
+  test('conta inexistente não concede sudo mesmo com token válido', async ({ assert }) => {
+    const h = fakeCtx()
+    const token = await issueVia(h)
+    h.cfg.accountStore = { async findById() { return null } }
+
+    const get = fakeCtx({ method: 'GET', params: { token }, session: h.session, cfg: h.cfg })
+    await captureHandlers().get('GET /account/confirm/magic-link/:token')!(get.ctx)
+
+    assert.isUndefined(h.session[SUDO_SESSION_KEY])
+    assert.lengthOf(h.cfg.audit.records, 0)
+  })
+
+  test('sem token na rota não concede sudo', async ({ assert }) => {
+    const h = fakeCtx()
+    await issueVia(h)
+
+    const get = fakeCtx({ method: 'GET', params: {}, session: h.session, cfg: h.cfg })
+    await captureHandlers().get('GET /account/confirm/magic-link/:token')!(get.ctx)
+
+    assert.isUndefined(h.session[SUDO_SESSION_KEY])
+  })
+})
+
+test.group('sudoMethods.magicLink — o token de sudo não é o de login', () => {
+  test('não toca em issueMagicLinkToken/consumeMagicLinkToken do AccountStore', async ({ assert }) => {
+    const touched: string[] = []
+    const h = fakeCtx({
+      cfg: {
+        accountStore: {
+          async findById(id: string) { return id === ACCOUNT.id ? ACCOUNT : null },
+          async issueMagicLinkToken() { touched.push('issue'); return { token: 'login-token' } },
+          async consumeMagicLinkToken() { touched.push('consume'); return ACCOUNT },
+        },
+      },
+    })
+
+    await captureHandlers().get('POST /account/confirm/magic-link')!(h.ctx)
+    const token = tokenFrom(h.sent[0]!.sudoUrl)
+
+    const get = fakeCtx({ method: 'GET', params: { token }, session: h.session, cfg: h.cfg })
+    await captureHandlers().get('GET /account/confirm/magic-link/:token')!(get.ctx)
+
+    assert.isNumber(h.session[SUDO_SESSION_KEY])
+    assert.deepEqual(touched, [])
+    // 32 bytes em hex — entropia de credencial, gerada aqui e não pelo store.
+    assert.lengthOf(token, 64)
+  })
+})

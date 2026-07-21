@@ -13,7 +13,10 @@
  */
 
 import { test } from '@japa/runner'
+import { RouterFactory } from '@adonisjs/core/factories/http'
 import { registerAuthHost } from '../../src/host/register_auth_host.js'
+import { guardSudoRoutes, completeSudo, fail } from '../../src/host/sudo/runtime.js'
+import { sudoContextFrom } from '../../src/host/sudo/index.js'
 import { password } from '../../src/host/sudo/methods/password.js'
 import { SUDO_SESSION_KEY } from '../../src/host/sudo_mode.js'
 import { ACCOUNT_SESSION_KEY } from '../../src/host/middleware/account_auth.js'
@@ -192,5 +195,94 @@ test.group('sudo — a barreira de config.sudo.methods é do ponto de registro',
     await router.routes.get('POST /account/confirm/custom')!(h.ctx)
 
     assert.isNumber(h.session[SUDO_SESSION_KEY])
+  })
+})
+
+/**
+ * O wrapper `guardSudoRoutes` contra o `Router` DE VERDADE.
+ *
+ * Este grupo NÃO pode usar `capturingRouter()`. Foi exatamente por isso que o
+ * bug passou: o objeto literal não tem campos privados, então um Proxy sobre
+ * ele funciona para tudo. O `Router` do Adonis é uma classe com `#app`,
+ * `#globalMatchers` e `#pushToRoutes` — ler/chamar um membro com `this`
+ * apontando para o Proxy lança `TypeError`, e um método customizado que
+ * agrupasse suas rotas (`router.group(...).prefix('/sudo')`, uso legítimo do
+ * tipo `Router` que `SudoMethod.register` declara receber) explodia NO BOOT.
+ *
+ * Os built-in escapavam só porque usam apenas `.post`/`.get`.
+ */
+test.group('sudo — guardSudoRoutes preserva a API do Router real', () => {
+  const helpers = { contextFrom: sudoContextFrom, completeSudo, fail }
+  const realRouter = () => new RouterFactory().create() as unknown as Router
+
+  test('group/route/on/where/use atravessam o wrapper sem TypeError', ({ assert }) => {
+    const wrapped = guardSudoRoutes(realRouter(), 'custom', helpers)
+    const handler = async () => 'ok'
+
+    // Cada um destes lançava `TypeError` antes do `bind`/do caso de `route`.
+    assert.doesNotThrow(() => {
+      wrapped.group(() => {
+        wrapped.post('/account/confirm/custom', handler)
+      }).prefix('/sudo')
+    })
+    assert.doesNotThrow(() => wrapped.route('/account/confirm/rt', ['POST'], handler))
+    assert.doesNotThrow(() => wrapped.on('/account/confirm/on'))
+    assert.doesNotThrow(() => wrapped.where('id', /^[0-9]+$/))
+    assert.doesNotThrow(() => wrapped.use([]))
+  })
+
+  test('o retorno real do Router é preservado — .as() encadeia', ({ assert }) => {
+    const wrapped = guardSudoRoutes(realRouter(), 'custom', helpers)
+    const route = wrapped.post('/account/confirm/custom', async () => 'ok').as('custom.confirm')
+
+    assert.equal(route.getName(), 'custom.confirm')
+    assert.equal(route.getPattern(), '/account/confirm/custom')
+  })
+
+  test('rotas registradas por route() também recebem a barreira', async ({ assert }) => {
+    const router = realRouter()
+    const wrapped = guardSudoRoutes(router, 'custom', helpers)
+
+    // `route()` tem o handler no TERCEIRO argumento. Enquanto ele não era um
+    // caso próprio, embrulhar o SEGUNDO (a lista de métodos) era impossível e
+    // a rota saía desguardada — bypass silencioso da barreira.
+    const route = wrapped.route('/account/confirm/rt', ['POST'], async (ctx: any) => {
+      const c = await helpers.contextFrom(ctx)
+      return helpers.completeSudo(c, 'custom')
+    })
+
+    // Host restringiu a `password`: o método 'custom' está fora.
+    const barrado = fakeCtx({ sudo: { methods: [password()] } })
+    await (route.getHandler() as any)(barrado.ctx)
+
+    assert.isUndefined(barrado.session[SUDO_SESSION_KEY])
+    assert.lengthOf(barrado.cfg.audit.records, 0)
+    assert.isNotNull(barrado.flashed.confirmError)
+
+    // Contraprova: com o método na config, o MESMO handler concede sudo.
+    const liberado = fakeCtx({ sudo: { methods: [{ id: 'custom' }] } })
+    await (route.getHandler() as any)(liberado.ctx)
+
+    assert.isNumber(liberado.session[SUDO_SESSION_KEY])
+    assert.lengthOf(liberado.cfg.audit.records, 1)
+  })
+
+  test('handlers registrados dentro de um group() também recebem a barreira', async ({
+    assert,
+  }) => {
+    const wrapped = guardSudoRoutes(realRouter(), 'custom', helpers)
+    let route: any
+    wrapped.group(() => {
+      route = wrapped.post('/account/confirm/custom', async (ctx: any) => {
+        const c = await helpers.contextFrom(ctx)
+        return helpers.completeSudo(c, 'custom')
+      })
+    }).prefix('/sudo')
+
+    const barrado = fakeCtx({ sudo: { methods: [password()] } })
+    await route.getHandler()(barrado.ctx)
+
+    assert.isUndefined(barrado.session[SUDO_SESSION_KEY])
+    assert.isNotNull(barrado.flashed.confirmError)
   })
 })

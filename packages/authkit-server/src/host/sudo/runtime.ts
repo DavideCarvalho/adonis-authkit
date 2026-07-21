@@ -41,7 +41,15 @@ export function isSudoMethodEnabled(cfg: ResolvedServerConfig, methodId: string)
   return explicit.some((m) => m?.id === methodId)
 }
 
-/** Verbos HTTP que um `SudoMethod` pode usar ao registrar suas rotas. */
+/**
+ * Verbos HTTP com a forma `(pattern, handler, ...)` — o handler é o SEGUNDO
+ * argumento.
+ *
+ * `route` NÃO entra aqui: sua assinatura é `(pattern, methods, handler)`, com o
+ * handler no TERCEIRO argumento, e por isso tem tratamento próprio no Proxy.
+ * Deixá-lo de fora da barreira seria um bypass silencioso — `router.route()`
+ * registra rota igual a qualquer verbo.
+ */
 const ROUTER_VERBS = ['get', 'post', 'put', 'patch', 'delete', 'any'] as const
 
 /**
@@ -79,21 +87,41 @@ export function guardSudoRoutes(router: Router, methodId: string, h: SudoRouteHe
       return h.fail(c, 'account.confirm.error')
     }
 
+  // Só embrulha handler-função. Um `[Controller, 'method']` passa direto:
+  // nenhum método built-in registra assim, e embrulhar a tupla a quebraria.
+  const wrapIfFn = (handler: unknown) =>
+    typeof handler === 'function' ? wrap(handler as (ctx: HttpContext) => unknown) : handler
+
   return new Proxy(router, {
-    get(target, prop, receiver) {
-      const original = Reflect.get(target, prop, receiver)
-      if (!ROUTER_VERBS.includes(prop as (typeof ROUTER_VERBS)[number])) return original
+    // `receiver` é DELIBERADAMENTE `target`, não o Proxy: o `Router` do Adonis é
+    // uma classe com campos privados (`#app`, `#globalMatchers`, `#pushToRoutes`),
+    // e ler/chamar um membro com `this` apontando para o Proxy lança
+    // `TypeError: Cannot read private member #app`.
+    get(target, prop) {
+      const original = Reflect.get(target, prop, target)
       if (typeof original !== 'function') return original
 
-      return (pattern: string, handler: unknown, ...rest: unknown[]) =>
-        // Só embrulha handler-função. Um `[Controller, 'method']` passa direto:
-        // nenhum método built-in registra assim, e embrulhar a tupla a quebraria.
-        original.call(
-          target,
-          pattern,
-          typeof handler === 'function' ? wrap(handler as (ctx: HttpContext) => unknown) : handler,
-          ...rest
-        )
+      // `route(pattern, methods, handler)` — handler no TERCEIRO argumento.
+      if (prop === 'route') {
+        return (pattern: string, methods: unknown, handler: unknown, ...rest: unknown[]) =>
+          original.call(target, pattern, methods, wrapIfFn(handler), ...rest)
+      }
+
+      if (ROUTER_VERBS.includes(prop as (typeof ROUTER_VERBS)[number])) {
+        return (pattern: string, handler: unknown, ...rest: unknown[]) =>
+          original.call(target, pattern, wrapIfFn(handler), ...rest)
+      }
+
+      // Todo o RESTO da API do `Router` (`group`, `on`, `where`, `use`,
+      // `resource`, ...) segue funcionando, ligado ao router real. Sem o
+      // `bind`, um `router.group(() => ...)` — uso perfeitamente legítimo do
+      // tipo `Router` que `SudoMethod.register` declara receber — rodaria com
+      // `this === Proxy` e explodiria no boot da aplicação.
+      //
+      // `original.call(target, ...)` nos verbos e o `bind` aqui preservam o
+      // RETORNO real (`Route`/`RouteGroup`), então `.as()`/`.use()`/
+      // `.middleware()`/`.prefix()` continuam encadeando normalmente.
+      return original.bind(target)
     },
   })
 }

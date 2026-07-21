@@ -29,6 +29,12 @@ defineConfig({ sudo: { methods: [sudoMethods.oidcStepUp({ url: '/auth/step-up' }
 registerAuthHost(router, { mountPath: '/oidc', sudoMethods: [sudoMethods.password()] })
 ```
 
+**`sudoMethods` SUBSTITUI os defaults, não acrescenta a eles.** O exemplo acima
+monta SÓ `password`: `passkey`, que vinha por default, some sem aviso nenhum.
+Passar a opção é declarar a lista COMPLETA do host — quem quiser os built-in
+junto do seu método precisa repeti-los (`[sudoMethods.password(),
+sudoMethods.passkey(), meuMetodo()]`). Vale igual para `config.sudo.methods`.
+
 São dois porque a montagem de rotas acontece em tempo de registro, antes de o
 config (lazy) resolver — mesma razão de `social`/`admin`/`rateLimit`. Sem
 `AuthHostOptions.sudoMethods`, um método fora dos built-in apareceria na tela
@@ -37,7 +43,12 @@ nenhum. Divergiram, a tela loga um aviso de flag-drift.
 
 `config.sudo.methods` desabilita o endpoint DE FATO, não só a opção da tela: o
 runtime embrulha os handlers no ponto de registro, então a barreira vale
-inclusive para um método customizado que nunca a tenha consultado.
+inclusive para um método customizado que nunca a tenha consultado — **desde que
+a rota tenha sido montada por `SudoMethod.register()`**. É esse o escopo, e ele
+é o escopo inteiro: com `completeSudo` público, qualquer rota que o host escreva
+à mão em `start/routes.ts` concede sudo sem passar por `config.sudo.methods`.
+Não é bug, é a consequência inevitável de exportar `completeSudo` — o
+`oidcStepUp` exige isso, porque quem valida o grant é o callback do host.
 
 ---
 
@@ -75,6 +86,17 @@ ativo, ou com um challenge de passkey pendente, no momento do deploy precisa
 reconfirmar UMA vez. Não há migração possível: o dado que faltava (de quem era a
 marca) não existe retroativamente.
 
+**Interseção que trava contas: template Edge + contas passkey-only + sudo
+ativo.** As duas coisas acima se cruzam. "Reconfirme UMA vez" pressupõe que
+exista um caminho de reconfirmação; "o passkey via template Edge SEMPRE falha"
+(ver abaixo) diz que, para essas contas, não existe. Resultado: no deploy, uma
+conta passkey-only em host Edge perde o sudo que tinha e fica sem NENHUMA forma
+de recuperá-lo — presa fora de exportar/excluir dados, MFA, PATs e troca de
+e-mail. É justamente o host que mais precisa planejar a janela: **antes** de
+subir, acrescente `oidcStepUp`, `magicLink` ou `password` a `sudo.methods` e a
+`registerAuthHost({ sudoMethods })` — ou troque para um renderer próprio que
+implemente o WebAuthn da tela de confirm.
+
 ---
 
 ### Comportamentos deliberados, para não parecerem bug
@@ -104,6 +126,11 @@ um outro método (`oidcStepUp`, `magicLink` ou `password`).
   graça de 15 min, o sudo do admin valia sobre a conta impersonada — e o do
   impersonado, de volta sobre o admin. A marca agora carrega o `accountId`
   e `isSudoActive` recusa quando não bate.
+- **`completeSudo` recusa sem conta carregada.** `sudoContextFrom` deixa
+  `account: null` quando o `accountStore` não acha a conta (sessão viva de conta
+  apagada/anonimizada). Os built-in já checavam por dentro; agora o ÚNICO ponto
+  de concessão impõe, então um método que não cheque também fica seguro — mesma
+  garantia estrutural de `guardSudoRoutes`, do outro eixo.
 - **`accountHome` nunca era propagado ao config resolvido**, então o redirect
   pós-confirmação sempre caía no default `/account/security`, ignorando o valor
   do host.

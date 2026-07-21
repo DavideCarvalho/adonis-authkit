@@ -178,6 +178,14 @@ export function guardSudoRoutes(
    * o rate-limit está desligado). É `registerAuthHost` quem passa isto, porque
    * é lá que os throttles existem — e é aqui que a rota nasce.
    *
+   * O throttle que chega aqui é o do bucket de SUDO, não o de login. Mesmos
+   * limites, contagem separada: login mede um anônimo adivinhando credenciais,
+   * sudo mede um usuário JÁ autenticado reprovando a própria identidade.
+   * Compartilhando o bucket, quem erra a senha no `/account/confirm` gastava o
+   * orçamento de login do próprio IP — e um ataque de credencial no login
+   * trancava a confirmação de quem está legitimamente logado atrás do mesmo
+   * NAT. Ver `ResolvedRateLimitConfig.sudo`.
+   *
    * Fica no wrapper, e não no contrato de `SudoRouteHelpers`, porque throttle
    * não é decisão do método: um método que pudesse pedir throttle poderia
    * também NÃO pedir, e o `POST` que emite o magic link de sudo — que dispara

@@ -316,6 +316,13 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
   const withIntrospection = (route: ReturnType<Router['post']>): void => {
     if (throttles) route.use([throttles.introspection])
   }
+  // Bucket PRÓPRIO das rotas de sudo. Antes elas levavam o `withLogin`, o que
+  // funcionava mas somava dois orçamentos que medem coisas diferentes: login é
+  // um anônimo adivinhando credenciais, sudo é um usuário JÁ autenticado
+  // reprovando a própria identidade. Ver `ResolvedRateLimitConfig.sudo`.
+  const withSudo = (route: any): void => {
+    if (throttles) route.use([throttles.sudo])
+  }
 
   // Provider OIDC (wildcard + root) — o que registerOidcRoutes fazia.
   router.any(`${mount}/*`, [C.oidc]).as('authkit.oidc.wildcard')
@@ -437,13 +444,17 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
         // que `config.sudo.methods` os desabilite de fato mesmo que o método
         // não tenha checado nada por dentro. Ver o docblock lá.
         //
-        // `withLogin` vai junto: TODA rota de um método de sudo leva o throttle
-        // de login (no-op sem rate-limit). Não é adorno — o POST que emite o
-        // magic link de sudo dispara um e-mail por chamada, e o `accountGuard`
-        // sozinho só exige uma sessão viva, que o abusador tem. Aplicar aqui,
-        // no wrapper, cobre também os métodos customizados, que não teriam como
-        // pedir throttle pelo `SudoRouteHelpers`.
-        method.register?.(guardSudoRoutes(router, method.id, helpers, withLogin), helpers)
+        // `withSudo` vai junto: TODA rota de um método de sudo leva o throttle
+        // do bucket de SUDO (no-op sem rate-limit). Não é adorno — o POST que
+        // emite o magic link de sudo dispara um e-mail por chamada, e o
+        // `accountGuard` sozinho só exige uma sessão viva, que o abusador tem.
+        // Aplicar aqui, no wrapper, cobre também os métodos customizados, que
+        // não teriam como pedir throttle pelo `SudoRouteHelpers`.
+        //
+        // Bucket próprio, não o de login: mesmos limites, contagem separada —
+        // errar a senha na tela de confirmação não pode gastar o orçamento de
+        // login do IP, nem vice-versa.
+        method.register?.(guardSudoRoutes(router, method.id, helpers, withSudo), helpers)
       }
       // A lista montada é a fonte de verdade dos DOIS lados quando o host não
       // configura `config.sudo.methods`: a tela oferece exatamente isto, e os

@@ -162,11 +162,19 @@ funciona.
 
 ### Rate limit nas rotas dos métodos de sudo
 
-TODA rota registrada por um `SudoMethod` leva o throttle de login do host
-(o mesmo bucket por IP de `/account/login`; no-op quando o rate-limit está
-desligado). Importa sobretudo para o POST que emite o magic link de sudo, que
-dispara um e-mail por chamada: o `accountGuard` na frente só exige uma sessão de
-conta viva, que o abusador tem.
+TODA rota registrada por um `SudoMethod` leva o throttle do host (no-op quando o
+rate-limit está desligado). Importa sobretudo para o POST que emite o magic link
+de sudo, que dispara um e-mail por chamada: o `accountGuard` na frente só exige
+uma sessão de conta viva, que o abusador tem.
+
+O bucket é PRÓPRIO do sudo (`authkit_sudo`), keyed por IP e com os MESMOS
+limites do login (10/min) — o que muda é a CONTAGEM, não o teto. Os dois
+orçamentos respondem a perguntas diferentes: `login` mede um anônimo adivinhando
+credenciais, `sudo` mede um usuário JÁ autenticado reprovando a própria
+identidade na tela de confirmação. Compartilhados, contaminavam-se nos dois
+sentidos — quem errasse a senha no `/account/confirm` ficava sem conseguir logar
+em outra aba, e um ataque de credencial no login trancava a confirmação de quem
+está legitimamente logado atrás do mesmo NAT.
 
 Aplicado no WRAPPER de registro (`guardSudoRoutes`), não pelo método. Isso é
 deliberado e é a mesma escolha da barreira de `config.sudo.methods`: um método

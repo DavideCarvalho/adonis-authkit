@@ -218,6 +218,23 @@ export interface ResolvedRateLimitConfig {
    * apertado o suficiente para conter um ataque de força bruta por IP.
    */
   adminIp: RateLimitBucket;
+  /**
+   * Bucket das rotas dos métodos de sudo (`/account/confirm/*`). SEPARADO do
+   * `login` de propósito, mesmo tendo os MESMOS limites: os dois orçamentos
+   * respondem a perguntas diferentes.
+   *
+   * `login` conta tentativas de um usuário ANÔNIMO adivinhando credenciais.
+   * `sudo` conta reprovas de identidade de um usuário JÁ AUTENTICADO, que
+   * chegou na tela de confirmação para uma operação sensível. Compartilhar o
+   * bucket cruza os dois: quem erra a senha algumas vezes no `/account/confirm`
+   * gasta o orçamento de login do próprio IP (e passa a não conseguir logar em
+   * outra aba), e um ataque de credencial no login tranca a confirmação de quem
+   * está legitimamente logado atrás do mesmo NAT.
+   *
+   * Os limites são os mesmos do login (10/min) porque não há razão para
+   * afrouxar — o ponto é separar a CONTAGEM, não o teto.
+   */
+  sudo: RateLimitBucket;
   store?: string;
 }
 
@@ -225,10 +242,13 @@ const RATE_LIMIT_DEFAULTS: {
   login: RateLimitBucket;
   introspection: RateLimitBucket;
   adminIp: RateLimitBucket;
+  sudo: RateLimitBucket;
 } = {
   login: { points: 10, duration: "1 min" },
   introspection: { points: 60, duration: "1 min" },
   adminIp: { points: 30, duration: "1 min" },
+  // Mesmos limites do login, bucket separado — ver `ResolvedRateLimitConfig.sudo`.
+  sudo: { points: 10, duration: "1 min" },
 };
 
 export function resolveRateLimit(
@@ -240,6 +260,7 @@ export function resolveRateLimit(
     login: RATE_LIMIT_DEFAULTS.login,
     introspection: RATE_LIMIT_DEFAULTS.introspection,
     adminIp: RATE_LIMIT_DEFAULTS.adminIp,
+    sudo: RATE_LIMIT_DEFAULTS.sudo,
     store: input?.store,
   };
 }

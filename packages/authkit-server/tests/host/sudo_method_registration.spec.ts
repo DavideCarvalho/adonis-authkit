@@ -28,6 +28,11 @@ import { password } from '../../src/host/sudo/methods/password.js'
 import { SUDO_SESSION_KEY } from '../../src/host/sudo_mode.js'
 import { ACCOUNT_SESSION_KEY } from '../../src/host/middleware/account_auth.js'
 import { DEFAULT_MESSAGES } from '../../src/host/i18n.js'
+import {
+  createAuthThrottles,
+  __setLimiterLoaderForTests,
+} from '../../src/host/rate_limit.js'
+import { resolveRateLimit } from '../../src/define_config.js'
 import type { SudoMethod, SudoRouteHelpers } from '../../src/host/sudo/types.js'
 import type { Router } from '@adonisjs/core/http'
 
@@ -399,6 +404,9 @@ test.group('sudo — guardSudoRoutes preserva a API do Router real', () => {
  * O throttle é aplicado no WRAPPER de registro, não pedido pelo método: um
  * método que pudesse pedir poderia também não pedir, e a cobertura voltaria a
  * depender de quem escreve o método lembrar.
+ *
+ * O bucket é PRÓPRIO do sudo, não o de login. Mesmos limites, contagem
+ * separada — ver `ResolvedRateLimitConfig.sudo`.
  */
 test.group('sudo — rotas dos métodos levam o throttle do host', () => {
   /** Router falso que guarda um objeto POR ROTA, registrando as chamadas de `use`. */
@@ -439,7 +447,7 @@ test.group('sudo — rotas dos métodos levam o throttle do host', () => {
     } as any
   }
 
-  test('o POST que emite o magic link de sudo recebe o throttle de login', ({ assert }) => {
+  test('o POST que emite o magic link de sudo recebe o throttle de sudo', ({ assert }) => {
     const router = throttleTrackingRouter()
     registerAuthHost(router, {
       mountPath: '/oidc',
@@ -450,8 +458,9 @@ test.group('sudo — rotas dos métodos levam o throttle do host', () => {
     const emissao = router.routes.get('POST /account/confirm/magic-link')
     assert.lengthOf(emissao.uses, 1)
     assert.isFunction(emissao.uses[0][0])
-    // O MESMO middleware que o login do console leva — é o bucket por IP.
-    assert.equal(emissao.uses[0][0], router.routes.get('POST /account/login').uses[0][0])
+    // E NÃO é o middleware do login do console: buckets distintos, para que uma
+    // reprova de identidade não gaste o orçamento de login do mesmo IP.
+    assert.notEqual(emissao.uses[0][0], router.routes.get('POST /account/login').uses[0][0])
   })
 
   test('todas as rotas do método são cobertas, inclusive o GET que consome o token', ({
@@ -614,5 +623,133 @@ test.group('sudo — completeSudo exige conta carregada', () => {
     assert.isUndefined(h.session[SUDO_SESSION_KEY])
     assert.lengthOf(h.cfg.audit.records, 0)
     assert.isNotNull(h.flashed.confirmError)
+  })
+})
+
+/**
+ * OS DOIS BUCKETS SÃO INDEPENDENTES.
+ *
+ * Os testes acima provam que a rota de sudo leva um middleware DIFERENTE do
+ * login. Isso é a fiação; o que importa de verdade é a consequência: estourar
+ * um bucket não pode consumir nem bloquear o outro.
+ *
+ * Por que separar. `login` mede um usuário ANÔNIMO adivinhando credenciais.
+ * `sudo` mede um usuário JÁ AUTENTICADO reprovando a própria identidade na tela
+ * de confirmação. Compartilhando o bucket, os dois se contaminam nos dois
+ * sentidos: quem erra a senha três vezes no `/account/confirm` fica sem
+ * conseguir logar em outra aba, e um ataque de credencial contra o login tranca
+ * a confirmação de quem está legitimamente logado atrás do mesmo NAT.
+ *
+ * Os limites continuam iguais (10/min): o ponto é separar a CONTAGEM, não
+ * afrouxar o teto.
+ */
+test.group('sudo — bucket próprio, independente do de login', (group) => {
+  group.each.teardown(() => {
+    __setLimiterLoaderForTests(undefined)
+  })
+
+  /**
+   * Limiter fake mínimo: conta por bucket (nome do `define` + key) e "bloqueia"
+   * — não chama `next` — ao passar dos pontos. Reproduz o namespacing por NOME
+   * do `@adonisjs/limiter`, que é justamente o que mantém os buckets separados.
+   */
+  function fakeLimiter() {
+    const counts = new Map<string, number>()
+    const limiter = {
+      allowRequests(points: number) {
+        const chain: any = {
+          points,
+          _key: undefined as string | undefined,
+          every: () => chain,
+          store: () => chain,
+          usingKey(k: string) {
+            chain._key = k
+            return chain
+          },
+        }
+        return chain
+      },
+      define(name: string, fn: (ctx: any) => any) {
+        return async (ctx: any, next: () => Promise<void>) => {
+          const chain = fn(ctx)
+          // Sem `usingKey`, o HttpLimiter real keya por IP — reproduzimos isso.
+          const bucketKey = `${name}:${chain._key ?? ctx.request.ip()}`
+          const used = (counts.get(bucketKey) ?? 0) + 1
+          counts.set(bucketKey, used)
+          if (used > chain.points) {
+            ctx.__throttled = true
+            return
+          }
+          return next()
+        }
+      },
+    }
+    return limiter
+  }
+
+  const ctxDo = (ip: string) => ({ request: { ip: () => ip, header: () => undefined } }) as any
+
+  /** Bate `n` vezes no throttle a partir do MESMO IP; devolve quantas passaram. */
+  async function gastar(throttle: any, ip: string, n: number): Promise<number> {
+    let passaram = 0
+    for (let i = 0; i < n; i++) {
+      const ctx = ctxDo(ip)
+      await throttle(ctx, async () => {
+        passaram++
+      })
+    }
+    return passaram
+  }
+
+  test('estourar o bucket de sudo NÃO consome o de login (mesmo IP)', async ({ assert }) => {
+    __setLimiterLoaderForTests(async () => fakeLimiter())
+    const cfg = resolveRateLimit({ enabled: true })
+    const throttles = createAuthThrottles(cfg)!
+
+    // Queima o bucket de sudo INTEIRO e mais um pouco, do mesmo IP.
+    const passaramSudo = await gastar(throttles.sudo, '1.2.3.4', cfg.sudo.points + 5)
+    assert.equal(passaramSudo, cfg.sudo.points, 'o bucket de sudo deve ter travado no teto')
+
+    // O login do MESMO IP continua com o orçamento intacto.
+    const passaramLogin = await gastar(throttles.login, '1.2.3.4', cfg.login.points)
+    assert.equal(
+      passaramLogin,
+      cfg.login.points,
+      'o login não pode ter sido consumido pelas reprovas de identidade'
+    )
+  })
+
+  test('estourar o bucket de login NÃO tranca o de sudo (mesmo IP)', async ({ assert }) => {
+    __setLimiterLoaderForTests(async () => fakeLimiter())
+    const cfg = resolveRateLimit({ enabled: true })
+    const throttles = createAuthThrottles(cfg)!
+
+    const passaramLogin = await gastar(throttles.login, '5.6.7.8', cfg.login.points + 5)
+    assert.equal(passaramLogin, cfg.login.points, 'o bucket de login deve ter travado no teto')
+
+    const passaramSudo = await gastar(throttles.sudo, '5.6.7.8', cfg.sudo.points)
+    assert.equal(
+      passaramSudo,
+      cfg.sudo.points,
+      'quem já está logado não pode perder a confirmação por causa de um ataque ao login'
+    )
+  })
+
+  test('separar a contagem não afrouxa o teto: sudo tem os mesmos limites do login', ({
+    assert,
+  }) => {
+    const cfg = resolveRateLimit({ enabled: true })
+    assert.deepEqual(cfg.sudo, cfg.login)
+  })
+
+  test('o bucket de sudo continua keyed por IP — outro IP não é afetado', async ({ assert }) => {
+    __setLimiterLoaderForTests(async () => fakeLimiter())
+    const cfg = resolveRateLimit({ enabled: true })
+    const throttles = createAuthThrottles(cfg)!
+
+    await gastar(throttles.sudo, '1.1.1.1', cfg.sudo.points + 5)
+
+    const outroIp = await gastar(throttles.sudo, '2.2.2.2', cfg.sudo.points)
+    assert.equal(outroIp, cfg.sudo.points)
   })
 })

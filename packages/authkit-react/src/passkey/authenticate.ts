@@ -29,17 +29,33 @@ export type StartAuthenticationFn = (
 ) => Promise<unknown>;
 
 /**
+ * Import do peer opcional, isolado numa função só para virar um ponto de injeção:
+ * é o único jeito de testar o caminho "pacote ausente" sem depender de ele estar
+ * (ou não) instalado no workspace — o `auto-install-peers` do pnpm instala peers
+ * opcionais, então "não está lá" não é um estado reproduzível.
+ */
+async function importWebAuthnBrowser(): Promise<{
+  startAuthentication: StartAuthenticationFn;
+}> {
+  return await import(
+    // @ts-ignore — import dinâmico do pacote instalado pelo host (peer opcional).
+    "@simplewebauthn/browser" as string
+  );
+}
+
+/**
  * Carrega `startAuthentication` de forma lazy, do `@simplewebauthn/browser`
  * instalado pelo app. Se o pacote não estiver lá, lança com a instrução exata
  * de instalação em vez de buscar um substituto na rede — o chamador decide o que
  * fazer (o autofill silencia; o login explícito reporta falha).
+ *
+ * @param importModule Só para teste — chamadores normais omitem.
  */
-export async function loadStartAuthentication(): Promise<StartAuthenticationFn> {
+export async function loadStartAuthentication(
+  importModule: typeof importWebAuthnBrowser = importWebAuthnBrowser,
+): Promise<StartAuthenticationFn> {
   try {
-    const mod = await import(
-      // @ts-ignore — import dinâmico do pacote instalado pelo host (peer opcional).
-      "@simplewebauthn/browser" as string
-    );
+    const mod = await importModule();
     return mod.startAuthentication;
   } catch (cause) {
     throw new Error(

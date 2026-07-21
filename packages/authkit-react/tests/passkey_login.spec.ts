@@ -163,17 +163,23 @@ test.group("usePasskeyLogin / PasskeyButton — exports e types", () => {
 
 test.group("loadStartAuthentication — sem CDN, falha alto", () => {
   /**
-   * O `@simplewebauthn/browser` é peer OPCIONAL e não está instalado neste
-   * workspace, então este teste exercita exatamente o caminho do consumidor que
-   * esqueceu de instalar: tem que estourar com a instrução de instalação, e não
-   * degradar em silêncio para um CDN.
+   * Simula o consumidor que não instalou o peer opcional: tem que estourar com a
+   * instrução de instalação, e não degradar em silêncio para um CDN. O import é
+   * injetado porque o `auto-install-peers` do pnpm instala peers opcionais no
+   * workspace — "não está instalado" não é um estado reproduzível.
    */
   test("throws with install instructions when the peer is missing", async ({
     assert,
   }) => {
+    const missing = async () => {
+      const err = new Error("Cannot find package '@simplewebauthn/browser'");
+      (err as NodeJS.ErrnoException).code = "ERR_MODULE_NOT_FOUND";
+      throw err;
+    };
+
     let error: Error | undefined;
     try {
-      await loadStartAuthentication();
+      await loadStartAuthentication(missing);
     } catch (err) {
       error = err as Error;
     }
@@ -183,6 +189,18 @@ test.group("loadStartAuthentication — sem CDN, falha alto", () => {
     assert.include(error!.message, "npm i @simplewebauthn/browser@^13");
     // A causa original (ERR_MODULE_NOT_FOUND) fica anexada para debug.
     assert.exists(error!.cause);
+  });
+
+  /** O caminho feliz continua devolvendo a função do módulo, sem embrulho. */
+  test("returns startAuthentication from the resolved module", async ({
+    assert,
+  }) => {
+    const startAuthentication: StartAuthenticationFn = async () => ({});
+    const resolved = await loadStartAuthentication(async () => ({
+      startAuthentication,
+    }));
+
+    assert.strictEqual(resolved, startAuthentication);
   });
 
   /**

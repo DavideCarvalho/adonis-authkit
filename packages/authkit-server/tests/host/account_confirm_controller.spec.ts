@@ -4,7 +4,7 @@ import { SUDO_SESSION_KEY } from '../../src/host/sudo_mode.js'
 import { ACCOUNT_SESSION_KEY } from '../../src/host/middleware/account_auth.js'
 import { DEFAULT_MESSAGES } from '../../src/host/i18n.js'
 import { password } from '../../src/host/sudo/methods/password.js'
-import { passkey } from '../../src/host/sudo/methods/passkey.js'
+import { passkey, CONFIRM_PASSKEY_CHALLENGE_ACCOUNT_KEY } from '../../src/host/sudo/methods/passkey.js'
 import { completeSudo, fail } from '../../src/host/sudo/runtime.js'
 import { sudoContextFrom } from '../../src/host/controllers/account_confirm_controller.js'
 
@@ -15,6 +15,13 @@ const ACCOUNT = { id: 'acc-1', email: 'user@example.com' }
 // este arquivo). Não virou import porque a constante não é exportada por
 // `src/` hoje — o literal fica pinado aqui de propósito.
 const CHALLENGE_KEY = 'authkit_confirm_passkey_challenge'
+
+// O emissor do pacote grava SEMPRE o par challenge + conta emissora, e o
+// consumidor recusa challenge sem vinculação (fail-closed). As fixtures de
+// sessão abaixo montam o par para reproduzir o que o endpoint de options
+// realmente escreve; as asserções pinadas seguem intactas. A chave da
+// vinculação vem por import de propósito — só o valor de CHALLENGE_KEY é
+// contratual e fica pinado como literal.
 
 /**
  * Contexto HTTP mínimo para o controller. Captura o que foi renderizado,
@@ -166,7 +173,7 @@ test.group('confirmação de identidade — comportamento pinado', () => {
   test('passkey válida concede sudo e é auditada com method=passkey', async ({ assert }) => {
     const h = fakeConfirmCtx({
       input: { response: JSON.stringify({ id: 'cred' }), return_to: '/account/security' },
-      session: { [CHALLENGE_KEY]: 'chal-1' },
+      session: { [CHALLENGE_KEY]: 'chal-1', [CONFIRM_PASSKEY_CHALLENGE_ACCOUNT_KEY]: ACCOUNT.id },
       cfg: {
         accountStore: {
           async findById() { return ACCOUNT },
@@ -188,7 +195,7 @@ test.group('confirmação de identidade — comportamento pinado', () => {
   test('passkey inválida NÃO concede sudo e limpa o challenge', async ({ assert }) => {
     const h = fakeConfirmCtx({
       input: { response: JSON.stringify({ id: 'cred' }) },
-      session: { [CHALLENGE_KEY]: 'chal-1' },
+      session: { [CHALLENGE_KEY]: 'chal-1', [CONFIRM_PASSKEY_CHALLENGE_ACCOUNT_KEY]: ACCOUNT.id },
       cfg: {
         accountStore: {
           async findById() { return ACCOUNT },

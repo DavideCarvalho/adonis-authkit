@@ -115,11 +115,14 @@ export function passkey(): SudoMethod {
         // "Está pendente nesta sessão" NÃO implica "é desta conta" — a sessão
         // sobrevive ao logout+login de outra conta no mesmo navegador.
         //
-        // `undefined` (challenge sem vinculação) é tolerado porque a forma do
-        // valor de `CONFIRM_PASSKEY_CHALLENGE_KEY` é contratual e há fixtures
-        // que escrevem só ele; o emissor deste pacote SEMPRE grava o par.
+        // ESTRITO (fail-closed): challenge SEM vinculação também é recusado. O
+        // emissor deste pacote sempre grava o par, então um challenge solto na
+        // sessão só pode vir de uma sessão anterior (outra versão do pacote, ou
+        // escrita por fora) — e é exatamente essa a forma que o atacante do
+        // navegador compartilhado consegue deixar para trás. Aceitar `undefined`
+        // seria fail-open: bastaria apagar a vinculação para anular a barreira.
         const boundTo = ctx.session.get(CONFIRM_PASSKEY_CHALLENGE_ACCOUNT_KEY) as string | undefined
-        if (boundTo !== undefined && boundTo !== c.accountId) {
+        if (boundTo === undefined || boundTo !== c.accountId) {
           clearChallenge()
           return h.fail(c, 'account.confirm.passkey_error')
         }

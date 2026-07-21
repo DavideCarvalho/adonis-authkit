@@ -221,6 +221,25 @@ test.group('sudo — challenge de passkey vinculado à conta emissora (Critical)
     assert.isUndefined(h.session[CONFIRM_PASSKEY_CHALLENGE_KEY])
   })
 
+  test('challenge SEM vinculação não concede sudo (fail-closed)', async ({ assert }) => {
+    // Challenge solto na sessão, sem a chave de vinculação — a forma que uma
+    // sessão de versão anterior (ou escrita por fora) deixa para trás. Se a
+    // checagem tolerasse `undefined`, bastaria apagar a vinculação para anular
+    // a barreira; por isso a ausência é recusa, não permissão.
+    const h = fakeCtx({
+      input: { response: JSON.stringify({ id: 'cred' }) },
+      session: { [CONFIRM_PASSKEY_CHALLENGE_KEY]: 'chal-1' },
+      cfg: { accountStore: duasContas },
+    })
+
+    await captureHandlers().get('POST /account/confirm/passkey')!(h.ctx)
+
+    assert.isUndefined(h.session[SUDO_SESSION_KEY])
+    assert.lengthOf(h.cfg.audit.records, 0)
+    assert.isNotNull(h.flashed.confirmError)
+    assert.isUndefined(h.session[CONFIRM_PASSKEY_CHALLENGE_KEY])
+  })
+
   test('contraprova: sem troca de conta o mesmo fluxo concede sudo', async ({ assert }) => {
     const h = fakeCtx({
       input: { response: JSON.stringify({ id: 'cred' }) },

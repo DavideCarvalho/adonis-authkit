@@ -31,7 +31,7 @@ export interface OidcStepUpOptions {
  *   valida state/PKCE/nonce; consome a flag; chama completeSudo()
  * ```
  *
- * Três regras que o host PRECISA seguir:
+ * Quatro regras que o host PRECISA seguir:
  *
  * 1. A flag de step-up vive NA SESSÃO, nunca na querystring. Se trafegasse
  *    pela URL, qualquer um forjaria um callback que concede sudo.
@@ -43,6 +43,29 @@ export interface OidcStepUpOptions {
  *    sobreviver a um callback que deu errado, o próximo login comum daquele
  *    usuário será interpretado como step-up e concederá sudo sem que ninguém
  *    tenha pedido reautenticação. Trate-a como token de uso único.
+ * 4. A flag CARREGA O `accountId` de quem iniciou o step-up, e o callback
+ *    RECUSA quando esse id não bate com a conta logada no momento do retorno.
+ *    Um booleano solto (`session.put('step_up', true)`) NÃO serve.
+ *
+ *    O porquê: a sessão sobrevive à troca de usuário. O `regenerate()` do
+ *    `@adonisjs/session`, que o logout chama, troca o ID do cookie mas MIGRA
+ *    os dados — ele não os descarta. Então, num navegador compartilhado, A
+ *    inicia o step-up, abandona no provider e faz logout; B loga na mesma
+ *    máquina; a flag booleana de A ainda está lá, e o primeiro callback que
+ *    chegar promove B a sudo sem que B jamais tenha reautenticado. A regra 3
+ *    (uso único) não cobre isso: ela limita a flag a UM uso, não a UMA conta,
+ *    e esse único uso pode muito bem ser o da conta errada.
+ *
+ *    Na prática: grave `{ accountId, ... }` em vez de `true`, e no callback
+ *    consuma a flag (regra 3) e compare `flag.accountId` com a conta da
+ *    sessão ANTES de chamar `completeSudo`. Divergiu, recuse — não é o
+ *    usuário que pediu a reautenticação. Ausência de flag também é recusa:
+ *    tolerar `undefined` devolve o mesmo furo por outro caminho.
+ *
+ *    Esta é a única barreira possível aqui: quem grava a flag é o HOST, no
+ *    seu `/auth/step-up`, e o pacote nunca a vê — não há como o AuthKit
+ *    impor a vinculação por você. O equivalente interno (challenge de passkey
+ *    e pendente do magic link) é vinculado à conta emissora pelo pacote.
  */
 export function oidcStepUp(opts: OidcStepUpOptions): SudoMethod {
   return {

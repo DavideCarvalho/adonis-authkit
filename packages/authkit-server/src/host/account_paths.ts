@@ -115,26 +115,44 @@ export function setAccountPaths(opts: AccountPathsOptions | undefined): void {
 }
 
 /**
+ * Junta o prefixo do console de conta com um subpath arbitrário, tratando o
+ * prefixo raiz (`'/'`) como `''` na composição: sem isso o resultado seria
+ * `'//<sub>'`, que num `<form action>`/`fetch()` é URL protocol-relative (o
+ * browser lê `<sub>` como HOST, não como path).
+ *
+ * Base canônica de `accountPath()` e de QUALQUER outra composição
+ * prefixo+subpath fora das TELAS fixas (ex.: o `{prefix}/api` da JSON API em
+ * `register_auth_host`). Novas composições devem passar por aqui em vez de
+ * reimplementar `${accountPrefix()}/algo` — é exatamente essa duplicação que
+ * reproduz o bug do `//` quando o prefixo normaliza pra raiz.
+ *
+ * @example
+ * joinAccountPath('api') // default → '/account/api'
+ */
+export function joinAccountPath(sub: string): string {
+  const base = _prefix === '/' ? '' : _prefix;
+  return `${base}/${sub}`;
+}
+
+/**
  * Retorna o path completo de uma TELA do console de conta (prefixo + segmento).
  * Para os action-subpaths (POSTs de dentro da tela) concatene o subpath fixo:
  * `accountPath('security') + '/password'`.
- *
- * Prefixo `'/'` (raiz) é tratado como `''` na composição: sem isso o resultado
- * seria `'//security'`, que num `<form action>`/`fetch()` é URL
- * protocol-relative (o browser lê `security` como HOST, não como path).
  *
  * @example
  * accountPath('security') // default → '/account/security'
  * accountPath('confirm')  // default → '/account/confirm'
  */
 export function accountPath(key: AccountPathKey): string {
-  const base = _prefix === '/' ? '' : _prefix;
-  return `${base}/${_segments[key]}`;
+  return joinAccountPath(_segments[key]);
 }
 
 /**
- * Retorna o prefixo do console de conta (default `'/account'`). Usado para a
- * JSON API (`{prefix}/api/*`), cujo segmento `api` é fixo (contrato de máquina).
+ * Retorna o prefixo BRUTO do console de conta (default `'/account'`; pode ser
+ * `'/'` na raiz). Para compor `{prefix}/algo` (ex.: a JSON API, cujo segmento
+ * `api` é fixo — contrato de máquina), use `joinAccountPath('algo')`: ela
+ * colapsa a raiz e evita o `//`. Este getter existe para os casos (ex.: os
+ * asserts de teste) que precisam do valor cru do prefixo.
  */
 export function accountPrefix(): string {
   return _prefix;

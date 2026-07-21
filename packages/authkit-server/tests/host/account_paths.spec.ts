@@ -21,6 +21,7 @@ import {
   accountPath,
   accountPathsMap,
   accountPrefix,
+  joinAccountPath,
   normalizeAccountPrefix,
   resetAccountPaths,
   setAccountPaths,
@@ -118,6 +119,20 @@ test.group('account_paths', (group) => {
     assert.isFalse(accountPath('security').startsWith('//'));
   });
 
+  test('joinAccountPath: base canônica de accountPath() e de qualquer composição externa', ({
+    assert,
+  }) => {
+    // Default (`/account`): igual a concatenar o prefixo bruto.
+    assert.equal(joinAccountPath('api'), '/account/api');
+    // Prefixo customizado: mesmo comportamento de accountPath().
+    setAccountPaths({ prefix: '/conta' });
+    assert.equal(joinAccountPath('api'), '/conta/api');
+    // Prefixo raiz: colapsa pra evitar '//api' (mesma proteção de accountPath()).
+    setAccountPaths({ prefix: '/' });
+    assert.equal(joinAccountPath('api'), '/api');
+    assert.isFalse(joinAccountPath('api').startsWith('//'));
+  });
+
   test('accountPathsMap devolve todas as telas com o path completo', ({ assert }) => {
     setAccountPaths(PT);
     const map = accountPathsMap();
@@ -166,6 +181,18 @@ test.group('registerAuthHost + accountRoutes (pt-BR)', (group) => {
     assert.isTrue(has(router, '/conta/api/me'), 'api segue o prefixo');
     assert.isTrue(has(router, '/conta/api/security'), 'api/security (segmento api fixo)');
     assert.isFalse(has(router, '/account/api/me'), 'api antiga removida');
+  });
+
+  test("prefixo raiz ('/'): a JSON API monta em /api/* — nunca //api/*", ({ assert }) => {
+    const router = fakeRouter();
+    registerAuthHost(router, { accountRoutes: { prefix: '/' } });
+    assert.isTrue(has(router, '/api/me'), 'api monta em /api/me');
+    assert.isTrue(has(router, '/api/security'), 'api monta em /api/security');
+    assert.isFalse(has(router, '//api/me'), 'nunca //api/me (protocol-relative)');
+    assert.isFalse(
+      router.routes.some((r: any) => r.pattern.startsWith('//')),
+      'nenhuma rota registrada com // no início',
+    );
   });
 
   test('as rotas de sudo (defaults password+passkey) derivam de accountPath(confirm)', ({

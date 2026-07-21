@@ -6,7 +6,7 @@ import { getAccountLoginUrl, setAccountLoginUrl } from './account_login_url.js';
 import {
   type AccountPathsOptions,
   accountPath,
-  accountPrefix,
+  joinAccountPath,
   setAccountPaths,
 } from './account_paths.js';
 import { resolveAccountRoles } from './account_roles.js';
@@ -542,7 +542,7 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
   const confirmPath = accountPath('confirm');
   const orgsPath = accountPath('orgs');
   const emailConfirmPath = accountPath('emailConfirm');
-  const apiBase = `${accountPrefix()}/api`;
+  const apiBase = joinAccountPath('api');
 
   // Organizations — invitation accept (sem guard: controller lida com não-autenticado).
   // Parte da tela `orgs`: desmontada junto (sem multi-tenancy, não há convite a aceitar).

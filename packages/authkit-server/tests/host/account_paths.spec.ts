@@ -108,6 +108,16 @@ test.group('account_paths', (group) => {
     assert.equal(accountPath('security'), '/account/security');
   });
 
+  test('prefixo raiz (\'/\') nunca produz "//" (protocol-relative em <form action>)', ({
+    assert,
+  }) => {
+    setAccountPaths({ prefix: '/' });
+    assert.equal(accountPrefix(), '/');
+    assert.equal(accountPath('security'), '/security');
+    assert.notEqual(accountPath('security'), '//security');
+    assert.isFalse(accountPath('security').startsWith('//'));
+  });
+
   test('accountPathsMap devolve todas as telas com o path completo', ({ assert }) => {
     setAccountPaths(PT);
     const map = accountPathsMap();

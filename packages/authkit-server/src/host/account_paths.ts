@@ -119,12 +119,17 @@ export function setAccountPaths(opts: AccountPathsOptions | undefined): void {
  * Para os action-subpaths (POSTs de dentro da tela) concatene o subpath fixo:
  * `accountPath('security') + '/password'`.
  *
+ * Prefixo `'/'` (raiz) é tratado como `''` na composição: sem isso o resultado
+ * seria `'//security'`, que num `<form action>`/`fetch()` é URL
+ * protocol-relative (o browser lê `security` como HOST, não como path).
+ *
  * @example
  * accountPath('security') // default → '/account/security'
  * accountPath('confirm')  // default → '/account/confirm'
  */
 export function accountPath(key: AccountPathKey): string {
-  return `${_prefix}/${_segments[key]}`;
+  const base = _prefix === '/' ? '' : _prefix;
+  return `${base}/${_segments[key]}`;
 }
 
 /**

@@ -1,5 +1,21 @@
 # @adonis-agora/authkit-server
 
+## 0.48.0
+
+### Minor Changes
+
+- bb257c0: Rotas do console de conta configuráveis/localizáveis + 2 fixes de MFA
+
+  **Feature: `accountRoutes`.** Novo módulo `account_paths.ts` (singleton de processo, no mesmo padrão de `admin_prefix`/`account_login_url`) que torna o prefixo do console de conta (`/account` → `/conta`) e o segmento de cada tela navegável (`security` → `seguranca`, `confirm` → `confirmar`, ...) configuráveis via a opção top-level `accountRoutes: { prefix?, paths? }` no `registerAuthHost`. O prefixo/segmentos se propagam por todas as camadas: registro de rotas, redirects dos controllers, redirect de sudo, fluxo magic-link, URLs dos e-mails transacionais e as views Edge (incl. os `fetch()` do `mfa.edge`, via a prop global `accountPaths`). `getAccountLoginUrl` e `accountHome` passam a derivar dos overrides.
+
+  Os action-subpaths dos POSTs internos (`/password`, `/enroll`, `/passkeys/verify`, ...) e o segmento `api` da JSON API (`{prefix}/api/*`) permanecem FIXOS — são endpoints de máquina, invisíveis ao usuário. A opção é top-level de propósito: mesmo com `account: false`, as rotas de sudo e a JSON API continuam montadas e respeitam o prefixo.
+
+  Back-compat total: sem `accountRoutes`, tudo permanece em `/account/*`.
+
+  **Fix (`inertiaRenderer`):** o docblock de contrato de props da tela `account/mfa` documentava só o shape do `index`; agora inclui `enrolling`, `secret`, `qrDataUrl` e `error`, que o controller injeta nos passos de `enroll`/`confirm`.
+
+  **Fix (`passkeyRegisterVerify`):** no sucesso com sudo já ativo o endpoint respondia sempre `{ ok: true }` JSON — um `<form>` HTML clássico ficava encarando JSON cru. Agora detecta navegação (aceita `text/html` e não pede `application/json`) e responde redirect para a tela de MFA, mantendo o JSON para XHR/fetch.
+
 ## 0.47.0
 
 ### Minor Changes
@@ -176,6 +192,7 @@ sudoMethods.passkey(), meuMetodo()]`). Vale igual para `config.sudo.methods`.
 
   As props mudaram de `{ passwordless, passkeyAvailable }` para
   `{ methods, preferredId, notice }`:
+
   - `methods`: `Array<{ id, labelKey, kind: 'form' | 'action' | 'redirect' | 'webauthn', endpoint, fields? }>`;
   - `preferredId`: id do último método usado com sucesso, para destaque;
   - `notice`: aviso já traduzido (ex.: "link enviado"), irmão de `error`.
@@ -227,6 +244,7 @@ sudoMethods.passkey(), meuMetodo()]`). Vale igual para `config.sudo.methods`.
   ***
 
   ### Correções
+
   - **Escalação via impersonação (segurança).** A marca de sudo não era vinculada
     à conta, e a impersonação troca a conta da sessão sem invalidá-la: dentro da
     graça de 15 min, o sudo do admin valia sobre a conta impersonada — e o do
@@ -459,6 +477,7 @@ sudoMethods.passkey(), meuMetodo()]`). Vale igual para `config.sudo.methods`.
 ### Minor Changes
 
 - 6c0dbb6: Correções de segurança (auditoria 2026-06-08):
+
   - Token-exchange travado: subject_token deve ser do client autenticado, scope reduzido à interseção com o client (scope inválido → `invalid_scope`), audience/resource não suportado rejeitado.
   - Allowlist de grant_types nos clients (bloqueia `implicit`); redirect/post-logout URIs validados como URI http/https absoluta.
   - Proteção de "último admin" + bloqueio de auto-rebaixamento; REST API valida globalRoles contra o catálogo; throttle por IP no grupo admin-api; auditoria REST registra o id (hash) da admin key em vez de null.
@@ -491,6 +510,7 @@ sudoMethods.passkey(), meuMetodo()]`). Vale igual para `config.sudo.methods`.
   `OidcService` ganha `rotateKeys()`/`keystoreAgeDays()` (rotate+reload serializados).
 
   Dois tiers de endpoint admin para status + "rotacionar agora":
+
   - **REST API** `GET/POST /api/authkit/v1/keys` (Bearer key) — para backend/automação;
   - **Console API** `GET/POST {adminPrefix}/api/keys` (sessão + role admin) — para o browser.
 
@@ -615,6 +635,7 @@ action="/account/logout">` com CSRF, que faz `session.forget` e redireciona pro
   Antes, fechar o gap de logout SSO em sessão cookie-based exigia escrever model + service + middleware à mão em cada app (e era fácil esquecer — deixando a sessão válida por até 30 dias após um logout SSO). Agora o AuthKit absorve isso:
 
   **`@adonis-agora/authkit-client`**
+
   - `lucidRevocationStore({ connection?, table? })` + interface `RevocationStore`: persistência append-only de revogações (sid/sub/revoked_at), sem precisar declarar model.
   - `BackchannelRevocationMiddleware` (subpath `/backchannel_revocation_middleware`): derruba a sessão revogada na próxima request.
   - `defineConfig({ backchannelLogout: { store } })`: deriva o `onBackchannelLogout` e expõe o store ao middleware.
@@ -626,6 +647,7 @@ action="/account/logout">` com CSRF, que faz `session.forget` e redireciona pro
   - `registerOidcClient(router, { redirects, afterLogin, loginMiddleware })`: registra login/callback/logout (+back-channel) absorvendo PKCE/state/exchange/redirect-por-papel do OidcSessionController.
 
   **`@adonis-agora/authkit-server`**
+
   - Tabela `auth_session_revocations` gerenciada pelo `ensureAuthkitSchema()` (schema auto-manage) — compartilhável entre apps no mesmo banco.
   - Revogação em massa do admin (`AdminSessionsService.revokeAll`) grava uma revogação `sub` na tabela compartilhada → logout INSTANTÂNEO nos clients cookie-based (antes esperava o refresh token falhar, ~TTL do access token).
   - **Config locks (BREAKING semântico):** settings definidas no `defineConfig` ficam TRAVADAS — config vence e a UI/Admin API não pode alterá-las (`getSetting` → null p/ resolvers caírem no config; `setSetting`/`deleteSetting` → 423 `SettingLockedError`). O console mostra badge "definido via config" e desabilita o controle. Exports: `isSettingLocked`, `lockedSettingKeys`, `deriveLockedSettingKeys`, `SettingLockedError`.
@@ -693,12 +715,14 @@ action="/account/logout">` com CSRF, que faz `session.forget` e redireciona pro
 - feat(account): global sign-out — revoke all sessions across all devices
 
   **Server (`@adonis-agora/authkit-server`):**
+
   - `POST /account/api/sessions/revoke-all` — revokes all OIDC sessions/grants for the account
     and terminates the current Adonis console session (global logout).
     Returns `{ ok: true, signedOut: true }` so the UI can redirect to login.
     Emits audit event `account.signed_out_all`.
 
   **React SDK (`@adonis-agora/authkit-react`):**
+
   - `RevokeAllResult` type (`{ ok, signedOut, ...rest }`)
   - `client.account.sessions.revokeAll()` method
   - `useAccountRevokeAllSessionsMutationOptions()` hook (account namespace;
@@ -729,6 +753,7 @@ action="/account/logout">` com CSRF, que faz `session.forget` e redireciona pro
   (console_orgs_controller) e na SPA (Orgs.tsx + orgs.containers.tsx):
 
   **Novos endpoints no console React JSON API (`{adminPrefix}/api/orgs/*`):**
+
   - `POST   /api/orgs` → criar org (name + slug + ownerAccountId)
   - `PATCH  /api/orgs/:id` → editar nome/logo
   - `DELETE /api/orgs/:id` → remover org
@@ -742,6 +767,7 @@ action="/account/logout">` com CSRF, que faz `session.forget` e redireciona pro
   suporta organizações. Lógica reutiliza `AdminOrgsService` (sem duplicação).
 
   **SDK `@adonis-agora/authkit-react`:**
+
   - `client.admin.orgs`: novos métodos `addMember`, `removeMember`,
     `updateMemberRole`, `createInvitation`, `revokeInvitation`
   - Novos hooks: `useAddOrgMemberMutationOptions`, `useRemoveOrgMemberMutationOptions`,
@@ -749,6 +775,7 @@ action="/account/logout">` com CSRF, que faz `session.forget` e redireciona pro
     `useRevokeOrgInvitationMutationOptions`
 
   **SPA do console:**
+
   - Botão "New organization" na header (modal com name + slug auto-gerado + ownerAccountId)
   - Empty state com CTA de criar
   - Drawer da org: editar nome/logo, deletar (com confirmação), listar membros com
@@ -1057,6 +1084,7 @@ action="/account/logout">` com CSRF, que faz `session.forget` e redireciona pro
 - Refactors do code review (comportamento preservado, contratos mais limpos):
 
   **server (minor):**
+
   - `AccountStore` decomposto em interfaces de capacidade (`CoreAccountStore`,
     `MfaCapability`, `WebauthnCapability`, `ProviderIdentityCapability`) com type
     guards (`supportsMfa`/`supportsPasskeys`/`supportsProviderIdentity`). O tipo
@@ -1073,12 +1101,14 @@ action="/account/logout">` com CSRF, que faz `session.forget` e redireciona pro
     preservada).
 
   **client (minor):**
+
   - POST ao token endpoint unificado (`exchangeCode`/`refreshTokens`/`exchangeToken`).
   - Introspection + claims→Identity compartilhados entre resolvers; `pat`/`opaque`
     agora também mapeiam `picture→profile.avatarUrl` e `sid→sessionId` (alinhados
     ao `jwt`).
 
   **react (patch):**
+
   - Helpers genéricos de roles; warn de dev no `useAuth` quando não há
     `AuthProvider` nem shared prop do Inertia.
 

@@ -389,6 +389,110 @@ test.group('sudo — guardSudoRoutes preserva a API do Router real', () => {
 })
 
 /**
+ * THROTTLE NAS ROTAS DOS MÉTODOS DE SUDO.
+ *
+ * O POST que emite o magic link de sudo dispara um E-MAIL por chamada. O
+ * `accountGuard` na frente só exige uma sessão de conta viva — que o abusador
+ * tem, porque é a dele. Sem throttle, uma sessão autenticada manda e-mail em
+ * loop.
+ *
+ * O throttle é aplicado no WRAPPER de registro, não pedido pelo método: um
+ * método que pudesse pedir poderia também não pedir, e a cobertura voltaria a
+ * depender de quem escreve o método lembrar.
+ */
+test.group('sudo — rotas dos métodos levam o throttle do host', () => {
+  /** Router falso que guarda um objeto POR ROTA, registrando as chamadas de `use`. */
+  function throttleTrackingRouter() {
+    const routes = new Map<string, { uses: unknown[][] }>()
+    const groupChain: any = {
+      as: () => groupChain,
+      prefix: () => groupChain,
+      middleware: () => groupChain,
+      use: () => groupChain,
+    }
+    const mk = (verb: string) => (pattern: string) => {
+      const entry = { uses: [] as unknown[][] }
+      routes.set(`${verb} ${pattern}`, entry)
+      const chain: any = {
+        as: () => chain,
+        middleware: () => chain,
+        prefix: () => chain,
+        use: (m: unknown[]) => {
+          entry.uses.push(m)
+          return chain
+        },
+      }
+      return chain
+    }
+    return {
+      get: mk('GET'),
+      post: mk('POST'),
+      patch: mk('PATCH'),
+      put: mk('PUT'),
+      delete: mk('DELETE'),
+      any: mk('ANY'),
+      group: (cb: () => void) => {
+        cb()
+        return groupChain
+      },
+      routes,
+    } as any
+  }
+
+  test('o POST que emite o magic link de sudo recebe o throttle de login', ({ assert }) => {
+    const router = throttleTrackingRouter()
+    registerAuthHost(router, {
+      mountPath: '/oidc',
+      rateLimit: { enabled: true },
+      sudoMethods: [magicLink()],
+    })
+
+    const emissao = router.routes.get('POST /account/confirm/magic-link')
+    assert.lengthOf(emissao.uses, 1)
+    assert.isFunction(emissao.uses[0][0])
+    // O MESMO middleware que o login do console leva — é o bucket por IP.
+    assert.equal(emissao.uses[0][0], router.routes.get('POST /account/login').uses[0][0])
+  })
+
+  test('todas as rotas do método são cobertas, inclusive o GET que consome o token', ({
+    assert,
+  }) => {
+    const router = throttleTrackingRouter()
+    registerAuthHost(router, {
+      mountPath: '/oidc',
+      rateLimit: { enabled: true },
+      sudoMethods: [magicLink()],
+    })
+
+    assert.lengthOf(router.routes.get('GET /account/confirm/magic-link/:token').uses, 1)
+  })
+
+  test('um método CUSTOMIZADO também é coberto — não depende de o autor pedir', ({ assert }) => {
+    const router = throttleTrackingRouter()
+    registerAuthHost(router, {
+      mountPath: '/oidc',
+      rateLimit: { enabled: true },
+      sudoMethods: [metodoDesatento()],
+    })
+
+    assert.lengthOf(router.routes.get('POST /account/confirm/custom').uses, 1)
+  })
+
+  test('com rate-limit desligado nada é aplicado (o wrapper não inventa throttle)', ({
+    assert,
+  }) => {
+    const router = throttleTrackingRouter()
+    registerAuthHost(router, {
+      mountPath: '/oidc',
+      rateLimit: { enabled: false },
+      sudoMethods: [magicLink()],
+    })
+
+    assert.lengthOf(router.routes.get('POST /account/confirm/magic-link').uses, 0)
+  })
+})
+
+/**
  * O QUE NÃO CABE NA BARREIRA É RECUSADO NO BOOT.
  *
  * `guardSudoRoutes` só sabe embrulhar handler-FUNÇÃO. Uma tupla

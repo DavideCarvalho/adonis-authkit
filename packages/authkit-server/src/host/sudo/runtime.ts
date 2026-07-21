@@ -169,7 +169,24 @@ const ROUTER_CONTROLLER_SHORTCUTS = ['resource', 'shallowResource'] as const
  * uma leitura de conta a mais em toda rota de sudo para uma checagem que só lê
  * a config seria desperdício. O contexto completo só é montado para recusar.
  */
-export function guardSudoRoutes(router: Router, methodId: string, h: SudoRouteHelpers): Router {
+export function guardSudoRoutes(
+  router: Router,
+  methodId: string,
+  h: SudoRouteHelpers,
+  /**
+   * Aplica o throttle do host a CADA rota que o método registrar (no-op quando
+   * o rate-limit está desligado). É `registerAuthHost` quem passa isto, porque
+   * é lá que os throttles existem — e é aqui que a rota nasce.
+   *
+   * Fica no wrapper, e não no contrato de `SudoRouteHelpers`, porque throttle
+   * não é decisão do método: um método que pudesse pedir throttle poderia
+   * também NÃO pedir, e o `POST` que emite o magic link de sudo — que dispara
+   * um e-mail por chamada — voltaria a ficar sem nenhum. Aqui a cobertura é da
+   * mesma natureza da barreira de `config.sudo.methods`: estrutural, sem
+   * depender de quem escreve o método lembrar de nada.
+   */
+  applyThrottle?: (route: unknown) => void
+): Router {
   const wrap =
     (handler: (ctx: HttpContext) => unknown) =>
     async (ctx: HttpContext): Promise<unknown> => {
@@ -220,15 +237,31 @@ export function guardSudoRoutes(router: Router, methodId: string, h: SudoRouteHe
       const original = Reflect.get(target, prop, target)
       if (typeof original !== 'function') return original
 
+      // Throttle na rota recém-criada. O `Route` real é preservado e devolvido,
+      // então `.as()`/`.use()` seguem encadeando do lado de fora.
+      const throttled = (route: unknown) => {
+        applyThrottle?.(route)
+        return route
+      }
+
       // `route(pattern, methods, handler)` — handler no TERCEIRO argumento.
       if (prop === 'route') {
         return (pattern: string, methods: unknown, handler: unknown, ...rest: unknown[]) =>
-          original.call(target, pattern, methods, wrapIfFn('route', pattern, handler), ...rest)
+          throttled(
+            original.call(target, pattern, methods, wrapIfFn('route', pattern, handler), ...rest)
+          )
       }
 
       if (ROUTER_VERBS.includes(prop as (typeof ROUTER_VERBS)[number])) {
         return (pattern: string, handler: unknown, ...rest: unknown[]) =>
-          original.call(target, pattern, wrapIfFn(String(prop).toUpperCase(), pattern, handler), ...rest)
+          throttled(
+            original.call(
+              target,
+              pattern,
+              wrapIfFn(String(prop).toUpperCase(), pattern, handler),
+              ...rest
+            )
+          )
       }
 
       // `resource()`/`shallowResource()` expandem um controller em N rotas por

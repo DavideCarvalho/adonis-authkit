@@ -160,13 +160,16 @@ funciona.
 
 ---
 
-### Limitação conhecida
+### Rate limit nas rotas dos métodos de sudo
 
-O POST que emite o magic link de sudo NÃO tem rate limit, e não tem como ter:
-`SudoRouteHelpers` não expõe throttle, então nenhum método do SPI consegue
-pedir um. O impacto é contido — a rota fica atrás do `accountGuard` (exige
-sessão de conta viva) e cada emissão sobrescreve o pendente anterior na própria
-sessão, de modo que não há amplificação por sessão —, mas uma sessão autenticada
-consegue disparar e-mails em loop. Host que se importe põe throttle na rota pelo
-lado dele. Fechar isso direito exige acrescentar throttle ao contrato de
-`SudoRouteHelpers`, mudança de forma do SPI que não cabia nesta entrega.
+TODA rota registrada por um `SudoMethod` leva o throttle de login do host
+(o mesmo bucket por IP de `/account/login`; no-op quando o rate-limit está
+desligado). Importa sobretudo para o POST que emite o magic link de sudo, que
+dispara um e-mail por chamada: o `accountGuard` na frente só exige uma sessão de
+conta viva, que o abusador tem.
+
+Aplicado no WRAPPER de registro (`guardSudoRoutes`), não pelo método. Isso é
+deliberado e é a mesma escolha da barreira de `config.sudo.methods`: um método
+que pudesse PEDIR throttle poderia também não pedir, e a cobertura voltaria a
+depender de o autor lembrar. Métodos customizados ganham o throttle sem fazer
+nada, e `SudoRouteHelpers` não precisou mudar de forma.

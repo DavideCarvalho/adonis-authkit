@@ -436,7 +436,14 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
         // `guardSudoRoutes` embrulha os handlers que o método registrar, para
         // que `config.sudo.methods` os desabilite de fato mesmo que o método
         // não tenha checado nada por dentro. Ver o docblock lá.
-        method.register?.(guardSudoRoutes(router, method.id, helpers), helpers)
+        //
+        // `withLogin` vai junto: TODA rota de um método de sudo leva o throttle
+        // de login (no-op sem rate-limit). Não é adorno — o POST que emite o
+        // magic link de sudo dispara um e-mail por chamada, e o `accountGuard`
+        // sozinho só exige uma sessão viva, que o abusador tem. Aplicar aqui,
+        // no wrapper, cobre também os métodos customizados, que não teriam como
+        // pedir throttle pelo `SudoRouteHelpers`.
+        method.register?.(guardSudoRoutes(router, method.id, helpers, withLogin), helpers)
       }
       // A lista montada é a fonte de verdade dos DOIS lados quando o host não
       // configura `config.sudo.methods`: a tela oferece exatamente isto, e os

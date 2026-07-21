@@ -789,6 +789,13 @@ export const DEFAULT_MESSAGES = {
     "Could not authenticate with the passkey. Please try again.",
   "account.confirm.passwordless_notice":
     "This account does not have a password. Please add a passkey to use sudo-protected features.",
+  // Rótulos dos métodos do SPI de sudo (account/confirm.edge, um bloco por método disponível).
+  "account.confirm.method.password": "Confirm with your password",
+  "account.confirm.method.passkey": "Confirm with a passkey",
+  "account.confirm.method.magic_link": "Email me a confirmation link",
+  "account.confirm.method.oidc_step_up": "Sign in again to confirm",
+  "account.confirm.magic_link_sent": "We sent a confirmation link to your email. It expires in 5 minutes.",
+  "account.confirm.no_methods": "No confirmation method is available for this account. Contact support.",
 
   // Admin settings — sudo_mode card.
   "admin.settings.sudo_mode_section": "Sudo mode (identity confirmation)",
@@ -1802,6 +1809,13 @@ export const PT_BR_MESSAGES = {
     "Não foi possível autenticar com a passkey. Tente novamente.",
   "account.confirm.passwordless_notice":
     "Esta conta não possui senha. Adicione uma passkey para usar funcionalidades protegidas.",
+  // Rótulos dos métodos do SPI de sudo (account/confirm.edge, um bloco por método disponível).
+  "account.confirm.method.password": "Confirmar com a senha",
+  "account.confirm.method.passkey": "Confirmar com passkey",
+  "account.confirm.method.magic_link": "Receber link de confirmação por e-mail",
+  "account.confirm.method.oidc_step_up": "Entrar de novo para confirmar",
+  "account.confirm.magic_link_sent": "Enviamos um link de confirmação para o seu e-mail. Ele expira em 5 minutos.",
+  "account.confirm.no_methods": "Nenhum método de confirmação está disponível para esta conta. Fale com o suporte.",
 
   // Admin settings — sudo_mode card (pt-BR).
   "admin.settings.sudo_mode_section": "Modo sudo (confirmação de identidade)",

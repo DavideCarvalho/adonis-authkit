@@ -255,3 +255,60 @@ test.group('R4 login views render real (edge.js)', () => {
     )
   })
 })
+
+test.group('account/confirm.edge (SPI de métodos de sudo)', () => {
+  test('account/confirm.edge renderiza um bloco por método disponível', async ({ assert }) => {
+    const edge = makeEdge()
+    const html = await edge.render('authkit::account/confirm', {
+      csrfToken: 'tok',
+      returnTo: '/account/security',
+      error: null,
+      preferredId: null,
+      methods: [
+        { id: 'password', kind: 'form', endpoint: '/account/confirm', labelKey: 'account.confirm.method.password',
+          fields: [{ name: 'password', type: 'password', labelKey: 'account.confirm.password_label' }] },
+        { id: 'oidc-step-up', kind: 'redirect', endpoint: '/auth/step-up', labelKey: 'account.confirm.method.oidc_step_up' },
+      ],
+    })
+
+    assert.include(html, 'action="/account/confirm"')
+    assert.include(html, 'name="password"')
+    assert.include(html, 'href="/auth/step-up"')
+    assert.include(html, 'value="/account/security"')
+  })
+
+  // 'action' (passkey/magic-link): POST simples sem `fields` — só csrf + botão.
+  // Sem este teste, um método `kind: 'action'` nunca é exercido pela suíte: o
+  // ramo `@else` do template é o mesmo do `form`, mas com `fields` vazio ele
+  // precisa continuar montando um form válido (csrf + return_to + submit), e
+  // é justamente essa combinação que passou despercebida na quebra original
+  // (props antigas `passwordless`/`passkeyAvailable`).
+  test('account/confirm.edge renderiza método kind=action (sem fields) como form só de submit', async ({
+    assert,
+  }) => {
+    const edge = makeEdge()
+    const html = await edge.render('authkit::account/confirm', {
+      csrfToken: 'tok',
+      returnTo: '/account/security',
+      error: null,
+      preferredId: null,
+      methods: [
+        { id: 'magic-link', kind: 'action', endpoint: '/account/confirm/magic-link', labelKey: 'account.confirm.method.magic_link' },
+      ],
+    })
+
+    assert.include(html, 'action="/account/confirm/magic-link"')
+    assert.include(html, 'name="_csrf"')
+    assert.include(html, 'value="/account/security"')
+    assert.include(html, translate({ ...DEFAULT_MESSAGES }, 'account.confirm.method.magic_link'))
+    assert.notInclude(html, 'name="password"')
+  })
+
+  test('account/confirm.edge avisa quando não há método disponível', async ({ assert }) => {
+    const edge = makeEdge()
+    const html = await edge.render('authkit::account/confirm', {
+      csrfToken: 'tok', returnTo: null, error: null, preferredId: null, methods: [],
+    })
+    assert.include(html, translate({ ...DEFAULT_MESSAGES }, 'account.confirm.no_methods'))
+  })
+})

@@ -5,65 +5,50 @@
 <body class="min-h-screen bg-gray-100 flex items-center justify-center p-4">
   <div class="w-full max-w-sm">
     <div class="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-black/5">
-      <div class="mb-6">
+      <div class="mx-auto w-full space-y-6">
         <h1 class="text-xl font-semibold text-gray-900">{{ t('account.confirm.title') }}</h1>
-        <p class="mt-1 text-sm text-gray-500">{{ t('account.confirm.intro') }}</p>
-      </div>
 
-      @if(error)
-        <div class="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{{ error }}</div>
-      @end
-
-      @if(passwordless && !passkeyAvailable)
-        <div class="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-200">{{ t('account.confirm.passwordless_notice') }}</div>
-      @else
-        @if(!passwordless)
-          <form method="POST" action="/account/confirm">
-            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
-            @if(returnTo)
-              <input type="hidden" name="return_to" value="{{ returnTo }}">
-            @end
-            <div class="mb-4">
-              <label for="password" class="mb-1 block text-sm font-medium text-gray-700">{{ t('account.confirm.password_label') }}</label>
-              <input id="password" type="password" name="password" autofocus
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400">
-            </div>
-            <button type="submit"
-              class="w-full rounded-lg bg-gray-900 py-2 text-sm font-medium text-white hover:bg-gray-700">{{ t('account.confirm.submit') }}</button>
-          </form>
+        @if(error)
+          <div class="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800 ring-1 ring-red-200">{{ error }}</div>
         @end
 
-        @if(passkeyAvailable)
-          <div class="{{ !passwordless ? 'mt-4 border-t border-gray-100 pt-4' : '' }}">
-            <button type="button" id="confirm-passkey-btn"
-              class="w-full rounded-lg border border-gray-200 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">{{ t('account.confirm.passkey_button') }}</button>
+        @if(!methods || methods.length === 0)
+          <div class="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-200">
+            {{ t('account.confirm.no_methods') }}
           </div>
-          <form id="passkey-confirm-form" method="POST" action="/account/confirm/passkey" class="hidden">
-            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
-            @if(returnTo)
-              <input type="hidden" name="return_to" value="{{ returnTo }}">
-            @end
-            <input type="hidden" name="response" id="passkey-confirm-response">
-          </form>
-          <script type="module">
-            import { startAuthentication } from 'https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@13/dist/bundle/index.esm.js';
-            document.getElementById('confirm-passkey-btn')?.addEventListener('click', async () => {
-              try {
-                const optRes = await fetch('/account/confirm/passkey/options', {
-                  method: 'POST',
-                  headers: { 'x-csrf-token': document.querySelector('[name="_csrf"]').value },
-                });
-                const opts = await optRes.json();
-                const assertionResult = await startAuthentication({ optionsJSON: opts });
-                document.getElementById('passkey-confirm-response').value = JSON.stringify(assertionResult);
-                document.getElementById('passkey-confirm-form').submit();
-              } catch (e) {
-                console.error(e);
-              }
-            });
-          </script>
+        @else
+          @each(method in methods)
+            <div class="rounded-lg border border-gray-200 p-4">
+              @if(method.kind === 'redirect')
+                <a href="{{ method.endpoint }}"
+                   class="block w-full rounded-lg bg-gray-900 py-2 text-center text-sm font-medium text-white hover:bg-gray-700">
+                  {{ t(method.labelKey) }}
+                </a>
+              @else
+                <form method="POST" action="{{ method.endpoint }}" class="space-y-3">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  @if(returnTo)
+                    <input type="hidden" name="return_to" value="{{ returnTo }}">
+                  @end
+
+                  @each(field in (method.fields || []))
+                    <label class="block text-sm font-medium text-gray-700" for="{{ field.name }}">
+                      {{ t(field.labelKey) }}
+                    </label>
+                    <input id="{{ field.name }}" name="{{ field.name }}" type="{{ field.type }}" required
+                           class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
+                  @end
+
+                  <button type="submit"
+                          class="w-full rounded-lg bg-gray-900 py-2 text-sm font-medium text-white hover:bg-gray-700">
+                    {{ t(method.labelKey) }}
+                  </button>
+                </form>
+              @end
+            </div>
+          @end
         @end
-      @end
+      </div>
     </div>
   </div>
 </body>

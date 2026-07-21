@@ -1103,6 +1103,8 @@ export interface ResolvedServerConfig {
   accountStore: AccountStore;
   patStore?: PatStore;
   mountPath: string;
+  /** Destino default pós-confirmação do console (sudo mode) e demais fallbacks de conta. Default: '/account/security'. */
+  accountHome?: string;
   render?: AuthHostRenderer;
   branding?: BrandingConfig;
   social?: AuthSocialConfig;
@@ -1315,6 +1317,7 @@ export function defineConfig(config: AuthServerConfigInput) {
         accountStore: config.accountStore,
         patStore: config.patStore,
         mountPath: config.mountPath ?? "/oidc",
+        accountHome: config.accountHome,
         // Default de runtime: sem isso, `render` ficava `undefined` e TODA
         // request a `/account/*`/`/auth/interaction/*` estourava um 500 sem
         // contexto (os controllers fazem `cfg.render!(...)`). `edgeRenderer()`

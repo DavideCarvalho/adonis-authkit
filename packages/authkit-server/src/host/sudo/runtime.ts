@@ -22,15 +22,7 @@ export async function completeSudo(c: SudoContext, methodId: string): Promise<un
     metadata: { method: methodId },
   })
 
-  // Cast pontual: `accountHome` espera `{ accountHome?: string }`, um shape
-  // "fraco" (só props opcionais) sem NENHUMA propriedade em comum, na
-  // declaração, com `ResolvedServerConfig` — o TS marca isso como TS2559
-  // (weak type detection). Achado ao tipar `cfg` honestamente pela primeira
-  // vez (os controllers legados nunca type-checavam essa chamada porque
-  // `ContainerResolver<any>` faz `service.config` cair em `any`). NÃO é
-  // introduzido aqui: `defineConfig()` já não propaga `accountHome` da config
-  // de entrada pro objeto resolvido — ver concern no relatório da Task 2.
-  return c.ctx.response.redirect(c.returnTo ?? accountHome(c.cfg as { accountHome?: string }))
+  return c.ctx.response.redirect(c.returnTo ?? accountHome(c.cfg))
 }
 
 /**

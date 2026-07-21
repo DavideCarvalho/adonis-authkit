@@ -339,6 +339,49 @@ test.group("defineConfig (server)", () => {
     assert.equal(resolved.mountPath, "/oidc");
   });
 
+  test("accountHome é propagado para o config resolvido (bug: antes era descartado silenciosamente)", async ({
+    assert,
+  }) => {
+    const RedisMock = (await import("ioredis-mock")).default;
+    const { configProvider } = await import("@adonisjs/core");
+    const { fakeAccountStore } = await import("./bootstrap.js");
+    const { accountHome } = await import("../src/host/account_home.js");
+    const fakeApp = {
+      container: { make: async () => ({ connection: () => new RedisMock() }) },
+    } as any;
+    const provider = defineConfig({
+      issuer: "https://auth.test",
+      adapter: adapters.redis({ connection: "main" }),
+      jwks: { source: "managed" },
+      accountStore: fakeAccountStore(),
+      accountHome: "/minha-conta",
+    });
+    const resolved = await configProvider.resolve(fakeApp, provider);
+    assert.equal(resolved.accountHome, "/minha-conta");
+    assert.equal(accountHome(resolved), "/minha-conta");
+  });
+
+  test("accountHome fica undefined no resolvido quando omitido, e accountHome() cai no default", async ({
+    assert,
+  }) => {
+    const RedisMock = (await import("ioredis-mock")).default;
+    const { configProvider } = await import("@adonisjs/core");
+    const { fakeAccountStore } = await import("./bootstrap.js");
+    const { accountHome } = await import("../src/host/account_home.js");
+    const fakeApp = {
+      container: { make: async () => ({ connection: () => new RedisMock() }) },
+    } as any;
+    const provider = defineConfig({
+      issuer: "https://auth.test",
+      adapter: adapters.redis({ connection: "main" }),
+      jwks: { source: "managed" },
+      accountStore: fakeAccountStore(),
+    });
+    const resolved = await configProvider.resolve(fakeApp, provider);
+    assert.isUndefined(resolved.accountHome);
+    assert.equal(accountHome(resolved), "/account/security");
+  });
+
   test("resolveDynamicRegistration: management sem enabled lança erro de config", async ({
     assert,
   }) => {

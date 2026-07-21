@@ -32,6 +32,71 @@ function allViews(dir = viewsDir, prefix = ''): string[] {
 const read = (p: string) => readFileSync(viewsDir + p, 'utf8')
 
 /**
+ * Diretório dos stubs — o que o `configure` publica no app de quem instala.
+ * Uma vez ejetado, o arquivo passa a ser DO HOST: um CDN aqui vira um terceiro
+ * no caminho de autenticação de todo mundo, e o pacote não tem mais como
+ * corrigir. Por isso os stubs entram na mesma varredura das views da lib.
+ */
+const stubsDir = fileURLToPath(new URL('../../stubs/', import.meta.url))
+
+/** Arquivos de stub que viram markup/JS no app do host (o resto é config/TS). */
+const STUB_EXTENSIONS = ['.edge', '.tsx', '.jsx', '.stub', '.html']
+
+function allStubs(dir = stubsDir, prefix = ''): string[] {
+  const out: string[] = []
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) out.push(...allStubs(dir + entry.name + '/', prefix + entry.name + '/'))
+    else if (STUB_EXTENSIONS.some((ext) => entry.name.endsWith(ext))) out.push(prefix + entry.name)
+  }
+  return out
+}
+
+/**
+ * Detecta referência a domínio externo numa linha de markup/JS.
+ *
+ * Compartilhado entre a varredura das views da lib e a dos stubs para que as
+ * duas nunca divirjam — se uma ganhar um padrão novo (outro CDN, outra forma
+ * de import), a outra ganha junto.
+ *
+ * Retorna `false` para comentários Edge e para `xmlns`, que não geram fetch.
+ */
+function hasExternalReference(line: string): boolean {
+  // Comentários Edge (`{{-- … --}}`) não vão para o HTML.
+  if (line.includes('{{--')) return false
+
+  /**
+   * `xmlns="http://www.w3.org/2000/svg"` é um NAMESPACE XML, não um fetch — o
+   * browser nunca vai à rede por causa dele. Sem esta limpeza todo `<svg>` e
+   * todo data-URI do CSS gerado viram falso positivo e o teste é desligado por
+   * ruído (que é como uma regressão volta).
+   */
+  const cleaned = line.replace(/xmlns(:\w+)?=(["'])[^"']*\2/g, '')
+
+  return (
+    // <script src="https://…">, <link href="https://…">, <img src="…">
+    /(?:src|href)\s*=\s*["']https?:\/\//i.test(cleaned) ||
+    // import … from 'https://…'  /  await import('https://…')
+    /\bfrom\s*["']https?:\/\/|\bimport\s*\(\s*["']https?:\/\//i.test(cleaned) ||
+    // CDNs conhecidos em qualquer posição (inclui `//cdn.…` protocol-relative)
+    /\/\/cdn\.|jsdelivr|unpkg\.com|cdnjs\./i.test(cleaned)
+  )
+}
+
+/** Roda `hasExternalReference` linha a linha e devolve os infratores anotados. */
+function scanForExternalReferences(
+  files: string[],
+  readFile: (path: string) => string
+): string[] {
+  const offenders: string[] = []
+  for (const file of files) {
+    for (const [i, line] of readFile(file).split('\n').entries()) {
+      if (hasExternalReference(line)) offenders.push(`${file}:${i + 1}: ${line.trim().slice(0, 160)}`)
+    }
+  }
+  return offenders
+}
+
+/**
  * `HttpContext` mínimo para exercitar o controller. Captura o que foi enviado
  * em vez de mockar o response inteiro do Adonis.
  */
@@ -181,32 +246,47 @@ test.group('webauthn asset (bundle npm, sem CDN)', (group) => {
   test('nenhuma view referencia domínio externo (anti-regressão de CDN)', ({ assert }) => {
     // Barato e específico: qualquer volta ao jsdelivr/unpkg/tailwind CDN quebra
     // aqui em vez de quebrar o login de quem roda com CSP `script-src 'self'`.
-    const offenders: string[] = []
-    for (const view of allViews()) {
-      const src = read(view)
-      for (const [i, line] of src.split('\n').entries()) {
-        // Ignora comentários Edge (`{{-- … --}}`), que não vão para o HTML.
-        if (line.includes('{{--')) continue
-
-        /**
-         * `xmlns="http://www.w3.org/2000/svg"` é um NAMESPACE XML, não um
-         * fetch — o browser nunca vai à rede por causa dele. Sem esta limpeza
-         * todo `<svg>` e todo data-URI do CSS gerado viram falso positivo e o
-         * teste é desligado por ruído (que é como uma regressão volta).
-         */
-        const cleaned = line.replace(/xmlns(:\w+)?=(["'])[^"']*\2/g, '')
-
-        const external =
-          // <script src="https://…">, <link href="https://…">, <img src="…">
-          /(?:src|href)\s*=\s*["']https?:\/\//i.test(cleaned) ||
-          // import … from 'https://…'  /  await import('https://…')
-          /\bfrom\s*["']https?:\/\/|\bimport\s*\(\s*["']https?:\/\//i.test(cleaned) ||
-          // CDNs conhecidos em qualquer posição (inclui `//cdn.…` protocol-relative)
-          /\/\/cdn\.|jsdelivr|unpkg\.com|cdnjs\./i.test(cleaned)
-
-        if (external) offenders.push(`${view}:${i + 1}: ${line.trim().slice(0, 160)}`)
-      }
-    }
+    const offenders = scanForExternalReferences(allViews(), read)
     assert.deepEqual(offenders, [], `views com referência externa:\n${offenders.join('\n')}`)
+  })
+
+  /**
+   * Os stubs escapavam da varredura acima — e foi exatamente por isso que
+   * `stubs/ui/edge/views/{login,consent}.edge` carregaram o Tailwind Play CDN
+   * (`<script src="https://cdn.tailwindcss.com">`) sem ninguém notar.
+   *
+   * Um stub é PIOR que uma view da lib nesse quesito: depois de ejetado ele
+   * pertence ao host, e uma correção no pacote não o alcança mais. O que sai
+   * pelo `configure` tem que ser autocontido no momento em que sai.
+   */
+  test('nenhum stub referencia domínio externo (anti-regressão de CDN)', ({ assert }) => {
+    const offenders = scanForExternalReferences(allStubs(), (p) =>
+      readFileSync(stubsDir + p, 'utf8')
+    )
+    assert.deepEqual(offenders, [], `stubs com referência externa:\n${offenders.join('\n')}`)
+  })
+
+  /**
+   * Guarda o motivo de o preset `edge` não scaffoldar nada.
+   *
+   * Existiam stubs Edge de login/consent que nenhum caminho de código
+   * publicava (`uiStubPaths('edge')` sempre devolveu `[]`) — código morto que
+   * ainda assim ia no pacote publicado carregando um CDN. Foram removidos: a
+   * customização de views Edge é via `node ace authkit:eject --views`, que
+   * copia as views REAIS da lib (com i18n, CSRF, passkey e o CSS compilado em
+   * `partials/styles.edge`).
+   *
+   * Se alguém recriar os stubs Edge, este teste falha e força a pergunta: por
+   * que duplicar as views da lib num scaffold inferior?
+   */
+  test('o preset edge não tem stubs de view (customização é via authkit:eject --views)', ({
+    assert,
+  }) => {
+    const edgeStubs = allStubs().filter((p) => p.startsWith('ui/edge/'))
+    assert.deepEqual(
+      edgeStubs,
+      [],
+      `stubs Edge não são publicados por nenhum caminho de código; use authkit:eject --views:\n${edgeStubs.join('\n')}`
+    )
   })
 })

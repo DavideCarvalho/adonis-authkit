@@ -6,6 +6,12 @@ import { DEFAULT_MESSAGES } from '../../src/host/i18n.js'
 
 const ACCOUNT = { id: 'acc-1', email: 'user@example.com' }
 
+// Global Constraint do plano: o VALOR desta chave de sessão é contratual e
+// não pode mudar (quebraria hosts que dependem do comportamento pinado por
+// este arquivo). Não virou import porque a constante não é exportada por
+// `src/` hoje — o literal fica pinado aqui de propósito.
+const CHALLENGE_KEY = 'authkit_confirm_passkey_challenge'
+
 /**
  * Contexto HTTP mínimo para o controller. Captura o que foi renderizado,
  * redirecionado e flashado, para os testes assertarem sobre isso.
@@ -29,7 +35,7 @@ function fakeConfirmCtx(opts: {
     },
     accountStore: {
       async findById(id: string) { return id === ACCOUNT.id ? ACCOUNT : null },
-      async verifyCredentials(_email: string, password: string) { return password === 'correta' },
+      async verifyCredentials(email: string, password: string) { return email === ACCOUNT.email && password === 'correta' },
       async __getRawRow(_id: string) { return { password: 'hash-existente' } },
     },
     audit: { records: [] as unknown[], async record(e: unknown) { (cfg.audit.records as unknown[]).push(e) } },
@@ -144,8 +150,8 @@ test.group('confirmação de identidade — comportamento pinado', () => {
 
   test('passkey válida concede sudo e é auditada com method=passkey', async ({ assert }) => {
     const h = fakeConfirmCtx({
-      input: { response: JSON.stringify({ id: 'cred' }) },
-      session: { authkit_confirm_passkey_challenge: 'chal-1' },
+      input: { response: JSON.stringify({ id: 'cred' }), return_to: '/account/security' },
+      session: { [CHALLENGE_KEY]: 'chal-1' },
       cfg: {
         accountStore: {
           async findById() { return ACCOUNT },
@@ -159,12 +165,15 @@ test.group('confirmação de identidade — comportamento pinado', () => {
 
     assert.isNumber(h.session[SUDO_SESSION_KEY])
     assert.deepEqual((h.cfg.audit.records[0] as any).metadata, { method: 'passkey' })
+    // Espelha o teste equivalente de senha: garante que o refactor não desvie
+    // o redirect final do fluxo de passkey do returnTo esperado.
+    assert.deepEqual(h.redirects, ['/account/security'])
   })
 
   test('passkey inválida NÃO concede sudo e limpa o challenge', async ({ assert }) => {
     const h = fakeConfirmCtx({
       input: { response: JSON.stringify({ id: 'cred' }) },
-      session: { authkit_confirm_passkey_challenge: 'chal-1' },
+      session: { [CHALLENGE_KEY]: 'chal-1' },
       cfg: {
         accountStore: {
           async findById() { return ACCOUNT },
@@ -177,6 +186,6 @@ test.group('confirmação de identidade — comportamento pinado', () => {
     await invokeConfirmPasskey(h.ctx)
 
     assert.isUndefined(h.session[SUDO_SESSION_KEY])
-    assert.isUndefined(h.session.authkit_confirm_passkey_challenge)
+    assert.isUndefined(h.session[CHALLENGE_KEY])
   })
 })

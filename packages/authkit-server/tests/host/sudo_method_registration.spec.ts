@@ -286,3 +286,32 @@ test.group('sudo — guardSudoRoutes preserva a API do Router real', () => {
     assert.isNotNull(barrado.flashed.confirmError)
   })
 })
+
+/**
+ * A barreira "conta carregada", irmã da barreira "método habilitado".
+ *
+ * `sudoContextFrom` deixa `account: null` quando `findById` não acha nada —
+ * sessão viva de conta apagada/anonimizada. Sem a checagem em `completeSudo`,
+ * um método desatento (`contextFrom` → `completeSudo`) concederia sudo sobre
+ * uma conta que não existe mais.
+ */
+test.group('sudo — completeSudo exige conta carregada', () => {
+  test('recusa quando c.account é null, mesmo com o método habilitado', async ({ assert }) => {
+    const router = capturingRouter()
+    registerAuthHost(router, { mountPath: '/oidc', sudoMethods: [metodoDesatento()] })
+
+    // Sessão viva apontando para uma conta que o store não acha mais.
+    const h = fakeCtx({
+      accountStore: {
+        async findById() {
+          return null
+        },
+      },
+    })
+    await router.routes.get('POST /account/confirm/custom')!(h.ctx)
+
+    assert.isUndefined(h.session[SUDO_SESSION_KEY])
+    assert.lengthOf(h.cfg.audit.records, 0)
+    assert.isNotNull(h.flashed.confirmError)
+  })
+})

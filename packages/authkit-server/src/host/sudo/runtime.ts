@@ -132,6 +132,20 @@ export function guardSudoRoutes(router: Router, methodId: string, h: SudoRouteHe
  * audita e redireciona.
  */
 export async function completeSudo(c: SudoContext, methodId: string): Promise<unknown> {
+  // SEGUNDA barreira estrutural, irmã de `guardSudoRoutes`: aquela cobre
+  // "o método está habilitado?", esta cobre "a conta existe?".
+  //
+  // `sudoContextFrom` deixa `account: null` quando `findById` não acha nada —
+  // sessão viva de conta apagada ou anonimizada. Cada built-in já checa por
+  // dentro, mas depender disso é a mesma falha que `guardSudoRoutes` existe
+  // para eliminar do outro lado: o PRIMEIRO método desatento que fizer
+  // `contextFrom` → `completeSudo` concederia sudo sobre uma conta que não
+  // existe mais, e nada detectaria. A garantia tem de estar aqui, no único
+  // ponto de concessão.
+  // Falsy, não `=== null`: um contexto montado à mão que simplesmente omita
+  // `account` não pode escapar da barreira por um detalhe de forma.
+  if (!c.account) return fail(c, 'account.confirm.error')
+
   markSudo(c.ctx)
   c.ctx.session.put(LAST_METHOD_SESSION_KEY, methodId)
 

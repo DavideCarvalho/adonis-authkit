@@ -20,21 +20,29 @@ export interface OidcStepUpOptions {
  *
  * ```
  * POST /account/security/export
- *   requireSudo() → sem marca → redirect para este endpoint
+ *   requireSudo() → sem marca → redirect para /account/confirm
+ * GET  /account/confirm
+ *   lista os métodos disponíveis; este aparece como 'redirect' e leva o
+ *   usuário para a URL abaixo
  * GET  /auth/step-up
  *   grava flag de step-up NA SESSÃO; inicia Authorization Code + PKCE
  *   com prompt=login
  * GET  /auth/callback
- *   valida state/PKCE/nonce; vê a flag; chama completeSudo(); limpa a flag
+ *   valida state/PKCE/nonce; consome a flag; chama completeSudo()
  * ```
  *
- * Duas regras que o host PRECISA seguir:
+ * Três regras que o host PRECISA seguir:
  *
  * 1. A flag de step-up vive NA SESSÃO, nunca na querystring. Se trafegasse
  *    pela URL, qualquer um forjaria um callback que concede sudo.
  * 2. `completeSudo` só DEPOIS da validação completa do grant. É o
  *    `prompt=login` que garante que o provider forçou reautenticação, em vez
  *    de reaproveitar a sessão existente.
+ * 3. A flag é CONSUMIDA (lida e apagada) logo no início do callback, antes de
+ *    qualquer ramo que possa falhar — não só no caminho de sucesso. Se ela
+ *    sobreviver a um callback que deu errado, o próximo login comum daquele
+ *    usuário será interpretado como step-up e concederá sudo sem que ninguém
+ *    tenha pedido reautenticação. Trate-a como token de uso único.
  */
 export function oidcStepUp(opts: OidcStepUpOptions): SudoMethod {
   return {

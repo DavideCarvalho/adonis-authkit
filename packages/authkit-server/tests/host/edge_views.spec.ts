@@ -383,8 +383,9 @@ test.group('account/confirm.edge (SPI de métodos de sudo)', () => {
     // O campo que o handler lê. Sem ele o POST é inútil.
     assert.include(html, 'name="response"')
     assert.include(html, 'data-webauthn-response')
-    // O JS que preenche esse campo.
-    assert.include(html, '@simplewebauthn/browser')
+    // O JS que preenche esse campo. O import é do bundle servido pelo próprio
+    // host (`/authkit/assets/webauthn.js`) — NÃO de CDN público.
+    assert.include(html, '/authkit/assets/webauthn.js')
     assert.include(html, 'startAuthentication')
     // O endpoint de options é DERIVADO do `action` do form, não hardcoded pelo
     // id do método — a tela continua sem conhecer 'passkey'.
@@ -411,7 +412,7 @@ test.group('account/confirm.edge (SPI de métodos de sudo)', () => {
       methods: [passwordDescriptor],
     })
 
-    assert.notInclude(html, '@simplewebauthn/browser')
+    assert.notInclude(html, '/authkit/assets/webauthn.js')
     assert.notInclude(html, 'data-authkit-webauthn')
   })
 

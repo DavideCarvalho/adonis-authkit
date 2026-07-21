@@ -48,16 +48,30 @@ Ou seja: as Tasks 3 e 4 refatoram **código de autenticação sem cobertura**. P
 
 ---
 
-### Task 1: Rede de proteção — caracterizar o controller atual
+### Task 1: Rede de proteção — caracterizar o comportamento atual
 
-Pina o comportamento de hoje **sem alterar nada de produção**. Estes testes têm que continuar verdes até o fim do plano; se algum precisar mudar depois, é mudança de comportamento e exige justificativa explícita no PR.
+Pina o comportamento de hoje **sem alterar nada de produção**.
+
+**O que exatamente fica pinado.** O invariante que importa é o
+comportamento **na URL** — *`POST /account/confirm` com a senha certa concede
+sudo* — e não a API interna do controller. A Task 4 move a verificação dos
+métodos do controller para handlers de rota, então testes que chamassem
+`controller.confirm()` diretamente morreriam justamente na task que deveriam
+proteger.
+
+Por isso os testes invocam através de um **seam**: dois helpers
+(`invokeConfirmPassword` / `invokeConfirmPasskey`) que hoje chamam o método do
+controller e, na Task 4, passam a chamar o handler registrado pelo método. **As
+asserções nunca mudam** — só o corpo dos dois helpers, num único lugar. É essa a
+regra que as Tasks 4, 7 e 8 verificam, e é ela que dá sentido à rede: se uma
+asserção precisar mudar, o comportamento mudou.
 
 **Files:**
 - Test: `packages/authkit-server/tests/host/account_confirm_controller.spec.ts` (criar)
 
 **Interfaces:**
 - Consumes: `AccountConfirmController` de `src/host/controllers/account_confirm_controller.js`; `SUDO_SESSION_KEY` de `src/host/sudo_mode.js`; `ACCOUNT_SESSION_KEY` de `src/host/middleware/account_auth.js`.
-- Produces: o helper `fakeConfirmCtx(...)`, reusado nas Tasks 4, 6 e 7.
+- Produces: `fakeConfirmCtx(...)`, `invokeConfirmShow`, `invokeConfirmPassword`, `invokeConfirmPasskey` — reusados nas Tasks 4, 6 e 7.
 
 - [ ] **Step 1: Escrever os testes de caracterização**
 
@@ -128,93 +142,119 @@ function fakeConfirmCtx(opts: {
   return { ctx, cfg, session, flashed, rendered, redirects }
 }
 
-test.group('AccountConfirmController — comportamento atual (caracterização)', () => {
-  test('show renderiza account/confirm com csrfToken, returnTo e flags', async ({ assert }) => {
+// ---------------------------------------------------------------------------
+// SEAM DE INVOCAÇÃO
+//
+// Estes três helpers são o ÚNICO ponto deste arquivo que a Task 4 pode editar.
+// Hoje chamam os métodos do controller; depois do refactor chamam os handlers
+// de rota registrados pelos SudoMethod. As asserções abaixo NUNCA mudam — o que
+// está pinado é o comportamento na URL, não a API interna do controller.
+// ---------------------------------------------------------------------------
+
+async function invokeConfirmShow(ctx: any) {
+  return new AccountConfirmController().show(ctx)
+}
+
+/** Equivale a `POST /account/confirm`. */
+async function invokeConfirmPassword(ctx: any) {
+  return new AccountConfirmController().confirm(ctx)
+}
+
+/** Equivale a `POST /account/confirm/passkey`. */
+async function invokeConfirmPasskey(ctx: any) {
+  return new AccountConfirmController().passkeyConfirm(ctx)
+}
+
+test.group('confirmação de identidade — comportamento pinado', () => {
+  test('a tela de confirm é renderizada com csrfToken e returnTo', async ({ assert }) => {
     const h = fakeConfirmCtx({ qs: { return_to: '/account/security' } })
-    await new AccountConfirmController().show(h.ctx)
+    await invokeConfirmShow(h.ctx)
 
     assert.lengthOf(h.rendered, 1)
     assert.equal(h.rendered[0].view, 'account/confirm')
     assert.equal(h.rendered[0].props.csrfToken, 'csrf-token')
     assert.equal(h.rendered[0].props.returnTo, '/account/security')
-    assert.isFalse(h.rendered[0].props.passwordless as boolean)
   })
 
-  test('show rejeita return_to externo (open-redirect)', async ({ assert }) => {
+  test('a tela rejeita return_to externo (open-redirect)', async ({ assert }) => {
     const h = fakeConfirmCtx({ qs: { return_to: 'https://evil.com' } })
-    await new AccountConfirmController().show(h.ctx)
+    await invokeConfirmShow(h.ctx)
     assert.isNull(h.rendered[0].props.returnTo)
   })
 
-  test('confirm com senha correta marca sudo e redireciona pro returnTo', async ({ assert }) => {
+  test('senha correta concede sudo e redireciona pro returnTo', async ({ assert }) => {
     const h = fakeConfirmCtx({ input: { password: 'correta', return_to: '/account/security' } })
-    await new AccountConfirmController().confirm(h.ctx)
+    await invokeConfirmPassword(h.ctx)
 
     assert.isNumber(h.session[SUDO_SESSION_KEY])
     assert.deepEqual(h.redirects, ['/account/security'])
   })
 
-  test('confirm com senha correta audita com method=password', async ({ assert }) => {
+  test('senha correta é auditada com method=password', async ({ assert }) => {
     const h = fakeConfirmCtx({ input: { password: 'correta' } })
-    await new AccountConfirmController().confirm(h.ctx)
+    await invokeConfirmPassword(h.ctx)
 
     assert.lengthOf(h.cfg.audit.records, 1)
     assert.deepInclude(h.cfg.audit.records[0], { type: 'sudo.confirmed', accountId: ACCOUNT.id })
     assert.deepEqual((h.cfg.audit.records[0] as any).metadata, { method: 'password' })
   })
 
-  test('confirm com senha errada NÃO marca sudo, flasha erro e volta pro confirm', async ({ assert }) => {
+  test('senha errada NÃO concede sudo, flasha erro e volta pro confirm', async ({ assert }) => {
     const h = fakeConfirmCtx({ input: { password: 'errada', return_to: '/account/security' } })
-    await new AccountConfirmController().confirm(h.ctx)
+    await invokeConfirmPassword(h.ctx)
 
     assert.isUndefined(h.session[SUDO_SESSION_KEY])
     assert.isNotNull(h.flashed.confirmError)
     assert.deepEqual(h.redirects, ['/account/confirm?return_to=%2Faccount%2Fsecurity'])
   })
 
-  test('confirm sem senha NÃO marca sudo', async ({ assert }) => {
+  test('senha ausente NÃO concede sudo', async ({ assert }) => {
     const h = fakeConfirmCtx({ input: {} })
-    await new AccountConfirmController().confirm(h.ctx)
+    await invokeConfirmPassword(h.ctx)
     assert.isUndefined(h.session[SUDO_SESSION_KEY])
   })
 
-  test('passkeyConfirm sem challenge na sessão NÃO marca sudo', async ({ assert }) => {
+  test('passkey sem challenge na sessão NÃO concede sudo', async ({ assert }) => {
     const h = fakeConfirmCtx({ input: { response: '{}' } })
-    await new AccountConfirmController().passkeyConfirm(h.ctx)
+    await invokeConfirmPasskey(h.ctx)
 
     assert.isUndefined(h.session[SUDO_SESSION_KEY])
     assert.isNotNull(h.flashed.confirmError)
   })
 
-  test('passkeyConfirm válido marca sudo e audita com method=passkey', async ({ assert }) => {
+  test('passkey válida concede sudo e é auditada com method=passkey', async ({ assert }) => {
     const h = fakeConfirmCtx({
       input: { response: JSON.stringify({ id: 'cred' }) },
       session: { authkit_confirm_passkey_challenge: 'chal-1' },
       cfg: {
         accountStore: {
           async findById() { return ACCOUNT },
+          listPasskeys: async () => [{ id: 'pk-1' }],
+          generatePasskeyAuthenticationOptions: async () => ({}),
           async verifyPasskeyAuthentication() { return true },
         },
       },
     })
-    await new AccountConfirmController().passkeyConfirm(h.ctx)
+    await invokeConfirmPasskey(h.ctx)
 
     assert.isNumber(h.session[SUDO_SESSION_KEY])
     assert.deepEqual((h.cfg.audit.records[0] as any).metadata, { method: 'passkey' })
   })
 
-  test('passkeyConfirm inválido NÃO marca sudo e limpa o challenge', async ({ assert }) => {
+  test('passkey inválida NÃO concede sudo e limpa o challenge', async ({ assert }) => {
     const h = fakeConfirmCtx({
       input: { response: JSON.stringify({ id: 'cred' }) },
       session: { authkit_confirm_passkey_challenge: 'chal-1' },
       cfg: {
         accountStore: {
           async findById() { return ACCOUNT },
+          listPasskeys: async () => [{ id: 'pk-1' }],
+          generatePasskeyAuthenticationOptions: async () => ({}),
           async verifyPasskeyAuthentication() { return false },
         },
       },
     })
-    await new AccountConfirmController().passkeyConfirm(h.ctx)
+    await invokeConfirmPasskey(h.ctx)
 
     assert.isUndefined(h.session[SUDO_SESSION_KEY])
     assert.isUndefined(h.session.authkit_confirm_passkey_challenge)
@@ -402,8 +442,8 @@ Esperado: FAIL — `Cannot find module '../../src/host/sudo/runtime.js'`.
 Crie `packages/authkit-server/src/host/sudo/types.ts`:
 
 ```ts
-import type { HttpContext } from '@adonisjs/core/http'
-import type { Router } from '@adonisjs/core/http'
+import type { HttpContext, Router } from '@adonisjs/core/http'
+import type { ResolvedAuthkitConfig } from '../../define_config.js'
 
 /** Contexto entregue a todo método de sudo. */
 export interface SudoContext {
@@ -412,7 +452,7 @@ export interface SudoContext {
   account: { id: string; email: string | null }
   accountId: string
   /** Config resolvida do authkit (accountStore, messages, audit, mail...). */
-  cfg: any
+  cfg: ResolvedAuthkitConfig
   /** Destino pós-confirmação, já validado — só caminhos internos. */
   returnTo: string | null
 }
@@ -823,7 +863,43 @@ registra POST /account/confirm e passkey mantém /account/confirm/passkey
 
 ### Task 4: Migrar o controller para o SPI
 
-A task de maior risco. As duas suítes anteriores são o critério: **os 9 testes de caracterização da Task 1 têm que continuar verdes sem edição.**
+A task de maior risco. O critério é: **nenhuma asserção da Task 1 pode ser editada.** Você vai editar exatamente três funções daquele arquivo — os helpers do seam — e nada mais.
+
+Como o controller perde `confirm` e `passkeyConfirm` (a verificação migra para os handlers que `password()` e `passkey()` registram), religue o seam capturando os handlers com um router falso. Substitua o corpo dos três helpers em `tests/host/account_confirm_controller.spec.ts` por:
+
+```ts
+import { password } from '../../src/host/sudo/methods/password.js'
+import { passkey } from '../../src/host/sudo/methods/passkey.js'
+import { completeSudo, fail } from '../../src/host/sudo/runtime.js'
+import { sudoContextFrom } from '../../src/host/controllers/account_confirm_controller.js'
+
+/** Router falso: captura os handlers que os métodos registram, por path. */
+function captureHandlers() {
+  const routes = new Map<string, (ctx: any) => Promise<unknown>>()
+  const router = { post: (p: string, h: any) => { routes.set(`POST ${p}`, h) },
+                   get: (p: string, h: any) => { routes.set(`GET ${p}`, h) } } as any
+  const helpers = { contextFrom: sudoContextFrom, completeSudo, fail }
+  password().register!(router, helpers)
+  passkey().register!(router, helpers)
+  return routes
+}
+
+async function invokeConfirmShow(ctx: any) {
+  return new AccountConfirmController().show(ctx)
+}
+
+/** Equivale a `POST /account/confirm`. */
+async function invokeConfirmPassword(ctx: any) {
+  return captureHandlers().get('POST /account/confirm')!(ctx)
+}
+
+/** Equivale a `POST /account/confirm/passkey`. */
+async function invokeConfirmPasskey(ctx: any) {
+  return captureHandlers().get('POST /account/confirm/passkey')!(ctx)
+}
+```
+
+Se alguma **asserção** precisar mudar para a suíte passar, pare: o refactor alterou comportamento. Corrija o código de produção, não o teste, e registre o achado no relatório.
 
 **Files:**
 - Modify: `packages/authkit-server/src/host/controllers/account_confirm_controller.ts` (reescrito)
@@ -877,7 +953,7 @@ test.group('AccountConfirmController — SPI de métodos', () => {
 cd packages/authkit-server && node --import=@poppinss/ts-exec bin/test.ts --files tests/host/account_confirm_controller.spec.ts
 ```
 
-Esperado: 9 passed (caracterização) + 3 failed (props `methods` ainda não existem).
+Esperado: 9 passed (comportamento pinado) + 3 failed (props `methods` ainda não existem).
 
 - [ ] **Step 3: Adicionar o campo `sudo` ao config**
 
@@ -930,6 +1006,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
 import { validateReturnTo } from './account_session_controller.js'
 import { resolveAvailableMethods, LAST_METHOD_SESSION_KEY } from '../sudo/runtime.js'
+import type { ResolvedAuthkitConfig } from '../../define_config.js'
 import { password } from '../sudo/methods/password.js'
 import { passkey } from '../sudo/methods/passkey.js'
 import type { SudoContext, SudoMethod } from '../sudo/types.js'
@@ -937,7 +1014,14 @@ import type { SudoContext, SudoMethod } from '../sudo/types.js'
 /** Sem config → comportamento histórico. */
 export const SUDO_METHOD_DEFAULTS: SudoMethod[] = [password(), passkey()]
 
-export function configuredSudoMethods(cfg: any): SudoMethod[] {
+/**
+ * Ids dos métodos cujas rotas FORAM montadas, preenchido por `registerAuthHost`.
+ * Serve só para detectar flag-drift entre `config.sudo.methods` (o que a tela
+ * oferece) e `AuthHostOptions.sudoMethods` (o que tem rota).
+ */
+export const mountedSudoMethodIds = new Set<string>()
+
+export function configuredSudoMethods(cfg: ResolvedAuthkitConfig): SudoMethod[] {
   const configured = cfg?.sudo?.methods
   return Array.isArray(configured) && configured.length ? configured : SUDO_METHOD_DEFAULTS
 }
@@ -968,6 +1052,20 @@ export default class AccountConfirmController {
         { accountId: c.accountId },
         'authkit: nenhum método de sudo disponível para a conta — verifique config.sudo.methods'
       )
+    }
+
+    // FLAG-DRIFT: `config.sudo.methods` decide o que a tela OFERECE, mas as
+    // rotas são montadas em tempo de registro (`AuthHostOptions.sudoMethods`).
+    // Se as duas listas divergirem, a tela mostra um método cujo endpoint dá
+    // 404 — falha silenciosa e confusa. Avisa alto, uma vez por render.
+    for (const m of methods) {
+      if (!mountedSudoMethodIds.has(m.id)) {
+        ;(ctx as any).logger?.warn(
+          { method: m.id },
+          `authkit: método de sudo "${m.id}" está em config.sudo.methods mas não em ` +
+            'AuthHostOptions.sudoMethods — as rotas dele não foram montadas e o endpoint dará 404'
+        )
+      }
     }
 
     return c.cfg.render!(ctx, 'account/confirm', {
@@ -1013,7 +1111,11 @@ Com os imports no topo do arquivo:
 
 ```ts
 import { completeSudo, fail } from './sudo/runtime.js'
-import { SUDO_METHOD_DEFAULTS, sudoContextFrom } from './controllers/account_confirm_controller.js'
+import {
+  SUDO_METHOD_DEFAULTS,
+  sudoContextFrom,
+  mountedSudoMethodIds,
+} from './controllers/account_confirm_controller.js'
 import type { SudoRouteHelpers } from './sudo/types.js'
 ```
 
@@ -1025,7 +1127,7 @@ import type { SudoRouteHelpers } from './sudo/types.js'
 cd packages/authkit-server && node --import=@poppinss/ts-exec bin/test.ts
 ```
 
-Esperado: tudo verde. **Os 9 testes de caracterização da Task 1 devem passar sem edição.** Se algum falhar, o refactor mudou comportamento — corrija o código, não o teste.
+Esperado: tudo verde. **As asserções da Task 1 devem passar sem nenhuma edição** (só os três helpers do seam mudaram). Se uma asserção falhar, o refactor alterou comportamento — corrija o código, não o teste.
 
 - [ ] **Step 7: Commit**
 
@@ -1038,7 +1140,8 @@ métodos disponíveis. A verificação vive em cada método, e a concessão só 
 completeSudo. Remove isPasswordless, cujo docblock (linhas 36-41) descrevia
 uma heurística com passkeys que o código (157-170) não implementava.
 
-Os 9 testes de caracterização da Task 1 passam sem edição."
+As asserções da Task 1 passam intactas; só os três helpers do seam foram
+religados para os handlers de rota."
 ```
 
 ---
@@ -1195,7 +1298,13 @@ Crie `packages/authkit-server/tests/host/sudo_method_magic_link.spec.ts`:
 ```ts
 import { test } from '@japa/runner'
 import { createHash } from 'node:crypto'
-import { magicLink, SUDO_LINK_SESSION_KEY, SUDO_LINK_TTL_MS } from '../../src/host/sudo/methods/magic_link.js'
+import {
+  magicLink,
+  issueSudoLinkToken,
+  verifySudoLinkToken,
+  SUDO_LINK_SESSION_KEY,
+  SUDO_LINK_TTL_MS,
+} from '../../src/host/sudo/methods/magic_link.js'
 
 function ctxWith(opts: { email?: string | null; onSudoLink?: unknown; session?: Record<string, unknown> } = {}) {
   const session: Record<string, unknown> = { ...opts.session }
@@ -1236,32 +1345,32 @@ test.group('sudoMethods.magicLink — token', () => {
     const c = ctxWith({ onSudoLink: async () => {} })
     c._session[SUDO_LINK_SESSION_KEY] = { hash: hash('tok-1'), expiresAt: Date.now() + SUDO_LINK_TTL_MS }
 
-    assert.isTrue(magicLink().__verifyToken(c, 'tok-1'))
+    assert.isTrue(verifySudoLinkToken(c, 'tok-1'))
   })
 
   test('token NÃO serve duas vezes', async ({ assert }) => {
     const c = ctxWith({ onSudoLink: async () => {} })
     c._session[SUDO_LINK_SESSION_KEY] = { hash: hash('tok-1'), expiresAt: Date.now() + SUDO_LINK_TTL_MS }
 
-    assert.isTrue(magicLink().__verifyToken(c, 'tok-1'))
-    assert.isFalse(magicLink().__verifyToken(c, 'tok-1'))
+    assert.isTrue(verifySudoLinkToken(c, 'tok-1'))
+    assert.isFalse(verifySudoLinkToken(c, 'tok-1'))
   })
 
   test('token expirado é rejeitado', async ({ assert }) => {
     const c = ctxWith({ onSudoLink: async () => {} })
     c._session[SUDO_LINK_SESSION_KEY] = { hash: hash('tok-1'), expiresAt: Date.now() - 1 }
 
-    assert.isFalse(magicLink().__verifyToken(c, 'tok-1'))
+    assert.isFalse(verifySudoLinkToken(c, 'tok-1'))
   })
 
   test('token de OUTRA sessão é rejeitado (nada guardado nesta)', async ({ assert }) => {
     const c = ctxWith({ onSudoLink: async () => {} })
-    assert.isFalse(magicLink().__verifyToken(c, 'tok-de-outro-browser'))
+    assert.isFalse(verifySudoLinkToken(c, 'tok-de-outro-browser'))
   })
 
   test('o segredo NÃO é guardado em claro na sessão', async ({ assert }) => {
     const c = ctxWith({ onSudoLink: async () => {} })
-    magicLink().__issueToken(c)
+    issueSudoLinkToken(c)
 
     const stored = c._session[SUDO_LINK_SESSION_KEY] as { hash: string }
     assert.notInclude(JSON.stringify(stored), 'tok')
@@ -1319,35 +1428,36 @@ const sha256 = (value: string) => createHash('sha256').update(value).digest('hex
  * O "só mesmo navegador" é propriedade desejada aqui, diferente do magic link
  * de login, onde é limitação conhecida.
  */
-export function magicLink(): SudoMethod & {
-  __issueToken(c: SudoContext): string
-  __verifyToken(c: SudoContext, token: string): boolean
-} {
-  function issueToken(c: SudoContext): string {
-    const token = randomBytes(32).toString('hex')
-    const pending: PendingLink = { hash: sha256(token), expiresAt: Date.now() + SUDO_LINK_TTL_MS }
-    c.ctx.session.put(SUDO_LINK_SESSION_KEY, pending)
-    return token
-  }
+/**
+ * Emite um token de sudo e guarda o HASH na sessão que pediu.
+ * Exportada (em vez de membro `__` do método) para ser testável sem furar a
+ * API pública do SudoMethod.
+ */
+export function issueSudoLinkToken(c: SudoContext): string {
+  const token = randomBytes(32).toString('hex')
+  const pending: PendingLink = { hash: sha256(token), expiresAt: Date.now() + SUDO_LINK_TTL_MS }
+  c.ctx.session.put(SUDO_LINK_SESSION_KEY, pending)
+  return token
+}
 
-  function verifyToken(c: SudoContext, token: string): boolean {
-    const pending = c.ctx.session.get(SUDO_LINK_SESSION_KEY) as PendingLink | undefined
-    if (!pending) return false
+/** Consome o token: single-use, expira em 5 min, comparação em tempo constante. */
+export function verifySudoLinkToken(c: SudoContext, token: string): boolean {
+  const pending = c.ctx.session.get(SUDO_LINK_SESSION_KEY) as PendingLink | undefined
+  if (!pending) return false
 
-    // Single-use: some na primeira tentativa, certa ou errada.
-    c.ctx.session.forget(SUDO_LINK_SESSION_KEY)
+  // Single-use: some na primeira tentativa, certa ou errada.
+  c.ctx.session.forget(SUDO_LINK_SESSION_KEY)
 
-    if (Date.now() > pending.expiresAt) return false
+  if (Date.now() > pending.expiresAt) return false
 
-    const a = Buffer.from(sha256(token), 'hex')
-    const b = Buffer.from(pending.hash, 'hex')
-    return a.length === b.length && timingSafeEqual(a, b)
-  }
+  const a = Buffer.from(sha256(token), 'hex')
+  const b = Buffer.from(pending.hash, 'hex')
+  return a.length === b.length && timingSafeEqual(a, b)
+}
 
+export function magicLink(): SudoMethod {
   return {
     id: 'magic-link',
-    __issueToken: issueToken,
-    __verifyToken: verifyToken,
 
     async isAvailable(c: SudoContext) {
       if (!c.account?.email) return false
@@ -1367,7 +1477,7 @@ export function magicLink(): SudoMethod & {
         const c = await h.contextFrom(ctx)
         if (!c.account?.email) return h.fail(c, 'account.confirm.error')
 
-        const token = issueToken(c)
+        const token = issueSudoLinkToken(c)
         const qs = c.returnTo ? `?return_to=${encodeURIComponent(c.returnTo)}` : ''
         const url = `/account/confirm/magic-link/${token}${qs}`
 
@@ -1385,7 +1495,7 @@ export function magicLink(): SudoMethod & {
       router.get('/account/confirm/magic-link/:token', async (ctx: any) => {
         const c = await h.contextFrom(ctx)
         const token = ctx.params?.token as string | undefined
-        if (!token || !verifyToken(c, token)) return h.fail(c, 'account.confirm.error')
+        if (!token || !verifySudoLinkToken(c, token)) return h.fail(c, 'account.confirm.error')
         return h.completeSudo(c, 'magic-link')
       })
     },
@@ -1696,6 +1806,7 @@ E troque a montagem da Task 4 para usar a opção:
 ```ts
     for (const method of opts?.sudoMethods ?? SUDO_METHOD_DEFAULTS) {
       method.register?.(router, helpers)
+      mountedSudoMethodIds.add(method.id)
     }
 ```
 
@@ -1744,13 +1855,16 @@ npm run typecheck
 npm run build
 ```
 
-Esperado: suíte verde, typecheck limpo, build sem erro. **Confirme que os 9 testes de caracterização da Task 1 nunca foram editados:**
+Esperado: suíte verde, typecheck limpo, build sem erro. **Confirme que nenhuma asserção da Task 1 foi alterada** — só os três helpers do seam:
 
 ```bash
-git log --oneline -- tests/host/account_confirm_controller.spec.ts
+git diff $(git log --format=%H -- tests/host/account_confirm_controller.spec.ts | tail -1) \
+  -- tests/host/account_confirm_controller.spec.ts
 ```
 
-Esperado: exatamente **um** commit (o da Task 1). Se houver mais, algum passo mudou comportamento — investigue antes de abrir o PR.
+Esperado: o diff toca APENAS `invokeConfirmShow`, `invokeConfirmPassword`,
+`invokeConfirmPasskey` e seus imports. Qualquer linha `assert.*` alterada
+significa que algum passo mudou comportamento — investigue antes do PR.
 
 - [ ] **Step 8: Commit**
 
@@ -1786,7 +1900,7 @@ customizados, com a mesma justificativa de social/admin/rateLimit."
 | i18n pt-BR + en | 7 |
 | Remoção de `isPasswordless` | 4 |
 | Config `sudo.methods` com default `[password(), passkey()]` | 4, 8 |
-| Testes atuais passam sem alteração | 1 (rede), 4/7/8 (verificação) |
+| Comportamento atual pinado; asserções nunca editadas | 1 (rede + seam), 4/7/8 (verificação) |
 
 Sem lacunas.
 

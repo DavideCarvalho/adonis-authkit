@@ -24,7 +24,17 @@ export default class PatIntrospectionController {
       return { active: false }
     }
 
-    const meta = await cfg.patStore!.findActiveByToken(token)
+    // `patStore` é capacidade opcional; a rota `/authkit/pat/introspect` fica
+    // sempre montada (é infraestrutura M2M, não uma tela desmontável). Sem
+    // store cabeado, RFC 7662 §2.2 já cobre o caso: para o servidor de
+    // recursos, um token que não pode ser resolvido é indistinguível de um
+    // token inválido/desconhecido → `{ active: false }`, não 404. Um 404
+    // quebraria clientes de introspecção que só sabem parsear o corpo JSON do
+    // protocolo (mesma classe de bug do `account_tokens_controller`, mas a
+    // resposta correta aqui é a negativa do protocolo, não um HTTP status).
+    if (!cfg.patStore) return { active: false }
+
+    const meta = await cfg.patStore.findActiveByToken(token)
     if (!meta) return { active: false }
 
     const account = await cfg.accountStore.findById(meta.accountId)

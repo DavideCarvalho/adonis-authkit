@@ -24,7 +24,10 @@ processo `account_login_url.ts` (mesmo padrão de `admin_prefix.ts`).
 **3 — `/account/tokens` sem `patStore` → 404 limpo.** As três actions de
 `account_tokens_controller` faziam `cfg.patStore!` sobre config opcional →
 `Cannot read properties of undefined` (500). Agora degradam para 404, como orgs
-sem tabelas.
+sem tabelas. Mesma classe de bug corrigida em `pat_introspection_controller`
+(`/authkit/pat/introspect`, sempre montada): sem `patStore`, devolve `{ active: false }`
+em vez de 500 — resposta negativa do protocolo (RFC 7662), não um 404 HTTP, já
+que o endpoint é M2M JSON e sempre existe independente do store.
 
 **4 — Contrato de props documentado.** Adicionadas as tabelas de props de
 `account/security`, `account/mfa`, `account/confirm` e `account/email-confirmed`

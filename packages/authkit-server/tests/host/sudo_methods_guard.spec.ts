@@ -3,7 +3,8 @@
  *
  * Cobre os achados Critical do review da Task 4:
  *  - `config.sudo.methods` precisa DESABILITAR de fato o endpoint do método;
- *  - os handlers de passkey precisam exigir `c.account`.
+ *  - os handlers de passkey precisam exigir `c.account`;
+ *  - as rotas dos métodos precisam ficar sob o `accountGuard` (idle timeout).
  */
 
 import { test } from '@japa/runner'
@@ -15,6 +16,7 @@ import { SUDO_SESSION_KEY } from '../../src/host/sudo_mode.js'
 import { ACCOUNT_SESSION_KEY } from '../../src/host/middleware/account_auth.js'
 import { CONFIRM_PASSKEY_CHALLENGE_KEY } from '../../src/host/sudo/methods/passkey.js'
 import { DEFAULT_MESSAGES } from '../../src/host/i18n.js'
+import { registerAuthHost } from '../../src/host/register_auth_host.js'
 
 const ACCOUNT = { id: 'acc-1', email: 'user@example.com' }
 
@@ -170,5 +172,62 @@ test.group('sudo — handlers de passkey exigem a conta (Critical 2)', () => {
 
     assert.isUndefined(h.session[CONFIRM_PASSKEY_CHALLENGE_KEY])
     assert.lengthOf(h.notFounds, 1)
+  })
+})
+
+/**
+ * Router falso que registra a QUAL grupo cada rota pertence. `registerAuthHost`
+ * não aninha grupos, então um contador simples basta.
+ */
+function groupTrackingRouter() {
+  const routes: Array<{ key: string; group: number | null }> = []
+  let current: number | null = null
+  let seq = 0
+
+  const mk = (verb: string) => (pattern: string) => {
+    routes.push({ key: `${verb} ${pattern}`, group: current })
+    const chain: any = { as: () => chain, middleware: () => chain, use: () => chain }
+    return chain
+  }
+
+  const groupChain: any = {
+    as: () => groupChain,
+    prefix: () => groupChain,
+    middleware: () => groupChain,
+    use: () => groupChain,
+  }
+
+  return {
+    get: mk('GET'),
+    post: mk('POST'),
+    patch: mk('PATCH'),
+    delete: mk('DELETE'),
+    put: mk('PUT'),
+    any: mk('ANY'),
+    group: (cb: () => void) => {
+      const previous = current
+      current = seq++
+      cb()
+      current = previous
+      return groupChain
+    },
+    routes,
+  } as any
+}
+
+test.group('sudo — rotas dos métodos sob o accountGuard (Important 3)', () => {
+  test('POST /account/confirm está no mesmo grupo guardado que /account/tokens', ({ assert }) => {
+    const router = groupTrackingRouter()
+    registerAuthHost(router, { mountPath: '/oidc' })
+
+    const guarded = router.routes.find((r: any) => r.key === 'GET /account/tokens')
+    const confirmPost = router.routes.find((r: any) => r.key === 'POST /account/confirm')
+    const passkeyPost = router.routes.find((r: any) => r.key === 'POST /account/confirm/passkey')
+    const passkeyOptions = router.routes.find((r: any) => r.key === 'POST /account/confirm/passkey/options')
+
+    assert.isNotNull(guarded.group)
+    assert.equal(confirmPost.group, guarded.group)
+    assert.equal(passkeyPost.group, guarded.group)
+    assert.equal(passkeyOptions.group, guarded.group)
   })
 })

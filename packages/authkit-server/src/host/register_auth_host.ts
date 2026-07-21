@@ -384,6 +384,28 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
       // registra suas próprias rotas de verificação (SPI `SudoMethod`).
       router.get('/account/confirm', [C.accountConfirm, 'show'])
 
+      // Rotas próprias dos métodos de sudo — DENTRO do grupo com `accountGuard`.
+      // O guard não é só "tem sessão": ele roda `checkAndRefreshIdle`, que apaga
+      // a sessão vencida por idle e refresca `authkit_last_seen`. Fora do grupo,
+      // uma sessão já vencida (ainda não colhida) podia postar a senha correta e
+      // receber `markSudo` — e as rotas de sudo não refrescavam o last-seen.
+      // Nenhum método built-in é alcançável por GET vindo de e-mail: o token de
+      // sudo por magic link vive na PRÓPRIA sessão, então o usuário precisa
+      // estar logado no mesmo navegador de qualquer forma. Um método que
+      // genuinamente não puder ficar sob o guard precisa de uma decisão
+      // explícita, não de mover todos para fora.
+      const helpers: SudoRouteHelpers = {
+        contextFrom: sudoContextFrom,
+        completeSudo,
+        fail,
+      }
+      for (const method of SUDO_METHOD_DEFAULTS) {
+        method.register?.(router, helpers)
+        // Registra o que de fato tem rota, para o controller detectar flag-drift
+        // contra `config.sudo.methods` (que só decide o que a TELA oferece).
+        mountedSudoMethodIds.add(method.id)
+      }
+
       // Organizations (multi-tenancy) — sempre montadas; controller retorna 404/403 sem tabelas.
       router.get('/account/orgs', [C.accountOrgs, 'index'])
       router.post('/account/orgs', [C.accountOrgs, 'store'])
@@ -431,23 +453,6 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
       router.get('/account/api/orgs/:id', [C.accountApi, 'showOrg'])
     })
     .use([accountGuard])
-
-  // Rotas próprias dos métodos de sudo. Fora do grupo com AccountAuthMiddleware
-  // apenas para os métodos que precisam ser alcançáveis por GET vindo de e-mail;
-  // cada método aplica seu próprio guard quando necessário.
-  {
-    const helpers: SudoRouteHelpers = {
-      contextFrom: sudoContextFrom,
-      completeSudo,
-      fail,
-    }
-    for (const method of SUDO_METHOD_DEFAULTS) {
-      method.register?.(router, helpers)
-      // Registra o que de fato tem rota, para o controller detectar flag-drift
-      // contra `config.sudo.methods` (que só decide o que a TELA oferece).
-      mountedSudoMethodIds.add(method.id)
-    }
-  }
 
   // Console admin (do config.admin.enabled ou opts). Protegido pelo adminGuard (sessão + role global).
   if (adminOpt) {

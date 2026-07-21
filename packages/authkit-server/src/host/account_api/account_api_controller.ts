@@ -39,6 +39,7 @@ import {
 } from '../../accounts/account_store.js';
 import { PasswordPolicyError } from '../../password/password_manager.js';
 import type { PatRecord } from '../../pat/pat_store.js';
+import { accountPath } from '../account_paths.js';
 import { ACTIVE_ORG_COOKIE } from '../active_org_cookie.js';
 import { AdminSessionsService } from '../admin_sessions_service.js';
 import { syncAdonisAuthLogout } from '../adonis_auth_sync.js';
@@ -481,7 +482,7 @@ export default class AccountApiController {
     });
 
     const origin = `${ctx.request.protocol()}://${ctx.request.host()}`;
-    const confirmUrl = `${origin}/account/email/confirm?token=${encodeURIComponent(issued.token)}`;
+    const confirmUrl = `${origin}${accountPath('emailConfirm')}?token=${encodeURIComponent(issued.token)}`;
 
     if (cfg.mail?.onEmailChangeConfirm) {
       await cfg.mail.onEmailChangeConfirm({

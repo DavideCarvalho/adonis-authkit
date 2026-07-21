@@ -1,6 +1,7 @@
 import { supportsOrganizations } from '../../accounts/account_store.js';
 import type { OrgInvitation, OrgMember, OrgSummary } from '../../accounts/account_store.js';
 import type { ResolvedServerConfig } from '../../define_config.js';
+import { accountPath } from '../account_paths.js';
 import type { SettingsCapability } from '../runtime_settings.js';
 import { isRoleInCatalog, resolveRoleCatalogList } from '../runtime_toggles.js';
 import type { AdminActor } from './admin_users_service.js';
@@ -398,7 +399,7 @@ export class AdminOrgsService {
 
     // Dispara mail hook (best-effort)
     if (this.cfg.mail?.onOrgInvitation) {
-      const acceptUrl = `${origin}/account/orgs/invitations/${token}/accept`;
+      const acceptUrl = `${origin}${accountPath('orgs')}/invitations/${token}/accept`;
       try {
         await this.cfg.mail.onOrgInvitation({
           email: input.email,

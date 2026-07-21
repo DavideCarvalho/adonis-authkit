@@ -15,6 +15,7 @@
  */
 
 import type { HttpContext } from '@adonisjs/core/http';
+import { accountPath } from './account_paths.js';
 import { ACCOUNT_SESSION_KEY } from './middleware/account_auth.js';
 import type { SettingsCapability } from './runtime_settings.js';
 import { SETTING_KEYS } from './runtime_toggles.js';
@@ -242,8 +243,8 @@ export async function requireSudo(
   const qs = (ctx.request as any).parsedUrl?.search ?? '';
   const dest = qs ? `${rawUrl}${qs}` : rawUrl;
   const returnTo =
-    dest && dest !== '/' && !dest.startsWith('/account/confirm')
+    dest && dest !== '/' && !dest.startsWith(accountPath('confirm'))
       ? `?return_to=${encodeURIComponent(dest)}`
       : '';
-  return ctx.response.redirect(`/account/confirm${returnTo}`);
+  return ctx.response.redirect(`${accountPath('confirm')}${returnTo}`);
 }

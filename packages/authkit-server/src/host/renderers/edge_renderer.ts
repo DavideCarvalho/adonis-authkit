@@ -1,5 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http';
 import { getAccountLoginUrl } from '../account_login_url.js';
+import { accountPathsMap } from '../account_paths.js';
 import { type AuthMessages, DEFAULT_MESSAGES, translate } from '../i18n.js';
 
 /**
@@ -39,7 +40,19 @@ export async function renderEdgeView(
   // usam o destino configurável (`accountLoginUrl`) em vez do `/account/login` fixo,
   // que pode estar desmontado. Props explícitas ainda têm precedência (spread depois).
   const loginUrl = getAccountLoginUrl();
-  return (ctx as any).view.render(`authkit::${view}`, { loginUrl, ...props, t, messages });
+  // `accountPaths` como prop global: os `<form action>`/`fetch()` das views do
+  // console de conta (security, mfa, tokens, apps, orgs, ...) derivam o path de
+  // cada tela daqui, respeitando o prefixo/segmentos configurados via
+  // `accountRoutes` — sem cada view conhecer o prefixo. Os action-subpaths
+  // fixos (`/password`, `/passkeys/verify`, ...) são concatenados na própria view.
+  const accountPaths = accountPathsMap();
+  return (ctx as any).view.render(`authkit::${view}`, {
+    loginUrl,
+    accountPaths,
+    ...props,
+    t,
+    messages,
+  });
 }
 
 /** Renderer do seam para hosts Edge. As views são donas-da-lib (disco `authkit::`). */

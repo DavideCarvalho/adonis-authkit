@@ -1,5 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { Router } from '@adonisjs/core/http';
+import { accountPath } from '../../account_paths.js';
 import { translate } from '../../i18n.js';
 import { isSudoMethodEnabled } from '../runtime.js';
 import type { SudoContext, SudoMethod, SudoRouteHelpers } from '../types.js';
@@ -137,12 +138,12 @@ export function magicLink(): SudoMethod {
       return {
         labelKey: 'account.confirm.method.magic_link',
         kind: 'action' as const,
-        endpoint: '/account/confirm/magic-link',
+        endpoint: `${accountPath('confirm')}/magic-link`,
       };
     },
 
     register(router: Router, h: SudoRouteHelpers) {
-      router.post('/account/confirm/magic-link', async (ctx: any) => {
+      router.post(`${accountPath('confirm')}/magic-link`, async (ctx: any) => {
         const c = await h.contextFrom(ctx);
 
         // ANTES de qualquer coisa: o host desligou este método? A rota é montada
@@ -163,7 +164,7 @@ export function magicLink(): SudoMethod {
 
         const qs = c.returnTo ? `?return_to=${encodeURIComponent(c.returnTo)}` : '';
         const token = issueSudoLinkToken(c);
-        const path = `/account/confirm/magic-link/${token}${qs}`;
+        const path = `${accountPath('confirm')}/magic-link/${token}${qs}`;
         const origin = requestOrigin(ctx);
 
         try {
@@ -183,10 +184,10 @@ export function magicLink(): SudoMethod {
           'confirmNotice',
           translate(c.cfg.messages, 'account.confirm.magic_link_sent'),
         );
-        return ctx.response.redirect(`/account/confirm${qs}`);
+        return ctx.response.redirect(`${accountPath('confirm')}${qs}`);
       });
 
-      router.get('/account/confirm/magic-link/:token', async (ctx: any) => {
+      router.get(`${accountPath('confirm')}/magic-link/:token`, async (ctx: any) => {
         const c = await h.contextFrom(ctx);
 
         if (!isSudoMethodEnabled(c.cfg, 'magic-link')) return h.fail(c, 'account.confirm.error');

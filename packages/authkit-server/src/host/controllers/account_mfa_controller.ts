@@ -2,6 +2,7 @@ import '../augmentations.js';
 import type { HttpContext } from '@adonisjs/core/http';
 import QRCode from 'qrcode';
 import { supportsPasskeys } from '../../accounts/account_store.js';
+import { accountPath } from '../account_paths.js';
 import { translate } from '../i18n.js';
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js';
 import { resolveRuntimeSettings } from '../runtime_settings.js';
@@ -10,6 +11,22 @@ import { requireSudo } from '../sudo_mode.js';
 
 /** Desafio WebAuthn pendente (registro) guardado na sessão entre begin/finish. */
 const PASSKEY_REG_CHALLENGE_KEY = 'authkit_passkey_reg_challenge';
+
+/**
+ * `true` quando a requisição é uma NAVEGAÇÃO (form/browser) e não um XHR/fetch:
+ * o cliente aceita `text/html` e NÃO pede explicitamente `application/json`.
+ *
+ * Endpoints duais (JSON para o app React / redirect para o `<form>` clássico)
+ * decidem a resposta por aqui. Um `fetch` sem `Accept` explícito manda coringa
+ * (`*` + `/` + `*`) → não é navegação → JSON (mantém o comportamento de sempre
+ * da `mfa.edge`).
+ */
+function isNavigationRequest(ctx: HttpContext): boolean {
+  const accept = (ctx.request.header('accept') ?? '').toLowerCase();
+  const wantsJson = accept.includes('application/json');
+  const wantsHtml = accept.includes('text/html');
+  return wantsHtml && !wantsJson;
+}
 
 /**
  * Console de MFA da conta (atrás do account_auth middleware). Enrollment TOTP
@@ -123,6 +140,16 @@ export default class AccountMfaController {
         cfg.audit,
       );
     }
+    // Resposta DUAL. A cerimônia WebAuthn da tela built-in (`mfa.edge`) chama
+    // este endpoint por `fetch` e só olha `res.ok` — mas um `<form>` HTML
+    // clássico (progressive enhancement, ou host que POSTa a assertion sem JS)
+    // fica encarando o JSON `{ok:true}` cru. Navegação (o cliente ACEITA HTML e
+    // NÃO pede JSON) → redirect para a tela de MFA (respeitando `accountRoutes`);
+    // XHR/fetch → JSON de sempre. O fetch da view manda Accept coringa, então
+    // cai no ramo JSON e continua funcionando.
+    if (isNavigationRequest(ctx)) {
+      return ctx.response.redirect(accountPath('mfa'));
+    }
     return { ok: true };
   }
 
@@ -160,7 +187,7 @@ export default class AccountMfaController {
         cfg.audit,
       );
     }
-    return ctx.response.redirect('/account/mfa');
+    return ctx.response.redirect(accountPath('mfa'));
   }
 
   /** POST /account/mfa/enroll — gera segredo pendente + QR e mostra a confirmação. */
@@ -178,7 +205,7 @@ export default class AccountMfaController {
 
     const started = await cfg.accountStore.startTotpEnrollment?.(userId);
     if (!started) {
-      return ctx.response.redirect('/account/mfa');
+      return ctx.response.redirect(accountPath('mfa'));
     }
 
     // QR renderizado server-side como data-URL e passado como prop.
@@ -241,7 +268,7 @@ export default class AccountMfaController {
     }
     // Mostra os recovery codes UMA vez (flash) e volta pro estado "ativado".
     ctx.session.flash('recoveryCodes', result.recoveryCodes ?? []);
-    return ctx.response.redirect('/account/mfa');
+    return ctx.response.redirect(accountPath('mfa'));
   }
 
   /** POST /account/mfa/disable — desliga o MFA. */
@@ -277,6 +304,6 @@ export default class AccountMfaController {
         cfg.audit,
       );
     }
-    return ctx.response.redirect('/account/mfa');
+    return ctx.response.redirect(accountPath('mfa'));
   }
 }

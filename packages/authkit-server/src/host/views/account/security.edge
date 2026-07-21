@@ -12,16 +12,16 @@
           <p class="mt-1 text-sm text-gray-500">{{ t('account.security.current_email', { email: email }) }}</p>
         @end
       </div>
-      <form method="POST" action="/account/logout">
+      <form method="POST" action="{{ accountPaths?.logout ?? '/account/logout' }}">
         <input type="hidden" name="_csrf" value="{{ csrfToken }}">
         <button type="submit" class="text-sm text-gray-500 hover:underline">{{ t('account.security.logout') }}</button>
       </form>
     </div>
 
     <nav class="mb-6 flex gap-4 text-sm font-medium">
-      <a href="/account/tokens" class="text-gray-500 hover:underline">{{ t('account.tokens.title') }}</a>
-      <a href="/account/security" class="text-gray-900 underline">{{ t('account.security.title') }}</a>
-      <a href="/account/apps" class="text-gray-500 hover:underline">{{ t('account.apps.title') }}</a>
+      <a href="{{ accountPaths?.tokens ?? '/account/tokens' }}" class="text-gray-500 hover:underline">{{ t('account.tokens.title') }}</a>
+      <a href="{{ accountPaths?.security ?? '/account/security' }}" class="text-gray-900 underline">{{ t('account.security.title') }}</a>
+      <a href="{{ accountPaths?.apps ?? '/account/apps' }}" class="text-gray-500 hover:underline">{{ t('account.apps.title') }}</a>
     </nav>
 
     @if(profileUpdated)
@@ -34,7 +34,7 @@
       <div class="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
         <h2 class="mb-1 text-sm font-semibold text-gray-900">{{ t('account.profile.section') }}</h2>
         <p class="mb-4 text-xs text-gray-500">{{ t('account.profile.intro') }}</p>
-        <form method="POST" action="/account/security/profile" enctype="multipart/form-data" class="space-y-4">
+        <form method="POST" action="{{ accountPaths?.security ?? '/account/security' }}/profile" enctype="multipart/form-data" class="space-y-4">
           <input type="hidden" name="_csrf" value="{{ csrfToken }}">
           @if(avatarUrl)
             <div>
@@ -89,7 +89,7 @@
 
       <div class="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
         <h2 class="mb-4 text-sm font-semibold text-gray-900">{{ t('account.security.password_section') }}</h2>
-        <form method="POST" action="/account/security/password" class="space-y-4">
+        <form method="POST" action="{{ accountPaths?.security ?? '/account/security' }}/password" class="space-y-4">
           <input type="hidden" name="_csrf" value="{{ csrfToken }}">
           <div>
             <label class="mb-1 block text-sm font-medium text-gray-700">{{ t('account.security.current_password_label') }}</label>
@@ -110,7 +110,7 @@
       <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
         <h2 class="mb-1 text-sm font-semibold text-gray-900">{{ t('account.security.email_section') }}</h2>
         <p class="mb-4 text-xs text-gray-500">{{ t('account.security.email_intro') }}</p>
-        <form method="POST" action="/account/security/email" class="space-y-4">
+        <form method="POST" action="{{ accountPaths?.security ?? '/account/security' }}/email" class="space-y-4">
           <input type="hidden" name="_csrf" value="{{ csrfToken }}">
           <div>
             <label class="mb-1 block text-sm font-medium text-gray-700">{{ t('account.security.new_email_label') }}</label>
@@ -164,7 +164,7 @@
       <div class="mt-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
         <h2 class="mb-1 text-sm font-semibold text-gray-900">{{ t('account.security.trusted_devices_section') }}</h2>
         <p class="mb-4 text-xs text-gray-500">{{ t('account.security.trusted_devices_intro') }}</p>
-        <form method="POST" action="/account/security/trusted-devices/revoke">
+        <form method="POST" action="{{ accountPaths?.security ?? '/account/security' }}/trusted-devices/revoke">
           <input type="hidden" name="_csrf" value="{{ csrfToken }}">
           <button type="submit" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
             {{ t('account.security.trusted_devices_revoke') }}
@@ -177,7 +177,7 @@
       <div class="mt-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
         <h2 class="mb-1 text-sm font-semibold text-gray-900">{{ t('account.export.section') }}</h2>
         <p class="mb-4 text-xs text-gray-500">{{ t('account.export.intro') }}</p>
-        <a href="/account/security/export"
+        <a href="{{ accountPaths?.security ?? '/account/security' }}/export"
           class="inline-block rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
           {{ t('account.export.submit') }}
         </a>
@@ -193,7 +193,7 @@
       <div class="mt-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-red-200">
         <h2 class="mb-1 text-sm font-semibold text-red-700">{{ t('account.delete.section') }}</h2>
         <p class="mb-4 text-xs text-gray-500">{{ t('account.delete.intro') }}</p>
-        <form method="POST" action="/account/security/delete" class="space-y-4">
+        <form method="POST" action="{{ accountPaths?.security ?? '/account/security' }}/delete" class="space-y-4">
           <input type="hidden" name="_csrf" value="{{ csrfToken }}">
           <div>
             <label class="mb-1 block text-sm font-medium text-gray-700">{{ t('account.delete.confirm_password_label') }}</label>

@@ -3,6 +3,12 @@ import type { AuthSocialConfig, RateLimitConfigInput } from '../define_config.js
 import { resolveRateLimit } from '../define_config.js';
 import { accountHome } from './account_home.js';
 import { getAccountLoginUrl, setAccountLoginUrl } from './account_login_url.js';
+import {
+  type AccountPathsOptions,
+  accountPath,
+  joinAccountPath,
+  setAccountPaths,
+} from './account_paths.js';
 import { resolveAccountRoles } from './account_roles.js';
 import { adminApiGuard } from './admin_api/admin_api_guard.js';
 import {
@@ -304,6 +310,35 @@ export interface AuthHostOptions {
    * controllers de conta e a view `otp-unlock`. Ver `account_login_url.ts`.
    */
   accountLoginUrl?: string;
+  /**
+   * Prefixo e segmentos de tela CONFIGURÁVEIS/LOCALIZÁVEIS do console de conta
+   * (`/account/*`). Top-level (e não dentro de `account`) DE PROPÓSITO: mesmo
+   * com `account: false`, a lib continua montando as rotas de sudo
+   * (`/account/confirm*`) e a JSON API (`/account/api/*`) — o prefixo precisa
+   * valer para essa infraestrutura também, então ele não pode viver debaixo da
+   * flag que desmonta as telas navegáveis.
+   *
+   * - `prefix` troca o `/account` base (ex.: `'/conta'`).
+   * - `paths` traduz cada TELA navegável (ex.: `{ security: 'seguranca',
+   *   confirm: 'confirmar' }`).
+   *
+   * Só o prefixo e o segmento de tela são renomeáveis — os action-subpaths dos
+   * POSTs internos (`/password`, `/enroll`, `/passkeys/verify`, ...) e o
+   * segmento `api` da JSON API são FIXOS (endpoints de máquina, invisíveis ao
+   * usuário). Ver `account_paths.ts`.
+   *
+   * Ausente → tudo idêntico a hoje (`/account/...` — back-compat total).
+   *
+   * @example
+   * // Console em português: /conta/seguranca, /conta/confirmar, ...
+   * registerAuthHost(router, {
+   *   accountRoutes: {
+   *     prefix: '/conta',
+   *     paths: { security: 'seguranca', confirm: 'confirmar', mfa: 'mfa' },
+   *   },
+   * })
+   */
+  accountRoutes?: AccountPathsOptions;
 }
 
 /**
@@ -379,10 +414,20 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
   const adminOpt = opts.admin ?? (hostCfg?.adminEnabled ? true : undefined);
   const adminApiOpt = opts.adminApi ?? (hostCfg?.adminApiEnabled ? true : undefined);
 
+  // Prefixo/segmentos configuráveis do console de conta — persiste no singleton
+  // de processo ANTES de qualquer construção de rota/closure, para que o registro
+  // de rotas, os guards, os controllers, os e-mails e as views leiam o mesmo
+  // valor. Top-level de propósito (vale mesmo com `account: false`): as rotas de
+  // sudo e a JSON API respeitam o prefixo. Ausente → default `/account/*`
+  // (back-compat). Ver `account_paths.ts`.
+  if (opts.accountRoutes !== undefined) {
+    setAccountPaths(opts.accountRoutes);
+  }
+
   // Destino do redirect de "faça login" — persiste no singleton de processo para
   // que os guards (closures de tempo de registro), o middleware, os controllers e
-  // as views leiam o mesmo valor. Só quando a opção foi passada (senão fica o
-  // default `/account/login` do singleton — back-compat).
+  // as views leiam o mesmo valor. Só quando a opção foi passada (senão deriva de
+  // `accountPath('login')` — back-compat).
   if (opts.accountLoginUrl !== undefined) {
     setAccountLoginUrl(opts.accountLoginUrl);
   }
@@ -482,54 +527,71 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
   // PAT introspection (server-to-server).
   withIntrospection(router.post('/authkit/pat/introspect', [C.patIntrospection, 'handle']));
 
+  // Paths do console de conta (configuráveis/localizáveis via `accountRoutes`).
+  // As TELAS vêm de `accountPath(key)` (prefixo + segmento configurável); os
+  // action-subpaths concatenados (`/password`, `/enroll`, ...) são FIXOS —
+  // endpoints de formulário invisíveis ao usuário. A JSON API segue o prefixo
+  // com o segmento `api` FIXO. Capturados uma vez aqui: `setAccountPaths` já
+  // rodou no topo e o singleton não muda mais neste processo.
+  const loginPath = accountPath('login');
+  const logoutPath = accountPath('logout');
+  const securityPath = accountPath('security');
+  const tokensPath = accountPath('tokens');
+  const appsPath = accountPath('apps');
+  const mfaPath = accountPath('mfa');
+  const confirmPath = accountPath('confirm');
+  const orgsPath = accountPath('orgs');
+  const emailConfirmPath = accountPath('emailConfirm');
+  const apiBase = joinAccountPath('api');
+
   // Organizations — invitation accept (sem guard: controller lida com não-autenticado).
   // Parte da tela `orgs`: desmontada junto (sem multi-tenancy, não há convite a aceitar).
   if (mountOrgs) {
-    router.get('/account/orgs/invitations/:token/accept', [C.accountOrgs, 'showAcceptInvitation']);
-    router.post('/account/orgs/invitations/:token/accept', [C.accountOrgs, 'acceptInvitation']);
+    router.get(`${orgsPath}/invitations/:token/accept`, [C.accountOrgs, 'showAcceptInvitation']);
+    router.post(`${orgsPath}/invitations/:token/accept`, [C.accountOrgs, 'acceptInvitation']);
   }
 
   // Console de conta (login de sessão do IdP + gerência de PAT).
   // Tela `login` desmontável: hosts passwordless delegam ao OIDC próprio e
   // apontam `accountLoginUrl` para a rota de login deles.
   if (mountLogin) {
-    router.get('/account/login', [C.accountSession, 'show']);
+    router.get(loginPath, [C.accountSession, 'show']);
     // L6: throttle por IP no login/logout do console de conta (anti-brute-force),
     // alinhado com as demais rotas de credencial (interaction, forgot, reset).
-    withLogin(router.post('/account/login', [C.accountSession, 'login']));
-    withLogin(router.post('/account/logout', [C.accountSession, 'logout']));
+    withLogin(router.post(loginPath, [C.accountSession, 'login']));
+    withLogin(router.post(logoutPath, [C.accountSession, 'logout']));
   }
 
   // Confirmação de troca de e-mail (standalone, GET-only — consome o token do link;
   // pode ser aberta em outro dispositivo, então NÃO exige sessão). Parte da tela
   // `security` (o terminal do fluxo de troca de e-mail).
   if (mountSecurity) {
-    router.get('/account/email/confirm', [C.accountSecurity, 'confirmEmail']);
+    router.get(emailConfirmPath, [C.accountSecurity, 'confirmEmail']);
   }
 
-  // Rotas de tokens protegidas por AccountAuthMiddleware (redireciona para /account/login se não autenticado).
+  // Rotas de tokens protegidas por AccountAuthMiddleware (redireciona para a tela de login se não autenticado).
   router
     .group(() => {
       // Personal Access Tokens (tela `tokens`).
       if (mountTokens) {
-        router.get('/account/tokens', [C.accountTokens, 'index']);
-        router.post('/account/tokens', [C.accountTokens, 'store']);
-        router.post('/account/tokens/:id/revoke', [C.accountTokens, 'destroy']);
+        router.get(tokensPath, [C.accountTokens, 'index']);
+        router.post(tokensPath, [C.accountTokens, 'store']);
+        router.post(`${tokensPath}/:id/revoke`, [C.accountTokens, 'destroy']);
       }
 
       // Segurança da conta: trocar senha + solicitar troca de e-mail + perfil (tela `security`).
       if (mountSecurity) {
-        router.get('/account/security', [C.accountSecurity, 'index']);
-        router.post('/account/security/password', [C.accountSecurity, 'changePassword']);
-        router.post('/account/security/email', [C.accountSecurity, 'changeEmail']);
-        router.post('/account/security/email/cancel', [C.accountSecurity, 'cancelEmailChange']);
-        router.post('/account/security/profile', [C.accountSecurity, 'updateProfile']);
+        router.get(securityPath, [C.accountSecurity, 'index']);
+        router.post(`${securityPath}/password`, [C.accountSecurity, 'changePassword']);
+        router.post(`${securityPath}/email`, [C.accountSecurity, 'changeEmail']);
+        router.post(`${securityPath}/email/cancel`, [C.accountSecurity, 'cancelEmailChange']);
+        router.post(`${securityPath}/profile`, [C.accountSecurity, 'updateProfile']);
         // LGPD/GDPR: export de dados (portabilidade) + deleção self-service (danger zone).
         // O export carrega o throttle de login (anti-abuso) quando o rate-limit existe.
-        withLogin(router.get('/account/security/export', [C.accountSecurity, 'exportData']));
-        router.post('/account/security/delete', [C.accountSecurity, 'deleteAccount']);
+        withLogin(router.get(`${securityPath}/export`, [C.accountSecurity, 'exportData']));
+        router.post(`${securityPath}/delete`, [C.accountSecurity, 'deleteAccount']);
         // Trusted devices: limpa o cookie de confiança DESTE navegador.
-        router.post('/account/security/trusted-devices/revoke', [
+        router.post(`${securityPath}/trusted-devices/revoke`, [
           C.accountSecurity,
           'revokeTrustedDevices',
         ]);
@@ -537,27 +599,27 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
 
       // Apps com acesso (consentimento): lista os grants da conta + revogação por client (tela `apps`).
       if (mountApps) {
-        router.get('/account/apps', [C.accountApps, 'index']);
-        router.post('/account/apps/:clientId/revoke', [C.accountApps, 'revoke']);
+        router.get(appsPath, [C.accountApps, 'index']);
+        router.post(`${appsPath}/:clientId/revoke`, [C.accountApps, 'revoke']);
       }
 
       // MFA — TOTP + passkeys (tela `mfa`).
       if (mountMfa) {
         // MFA / TOTP (enrollment, confirmação, disable).
-        router.get('/account/mfa', [C.accountMfa, 'index']);
-        router.post('/account/mfa/enroll', [C.accountMfa, 'enroll']);
-        router.post('/account/mfa/confirm', [C.accountMfa, 'confirm']);
-        router.post('/account/mfa/disable', [C.accountMfa, 'disable']);
+        router.get(mfaPath, [C.accountMfa, 'index']);
+        router.post(`${mfaPath}/enroll`, [C.accountMfa, 'enroll']);
+        router.post(`${mfaPath}/confirm`, [C.accountMfa, 'confirm']);
+        router.post(`${mfaPath}/disable`, [C.accountMfa, 'disable']);
 
         // MFA / WebAuthn (passkeys): registro (begin/finish) + remoção.
-        router.post('/account/mfa/passkeys/options', [C.accountMfa, 'passkeyRegisterOptions']);
-        router.post('/account/mfa/passkeys/verify', [C.accountMfa, 'passkeyRegisterVerify']);
-        router.post('/account/mfa/passkeys/:id/remove', [C.accountMfa, 'passkeyRemove']);
+        router.post(`${mfaPath}/passkeys/options`, [C.accountMfa, 'passkeyRegisterOptions']);
+        router.post(`${mfaPath}/passkeys/verify`, [C.accountMfa, 'passkeyRegisterVerify']);
+        router.post(`${mfaPath}/passkeys/:id/remove`, [C.accountMfa, 'passkeyRemove']);
       }
 
       // Sudo mode (confirm identity): o GET lista os métodos; cada método
       // registra suas próprias rotas de verificação (SPI `SudoMethod`).
-      router.get('/account/confirm', [C.accountConfirm, 'show']);
+      router.get(confirmPath, [C.accountConfirm, 'show']);
 
       // Rotas próprias dos métodos de sudo — DENTRO do grupo com `accountGuard`.
       // O guard não é só "tem sessão": ele roda `checkAndRefreshIdle`, que apaga
@@ -600,54 +662,56 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
       // Organizations (multi-tenancy) — tela `orgs`. Montadas por default;
       // controller retorna 404/403 sem tabelas (capability-probed).
       if (mountOrgs) {
-        router.get('/account/orgs', [C.accountOrgs, 'index']);
-        router.post('/account/orgs', [C.accountOrgs, 'store']);
-        router.post('/account/orgs/deactivate', [C.accountOrgs, 'deactivate']);
-        router.post('/account/orgs/:id/activate', [C.accountOrgs, 'activate']);
-        router.post('/account/orgs/:id/leave', [C.accountOrgs, 'leave']);
-        router.post('/account/orgs/:id/invite', [C.accountOrgs, 'invite']);
-        router.post('/account/orgs/:id/members/:accountId/remove', [C.accountOrgs, 'removeMember']);
-        router.post('/account/orgs/:id/invitations/:invId/revoke', [
+        router.get(orgsPath, [C.accountOrgs, 'index']);
+        router.post(orgsPath, [C.accountOrgs, 'store']);
+        router.post(`${orgsPath}/deactivate`, [C.accountOrgs, 'deactivate']);
+        router.post(`${orgsPath}/:id/activate`, [C.accountOrgs, 'activate']);
+        router.post(`${orgsPath}/:id/leave`, [C.accountOrgs, 'leave']);
+        router.post(`${orgsPath}/:id/invite`, [C.accountOrgs, 'invite']);
+        router.post(`${orgsPath}/:id/members/:accountId/remove`, [C.accountOrgs, 'removeMember']);
+        router.post(`${orgsPath}/:id/invitations/:invId/revoke`, [
           C.accountOrgs,
           'revokeInvitation',
         ]);
         // JSON endpoints for React hooks (authkit-react).
-        router.get('/account/orgs/json', [C.accountOrgs, 'listJson']);
-        router.get('/account/orgs/invitations/json', [C.accountOrgs, 'listInvitationsJson']);
-        router.get('/account/orgs/:id/json', [C.accountOrgs, 'showJson']);
+        router.get(`${orgsPath}/json`, [C.accountOrgs, 'listJson']);
+        router.get(`${orgsPath}/invitations/json`, [C.accountOrgs, 'listInvitationsJson']);
+        router.get(`${orgsPath}/:id/json`, [C.accountOrgs, 'showJson']);
       }
 
       // ─── Account self-service JSON API (authkit-react TanStack hooks) ─────
       // ⚠️ ORDER MATTERS: fixed-segment routes before parameterised ones.
       // Registered INSIDE the accountGuard group → same session-auth protection.
       // Mutating routes use CSRF (shield middleware on the host app).
-      router.get('/account/api/me', [C.accountApi, 'me']);
-      router.get('/account/api/security', [C.accountApi, 'securityOverview']);
-      router.patch('/account/api/profile', [C.accountApi, 'updateProfile']);
-      router.post('/account/api/password', [C.accountApi, 'changePassword']);
+      // Segue o prefixo do console (`accountRoutes.prefix`); o segmento `api` é
+      // FIXO — é contrato de máquina (authkit-react), não path de humano.
+      router.get(`${apiBase}/me`, [C.accountApi, 'me']);
+      router.get(`${apiBase}/security`, [C.accountApi, 'securityOverview']);
+      router.patch(`${apiBase}/profile`, [C.accountApi, 'updateProfile']);
+      router.post(`${apiBase}/password`, [C.accountApi, 'changePassword']);
       // Email-change: cancel BEFORE the generic post to avoid pattern collision.
-      router.post('/account/api/email-change/cancel', [C.accountApi, 'cancelEmailChange']);
-      router.post('/account/api/email-change', [C.accountApi, 'requestEmailChange']);
+      router.post(`${apiBase}/email-change/cancel`, [C.accountApi, 'cancelEmailChange']);
+      router.post(`${apiBase}/email-change`, [C.accountApi, 'requestEmailChange']);
       // Sessions: fixed routes BEFORE :id.
-      router.get('/account/api/sessions', [C.accountApi, 'listSessions']);
-      router.post('/account/api/sessions/revoke-others', [C.accountApi, 'revokeOtherSessions']);
-      router.post('/account/api/sessions/revoke-all', [C.accountApi, 'revokeAllSessions']);
-      router.delete('/account/api/sessions/:id', [C.accountApi, 'revokeSession']);
+      router.get(`${apiBase}/sessions`, [C.accountApi, 'listSessions']);
+      router.post(`${apiBase}/sessions/revoke-others`, [C.accountApi, 'revokeOtherSessions']);
+      router.post(`${apiBase}/sessions/revoke-all`, [C.accountApi, 'revokeAllSessions']);
+      router.delete(`${apiBase}/sessions/:id`, [C.accountApi, 'revokeSession']);
       // Apps (grants).
-      router.get('/account/api/apps', [C.accountApi, 'listApps']);
-      router.delete('/account/api/apps/:clientId', [C.accountApi, 'revokeApp']);
+      router.get(`${apiBase}/apps`, [C.accountApi, 'listApps']);
+      router.delete(`${apiBase}/apps/:clientId`, [C.accountApi, 'revokeApp']);
       // MFA + passkeys.
-      router.get('/account/api/mfa', [C.accountApi, 'mfaStatus']);
-      router.get('/account/api/passkeys', [C.accountApi, 'listPasskeys']);
-      router.delete('/account/api/passkeys/:id', [C.accountApi, 'removePasskey']);
+      router.get(`${apiBase}/mfa`, [C.accountApi, 'mfaStatus']);
+      router.get(`${apiBase}/passkeys`, [C.accountApi, 'listPasskeys']);
+      router.delete(`${apiBase}/passkeys/:id`, [C.accountApi, 'removePasskey']);
       // PATs.
-      router.get('/account/api/tokens', [C.accountApi, 'listTokens']);
-      router.post('/account/api/tokens', [C.accountApi, 'createToken']);
-      router.delete('/account/api/tokens/:id', [C.accountApi, 'revokeToken']);
+      router.get(`${apiBase}/tokens`, [C.accountApi, 'listTokens']);
+      router.post(`${apiBase}/tokens`, [C.accountApi, 'createToken']);
+      router.delete(`${apiBase}/tokens/:id`, [C.accountApi, 'revokeToken']);
       // Orgs: invitations BEFORE :id (fixed segment before parameterised).
-      router.get('/account/api/orgs', [C.accountApi, 'listOrgs']);
-      router.get('/account/api/orgs/invitations', [C.accountApi, 'listOrgInvitations']);
-      router.get('/account/api/orgs/:id', [C.accountApi, 'showOrg']);
+      router.get(`${apiBase}/orgs`, [C.accountApi, 'listOrgs']);
+      router.get(`${apiBase}/orgs/invitations`, [C.accountApi, 'listOrgInvitations']);
+      router.get(`${apiBase}/orgs/:id`, [C.accountApi, 'showOrg']);
     })
     .use([accountGuard]);
 

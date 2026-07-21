@@ -1,4 +1,5 @@
 import type { Router } from '@adonisjs/core/http';
+import { accountPath } from '../../account_paths.js';
 import { isSudoMethodEnabled } from '../runtime.js';
 import type { SudoContext, SudoMethod, SudoRouteHelpers } from '../types.js';
 
@@ -64,7 +65,7 @@ export function password(): SudoMethod {
       return {
         labelKey: 'account.confirm.method.password',
         kind: 'form' as const,
-        endpoint: '/account/confirm',
+        endpoint: accountPath('confirm'),
         fields: [
           {
             name: 'password',
@@ -76,7 +77,7 @@ export function password(): SudoMethod {
     },
 
     register(router: Router, h: SudoRouteHelpers) {
-      router.post('/account/confirm', async (ctx: any) => {
+      router.post(accountPath('confirm'), async (ctx: any) => {
         const c = await h.contextFrom(ctx);
 
         // ANTES de qualquer verificação: o host desligou este método?

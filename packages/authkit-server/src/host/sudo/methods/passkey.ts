@@ -1,5 +1,6 @@
 import type { Router } from '@adonisjs/core/http';
 import { supportsPasskeys } from '../../../accounts/account_store.js';
+import { accountPath } from '../../account_paths.js';
 import { translate } from '../../i18n.js';
 import { isSudoMethodEnabled } from '../runtime.js';
 import type { SudoContext, SudoMethod, SudoRouteHelpers } from '../types.js';
@@ -51,12 +52,12 @@ export function passkey(): SudoMethod {
         // que faz a tela rodar o handshake — e o endpoint de options ela deriva
         // daqui (`${endpoint}/options`), sem conhecer o id 'passkey'.
         kind: 'webauthn' as const,
-        endpoint: '/account/confirm/passkey',
+        endpoint: `${accountPath('confirm')}/passkey`,
       };
     },
 
     register(router: Router, h: SudoRouteHelpers) {
-      router.post('/account/confirm/passkey/options', async (ctx: any) => {
+      router.post(`${accountPath('confirm')}/passkey/options`, async (ctx: any) => {
         const c = await h.contextFrom(ctx);
 
         // i18n: mesma chave usada pelo controller original — hosts com catálogo
@@ -94,7 +95,7 @@ export function passkey(): SudoMethod {
         return generated.options;
       });
 
-      router.post('/account/confirm/passkey', async (ctx: any) => {
+      router.post(`${accountPath('confirm')}/passkey`, async (ctx: any) => {
         const c = await h.contextFrom(ctx);
 
         // Método desligado pelo host → mesma resposta de uma assertion inválida

@@ -134,13 +134,21 @@ export type AuthkitScreen =
  *
  * ### Props da tela `account/mfa`
  *
+ * As props variam por action: `index` manda o estado base; `enroll` acrescenta
+ * `enrolling`/`secret`/`qrDataUrl` (passo do QR); `confirm` com código inválido
+ * reenvia `enrolling: true` + `error` (sem regenerar o segredo).
+ *
  * | Prop                | Tipo                | Descrição |
  * |---------------------|---------------------|-----------|
  * | `csrfToken`         | `string`            | Token CSRF para os formulários de enroll/confirm/disable e passkeys. |
  * | `enabled`           | `boolean`           | `true` quando o TOTP já está confirmado (habilitado) para a conta. |
  * | `recoveryCodes`     | `string[] \| null`  | Códigos de recuperação recém-gerados (exibidos UMA vez após enroll/confirm) ou `null`. |
  * | `passkeysSupported` | `boolean`           | `true` quando o store persiste credenciais WebAuthn (passkeys). |
- * | `passkeys`          | `Array<{ id: string; label?: string; createdAt: string }>` | Passkeys cadastradas (vazio quando não suportado). `id` é base64url; `createdAt` é ISO. |
+ * | `passkeys`          | `Array<{ id: string; label?: string; createdAt: string }>` | Passkeys cadastradas (vazio quando não suportado). `id` é base64url; `createdAt` é ISO. Presente em `index`. |
+ * | `enrolling`         | `boolean \| undefined` | `true` no passo de enrollment (após `POST /mfa/enroll` e na reexibição do `confirm` com código inválido) — a tela mostra o QR/segredo e o campo de código. Ausente em `index`. |
+ * | `secret`            | `string \| null \| undefined` | Segredo TOTP em texto (base32) para entrada manual, exibido no passo de enroll. `null` na reexibição do `confirm` (o segredo pendente NÃO é regenerado). Ausente em `index`. |
+ * | `qrDataUrl`         | `string \| null \| undefined` | QR code do `otpauth://` como data-URL (`<img src>`), no passo de enroll. `null` na reexibição do `confirm`. Ausente em `index`. |
+ * | `error`             | `string \| undefined` | Mensagem de erro localizada (ex.: código TOTP inválido no `confirm`). Ausente quando não há erro. |
  * | `messages`          | `AuthMessages`      | Catálogo de mensagens i18n. |
  *
  * ### Props da tela `account/confirm` (sudo — confirmar identidade)

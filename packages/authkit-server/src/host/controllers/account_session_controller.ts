@@ -6,6 +6,7 @@ import { attemptPasswordLogin } from '../login_attempt.js'
 import { notifyLoginSuccess } from '../login_notify.js'
 import { markSudo } from '../sudo_mode.js'
 import { accountHome } from '../account_home.js'
+import { getAccountLoginUrl } from '../account_login_url.js'
 import { resolveRuntimeSettings } from '../runtime_settings.js'
 import { syncAdonisAuthLogin, syncAdonisAuthLogout } from '../adonis_auth_sync.js'
 
@@ -140,6 +141,7 @@ export default class AccountSessionController {
     await ctx.session.regenerate()
     // Opt-in: espelha o logout no guard de @adonisjs/auth (ver adonisAuth em define_config.ts).
     await syncAdonisAuthLogout(ctx, cfg)
-    return ctx.response.redirect('/account/login')
+    // Destino configurável (`accountLoginUrl`): default `/account/login`.
+    return ctx.response.redirect(getAccountLoginUrl())
   }
 }

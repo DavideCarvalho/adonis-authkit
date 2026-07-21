@@ -1,5 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import { DEFAULT_MESSAGES, translate, type AuthMessages } from '../i18n.js'
+import { getAccountLoginUrl } from '../account_login_url.js'
 
 /**
  * Resolve o catálogo de mensagens ativo a partir do `authkit.server` (config
@@ -34,7 +35,11 @@ export async function renderEdgeView(
   const messages = await resolveMessagesFromCtx(ctx)
   const t = (key: string, params?: Record<string, string | number>) =>
     translate(messages, key, params)
-  return (ctx as any).view.render(`authkit::${view}`, { ...props, t, messages })
+  // `loginUrl` como prop global: as views que linkam "faça login" (ex.: `otp-unlock`)
+  // usam o destino configurável (`accountLoginUrl`) em vez do `/account/login` fixo,
+  // que pode estar desmontado. Props explícitas ainda têm precedência (spread depois).
+  const loginUrl = getAccountLoginUrl()
+  return (ctx as any).view.render(`authkit::${view}`, { loginUrl, ...props, t, messages })
 }
 
 /** Renderer do seam para hosts Edge. As views são donas-da-lib (disco `authkit::`). */

@@ -15,7 +15,7 @@
         </div>
         <h1 class="mb-2 text-lg font-semibold text-gray-900">{{ t('otp_unlock.ok_title') }}</h1>
         <p class="mb-6 text-sm text-gray-600">{{ t('otp_unlock.ok_body') }}</p>
-        <a href="/account/login" class="inline-block rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">{{ t('otp_unlock.login_link') }}</a>
+        <a href="{{ loginUrl ?? '/account/login' }}" class="inline-block rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">{{ t('otp_unlock.login_link') }}</a>
       @else
         <div class="mb-4 flex justify-center">
           <span class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600">
@@ -32,7 +32,7 @@
             {{ t('otp_unlock.invalid_body') }}
           @end
         </p>
-        <a href="/account/login" class="inline-block rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">{{ t('otp_unlock.login_link') }}</a>
+        <a href="{{ loginUrl ?? '/account/login' }}" class="inline-block rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">{{ t('otp_unlock.login_link') }}</a>
       @end
     </div>
   </div>

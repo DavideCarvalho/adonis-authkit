@@ -2,6 +2,7 @@ import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import { supportsOrganizations } from '../../accounts/account_store.js'
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
+import { getAccountLoginUrl } from '../account_login_url.js'
 import { resolveRuntimeSettings } from '../runtime_settings.js'
 import { isRoleInCatalog } from '../runtime_toggles.js'
 import {
@@ -33,7 +34,7 @@ export default class AccountOrgsController {
 
     const accountId = session.get(ACCOUNT_SESSION_KEY) as string
     const account = await store.findById(accountId)
-    if (!account) return response.redirect('/account/login')
+    if (!account) return response.redirect(getAccountLoginUrl())
 
     const orgs = await store.listOrgsForAccount(accountId)
     const pendingInvitations = await store.listPendingInvitationsForEmail!(account.email)
@@ -249,9 +250,11 @@ export default class AccountOrgsController {
 
     const accountId = session.get(ACCOUNT_SESSION_KEY) as string | undefined
     if (!accountId) {
-      // Não logado: redireciona para login com return URL
+      // Não logado: redireciona para login (configurável) com return URL
+      const loginUrl = getAccountLoginUrl()
       const returnTo = encodeURIComponent(`/account/orgs/invitations/${params.token}/accept`)
-      return response.redirect(`/account/login?returnTo=${returnTo}`)
+      const sep = loginUrl.includes('?') ? '&' : '?'
+      return response.redirect(`${loginUrl}${sep}returnTo=${returnTo}`)
     }
 
     const tokenHash = createHash('sha256').update(params.token).digest('hex')
@@ -279,7 +282,7 @@ export default class AccountOrgsController {
     if (!supportsOrganizations(store)) return response.notFound()
 
     const accountId = session.get(ACCOUNT_SESSION_KEY) as string | undefined
-    if (!accountId) return response.redirect('/account/login')
+    if (!accountId) return response.redirect(getAccountLoginUrl())
 
     const tokenHash = createHash('sha256').update(params.token).digest('hex')
     const invitation = await store.findInvitationByTokenHash!(tokenHash)

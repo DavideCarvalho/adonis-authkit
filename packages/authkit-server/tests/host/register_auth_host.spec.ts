@@ -1,6 +1,7 @@
 import { test } from '@japa/runner'
 import { registerAuthHost } from '../../src/host/register_auth_host.js'
 import { setAuthHostConfig, resetAuthHostConfig } from '../../src/host/auth_host_config.js'
+import { getAccountLoginUrl, resetAccountLoginUrl } from '../../src/host/account_login_url.js'
 import { resolveRateLimit } from '../../src/define_config.js'
 import {
   getAdminPrefix,
@@ -501,5 +502,124 @@ test.group('registerAuthHost / dedup do config (Option C)', (group) => {
     const router = fakeRouter()
     registerAuthHost(router)
     assert.isTrue(router.routes.some((r: any) => r.pattern === '/oidc/*'), 'default /oidc')
+  })
+})
+
+test.group('registerAuthHost — montagem por tela do console de conta', (group) => {
+  // Reseta o singleton de accountLoginUrl e o stash de config entre casos:
+  // são estado de processo e vazariam de um teste para o outro.
+  group.each.teardown(() => {
+    resetAccountLoginUrl()
+    resetAuthHostConfig()
+  })
+
+  const has = (router: any, pattern: string, method?: string) =>
+    router.routes.some((r: any) => r.pattern === pattern && (!method || r.method === method))
+
+  test('default (sem account): monta TODAS as telas (back-compat)', ({ assert }) => {
+    const router = fakeRouter()
+    registerAuthHost(router, { mountPath: '/oidc' })
+    assert.isTrue(has(router, '/account/login'), 'login montado')
+    assert.isTrue(has(router, '/account/tokens'), 'tokens montado')
+    assert.isTrue(has(router, '/account/security'), 'security montado')
+    assert.isTrue(has(router, '/account/mfa'), 'mfa montado')
+    assert.isTrue(has(router, '/account/apps'), 'apps montado')
+    assert.isTrue(has(router, '/account/orgs'), 'orgs montado')
+    assert.isTrue(has(router, '/account/email/confirm'), 'email/confirm montado')
+    // Confirm (sudo) e a JSON API continuam sempre montados.
+    assert.isTrue(has(router, '/account/confirm'), 'confirm sempre montado')
+    assert.isTrue(has(router, '/account/api/me'), 'account api sempre montada')
+  })
+
+  test('account: false desmonta TODAS as telas (confirm + api permanecem)', ({ assert }) => {
+    const router = fakeRouter()
+    registerAuthHost(router, { mountPath: '/oidc', account: false })
+    assert.isFalse(has(router, '/account/login'), 'login desmontado')
+    assert.isFalse(has(router, '/account/tokens'), 'tokens desmontado')
+    assert.isFalse(has(router, '/account/security'), 'security desmontado')
+    assert.isFalse(has(router, '/account/mfa'), 'mfa desmontado')
+    assert.isFalse(has(router, '/account/apps'), 'apps desmontado')
+    assert.isFalse(has(router, '/account/orgs'), 'orgs desmontado')
+    assert.isFalse(has(router, '/account/email/confirm'), 'email/confirm desmontado')
+    assert.isFalse(
+      has(router, '/account/orgs/invitations/:token/accept'),
+      'accept de convite desmontado com orgs'
+    )
+    // Infra continua.
+    assert.isTrue(has(router, '/account/confirm'), 'confirm permanece')
+    assert.isTrue(has(router, '/account/api/me'), 'account api permanece')
+  })
+
+  test('account: { login: false } desmonta só o login', ({ assert }) => {
+    const router = fakeRouter()
+    registerAuthHost(router, { mountPath: '/oidc', account: { login: false } })
+    assert.isFalse(has(router, '/account/login'), 'login desmontado')
+    assert.isFalse(has(router, '/account/logout'), 'logout desmontado junto')
+    assert.isTrue(has(router, '/account/security'), 'security segue montado')
+    assert.isTrue(has(router, '/account/tokens'), 'tokens segue montado')
+  })
+
+  test('account: { tokens: false } desmonta só os tokens', ({ assert }) => {
+    const router = fakeRouter()
+    registerAuthHost(router, { mountPath: '/oidc', account: { tokens: false } })
+    assert.isFalse(has(router, '/account/tokens'), 'tokens desmontado')
+    assert.isFalse(has(router, '/account/tokens/:id/revoke'), 'revoke desmontado')
+    assert.isTrue(has(router, '/account/login'), 'login segue montado')
+    assert.isTrue(has(router, '/account/security'), 'security segue montado')
+  })
+
+  test('account: { orgs: false } desmonta orgs (incl. accept público)', ({ assert }) => {
+    const router = fakeRouter()
+    registerAuthHost(router, { mountPath: '/oidc', account: { orgs: false } })
+    assert.isFalse(has(router, '/account/orgs'), 'orgs desmontado')
+    assert.isFalse(has(router, '/account/orgs/json'), 'orgs json desmontado')
+    assert.isFalse(
+      has(router, '/account/orgs/invitations/:token/accept'),
+      'accept de convite desmontado'
+    )
+    assert.isTrue(has(router, '/account/security'), 'security segue montado')
+  })
+
+  test('account: { security: false } desmonta security + email/confirm', ({ assert }) => {
+    const router = fakeRouter()
+    registerAuthHost(router, { mountPath: '/oidc', account: { security: false } })
+    assert.isFalse(has(router, '/account/security'), 'security desmontado')
+    assert.isFalse(has(router, '/account/security/export'), 'export desmontado')
+    assert.isFalse(has(router, '/account/email/confirm'), 'email/confirm desmontado junto')
+    assert.isTrue(has(router, '/account/mfa'), 'mfa segue montado')
+  })
+
+  test('account: { mfa: false } desmonta só o mfa', ({ assert }) => {
+    const router = fakeRouter()
+    registerAuthHost(router, { mountPath: '/oidc', account: { mfa: false } })
+    assert.isFalse(has(router, '/account/mfa'), 'mfa desmontado')
+    assert.isFalse(has(router, '/account/mfa/passkeys/options'), 'passkeys desmontado')
+    assert.isTrue(has(router, '/account/security'), 'security segue montado')
+  })
+
+  test('account: { apps: false } desmonta só os apps', ({ assert }) => {
+    const router = fakeRouter()
+    registerAuthHost(router, { mountPath: '/oidc', account: { apps: false } })
+    assert.isFalse(has(router, '/account/apps'), 'apps desmontado')
+    assert.isTrue(has(router, '/account/security'), 'security segue montado')
+  })
+
+  test('accountLoginUrl aponta o redirect de não-autenticado para a rota do host', ({ assert }) => {
+    const router = fakeRouter()
+    registerAuthHost(router, {
+      mountPath: '/oidc',
+      account: { login: false },
+      accountLoginUrl: '/login',
+    })
+    // O singleton de processo passa a devolver o destino configurado.
+    assert.equal(getAccountLoginUrl(), '/login')
+    // E a tela de login por senha da lib não é montada.
+    assert.isFalse(has(router, '/account/login'))
+  })
+
+  test('sem accountLoginUrl: singleton mantém o default /account/login', ({ assert }) => {
+    const router = fakeRouter()
+    registerAuthHost(router, { mountPath: '/oidc' })
+    assert.equal(getAccountLoginUrl(), '/account/login')
   })
 })

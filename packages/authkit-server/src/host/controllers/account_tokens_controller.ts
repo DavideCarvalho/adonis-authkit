@@ -11,8 +11,13 @@ export default class AccountTokensController {
     const cfg = service.config
     const render = cfg.render!
 
+    // PAT é capacidade opcional: sem `patStore` configurado, a tela não existe
+    // (404 limpo em vez de "Cannot read properties of undefined"). Tratado como
+    // orgs — a rota pode estar montada num host que não cabeou o store.
+    if (!cfg.patStore) return ctx.response.notFound()
+
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
-    const tokens = await cfg.patStore!.listForAccount(userId)
+    const tokens = await cfg.patStore.listForAccount(userId)
     const createdToken = ctx.session.flashMessages.get('createdToken') as string | undefined
     return render(ctx, 'account/tokens', {
       csrfToken: ctx.request.csrfToken,
@@ -32,6 +37,9 @@ export default class AccountTokensController {
     const service = await ctx.containerResolver.make('authkit.server')
     const cfg = service.config
 
+    // Sem `patStore`: 404 limpo (ver `index`).
+    if (!cfg.patStore) return ctx.response.notFound()
+
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
 
     // Sudo mode gate.
@@ -40,7 +48,7 @@ export default class AccountTokensController {
     if (sudoResultPat !== true) return sudoResultPat
 
     const { name } = ctx.request.only(['name'])
-    const { token, pat } = await cfg.patStore!.issue({ accountId: userId, name: name || 'Token' })
+    const { token, pat } = await cfg.patStore.issue({ accountId: userId, name: name || 'Token' })
     ctx.session.flash('createdToken', token)
     await cfg.audit?.record({
       type: 'pat.issued',
@@ -55,6 +63,9 @@ export default class AccountTokensController {
     const service = await ctx.containerResolver.make('authkit.server')
     const cfg = service.config
 
+    // Sem `patStore`: 404 limpo (ver `index`).
+    if (!cfg.patStore) return ctx.response.notFound()
+
     const userId = ctx.session.get(ACCOUNT_SESSION_KEY) as string
 
     // Sudo mode gate.
@@ -63,7 +74,7 @@ export default class AccountTokensController {
     if (sudoResultPatRev !== true) return sudoResultPatRev
 
     const patId = ctx.request.param('id')
-    const revoked = await cfg.patStore!.revoke(userId, patId)
+    const revoked = await cfg.patStore.revoke(userId, patId)
     if (revoked) {
       await cfg.audit?.record({
         type: 'pat.revoked',

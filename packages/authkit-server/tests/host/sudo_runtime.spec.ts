@@ -9,6 +9,7 @@ function fakeSudoContext(opts: { returnTo?: string | null } = {}) {
   const flashed: Record<string, unknown> = {}
   const redirects: string[] = []
   const audit: unknown[] = []
+  const warnings: Array<{ payload: unknown; message: string }> = []
 
   const c = {
     accountId: 'acc-1',
@@ -27,10 +28,13 @@ function fakeSudoContext(opts: { returnTo?: string | null } = {}) {
       },
       request: { ip: () => '203.0.113.1' },
       response: { redirect: (u: string) => { redirects.push(u); return { _redirect: u } } },
+      // Logger espião: só o suficiente pra provar que `warn` foi chamado —
+      // não é um logger real do Adonis.
+      logger: { warn: (payload: unknown, message: string) => { warnings.push({ payload, message }) } },
     },
   } as any
 
-  return { c, session, flashed, redirects, audit }
+  return { c, session, flashed, redirects, audit, warnings }
 }
 
 /** Método de teste com disponibilidade e id controláveis. */
@@ -107,6 +111,16 @@ test.group('resolveAvailableMethods', () => {
     const explode = stubMethod('boom', () => { throw new Error('falhou') })
     const out = await resolveAvailableMethods(h.c, [explode, stubMethod('ok', true)])
     assert.deepEqual(out.map((m) => m.id), ['ok'])
+  })
+
+  test('loga warn com o id do método quando isAvailable lança', async ({ assert }) => {
+    const h = fakeSudoContext()
+    const explode = stubMethod('boom', () => { throw new Error('falhou') })
+    await resolveAvailableMethods(h.c, [explode, stubMethod('ok', true)])
+    assert.lengthOf(h.warnings, 1)
+    assert.equal((h.warnings[0].payload as any).method, 'boom')
+    assert.instanceOf((h.warnings[0].payload as any).err, Error)
+    assert.include(h.warnings[0].message, 'boom')
   })
 
   test('promove o último método usado para o topo', async ({ assert }) => {

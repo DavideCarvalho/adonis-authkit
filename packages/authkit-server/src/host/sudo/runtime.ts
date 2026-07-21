@@ -59,7 +59,15 @@ export async function resolveAvailableMethods(
     methods.map(async (m) => {
       try {
         return (await m.isAvailable(c)) ? m : null
-      } catch {
+      } catch (error) {
+        // Fail-safe: um `isAvailable` quebrado não pode trancar o usuário fora
+        // dos outros métodos — mas precisa deixar rastro, senão um typo vira
+        // um método que some da tela em produção sem ninguém saber por quê.
+        // `?.` defensivo: em teste, `fakeSudoContext` pode não ter logger.
+        c.ctx.logger?.warn(
+          { method: m.id, err: error },
+          `authkit: isAvailable() do método de sudo "${m.id}" lançou — método omitido da lista`
+        )
         return null
       }
     })

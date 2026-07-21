@@ -15,13 +15,13 @@ import {
 import { resolveRuntimeSettings } from './runtime_settings.js'
 import { resolveEffectiveSessionPolicy } from './runtime_toggles.js'
 import { getAuthHostConfig } from './auth_host_config.js'
-import { completeSudo, fail } from './sudo/runtime.js'
+import { completeSudo, fail, guardSudoRoutes } from './sudo/runtime.js'
 import {
   SUDO_METHOD_DEFAULTS,
   sudoContextFrom,
   mountedSudoMethodIds,
 } from './controllers/account_confirm_controller.js'
-import type { SudoRouteHelpers } from './sudo/types.js'
+import type { SudoMethod, SudoRouteHelpers } from './sudo/types.js'
 
 /** Chave da sessão Adonis que registra o timestamp da última atividade (idle timeout). */
 export const ACCOUNT_LAST_SEEN_KEY = 'authkit_last_seen'
@@ -216,6 +216,24 @@ export interface AuthHostOptions {
    * registerAuthHost(router, { mountPath: '/oidc', adminApi: { prefix: '/authkit/api' } })
    */
   adminApi?: boolean | { prefix?: string }
+  /**
+   * Métodos de sudo cujas rotas devem ser montadas. Necessário aqui (e não só
+   * no config) porque a decisão de MONTAR rotas acontece em tempo de registro,
+   * antes de o config lazy resolver — mesma razão de `social`/`admin`/`rateLimit`.
+   * Espelhe o `sudo.methods` de config/authkit.ts.
+   *
+   * SUBSTITUI os defaults, não acrescenta: a lista é do host. Quem quer manter
+   * senha/passkey ao lado do método novo os inclui explicitamente
+   * (`[sudoMethods.password(), sudoMethods.passkey(), meuMetodo()]`).
+   *
+   * Sem esta opção, `config.sudo.methods` conseguiria OFERECER um método na
+   * tela mas nunca montar seu endpoint — a opção aparece e dá 404. Falha
+   * fechada, mas é a promessa do SPI pela metade; `magicLink()` em particular
+   * não teria como ser alcançado em runtime.
+   *
+   * Ausente → `[password(), passkey()]`.
+   */
+  sudoMethods?: SudoMethod[]
 }
 
 const C = {
@@ -399,8 +417,11 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
         completeSudo,
         fail,
       }
-      for (const method of SUDO_METHOD_DEFAULTS) {
-        method.register?.(router, helpers)
+      for (const method of opts?.sudoMethods ?? SUDO_METHOD_DEFAULTS) {
+        // `guardSudoRoutes` embrulha os handlers que o método registrar, para
+        // que `config.sudo.methods` os desabilite de fato mesmo que o método
+        // não tenha checado nada por dentro. Ver o docblock lá.
+        method.register?.(guardSudoRoutes(router, method.id, helpers), helpers)
         // Registra o que de fato tem rota, para o controller detectar flag-drift
         // contra `config.sudo.methods` (que só decide o que a TELA oferece).
         mountedSudoMethodIds.add(method.id)

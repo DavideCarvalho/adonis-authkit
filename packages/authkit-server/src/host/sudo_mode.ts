@@ -107,6 +107,16 @@ export const SUDO_ACCOUNT_SESSION_KEY = 'authkit_sudo_account'
  * pinado) e APAGA qualquer vinculação anterior, para que a marca não fique
  * herdando o dono antigo. O resultado é uma marca órfã, que `isSudoActive`
  * recusa (fail-closed).
+ *
+ * @deprecated Para conceder sudo, use `completeSudo(sudoContextFrom(ctx), id)`.
+ * `markSudo` grava a marca e nada mais: não registra o audit `sudo.confirmed`,
+ * não lembra o método usado e não redireciona para o `return_to`. Um host que a
+ * chame direto — o caminho natural no callback de `oidcStepUp`, antes de
+ * `completeSudo` ser público — concede privilégio sem deixar rastro nenhum.
+ * Continua exportada porque o login primário do próprio pacote a usa (ver o
+ * CHANGELOG desta versão) e porque removê-la seria breaking; o uso legítimo
+ * restante é ler/limpar a marca em fluxos que não são confirmação de
+ * identidade.
  */
 export function markSudo(ctx: HttpContext): void {
   const accountId = ctx.session.get(ACCOUNT_SESSION_KEY) as string | undefined

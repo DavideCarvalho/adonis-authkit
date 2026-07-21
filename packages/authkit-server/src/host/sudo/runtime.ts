@@ -1,8 +1,9 @@
 import { markSudo } from '../sudo_mode.js'
 import { accountHome } from '../account_home.js'
 import { translate } from '../i18n.js'
+import type { HttpContext, Router } from '@adonisjs/core/http'
 import type { ResolvedServerConfig } from '../../define_config.js'
-import type { SudoContext, SudoMethod } from './types.js'
+import type { SudoContext, SudoMethod, SudoRouteHelpers } from './types.js'
 
 /** Último método usado com sucesso — só ordena a tela, não restringe nada. */
 export const LAST_METHOD_SESSION_KEY = 'authkit_sudo_last_method'
@@ -38,6 +39,63 @@ export function isSudoMethodEnabled(cfg: ResolvedServerConfig, methodId: string)
   const explicit = explicitSudoMethods(cfg)
   if (explicit === null) return true
   return explicit.some((m) => m?.id === methodId)
+}
+
+/** Verbos HTTP que um `SudoMethod` pode usar ao registrar suas rotas. */
+const ROUTER_VERBS = ['get', 'post', 'put', 'patch', 'delete', 'any'] as const
+
+/**
+ * Envelopa o router entregue a `method.register` para que TODO handler que ele
+ * registrar seja barrado quando `config.sudo.methods` não incluir o método.
+ *
+ * POR QUE NO PONTO DE REGISTRO, e não dentro de cada handler: a barreira é a
+ * diferença entre uma config que restringe e uma que só esconde a opção da tela
+ * enquanto o endpoint segue concedendo sudo (falha Critical). Deixá-la a cargo
+ * de quem escreve o método significa que o PRIMEIRO método que esquecer a
+ * chamada reabre a falha — e nada detecta. Aqui a garantia é estrutural: o
+ * método não tem como registrar uma rota desguardada, porque não é ele quem
+ * segura o router.
+ *
+ * Os built-in CONTINUAM checando por dentro, e isso não é redundância inútil:
+ * cada um recusa na forma que o seu endpoint exige (o `passkey/options` é XHR e
+ * devolve JSON 404; um 302 para HTML quebraria o cliente). Este envelope é o
+ * piso genérico — recusa com `fail`, o mesmo redirect+flash de um erro comum,
+ * que não distingue "método desligado" de "credencial errada" e portanto não
+ * vaza a config do host.
+ *
+ * CUSTO: resolve o config do container antes do handler. Não usa
+ * `contextFrom` no caminho feliz de propósito — aquilo faz `findById`, e pagar
+ * uma leitura de conta a mais em toda rota de sudo para uma checagem que só lê
+ * a config seria desperdício. O contexto completo só é montado para recusar.
+ */
+export function guardSudoRoutes(router: Router, methodId: string, h: SudoRouteHelpers): Router {
+  const wrap =
+    (handler: (ctx: HttpContext) => unknown) =>
+    async (ctx: HttpContext): Promise<unknown> => {
+      const service = await (ctx as any).containerResolver.make('authkit.server')
+      if (isSudoMethodEnabled(service.config, methodId)) return handler(ctx)
+
+      const c = await h.contextFrom(ctx)
+      return h.fail(c, 'account.confirm.error')
+    }
+
+  return new Proxy(router, {
+    get(target, prop, receiver) {
+      const original = Reflect.get(target, prop, receiver)
+      if (!ROUTER_VERBS.includes(prop as (typeof ROUTER_VERBS)[number])) return original
+      if (typeof original !== 'function') return original
+
+      return (pattern: string, handler: unknown, ...rest: unknown[]) =>
+        // Só embrulha handler-função. Um `[Controller, 'method']` passa direto:
+        // nenhum método built-in registra assim, e embrulhar a tupla a quebraria.
+        original.call(
+          target,
+          pattern,
+          typeof handler === 'function' ? wrap(handler as (ctx: HttpContext) => unknown) : handler,
+          ...rest
+        )
+    },
+  })
 }
 
 /**

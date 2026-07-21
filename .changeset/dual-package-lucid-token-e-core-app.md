@@ -25,3 +25,9 @@ sendo o `OidcService` resolvido.
 
 Também: adicionado `prepack` (espelha o `build` composto — css + webauthn + ui + tsc + cópias)
 para que o pacote seja sempre construído antes de publicar.
+
+**Nota de transparência:** a escrita best-effort da revogação de sessão e o
+`services/main` agora exigem o `AuthkitServerProvider` registrado; sem ele,
+lançam/logam erro explícito em vez de silenciar ou pendurar. Nenhum host real
+perde comportamento (o provider é sempre registrado), mas suítes downstream que
+exercitem deleção/revogação sem o provider verão o erro no stderr.

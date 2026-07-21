@@ -55,12 +55,20 @@ que de fato funcionava.)
 
 `config.sudo.methods` desabilita o endpoint DE FATO, não só a opção da tela: o
 runtime embrulha os handlers no ponto de registro, então a barreira vale
-inclusive para um método customizado que nunca a tenha consultado — **desde que
-a rota tenha sido montada por `SudoMethod.register()`**. É esse o escopo, e ele
-é o escopo inteiro: com `completeSudo` público, qualquer rota que o host escreva
-à mão em `start/routes.ts` concede sudo sem passar por `config.sudo.methods`.
-Não é bug, é a consequência inevitável de exportar `completeSudo` — o
-`oidcStepUp` exige isso, porque quem valida o grant é o callback do host.
+inclusive para um método customizado que nunca a tenha consultado.
+
+O escopo exato: a rota tem de ter sido montada por `SudoMethod.register()` **e**
+com handler-FUNÇÃO — é a única forma que o wrapper sabe embrulhar. Registrar por
+tupla (`[Controller, 'metodo']`) ou por `resource()`/`shallowResource()` agora
+**lança no boot**, com a mensagem explicando a saída
+(`(ctx) => new Controller().metodo(ctx)`). Antes passava direto e produzia uma
+rota de sudo desguardada, em silêncio.
+
+Fora disso o escopo acaba: com `completeSudo` público, qualquer rota que o host
+escreva à mão em `start/routes.ts` concede sudo sem passar por
+`config.sudo.methods`. Não é bug, é a consequência inevitável de exportar
+`completeSudo` — o `oidcStepUp` exige isso, porque quem valida o grant é o
+callback do host.
 
 ---
 

@@ -389,6 +389,102 @@ test.group('sudo — guardSudoRoutes preserva a API do Router real', () => {
 })
 
 /**
+ * O QUE NÃO CABE NA BARREIRA É RECUSADO NO BOOT.
+ *
+ * `guardSudoRoutes` só sabe embrulhar handler-FUNÇÃO. Uma tupla
+ * `[Controller, 'metodo']` — e os atalhos `resource()`/`shallowResource()`, que
+ * expandem um controller em N rotas — registrariam rotas que
+ * `config.sudo.methods` não desabilita e que alcançam o `completeSudo` público.
+ *
+ * Antes elas passavam direto, com o argumento "nenhum built-in registra assim".
+ * Isso é propriedade dos built-in, não da barreira — e o público-alvo do SPI é
+ * exatamente quem não é built-in.
+ */
+test.group('sudo — handler que não cabe na barreira é recusado no registro', () => {
+  const helpers = { contextFrom: sudoContextFrom, completeSudo, fail }
+  const realRouter = () => new RouterFactory().create() as unknown as Router
+
+  class MetodoController {
+    async confirm() {
+      return 'ok'
+    }
+  }
+
+  test('tupla [Controller, metodo] num verbo lança no ponto de registro', ({ assert }) => {
+    const wrapped = guardSudoRoutes(realRouter(), 'custom', helpers)
+
+    assert.throws(
+      () => wrapped.post('/account/confirm/custom', [MetodoController, 'confirm'] as any),
+      /handler-função/
+    )
+  })
+
+  test('tupla em route() também lança (handler no terceiro argumento)', ({ assert }) => {
+    const wrapped = guardSudoRoutes(realRouter(), 'custom', helpers)
+
+    assert.throws(
+      () => wrapped.route('/account/confirm/rt', ['POST'], [MetodoController, 'confirm'] as any),
+      /handler-função/
+    )
+  })
+
+  test('resource() lança — não há handler-função para embrulhar', ({ assert }) => {
+    const wrapped = guardSudoRoutes(realRouter(), 'custom', helpers)
+
+    assert.throws(() => (wrapped as any).resource('/account/confirm/custom', MetodoController), /barreira/)
+    assert.throws(
+      () => (wrapped as any).shallowResource('/account/confirm/custom', MetodoController),
+      /barreira/
+    )
+  })
+
+  test('a mensagem nomeia o método e aponta a saída', ({ assert }) => {
+    const wrapped = guardSudoRoutes(realRouter(), 'meu-metodo', helpers)
+
+    try {
+      wrapped.post('/account/confirm/x', [MetodoController, 'confirm'] as any)
+      assert.fail('deveria ter lançado')
+    } catch (error: any) {
+      assert.include(error.message, 'meu-metodo')
+      assert.include(error.message, 'POST /account/confirm/x')
+      assert.include(error.message, 'config.sudo.methods')
+    }
+  })
+
+  test('contraprova: handler-função continua registrando normalmente', ({ assert }) => {
+    const wrapped = guardSudoRoutes(realRouter(), 'custom', helpers)
+
+    assert.doesNotThrow(() => wrapped.post('/account/confirm/custom', async () => 'ok'))
+    // `on()` não registra handler que possa alcançar `completeSudo` — segue passando.
+    assert.doesNotThrow(() => wrapped.on('/account/confirm/on'))
+  })
+
+  test('um método que registra por tupla derruba o boot em registerAuthHost', ({ assert }) => {
+    const porTupla: SudoMethod = {
+      id: 'por-tupla',
+      async isAvailable() {
+        return true
+      },
+      async describe() {
+        return {
+          labelKey: 'account.confirm.method.password',
+          kind: 'action' as const,
+          endpoint: '/account/confirm/por-tupla',
+        }
+      },
+      register(router: Router) {
+        router.post('/account/confirm/por-tupla', [MetodoController, 'confirm'] as any)
+      },
+    }
+
+    assert.throws(
+      () => registerAuthHost(capturingRouter(), { mountPath: '/oidc', sudoMethods: [porTupla] }),
+      /handler-função/
+    )
+  })
+})
+
+/**
  * A barreira "conta carregada", irmã da barreira "método habilitado".
  *
  * `sudoContextFrom` deixa `account: null` quando `findById` não acha nada —

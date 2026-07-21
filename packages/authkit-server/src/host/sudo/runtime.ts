@@ -130,6 +130,15 @@ export function configuredSudoMethods(cfg: ResolvedServerConfig): SudoMethod[] {
 const ROUTER_VERBS = ['get', 'post', 'put', 'patch', 'delete', 'any'] as const
 
 /**
+ * Atalhos do `Router` que registram rotas SEM receber um handler-função: eles
+ * expandem um CONTROLLER em N rotas por convenção. Não há função para embrulhar
+ * — a barreira não tem por onde entrar —, então são recusados no boot.
+ *
+ * Ver `assertWrappableHandler` para o porquê de recusar em vez de deixar passar.
+ */
+const ROUTER_CONTROLLER_SHORTCUTS = ['resource', 'shallowResource'] as const
+
+/**
  * Envelopa o router entregue a `method.register` para que TODO handler que ele
  * registrar seja barrado quando `config.sudo.methods` não incluir o método.
  *
@@ -148,6 +157,13 @@ const ROUTER_VERBS = ['get', 'post', 'put', 'patch', 'delete', 'any'] as const
  * que não distingue "método desligado" de "credencial errada" e portanto não
  * vaza a config do host.
  *
+ * O QUE NÃO CABE NA BARREIRA É RECUSADO, não tolerado: um handler que não seja
+ * função (tupla `[Controller, 'metodo']`) e os atalhos `resource()`/
+ * `shallowResource()` lançam no ponto de registro. Ver
+ * `ROUTER_CONTROLLER_SHORTCUTS` e o `assertWrappableHandler` abaixo.
+ * (`on()` continua passando: ele registra redirect/render estático, sem handler
+ * que possa alcançar `completeSudo`.)
+ *
  * CUSTO: resolve o config do container antes do handler. Não usa
  * `contextFrom` no caminho feliz de propósito — aquilo faz `findById`, e pagar
  * uma leitura de conta a mais em toda rota de sudo para uma checagem que só lê
@@ -164,10 +180,36 @@ export function guardSudoRoutes(router: Router, methodId: string, h: SudoRouteHe
       return h.fail(c, 'account.confirm.error')
     }
 
-  // Só embrulha handler-função. Um `[Controller, 'method']` passa direto:
-  // nenhum método built-in registra assim, e embrulhar a tupla a quebraria.
-  const wrapIfFn = (handler: unknown) =>
-    typeof handler === 'function' ? wrap(handler as (ctx: HttpContext) => unknown) : handler
+  /**
+   * A barreira só sabe embrulhar handler-FUNÇÃO. Qualquer outra forma
+   * (`[Controller, 'method']`, string `'Controller.method'`) registra uma rota
+   * que `config.sudo.methods` não desabilita e que alcança o `completeSudo`
+   * público — um bypass silencioso, no exato ponto onde a barreira devia ser
+   * estrutural.
+   *
+   * Por isso LANÇA, em vez de deixar passar. Antes o argumento era "nenhum
+   * built-in registra assim" — mas isso é propriedade dos built-in, não da
+   * barreira, e o público-alvo do SPI é justamente quem não é built-in.
+   *
+   * É boot-time e é alto: o host descobre no primeiro `node ace serve`, não em
+   * produção com uma rota de sudo desguardada. A saída é registrar um wrapper
+   * de uma linha (`(ctx) => new Ctrl().metodo(ctx)`), que passa pela barreira.
+   */
+  const assertWrappableHandler = (verb: string, pattern: string, handler: unknown) => {
+    if (typeof handler === 'function') return handler as (ctx: HttpContext) => unknown
+
+    throw new Error(
+      `authkit: o método de sudo "${methodId}" registrou "${verb} ${pattern}" com um handler ` +
+        `que não é função (${handler === undefined ? 'undefined' : typeof handler}). ` +
+        'Métodos de sudo precisam registrar handler-função para receber a barreira de ' +
+        '`config.sudo.methods` — uma tupla `[Controller, \'metodo\']` registraria uma rota que ' +
+        'a config não desabilita e que alcança `completeSudo`. Envolva o controller numa ' +
+        "função: `router.post(pattern, (ctx) => new Controller().metodo(ctx))`."
+    )
+  }
+
+  const wrapIfFn = (verb: string, pattern: string, handler: unknown) =>
+    wrap(assertWrappableHandler(verb, pattern, handler))
 
   return new Proxy(router, {
     // `receiver` é DELIBERADAMENTE `target`, não o Proxy: o `Router` do Adonis é
@@ -181,16 +223,32 @@ export function guardSudoRoutes(router: Router, methodId: string, h: SudoRouteHe
       // `route(pattern, methods, handler)` — handler no TERCEIRO argumento.
       if (prop === 'route') {
         return (pattern: string, methods: unknown, handler: unknown, ...rest: unknown[]) =>
-          original.call(target, pattern, methods, wrapIfFn(handler), ...rest)
+          original.call(target, pattern, methods, wrapIfFn('route', pattern, handler), ...rest)
       }
 
       if (ROUTER_VERBS.includes(prop as (typeof ROUTER_VERBS)[number])) {
         return (pattern: string, handler: unknown, ...rest: unknown[]) =>
-          original.call(target, pattern, wrapIfFn(handler), ...rest)
+          original.call(target, pattern, wrapIfFn(String(prop).toUpperCase(), pattern, handler), ...rest)
       }
 
-      // Todo o RESTO da API do `Router` (`group`, `on`, `where`, `use`,
-      // `resource`, ...) segue funcionando, ligado ao router real. Sem o
+      // `resource()`/`shallowResource()` expandem um controller em N rotas por
+      // convenção: não passa handler-função por lugar nenhum, e a barreira não
+      // teria o que embrulhar. Recusa no boot pela mesma razão da tupla — deixar
+      // passar seria registrar rotas de sudo que `config.sudo.methods` não
+      // desabilita.
+      if (ROUTER_CONTROLLER_SHORTCUTS.includes(prop as (typeof ROUTER_CONTROLLER_SHORTCUTS)[number])) {
+        return (pattern: string) => {
+          throw new Error(
+            `authkit: o método de sudo "${methodId}" chamou router.${String(prop)}("${pattern}"), ` +
+              'que registra rotas a partir de um controller e portanto não pode receber a ' +
+              'barreira de `config.sudo.methods`. Registre as rotas do método uma a uma, com ' +
+              'handler-função.'
+          )
+        }
+      }
+
+      // Todo o RESTO da API do `Router` (`group`, `on`, `where`, `use`, ...)
+      // segue funcionando, ligado ao router real. Sem o
       // `bind`, um `router.group(() => ...)` — uso perfeitamente legítimo do
       // tipo `Router` que `SudoMethod.register` declara receber — rodaria com
       // `this === Proxy` e explodiria no boot da aplicação.

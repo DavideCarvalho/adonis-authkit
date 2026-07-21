@@ -1,5 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import type { Router } from '@adonisjs/core/http'
+import { translate } from '../../i18n.js'
 import { isSudoMethodEnabled } from '../runtime.js'
 import type { SudoContext, SudoMethod, SudoRouteHelpers } from '../types.js'
 
@@ -175,7 +176,10 @@ export function magicLink(): SudoMethod {
           return h.fail(c, 'account.confirm.error')
         }
 
-        ctx.session.flash('confirmNotice', 'account.confirm.magic_link_sent')
+        // TRADUZIDO, não a chave crua: o `fail()` do runtime flasha
+        // `translate(...)` em `confirmError`, e a tela leria dois formatos
+        // diferentes se este aqui mandasse a chave.
+        ctx.session.flash('confirmNotice', translate(c.cfg.messages, 'account.confirm.magic_link_sent'))
         return ctx.response.redirect(`/account/confirm${qs}`)
       })
 
@@ -186,6 +190,15 @@ export function magicLink(): SudoMethod {
 
         // Sem conta resolvida não há a quem conceder sudo. O token vive na
         // sessão, mas quem o consome precisa continuar sendo uma conta viva.
+        //
+        // NÃO INVERTA ESTA ORDEM. O `!c.account` vem ANTES do
+        // `verifySudoLinkToken` de propósito: o `verify` é DESTRUTIVO (queima o
+        // pendente na primeira tentativa, certa ou errada), e scanners
+        // corporativos de e-mail — Safe Links do Microsoft 365, proxies de
+        // antivírus — fazem prefetch da URL SEM o cookie de sessão. Nesse
+        // prefetch não há conta resolvida: com esta ordem ele é recusado antes
+        // de tocar no pendente, e o link continua válido para o usuário. Trocar
+        // as duas linhas faria todo link chegar já consumido.
         if (!c.account) return h.fail(c, 'account.confirm.error')
 
         const token = ctx.params?.token as string | undefined

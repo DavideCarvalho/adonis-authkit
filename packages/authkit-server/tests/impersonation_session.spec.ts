@@ -6,6 +6,7 @@ import {
   impersonationState,
   stopImpersonation,
 } from '../src/host/impersonation_session.js'
+import { markSudo, isSudoActive } from '../src/host/sudo_mode.js'
 
 /**
  * ctx falso com uma sessão in-memory (get/put/forget/regenerate). `regenerate`
@@ -247,5 +248,56 @@ test.group('impersonation_session — invariante 5: impersonationState reflete o
     await stopImpersonation(ctx)
     const after = impersonationState(ctx)
     assert.deepEqual(after, { active: false })
+  })
+})
+
+test.group('impersonation_session — invariante 6: a marca de sudo não atravessa a troca de conta', () => {
+  test('start NÃO carrega o sudo do admin para a conta personificada', async ({ assert }) => {
+    const { ctx, store } = makeCtx({ [ACCOUNT_SESSION_KEY]: 'admin-1' })
+    rememberAccessToken(ctx, 'admin-access-token')
+
+    // O admin confirmou o sudo sobre a PRÓPRIA conta, agora mesmo.
+    markSudo(ctx)
+    assert.isTrue(isSudoActive(ctx, 15), 'pré-condição: o admin tem sudo sobre a própria conta')
+
+    await startImpersonation(ctx, baseParams({ targetId: 'target-1', fetchImpl: fetchOk([]) }))
+
+    // ESCALAÇÃO DE PRIVILÉGIO: entrar personificando com a graça já aberta daria
+    // ao admin exportar/excluir dados, mexer em MFA e emitir PATs da conta alheia
+    // sem nunca ter confirmado identidade COMO ela.
+    assert.equal(store[ACCOUNT_SESSION_KEY], 'target-1')
+    assert.isFalse(isSudoActive(ctx, 15), 'o sudo do admin não pode valer sobre a conta personificada')
+  })
+
+  test('stop NÃO devolve para o admin o sudo obtido enquanto personificava', async ({ assert }) => {
+    const { ctx, store } = makeCtx({ [ACCOUNT_SESSION_KEY]: 'admin-1' })
+    rememberAccessToken(ctx, 'admin-access-token')
+
+    await startImpersonation(ctx, baseParams({ targetId: 'target-1', fetchImpl: fetchOk([]) }))
+
+    // Sudo confirmado ENQUANTO personificava: vale para a conta personificada.
+    markSudo(ctx)
+    assert.isTrue(isSudoActive(ctx, 15), 'pré-condição: sudo ativo sobre a conta personificada')
+
+    await stopImpersonation(ctx)
+
+    assert.equal(store[ACCOUNT_SESSION_KEY], 'admin-1')
+    assert.isFalse(isSudoActive(ctx, 15), 'o sudo obtido personificando não pode valer sobre o admin')
+  })
+
+  test('stop preserva o sudo que o admin já tinha sobre a própria conta', async ({ assert }) => {
+    const { ctx } = makeCtx({ [ACCOUNT_SESSION_KEY]: 'admin-1' })
+    rememberAccessToken(ctx, 'admin-access-token')
+
+    // Confirmação legítima do admin, sobre a conta do admin, antes de personificar.
+    markSudo(ctx)
+
+    await startImpersonation(ctx, baseParams({ targetId: 'target-1', fetchImpl: fetchOk([]) }))
+    await stopImpersonation(ctx)
+
+    // Intencional: é a confirmação dele, sobre a conta dele, dentro da janela
+    // dele. Limpar aqui (abordagem "forget nas transições") custaria uma
+    // reconfirmação sem ganho de segurança.
+    assert.isTrue(isSudoActive(ctx, 15))
   })
 })

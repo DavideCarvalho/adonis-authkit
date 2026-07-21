@@ -136,6 +136,18 @@ function memoryAuditSink(): AuditSink & { events: StoredAuditEvent[] } {
 
 // ─── Fake HTTP context ────────────────────────────────────────────────────────
 
+/**
+ * `sessionData` de uma sessão com sudo ATIVO.
+ *
+ * A marca de sudo é o par timestamp + conta que confirmou: `isSudoActive`
+ * recusa uma marca que não esteja vinculada à conta logada (fail-closed), então
+ * o timestamp sozinho não concede mais nada. Passe o MESMO id usado em
+ * `sessionUserId`.
+ */
+function activeSudo(accountId: string): Record<string, unknown> {
+  return { authkit_sudo_at: Date.now(), authkit_sudo_account: accountId }
+}
+
 function fakeCtx(opts: {
   service?: any
   inputs?: Record<string, unknown>
@@ -450,7 +462,7 @@ test.group('AccountApiController — POST /account/api/password', (group) => {
     const { ctx, captured } = fakeCtx({
       service,
       sessionUserId: userId,
-      sessionData: { authkit_sudo_at: Date.now() },
+      sessionData: activeSudo(userId),
       inputs: { currentPassword: 'OldPass123', newPassword: 'NewPass456!' },
     })
     const result: any = await ctrl.changePassword(ctx)
@@ -463,7 +475,7 @@ test.group('AccountApiController — POST /account/api/password', (group) => {
     const { ctx, captured } = fakeCtx({
       service,
       sessionUserId: userId,
-      sessionData: { authkit_sudo_at: Date.now() },
+      sessionData: activeSudo(userId),
       inputs: { currentPassword: 'WRONG', newPassword: 'NewPass456!' },
     })
     await ctrl.changePassword(ctx)
@@ -509,7 +521,7 @@ test.group('AccountApiController — POST /account/api/email-change', (group) =>
     const { ctx, captured } = fakeCtx({
       service,
       sessionUserId: userId,
-      sessionData: { authkit_sudo_at: Date.now() },
+      sessionData: activeSudo(userId),
       inputs: { currentPassword: 'Passw0rd!', newEmail: 'new@test.com' },
     })
     const result: any = await ctrl.requestEmailChange(ctx)
@@ -768,7 +780,7 @@ test.group('AccountApiController — GET /account/api/passkeys', (group) => {
     const { ctx, captured } = fakeCtx({
       service: started2.service,
       sessionUserId: acc.id,
-      sessionData: { authkit_sudo_at: Date.now() },
+      sessionData: activeSudo(acc.id),
       params: { id: 'pk1' },
     })
     const result: any = await ctrl.removePasskey(ctx)
@@ -813,7 +825,7 @@ test.group('AccountApiController — Tokens (PATs)', (group) => {
     const { ctx, captured } = fakeCtx({
       service,
       sessionUserId: userId,
-      sessionData: { authkit_sudo_at: Date.now() },
+      sessionData: activeSudo(userId),
       inputs: { name: 'My CI Token' },
     })
     const result: any = await ctrl.createToken(ctx)
@@ -841,7 +853,7 @@ test.group('AccountApiController — Tokens (PATs)', (group) => {
     const createCtx = fakeCtx({
       service,
       sessionUserId: userId,
-      sessionData: { authkit_sudo_at: Date.now() },
+      sessionData: activeSudo(userId),
       inputs: { name: 'To Revoke' },
     })
     const created: any = await ctrl.createToken(createCtx.ctx)
@@ -851,7 +863,7 @@ test.group('AccountApiController — Tokens (PATs)', (group) => {
     const revokeCtx = fakeCtx({
       service,
       sessionUserId: userId,
-      sessionData: { authkit_sudo_at: Date.now() },
+      sessionData: activeSudo(userId),
       params: { id: created.id },
     })
     const result: any = await ctrl.revokeToken(revokeCtx.ctx)
@@ -864,7 +876,7 @@ test.group('AccountApiController — Tokens (PATs)', (group) => {
     const { ctx, captured } = fakeCtx({
       service,
       sessionUserId: userId,
-      sessionData: { authkit_sudo_at: Date.now() },
+      sessionData: activeSudo(userId),
       params: { id: 'nonexistent-token-id' },
     })
     await ctrl.revokeToken(ctx)
@@ -1032,7 +1044,7 @@ test.group('AccountApiController — sem patStore → tokens 422', (group) => {
     const { ctx, captured } = fakeCtx({
       service,
       sessionUserId: userId,
-      sessionData: { authkit_sudo_at: Date.now() },
+      sessionData: activeSudo(userId),
       inputs: { name: 'No Pat' },
     })
     await ctrl.createToken(ctx)

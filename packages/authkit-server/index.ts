@@ -346,6 +346,7 @@ export type {
 // Sudo mode — helpers for host controllers that require step-up authentication.
 export {
   SUDO_SESSION_KEY,
+  SUDO_ACCOUNT_SESSION_KEY,
   SUDO_MODE_DEFAULTS,
   requireSudo,
   isSudoActive,

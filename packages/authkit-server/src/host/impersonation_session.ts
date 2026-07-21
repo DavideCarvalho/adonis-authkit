@@ -131,6 +131,14 @@ export async function startImpersonation(ctx: HttpContext, params: StartImperson
   // nova identidade. Mesmo padrão do consumidor real no RP.
   await ctx.session.regenerate()
 
+  // ESCALAÇÃO DE PRIVILÉGIO (fechada por vinculação): trocar a conta aqui NÃO
+  // pode carregar junto o sudo que o admin confirmou sobre a PRÓPRIA conta —
+  // senão ele entraria personificando já com a graça aberta sobre a conta
+  // alheia (exportar/excluir dados, MFA, PATs). Não limpamos a marca aqui: ela
+  // é vinculada à conta que a confirmou (`SUDO_ACCOUNT_SESSION_KEY`), então
+  // `isSudoActive` a recusa sozinho assim que `ACCOUNT_SESSION_KEY` muda. A
+  // garantia é estrutural — vale para qualquer troca de conta futura, sem
+  // depender de um `forget` lembrado em cada nova transição.
   ctx.session.put(IMPERSONATOR_SESSION_KEY, impersonatorId)
   ctx.session.put(ACCOUNT_SESSION_KEY, params.targetId)
 }
@@ -157,6 +165,13 @@ export async function stopImpersonation(ctx: HttpContext): Promise<void> {
 
   await ctx.session.regenerate()
 
+  // Simétrico ao `startImpersonation`: o sudo obtido ENQUANTO personificava
+  // ficaria valendo sobre a conta do admin ao voltar. A vinculação corta isso —
+  // aquela marca aponta para a conta personificada e morre com a volta.
+  //
+  // Nota: se o admin tinha sudo sobre a própria conta ANTES de personificar e a
+  // graça ainda não venceu, ele volta valendo. Correto e intencional: é a
+  // confirmação dele, sobre a conta dele, dentro da janela dele.
   ctx.session.put(ACCOUNT_SESSION_KEY, impersonatorId)
   ctx.session.forget(IMPERSONATOR_SESSION_KEY)
   ctx.session.forget(ADMIN_ACCESS_TOKEN_SESSION_KEY)

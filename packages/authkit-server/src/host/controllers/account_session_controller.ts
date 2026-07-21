@@ -127,9 +127,15 @@ export default class AccountSessionController {
     //
     // Consequência de projeto: TODO dado sensível guardado na sessão precisa
     // ser VINCULADO À CONTA que o gravou (ex.: `accountId` no pendente do
-    // magic link de sudo e na vinculação do challenge de passkey). Confiar que
-    // ele "some no logout" é falso — num navegador compartilhado ele sobrevive
-    // ao logout de A e ao login de B.
+    // magic link de sudo, na vinculação do challenge de passkey e na marca de
+    // sudo — `SUDO_ACCOUNT_SESSION_KEY`). Confiar que ele "some no logout" é
+    // falso — num navegador compartilhado ele sobrevive ao logout de A e ao
+    // login de B.
+    //
+    // A marca de sudo era a EXCEÇÃO à própria regra declarada aqui: só o
+    // timestamp, sem dono. Passou a ser vinculada — por isso este `forget`
+    // continua sendo só do `ACCOUNT_SESSION_KEY`: trocada a conta, a marca de
+    // sudo remanescente já não vale para ninguém.
     ctx.session.forget(ACCOUNT_SESSION_KEY)
     await ctx.session.regenerate()
     // Opt-in: espelha o logout no guard de @adonisjs/auth (ver adonisAuth em define_config.ts).

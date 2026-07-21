@@ -32,8 +32,23 @@ export interface SudoMethodDescriptor {
    * 'form'     — a tela renderiza `fields` e dá POST em `endpoint`.
    * 'action'   — a tela dá POST em `endpoint` sem input.
    * 'redirect' — a tela manda o usuário para `endpoint` (fluxo externo).
+   * 'webauthn' — a tela precisa RODAR o handshake WebAuthn antes de postar:
+   *              pede as options em `${endpoint}/options`, chama
+   *              `navigator.credentials.get` (via `@simplewebauthn/browser`) e
+   *              posta a assertion serializada no campo `response` de
+   *              `endpoint`.
+   *
+   * `'webauthn'` existe como KIND próprio, e não como um caso especial do id
+   * `passkey`, justamente para a tela não voltar a conhecer método nenhum pelo
+   * nome: o endpoint de options é DERIVADO do descritor. Qualquer método do SPI
+   * que implemente o mesmo par `POST <endpoint>/options` + `POST <endpoint>`
+   * ganha a tela embutida de graça.
+   *
+   * Um método `'webauthn'` NÃO é utilizável sem JavaScript. Renderizá-lo como
+   * um form de submit direto manda `response` vazio e o handler recusa sempre —
+   * foi exatamente essa a regressão que motivou este kind.
    */
-  kind: 'form' | 'action' | 'redirect'
+  kind: 'form' | 'action' | 'redirect' | 'webauthn'
   endpoint: string
   fields?: Array<{ name: string; type: 'password' | 'text'; labelKey: string }>
 }

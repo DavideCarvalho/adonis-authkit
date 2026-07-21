@@ -78,10 +78,13 @@ test.group('sudoMethods.passkey', () => {
     assert.isFalse(await passkey().isAvailable(c))
   })
 
-  test('descreve uma action na URL legada', async ({ assert }) => {
+  // 'webauthn', não 'action': o navegador precisa assinar o challenge antes do
+  // POST. Com 'action' a tela renderiza um submit direto, o campo `response`
+  // vai vazio e o handler recusa sempre — o botão de passkey nunca funciona.
+  test('descreve um handshake webauthn na URL legada', async ({ assert }) => {
     const c = ctxWith({ accountStore: {} })
     const d = await passkey().describe(c)
-    assert.equal(d.kind, 'action')
+    assert.equal(d.kind, 'webauthn')
     assert.equal(d.endpoint, '/account/confirm/passkey')
   })
 })

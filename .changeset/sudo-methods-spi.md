@@ -70,7 +70,7 @@ exportada mas está `@deprecated`: ela grava a marca e nada mais (sem audit
 As props mudaram de `{ passwordless, passkeyAvailable }` para
 `{ methods, preferredId, notice }`:
 
-- `methods`: `Array<{ id, labelKey, kind: 'form' | 'action' | 'redirect', endpoint, fields? }>`;
+- `methods`: `Array<{ id, labelKey, kind: 'form' | 'action' | 'redirect' | 'webauthn', endpoint, fields? }>`;
 - `preferredId`: id do último método usado com sucesso, para destaque;
 - `notice`: aviso já traduzido (ex.: "link enviado"), irmão de `error`.
 
@@ -86,16 +86,10 @@ ativo, ou com um challenge de passkey pendente, no momento do deploy precisa
 reconfirmar UMA vez. Não há migração possível: o dado que faltava (de quem era a
 marca) não existe retroativamente.
 
-**Interseção que trava contas: template Edge + contas passkey-only + sudo
-ativo.** As duas coisas acima se cruzam. "Reconfirme UMA vez" pressupõe que
-exista um caminho de reconfirmação; "o passkey via template Edge SEMPRE falha"
-(ver abaixo) diz que, para essas contas, não existe. Resultado: no deploy, uma
-conta passkey-only em host Edge perde o sudo que tinha e fica sem NENHUMA forma
-de recuperá-lo — presa fora de exportar/excluir dados, MFA, PATs e troca de
-e-mail. É justamente o host que mais precisa planejar a janela: **antes** de
-subir, acrescente `oidcStepUp`, `magicLink` ou `password` a `sudo.methods` e a
-`registerAuthHost({ sudoMethods })` — ou troque para um renderer próprio que
-implemente o WebAuthn da tela de confirm.
+O caminho de reconfirmação continua existindo para todo mundo, inclusive para
+contas passkey-only em host Edge: o template embutido roda o handshake WebAuthn
+completo (ver `kind: 'webauthn'` abaixo). Quem usa renderer próprio
+(React/Inertia) precisa garantir que a sua tela também o faça.
 
 ---
 
@@ -108,14 +102,21 @@ oferecer a quem já está logado há um tempo), não o login. Um host que remova
 `password` de `sudo.methods` continua vendo sudo concedido logo após um login
 por senha, e isso não é a config sendo ignorada.
 
-**O método `passkey` via template Edge está degradado nesta versão.** O JS do
-WebAuthn saiu da view e nada o substituiu: o botão de passkey do template
-embutido SEMPRE falha. O misrender silencioso foi corrigido (a opção não
-aparece mais quebrada), mas seja inequívoco sobre o alcance disso — uma conta
-passkey-only só tem caminho utilizável em host com renderer próprio
-(React/Inertia), onde a página implementa `navigator.credentials.get` e posta a
-assertion em `POST /account/confirm/passkey`. Em host Edge, configure ao menos
-um outro método (`oidcStepUp`, `magicLink` ou `password`).
+**`kind: 'webauthn'` — um método pode exigir JavaScript, e a tela sabe disso.**
+WebAuthn não é um submit: o navegador tem de buscar as options, assinar o
+challenge e só então postar a assertion. Renderizado como form comum, o campo
+`response` vai vazio e o handler recusa sempre. Por isso `passkey().describe()`
+devolve `kind: 'webauthn'` (não `'action'`), e o template embutido roda o
+handshake: pede `POST <endpoint>/options`, chama `startAuthentication` e posta a
+assertion serializada em `<endpoint>`.
+
+O kind é genérico de propósito — o endpoint de options é DERIVADO do descritor
+(`<endpoint>/options`) e a tela não conhece o id `passkey`. Qualquer método do
+SPI que implemente o mesmo par de rotas ganha a tela embutida de graça.
+
+Renderer próprio (React/Inertia) precisa tratar `'webauthn'`: um kind
+desconhecido caindo no ramo de form produz exatamente o botão que nunca
+funciona.
 
 ---
 

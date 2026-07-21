@@ -45,7 +45,12 @@ export function passkey(): SudoMethod {
     async describe() {
       return {
         labelKey: 'account.confirm.method.passkey',
-        kind: 'action' as const,
+        // 'webauthn', NÃO 'action': o navegador precisa assinar o challenge
+        // (`navigator.credentials.get`) ANTES do POST. Um form de submit direto
+        // manda `response` vazio e o handler abaixo recusa sempre. O kind é o
+        // que faz a tela rodar o handshake — e o endpoint de options ela deriva
+        // daqui (`${endpoint}/options`), sem conhecer o id 'passkey'.
+        kind: 'webauthn' as const,
         endpoint: '/account/confirm/passkey',
       }
     },

@@ -12,7 +12,11 @@ import '../augmentations.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js'
 import { validateReturnTo } from './account_session_controller.js'
-import { resolveAvailableMethods, LAST_METHOD_SESSION_KEY } from '../sudo/runtime.js'
+import {
+  resolveAvailableMethods,
+  explicitSudoMethods,
+  LAST_METHOD_SESSION_KEY,
+} from '../sudo/runtime.js'
 import type { ResolvedServerConfig } from '../../define_config.js'
 import { password } from '../sudo/methods/password.js'
 import { passkey } from '../sudo/methods/passkey.js'
@@ -28,9 +32,17 @@ export const SUDO_METHOD_DEFAULTS: SudoMethod[] = [password(), passkey()]
  */
 export const mountedSudoMethodIds = new Set<string>()
 
+/**
+ * Lista efetiva de métodos da TELA. Sem config explícito, os defaults.
+ *
+ * A checagem equivalente do lado dos HANDLERS é `isSudoMethodEnabled`
+ * (`../sudo/runtime.js`) — mesma fonte (`explicitSudoMethods`), resposta
+ * diferente para o caso "host não configurou nada": aqui os defaults, lá
+ * "qualquer método montado vale". Os métodos não podem importar daqui sem criar
+ * um ciclo (este módulo importa `password()`/`passkey()`).
+ */
 export function configuredSudoMethods(cfg: ResolvedServerConfig): SudoMethod[] {
-  const configured = cfg?.sudo?.methods
-  return Array.isArray(configured) && configured.length ? configured : SUDO_METHOD_DEFAULTS
+  return explicitSudoMethods(cfg) ?? SUDO_METHOD_DEFAULTS
 }
 
 /** Monta o SudoContext a partir do HttpContext. Usado aqui e pelas rotas dos métodos. */

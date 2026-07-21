@@ -1,4 +1,5 @@
 import type { Router } from '@adonisjs/core/http'
+import { isSudoMethodEnabled } from '../runtime.js'
 import type { SudoContext, SudoMethod, SudoRouteHelpers } from '../types.js'
 
 /**
@@ -71,6 +72,15 @@ export function password(): SudoMethod {
     register(router: Router, h: SudoRouteHelpers) {
       router.post('/account/confirm', async (ctx: any) => {
         const c = await h.contextFrom(ctx)
+
+        // ANTES de qualquer verificação: o host desligou este método?
+        // A rota é montada incondicionalmente (decisão de tempo de registro),
+        // então `config.sudo.methods` só desabilita de fato se o handler
+        // recusar. Responde `fail` — o mesmo redirect+flash de uma senha
+        // errada — em vez de 404: assim a resposta não distingue "método
+        // desligado" de "senha incorreta" e não vaza a config do host.
+        if (!isSudoMethodEnabled(c.cfg, 'password')) return h.fail(c, 'account.confirm.error')
+
         const { password: submitted } = ctx.request.only(['password'])
 
         // `c.account` é nullable (sessão viva de conta apagada → findById null)

@@ -1,10 +1,44 @@
 import { markSudo } from '../sudo_mode.js'
 import { accountHome } from '../account_home.js'
 import { translate } from '../i18n.js'
+import type { ResolvedServerConfig } from '../../define_config.js'
 import type { SudoContext, SudoMethod } from './types.js'
 
 /** Último método usado com sucesso — só ordena a tela, não restringe nada. */
 export const LAST_METHOD_SESSION_KEY = 'authkit_sudo_last_method'
+
+/**
+ * Lista de métodos que o host configurou EXPLICITAMENTE, ou `null` quando ele
+ * não configurou nada (ausente ou vazio → "não restringi").
+ *
+ * Ponto ÚNICO de leitura de `config.sudo.methods`. Existe aqui (e não no
+ * controller) porque quem precisa dela são os dois lados — a tela, que decide o
+ * que OFERECER, e os handlers dos métodos, que decidem o que ACEITAR — e o
+ * controller já importa os métodos built-in, o que tornaria a dependência
+ * circular se os métodos importassem de volta o controller.
+ */
+export function explicitSudoMethods(cfg: ResolvedServerConfig): SudoMethod[] | null {
+  const configured = cfg?.sudo?.methods
+  return Array.isArray(configured) && configured.length ? configured : null
+}
+
+/**
+ * O método `methodId` está habilitado para ESTE host?
+ *
+ * Toda rota registrada por um `SudoMethod` DEVE começar por aqui. Sem essa
+ * checagem, `config.sudo.methods` só esconderia o método da tela: o endpoint
+ * continuaria vivo e concedendo sudo — uma config que aparenta restringir e não
+ * restringe é pior que nenhuma config.
+ *
+ * Sem configuração explícita nada foi restringido: vale o que tem rota montada.
+ * Isso é deliberado — a lista de defaults não é a fonte de verdade do que está
+ * montado, e tratá-la como tal derrubaria um método customizado do host.
+ */
+export function isSudoMethodEnabled(cfg: ResolvedServerConfig, methodId: string): boolean {
+  const explicit = explicitSudoMethods(cfg)
+  if (explicit === null) return true
+  return explicit.some((m) => m?.id === methodId)
+}
 
 /**
  * ÚNICO ponto do pacote que concede sudo. Nenhum `SudoMethod` chama

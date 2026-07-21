@@ -40,6 +40,18 @@ export const SUDO_MODE_DEFAULTS: ResolvedSudoModeSetting = {
 
 /**
  * Resolve a setting `sudo_mode` em runtime (fail-safe).
+ *
+ * FAIL-SAFE, e de propósito: setting ausente, malformada ou store indisponível
+ * caem em `SUDO_MODE_DEFAULTS` em vez de lançar. A pergunta que esta função
+ * responde é de DISPONIBILIDADE — "o toggle de sudo mode está ligado, e com que
+ * janela de graça?" —, não de identidade. Um erro aqui não é sinal de credencial
+ * suspeita; é o store de settings fora do ar.
+ *
+ * Note que o default é `enabled: true`: o fail-safe não desliga o sudo mode, ele
+ * mantém a política default LIGADA. Quem decide o que fazer com uma sessão sem
+ * sudo continua sendo `isSudoActive` (fail-CLOSED). Ver o docblock de
+ * `requireSudo` para a assimetria completa entre as duas posturas — ela é
+ * escolha, não descuido.
  */
 export async function resolveEffectiveSudoMode(
   settings: SettingsCapability
@@ -134,6 +146,10 @@ export function markSudo(ctx: HttpContext): void {
  * é recusada. Isso inclui sessões que já estavam vivas antes deste deploy — elas
  * perdem o sudo e reconfirmam, que é o lado seguro do trade-off.
  *
+ * Esta postura é o OPOSTO do fail-safe de `requireSudo`, e as duas estão certas:
+ * aqui a pergunta é "esta marca é minha?" (identidade), lá é "o toggle está
+ * ligado?" (disponibilidade). O docblock de `requireSudo` desenvolve a distinção.
+ *
  * @returns `true` se o sudo está ativo (dentro da graça); `false` caso contrário.
  */
 export function isSudoActive(ctx: HttpContext, graceMinutes: number): boolean {
@@ -162,8 +178,49 @@ export function isSudoActive(ctx: HttpContext, graceMinutes: number): boolean {
  * if (result !== true) return result
  * ```
  *
- * FAIL-SAFE: qualquer erro lê settings → retorna `true` (deixa passar).
- * Quando `sudo_mode.enabled = false`, sempre retorna `true`.
+ * FAIL-SAFE: qualquer erro ao resolver a setting → retorna `true` (deixa
+ * passar). Quando `sudo_mode.enabled = false`, sempre retorna `true`.
+ *
+ * ---
+ *
+ * POR QUE ESTE FAIL-SAFE CONVIVE COM O FAIL-CLOSED DAS VINCULAÇÕES.
+ *
+ * Lendo este arquivo (e os vizinhos) aparecem duas posturas OPOSTAS diante de
+ * uma situação anômala, e isso é deliberado — não é um dos dois lados por
+ * consertar. Quem "harmonizar" as duas quebra alguma coisa:
+ *
+ *   - FAIL-CLOSED nas vinculações à conta: a marca de sudo
+ *     (`SUDO_ACCOUNT_SESSION_KEY` em `isSudoActive`), o challenge de passkey do
+ *     confirm e o token pendente do magic link de sudo. Todas recusam quando a
+ *     vinculação falta ou não bate.
+ *   - FAIL-SAFE aqui, ao resolver a setting `sudo_mode`.
+ *
+ * A diferença não é de rigor, é de PERGUNTA:
+ *
+ *   - As vinculações perguntam **"esta credencial é minha?"**. É IDENTIDADE. Uma
+ *     resposta duvidosa é indistinguível de uma resposta negativa — uma marca
+ *     sem dono pode ser a marca de outra conta que sobreviveu à troca de sessão.
+ *     Deixar passar concede privilégio a quem talvez não o tenha, e o custo do
+ *     erro é escalação. Identidade duvidosa é recusada; o usuário reconfirma,
+ *     que é barato.
+ *   - Este fail-safe pergunta **"o toggle de sudo mode está ligado?"**. É
+ *     DISPONIBILIDADE, uma questão de configuração, e a resposta não diz nada
+ *     sobre quem é o usuário. Quem chega aqui já passou pelo `accountGuard`:
+ *     tem sessão de conta viva e autenticada.
+ *
+ * Inverter ESTE lado para fail-closed transformaria uma indisponibilidade do
+ * store de settings (BD fora do ar, timeout, migração em curso) num lockout
+ * TOTAL: todo mundo, simultaneamente, trancado fora da própria área de conta —
+ * inclusive fora dos caminhos de recuperação. E o ataque que isso evitaria
+ * exige que o atacante já tenha uma sessão autenticada da vítima E consiga
+ * derrubar o store de settings no mesmo instante. Trocar uma falha rara e
+ * condicionada por uma indisponibilidade certa e generalizada é o pior dos dois
+ * negócios.
+ *
+ * O fail-safe também é ESTREITO: ele só decide se a BARREIRA roda. Ele não
+ * concede sudo, não fabrica marca nenhuma e não mexe em vinculação. Se a setting
+ * resolve normalmente, a decisão volta inteira para `isSudoActive` — e lá a
+ * postura é fail-closed de novo.
  */
 export async function requireSudo(
   ctx: HttpContext,
@@ -174,7 +231,9 @@ export async function requireSudo(
     if (!cfg.enabled) return true
     if (isSudoActive(ctx, cfg.graceMinutes)) return true
   } catch {
-    // FAIL-SAFE: erro ao resolver a setting → deixa passar.
+    // FAIL-SAFE: erro ao resolver a setting → deixa passar. Disponibilidade, não
+    // identidade — ver o docblock acima para o porquê de isto NÃO contradizer o
+    // fail-closed de `isSudoActive`.
     return true
   }
 

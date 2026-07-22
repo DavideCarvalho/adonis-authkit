@@ -76,6 +76,7 @@ export type AuthkitScreen =
   | 'mfa-challenge'
   | 'otp-unlock'
   | 'maintenance'
+  | 'session-expired'
   | 'account/login'
   | 'account/tokens'
   | 'account/mfa'

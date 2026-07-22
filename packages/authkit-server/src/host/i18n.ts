@@ -618,6 +618,13 @@ export const DEFAULT_MESSAGES = {
   'maintenance.admin_login_note':
     'If you are an administrator, you may still log in to manage the system.',
 
+  // Sessão de login (interaction OIDC) expirada/perdida — recuperação graciosa.
+  'session_expired.page_title': 'Session expired',
+  'session_expired.title': 'Your session expired',
+  'session_expired.body':
+    'Your login session expired or could not be found. This can happen if you left the page open too long. Please start again.',
+  'session_expired.login_link': 'Back to login',
+
   // Política de senha (validação ao definir uma senha nova) + vazamento (HIBP) + histórico + expiração.
   'password.policy.min_length': 'Password must be at least {min} characters long.',
   'password.policy.uppercase': 'Password must contain at least one uppercase letter.',
@@ -1583,6 +1590,13 @@ export const PT_BR_MESSAGES = {
     'O serviço está temporariamente indisponível para manutenção. Tente novamente em breve.',
   'maintenance.admin_login_note':
     'Se você é administrador, ainda pode entrar para gerenciar o sistema.',
+
+  // Sessão de login (interaction OIDC) expirada/perdida — recuperação graciosa.
+  'session_expired.page_title': 'Sessão expirada',
+  'session_expired.title': 'Sua sessão expirou',
+  'session_expired.body':
+    'Sua sessão de login expirou ou não foi encontrada. Isso pode acontecer se a página ficou aberta por muito tempo. Recomece o login.',
+  'session_expired.login_link': 'Voltar ao login',
 
   // Política de senha (validação ao definir uma senha nova) + vazamento (HIBP) + histórico + expiração.
   'password.policy.min_length': 'A senha deve ter no mínimo {min} caracteres.',

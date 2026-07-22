@@ -879,6 +879,32 @@ export function resolveWebauthn(
   };
 }
 
+/**
+ * Recuperação da sessão de interaction OIDC perdida (expirada, cookie velho, F5
+ * tardio, restart do servidor). Perder essa sessão é um caso NORMAL: em vez de
+ * vazar o `SessionNotFound` cru do `oidc-provider`, o authkit RECUPERA.
+ */
+export interface InteractionRecoveryConfigInput {
+  /**
+   * - `'screen'` (default): renderiza a tela themeável `session-expired` (view
+   *   Edge built-in `session-expired`, ou a página React do host quando listada
+   *   no allowlist do `inertiaRenderer`). Props: `{ loginUrl, brand }`.
+   * - `'redirect'`: responde 302 para `redirectTo` (recomeço limpo do login).
+   */
+  mode?: 'screen' | 'redirect';
+  /**
+   * Destino do link "voltar ao login" (screen) / do 302 (redirect). Default:
+   * `getAccountLoginUrl()` (respeita `accountLoginUrl`). NÃO aponte para uma URL
+   * de interaction — evita loop de redirect.
+   */
+  redirectTo?: string;
+}
+
+export interface ResolvedInteractionRecoveryConfig {
+  mode: 'screen' | 'redirect';
+  redirectTo?: string;
+}
+
 export interface AuthServerConfigInput {
   issuer: string;
   adapter: AdapterFactory;
@@ -935,6 +961,13 @@ export interface AuthServerConfigInput {
    * `undefined` e o controller chamava `render(ctx, ...)` diretamente.
    */
   render?: AuthHostRenderer;
+  /**
+   * Recuperação graciosa da sessão de interaction OIDC perdida. Default:
+   * `{ mode: 'screen' }` — renderiza a tela themeável `session-expired`. Use
+   * `{ mode: 'redirect' }` para um 302 ao login. Ver
+   * {@link InteractionRecoveryConfigInput}.
+   */
+  interactionRecovery?: InteractionRecoveryConfigInput;
   /** Configuração de branding por cliente. */
   branding?: BrandingConfig;
   /** Internacionalização das telas. Default: pt-BR embutido (zero config). */
@@ -1152,6 +1185,8 @@ export interface ResolvedServerConfig {
   /** Destino default pós-confirmação do console (sudo mode) e demais fallbacks de conta. Default: '/account/security'. */
   accountHome?: string;
   render?: AuthHostRenderer;
+  /** Recuperação de sessão de interaction perdida resolvida (default `{ mode: 'screen' }`). */
+  interactionRecovery: ResolvedInteractionRecoveryConfig;
   branding?: BrandingConfig;
   social?: AuthSocialConfig;
   patIntrospectionSecret?: string;
@@ -1353,6 +1388,12 @@ export function defineConfig(config: AuthServerConfigInput) {
       // sem o peer opcional instalado (só quebraria se a request realmente
       // chegasse sem Edge configurado, exatamente como hoje).
       render: config.render ?? edgeRenderer(),
+      // Recuperação de sessão de interaction perdida: default gracioso 'screen'
+      // (tela themeável `session-expired`); 'redirect' opt-in para 302 ao login.
+      interactionRecovery: {
+        mode: config.interactionRecovery?.mode ?? 'screen',
+        redirectTo: config.interactionRecovery?.redirectTo,
+      },
       branding: config.branding,
       social: config.social,
       patIntrospectionSecret: config.patIntrospectionSecret,

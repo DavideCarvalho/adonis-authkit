@@ -65,18 +65,36 @@ export default class AuthInteractionController {
    * passo login. Sem isto, os re-renders (erro de senha, magic link enviado, lockout…) mandam
    * `authMethods` undefined → a view volta ao default (senha ligada), ignorando a config.
    * `passkeyFirst` depende da conta (resolvido no fluxo principal); aqui cobrimos senha + magic link.
+   *
+   * `otpEnabled` (disponibilidade do login por OTP: config ligada E store com a
+   * capacidade) também sai daqui — é um FATO de disponibilidade de método de login,
+   * como `magicLinkAvailable`. Assim TODO render do passo login (identifier, seletor
+   * choose-first, magicLinkSent, erro) carrega a flag POR CONSTRUÇÃO: o seletor
+   * precisa dela para oferecer a opção "código" ANTES do envio do magic link.
+   *
+   * `runtimeSettings` pode ser passado já resolvido (ex.: o `show()` já resolveu para
+   * maintenance) para evitar uma segunda resolução; ausente, resolve sob demanda.
    */
-  async #loginMethods(ctx: HttpContext, cfg: ResolvedServerConfig) {
-    const runtimeSettings = await getRuntimeSettings(ctx);
+  async #loginMethods(
+    ctx: HttpContext,
+    cfg: ResolvedServerConfig,
+    runtimeSettings?: RuntimeSettings,
+  ) {
+    const settings = runtimeSettings ?? (await getRuntimeSettings(ctx));
     const magicLinkCapableConfig =
       cfg.passwordless.magicLink && supportsMagicLink(cfg.accountStore);
-    const authMethods = await resolveEffectiveAuthMethods(runtimeSettings, {
+    const authMethods = await resolveEffectiveAuthMethods(settings, {
       configuredSocialProviders: cfg.social?.providers ?? [],
       magicLinkCapable: magicLinkCapableConfig,
       passkeyCapable: false,
       configOverrides: cfg.authMethods,
     });
-    return { authMethods, magicLinkAvailable: authMethods.magicLink && magicLinkCapableConfig };
+    const otpEnabled = cfg.login.otp.enabled && supportsOtpLogin(cfg.accountStore);
+    return {
+      authMethods,
+      magicLinkAvailable: authMethods.magicLink && magicLinkCapableConfig,
+      otpEnabled,
+    };
   }
 
   async show(ctx: HttpContext) {
@@ -140,18 +158,14 @@ export default class AuthInteractionController {
 
     const email = ctx.session.get(SESSION_KEY) as string | undefined;
 
-    // Resolve auth methods (capabilities: magic link, passkey-first, social providers).
-    // Capabilities are account-independent at this stage for the identifier step.
-    const magicLinkCapableConfig =
-      cfg.passwordless.magicLink && supportsMagicLink(cfg.accountStore);
-    const configuredSocialProviders: string[] = cfg.social?.providers ?? [];
-    const authMethodsSettings = runtimeSettingsForMaintenance;
-    const authMethods = await resolveEffectiveAuthMethods(authMethodsSettings, {
-      configuredSocialProviders,
-      magicLinkCapable: magicLinkCapableConfig,
-      passkeyCapable: false, // passkey-first depends on account — resolved in step 2
-      configOverrides: cfg.authMethods,
-    });
+    // Métodos de login efetivos (magic link, OTP, social) — account-independent
+    // neste ponto (passkey-first depende da conta, resolvido no step 2). Reusa o
+    // helper compartilhado por TODOS os renders do passo login, para que
+    // `authMethods`, `magicLinkAvailable` e `otpEnabled` saiam POR CONSTRUÇÃO
+    // (o seletor choose-first precisa de `otpEnabled` para oferecer "código").
+    // Passa o runtimeSettings já resolvido para maintenance (sem 2ª resolução).
+    const loginMethods = await this.#loginMethods(ctx, cfg, runtimeSettingsForMaintenance);
+    const authMethods = loginMethods.authMethods;
 
     if (!email) {
       // Step 1: identifier (email only).
@@ -161,12 +175,12 @@ export default class AuthInteractionController {
         runtimeSettingsForMaintenance,
       );
       return render(ctx, 'login', {
+        ...loginMethods,
         uid: details.uid,
         csrfToken: ctx.request.csrfToken,
         step: 'identifier',
         registrationEnabled,
         brand,
-        authMethods,
       });
     }
 
@@ -174,9 +188,8 @@ export default class AuthInteractionController {
     const acc = await cfg.accountStore.findByEmail(email);
     const account = acc ? { fullName: acc.name ?? null, globalRoles: acc.globalRoles ?? [] } : null;
 
-    // Passwordless: magic link disponível se ligado E o store suporta E auth_methods permite.
+    // Passwordless: magic link disponível vem do helper (`loginMethods`).
     // Passkey-first disponível se ligado, o store suporta, a conta tem passkeys E auth_methods permite.
-    const magicLinkAvailable = authMethods.magicLink && magicLinkCapableConfig;
     const passkeyFirstCapable =
       cfg.passwordless.passkeyFirst && !!acc && (await this.hasPasskeys(cfg, acc.id));
     const passkeyFirstAvailable = authMethods.passkey && passkeyFirstCapable;
@@ -194,16 +207,15 @@ export default class AuthInteractionController {
     );
 
     return render(ctx, 'login', {
+      ...loginMethods,
       uid: details.uid,
       csrfToken: ctx.request.csrfToken,
       step: 'password',
       email,
       account,
       brand,
-      magicLinkAvailable,
       passkeyFirstAvailable,
       botProtection: effectiveBot?.on.includes('login') ? effectiveBot.widget : undefined,
-      authMethods,
       rememberEnabled: sessionPolicyForShow.rememberEnabled,
       rememberDays: sessionPolicyForShow.rememberDays,
     });
@@ -781,6 +793,8 @@ export default class AuthInteractionController {
     }
 
     // Resposta uniforme (não vaza existência de conta).
+    // `otpEnabled` vem do spread de `#loginMethods` (mesmo valor do `otpEnabled`
+    // local usado acima para decidir a emissão) — não re-declarado aqui.
     return render(ctx, 'login', {
       ...(await this.#loginMethods(ctx, cfg)),
       uid,
@@ -790,7 +804,6 @@ export default class AuthInteractionController {
       account: null,
       brand,
       magicLinkSent: true,
-      otpEnabled,
       // Prop da tela: qual sub-view do estado `magicLinkSent` mostrar —
       // 'code' (só o campo de código), 'link' (só o aviso de link) ou 'both'
       // (ambos, quando o host não escolheu canal). Back-compat: ausente = 'both'.
@@ -899,6 +912,8 @@ export default class AuthInteractionController {
     });
 
     // Re-render da tela "link enviado" com o campo de código + erro localizado.
+    // `otpEnabled` vem do spread de `#loginMethods` (aqui, após a guarda acima,
+    // vale `true`) — não re-declarado inline.
     const renderOtpError = async (messageKey: string) =>
       render(ctx, 'login', {
         ...(await this.#loginMethods(ctx, cfg)),
@@ -909,7 +924,6 @@ export default class AuthInteractionController {
         account: null,
         brand,
         magicLinkSent: true,
-        otpEnabled: true,
         magicChannel: magicChannelProp(channel),
         otpError: translate(cfg.messages, messageKey),
       });

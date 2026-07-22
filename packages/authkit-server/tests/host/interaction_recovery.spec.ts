@@ -39,20 +39,42 @@ class InvalidRequest extends Error {
 
 const rawCtx = { request: { request: {} }, response: { response: {} } } as any;
 
-/** ctx fake com container + response instrumentados para a fase de recuperação. */
+/**
+ * ctx fake com container + response instrumentados para a fase de recuperação.
+ *
+ * O `response` replica o contrato mínimo do http-server que a recuperação usa:
+ * `status()`, `redirect()`, `send()` e o getter `hasLazyBody` (que vira `true`
+ * assim que um body é escrito). Isso permite ASSERTAR que o modo `screen`
+ * ESCREVE o body na resposta — não só o retorna —, que é o cerne do bugfix:
+ * no caminho de exception handler o valor retornado de `handle()` é descartado,
+ * então sem o `send()` o corpo nunca sai (400 vazio).
+ */
 function recoveryCtx(cfg: Record<string, unknown>) {
   const rendered: Array<{ view: string; props: Record<string, unknown> }> = [];
   let redirectedTo: string | undefined;
   let statusSet: number | undefined;
+  let sentBody: unknown;
+  let sendCalls = 0;
+  let hasLazyBody = false;
   const ctx = {
     containerResolver: { make: async () => ({ config: cfg }) },
     response: {
+      get hasLazyBody() {
+        return hasLazyBody;
+      },
       status(code: number) {
         statusSet = code;
         return this;
       },
+      send(body: unknown) {
+        sentBody = body;
+        sendCalls += 1;
+        hasLazyBody = true;
+        return this;
+      },
       redirect(url: string) {
         redirectedTo = url;
+        hasLazyBody = true;
         return 'REDIRECTED';
       },
     },
@@ -67,6 +89,12 @@ function recoveryCtx(cfg: Record<string, unknown>) {
     },
     get statusSet() {
       return statusSet;
+    },
+    get sentBody() {
+      return sentBody;
+    },
+    get sendCalls() {
+      return sendCalls;
     },
     renderFn: (_c: any, view: string, props: Record<string, unknown>) => {
       rendered.push({ view, props });
@@ -160,8 +188,59 @@ test.group('interaction recovery — estratégias', () => {
     assert.equal(h.rendered[0].view, 'session-expired');
     assert.property(h.rendered[0].props, 'loginUrl');
     assert.equal(h.statusSet, 400);
+    // MUTAÇÃO (o BUG): o modo screen precisa ESCREVER o body na resposta, não só
+    // retorná-lo. No exception path o retorno de `handle()` é descartado; sem o
+    // `response.send(body)` o corpo nunca sai → 400 vazio. Removê-lo deixa este
+    // assert vermelho (sentBody === undefined).
+    assert.equal(h.sentBody, 'RENDERED');
+    assert.equal(h.sendCalls, 1);
     // MUTAÇÃO: screen NÃO redireciona.
     assert.isUndefined(h.redirectedTo);
+  });
+
+  test('mode screen NÃO faz double-write se o renderer já escreveu (guard hasLazyBody)', async ({
+    assert,
+  }) => {
+    // Um renderer que escreve ele mesmo (seta lazy body) e devolve o próprio
+    // response NÃO deve provocar um segundo `send` — o guard `!hasLazyBody`
+    // (+ `body !== ctx.response`) do contrato canWriteResponseBody cobre isso.
+    const h = recoveryCtx({});
+    (h.ctx.containerResolver.make as any) = async () => ({
+      config: {
+        interactionRecovery: { mode: 'screen' },
+        render: (c: any) => {
+          c.response.send('WRITTEN-BY-RENDERER');
+          return c.response;
+        },
+      },
+    });
+    await recoverLostInteraction(h.ctx);
+    assert.equal(h.sentBody, 'WRITTEN-BY-RENDERER');
+    // Exatamente 1 send (o do renderer); a recuperação não duplica.
+    assert.equal(h.sendCalls, 1);
+  });
+
+  test('mode screen escreve o body dos DOIS renderers (Edge e Inertia retornam valor)', async ({
+    assert,
+  }) => {
+    // Tanto o Edge (`view.render`) quanto o Inertia (`inertia.render`) RETORNAM
+    // o payload em vez de escrever; a recuperação faz o `send` para ambos. Aqui
+    // parametrizamos o valor retornado por dois sentinelas distintos e provamos
+    // que qualquer que seja o renderer, o body chega à resposta via `send`.
+    for (const payload of ['EDGE-HTML', { component: 'inertia/session-expired' }]) {
+      const h = recoveryCtx({});
+      (h.ctx.containerResolver.make as any) = async () => ({
+        config: {
+          interactionRecovery: { mode: 'screen' },
+          render: async () => payload,
+        },
+      });
+      const r = await recoverLostInteraction(h.ctx);
+      assert.deepEqual(r, payload);
+      assert.deepEqual(h.sentBody, payload);
+      assert.equal(h.sendCalls, 1);
+      assert.equal(h.statusSet, 400);
+    }
   });
 
   test("mode 'redirect' responde 302 para o redirectTo configurado", async ({ assert }) => {
@@ -190,6 +269,10 @@ test.group('interaction recovery — estratégias', () => {
     const r = await exc.handle(exc, h.ctx);
     assert.equal(r, 'RENDERED');
     assert.equal(h.rendered[0].view, 'session-expired');
+    // O `handle()` da exceção precisa deixar o body ESCRITO na resposta (o
+    // retorno é descartado pelo exception handler do AdonisJS).
+    assert.equal(h.sentBody, 'RENDERED');
+    assert.equal(h.sendCalls, 1);
   });
 });
 

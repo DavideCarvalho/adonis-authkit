@@ -24,7 +24,10 @@ Segurança (código de 6 dígitos é adivinhável, ≠ magic link de 256 bits):
   PERSISTIDO junto do código (no mesmo slot do magic link), então a proteção
   anti-brute-force funciona MESMO sem `@adonisjs/limiter` — diferente do
   `otp_lockout` do fator TOTP, que vira no-op sem limiter. Na 5ª falha o código é
-  invalidado (o link continua válido).
+  invalidado (o link continua válido). A verificação faz o read-modify-write do
+  contador dentro de uma transação com row-lock (`forUpdate`), serializando as
+  tentativas: N verificações concorrentes não conseguem burlar o lockout
+  (o total de comparações contra um mesmo código fica limitado a `maxAttempts`).
 - **Throttle de rota dedicado** `authkit_otp_login` por IP, mais apertado que o
   login (5/min), como camada extra.
 - Geração cripto sem viés de módulo (`randomInt`, zero-padded), comparação de

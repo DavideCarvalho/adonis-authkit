@@ -5,6 +5,7 @@ import { test } from '@japa/runner';
 import { DateTime } from 'luxon';
 import { supportsOtpLogin } from '../../src/accounts/account_store.js';
 import { lucidAccountStore } from '../../src/accounts/lucid_account_store.js';
+import { decodeOtpToken } from '../../src/host/otp_login.js';
 import { withAuthUser } from '../../src/mixins/with_auth_user.js';
 import { withCredentials } from '../../src/mixins/with_credentials.js';
 import { withMfa } from '../../src/mixins/with_mfa.js';
@@ -215,6 +216,59 @@ test.group('otp login (lucid store)', (group) => {
     assert.isFalse(await store.consumePasswordResetToken(issued!.token, 'hacked12345'));
     // A senha original continua válida.
     assert.isNotNull(await store.verifyCredentials('j@l.com', 'pw12345678'));
+  });
+
+  test('concorrência NÃO derrota o lockout: N chutes errados simultâneos ≤ maxAttempts', async ({
+    assert,
+  }) => {
+    // Regressão de segurança (Critical): o read-modify-write do contador de
+    // lockout precisa ser ATÔMICO. Sem atomicidade, N requests concorrentes leem
+    // o mesmo contador e todos gravam `attempts+1` (last-write-wins) → o lockout
+    // de 5 tentativas nunca dispara e o código de 6 dígitos vira brute-forceável.
+    // Aqui disparamos 20 verificações concorrentes com o código ERRADO contra o
+    // MESMO e-mail (DB real do harness) e provamos que:
+    //   (a) no MÁXIMO maxAttempts chutes foram CONTADOS (status 'invalid'); e
+    //   (b) o estado final é LOCKED (contador saturado, codeHash zerado); e
+    //   (c) o código CERTO depois disso é recusado (locked); mas
+    //   (d) o LINK — barreira separada — continua válido (o lockout não o mata).
+    // Prova de mutação: revertendo verifyLoginCode para `row.save()` simples (sem
+    // transação/forUpdate), o passo (a) fica VERMELHO (os 20 viram 'invalid',
+    // 20 > 5) e o (b)/(c) também (contador preso em 1, código certo → 'ok').
+    const store = lucidAccountStore(TestAccount);
+    await store.create({ email: 'race@l.com', password: 'pw12345678' });
+    const issued = await store.issueMagicLinkWithCode!('race@l.com', 'uid-race', OPTS);
+
+    const results = await Promise.all(
+      Array.from({ length: 20 }, () =>
+        store.verifyLoginCode!('race@l.com', 'uid-race', '000000', MAX),
+      ),
+    );
+
+    // (a) No máximo maxAttempts tentativas foram ACEITAS (consumiram slot →
+    // 'invalid'); as demais bateram no lockout já saturado ('locked').
+    const invalidCount = results.filter((r) => r.status === 'invalid').length;
+    const lockedCount = results.filter((r) => r.status === 'locked').length;
+    assert.isAtMost(invalidCount, MAX.maxAttempts);
+    assert.equal(invalidCount + lockedCount, 20);
+    assert.isAbove(lockedCount, 0);
+
+    // (b) Estado final: contador saturado e código invalidado (locked).
+    const row = await TestAccount.findBy('email', 'race@l.com');
+    const parsed = decodeOtpToken(row!.passwordResetToken);
+    assert.isNotNull(parsed);
+    assert.equal(parsed!.attempts, MAX.maxAttempts);
+    assert.equal(parsed!.codeHash, '');
+
+    // (c) O código CERTO agora é recusado — o lockout venceu a corrida.
+    assert.equal(
+      (await store.verifyLoginCode!('race@l.com', 'uid-race', issued!.code, MAX)).status,
+      'locked',
+    );
+
+    // (d) O LINK (barreira separada) NÃO foi morto pelo lockout do código.
+    const acc = await store.consumeMagicLinkToken!(issued!.token);
+    assert.isNotNull(acc);
+    assert.equal(acc!.email, 'race@l.com');
   });
 
   test('verifyLoginCode para conta sem código pendente → no_code', async ({ assert }) => {

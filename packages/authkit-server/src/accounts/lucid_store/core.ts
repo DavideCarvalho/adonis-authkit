@@ -247,29 +247,62 @@ export function buildCore(
     },
 
     async verifyLoginCode(email, uid, code, opts) {
-      const row = await Model.query().where('email', email).first();
-      if (!row) return { status: 'no_code' };
-      const parsed = decodeOtpToken(row.passwordResetToken);
-      const evaluation = evaluateLoginOtp({
-        parsed,
-        uid,
-        code,
-        nowMs: DateTime.now().toMillis(),
-        maxAttempts: opts.maxAttempts,
-      });
-      // Efeito de persistência: `undefined` = não escreve; `null` = limpa o slot
-      // (sucesso, mata o link junto); string = novo slot (contador++/invalidação).
-      if (evaluation.nextToken === null) {
-        row.passwordResetToken = null;
-        row.passwordResetExpiresAt = null;
-        await row.save();
-      } else if (typeof evaluation.nextToken === 'string') {
-        // Contador/invalidação: preserva a validade do LINK (só o código muda).
-        row.passwordResetToken = evaluation.nextToken;
-        await row.save();
+      // ── Atomicidade do contador de lockout (barreira PRIMÁRIA, fail-closed) ──
+      // O contador de tentativas vive DENTRO do slot `ml2:` e é a única barreira
+      // contra brute-force do código curto (o throttle de rota é camada EXTRA e
+      // pode estar ausente). Um read-modify-write ingênuo (first→avaliar→save) é
+      // derrotável por concorrência: N requests leem o MESMO contador, todos
+      // gravam `attempts+1` (last-write-wins) e o lockout nunca dispara — pior,
+      // como a COMPARAÇÃO do código acontece após a leitura, N requests
+      // concorrentes conseguem N comparações contra o MESMO valor do contador,
+      // varrendo o espaço de 10^6 dentro do TTL.
+      //
+      // Correção: serializa o read-compare-write numa TRANSAÇÃO com row-lock
+      // (`forUpdate`). Cada tentativa lê o estado JÁ commitado pela anterior, o
+      // contador avança 1-a-1 e — porque a comparação vive DENTRO da seção
+      // crítica — o total de comparações contra um mesmo código fica limitado a
+      // `maxAttempts` (garantia DURA, não probabilística). No Postgres o lock é
+      // por linha; no sqlite a própria transação serializa. Os demais caminhos
+      // que tocam o slot (`consumeMagicLinkToken`, sucesso do OTP) só gravam
+      // `null` (terminal) — não regridem contador — e ainda serializam atrás
+      // deste lock (todo UPDATE trava a linha), então não podem ressuscitar um
+      // slot já consumido nem apagar um incremento.
+      const trx = await Model.query().client.transaction();
+      try {
+        const row = await Model.query({ client: trx }).where('email', email).forUpdate().first();
+        if (!row) {
+          await trx.commit();
+          return { status: 'no_code' };
+        }
+        const parsed = decodeOtpToken(row.passwordResetToken);
+        const evaluation = evaluateLoginOtp({
+          parsed,
+          uid,
+          code,
+          nowMs: DateTime.now().toMillis(),
+          maxAttempts: opts.maxAttempts,
+        });
+        // Efeito de persistência: `undefined` = não escreve; `null` = limpa o slot
+        // (sucesso, mata o link junto); string = novo slot (contador++/invalidação).
+        // A escrita ocorre DENTRO da mesma transação/lock da leitura.
+        if (evaluation.nextToken === null) {
+          row.useTransaction(trx);
+          row.passwordResetToken = null;
+          row.passwordResetExpiresAt = null;
+          await row.save();
+        } else if (typeof evaluation.nextToken === 'string') {
+          // Contador/invalidação: preserva a validade do LINK (só o código muda).
+          row.useTransaction(trx);
+          row.passwordResetToken = evaluation.nextToken;
+          await row.save();
+        }
+        await trx.commit();
+        if (evaluation.result === 'ok') return { status: 'ok', account: toAccount(row) };
+        return { status: evaluation.result };
+      } catch (error) {
+        await trx.rollback();
+        throw error;
       }
-      if (evaluation.result === 'ok') return { status: 'ok', account: toAccount(row) };
-      return { status: evaluation.result };
     },
 
     async issueEmailVerificationToken(email) {

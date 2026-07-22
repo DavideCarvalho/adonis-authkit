@@ -1,5 +1,26 @@
 # @adonis-agora/authkit-react
 
+## 0.17.0
+
+### Minor Changes
+
+- efd30df: Adiciona hooks e utilitários headless para o "dance" de sudo/passkey por form
+  clássico, para hosts com telas React próprias.
+
+  - `submitClassicForm({ action, fields, method? })`: cria um `<form>` nativo com
+    campos hidden e o submete (navegação real) — necessário porque os fluxos de
+    sudo/passkey respondem 302, que um `fetch` não segue como navegação. SSR-safe.
+  - `usePasskeyAssertion({ optionsUrl, actionUrl, csrfToken, returnTo? })` →
+    `{ run, running, error }`: pega as options (`x-csrf-token`), roda
+    `startAuthentication` e submete o `response` via form clássico (com `_csrf` e
+    `return_to` quando fornecidos).
+  - `usePasskeyRegistration(...)`: idem, com `startRegistration`.
+
+  Também exporta as peças de tier mais baixo reusadas por eles (`runPasskeyAssertion`,
+  `runPasskeyRegistration`, `registerPasskey`, `loadStartRegistration`). O
+  `submitPasskeyVerification` existente passa a delegar ao `submitClassicForm`,
+  sem mudança de comportamento.
+
 ## 0.16.0
 
 ### Minor Changes
@@ -15,6 +36,7 @@
 ### Minor Changes
 
 - 9909753: Login por passkey disparado por clique, nas três camadas do ecossistema — o app deixa de reescrever a cerimônia à mão:
+
   - **Função (`authenticatePasskey`, `submitPasskeyVerification`, `loadStartAuthentication`)** — a cerimônia pura (POST das options → `startAuthentication` → serializa a assertion) e o submit de página inteira no `verify`. Totalmente customizável: use só a peça que precisar.
   - **Hook headless (`usePasskeyLogin`)** — `{ authenticate, busy, failed }`. Roda a cerimônia e faz o submit; passe `onSuccess` pra controlar a verificação você mesmo (meio-do-caminho). O app é dono do visual do botão.
   - **Componente pronto (`PasskeyButton`)** — o "faz tudo": botão + estado + erro, temável via `className`/`children`. Construído sobre o hook.
@@ -29,6 +51,7 @@
   `@adonis-agora/authz-react`.
 
   Removed:
+
   - `AuthUser.appRoles`, `AuthSharedProps.authkit.appRoles`.
   - `AuthState.appRoles`/`AuthState.hasAppRole()`.
   - `hasAppRole`, `hasAnyAppRole`, `hasAllAppRoles` (from `roles.ts` and the package barrel).
@@ -138,12 +161,14 @@ hasAllGlobalRoles }`.
 - feat(account): global sign-out — revoke all sessions across all devices
 
   **Server (`@adonis-agora/authkit-server`):**
+
   - `POST /account/api/sessions/revoke-all` — revokes all OIDC sessions/grants for the account
     and terminates the current Adonis console session (global logout).
     Returns `{ ok: true, signedOut: true }` so the UI can redirect to login.
     Emits audit event `account.signed_out_all`.
 
   **React SDK (`@adonis-agora/authkit-react`):**
+
   - `RevokeAllResult` type (`{ ok, signedOut, ...rest }`)
   - `client.account.sessions.revokeAll()` method
   - `useAccountRevokeAllSessionsMutationOptions()` hook (account namespace;
@@ -174,6 +199,7 @@ hasAllGlobalRoles }`.
   (console_orgs_controller) e na SPA (Orgs.tsx + orgs.containers.tsx):
 
   **Novos endpoints no console React JSON API (`{adminPrefix}/api/orgs/*`):**
+
   - `POST   /api/orgs` → criar org (name + slug + ownerAccountId)
   - `PATCH  /api/orgs/:id` → editar nome/logo
   - `DELETE /api/orgs/:id` → remover org
@@ -187,6 +213,7 @@ hasAllGlobalRoles }`.
   suporta organizações. Lógica reutiliza `AdminOrgsService` (sem duplicação).
 
   **SDK `@adonis-agora/authkit-react`:**
+
   - `client.admin.orgs`: novos métodos `addMember`, `removeMember`,
     `updateMemberRole`, `createInvitation`, `revokeInvitation`
   - Novos hooks: `useAddOrgMemberMutationOptions`, `useRemoveOrgMemberMutationOptions`,
@@ -194,6 +221,7 @@ hasAllGlobalRoles }`.
     `useRevokeOrgInvitationMutationOptions`
 
   **SPA do console:**
+
   - Botão "New organization" na header (modal com name + slug auto-gerado + ownerAccountId)
   - Empty state com CTA de criar
   - Drawer da org: editar nome/logo, deletar (com confirmação), listar membros com
@@ -302,6 +330,7 @@ hasAllGlobalRoles }`.
 - Refactors do code review (comportamento preservado, contratos mais limpos):
 
   **server (minor):**
+
   - `AccountStore` decomposto em interfaces de capacidade (`CoreAccountStore`,
     `MfaCapability`, `WebauthnCapability`, `ProviderIdentityCapability`) com type
     guards (`supportsMfa`/`supportsPasskeys`/`supportsProviderIdentity`). O tipo
@@ -318,11 +347,13 @@ hasAllGlobalRoles }`.
     preservada).
 
   **client (minor):**
+
   - POST ao token endpoint unificado (`exchangeCode`/`refreshTokens`/`exchangeToken`).
   - Introspection + claims→Identity compartilhados entre resolvers; `pat`/`opaque`
     agora também mapeiam `picture→profile.avatarUrl` e `sid→sessionId` (alinhados
     ao `jwt`).
 
   **react (patch):**
+
   - Helpers genéricos de roles; warn de dev no `useAuth` quando não há
     `AuthProvider` nem shared prop do Inertia.

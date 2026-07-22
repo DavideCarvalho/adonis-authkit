@@ -1,4 +1,7 @@
+import { fileURLToPath } from 'node:url';
 import { test } from '@japa/runner';
+import { Edge } from 'edge.js';
+import { DEFAULT_MESSAGES, translate } from '../../src/host/i18n.js';
 import {
   InteractionSessionLostException,
   isInteractionSessionLost,
@@ -187,5 +190,55 @@ test.group('interaction recovery — estratégias', () => {
     const r = await exc.handle(exc, h.ctx);
     assert.equal(r, 'RENDERED');
     assert.equal(h.rendered[0].view, 'session-expired');
+  });
+});
+
+/**
+ * Os testes acima usam um `renderFn` FAKE (só registra `{ view, props }`) —
+ * nenhum deles exercita o Edge renderer de verdade, então uma quebra dentro
+ * de `session-expired.edge` (ex.: `@include` de partial inexistente, prop mal
+ * referenciada) passaria despercebida pela suíte. Este grupo monta um `Edge`
+ * real (mesmo disco `authkit` que o provider monta em produção — ver
+ * `render_default.spec.ts`/`edge_views.spec.ts` para o mesmo padrão) e
+ * renderiza a view de verdade.
+ */
+function makeEdge() {
+  const dir = fileURLToPath(new URL('../../src/host/views/', import.meta.url));
+  const edge = new Edge();
+  edge.mount('authkit', dir);
+  edge.global('t', (key: string, params?: Record<string, string | number>) =>
+    translate({ ...DEFAULT_MESSAGES }, key, params),
+  );
+  return edge;
+}
+
+test.group('interaction recovery — render Edge real de session-expired.edge', () => {
+  test('renderiza HTML válido com a mensagem de sessão expirada + link de login, sem lançar', async ({
+    assert,
+  }) => {
+    const edge = makeEdge();
+
+    const html = await edge.render('authkit::session-expired', {
+      loginUrl: '/account/login',
+      brand: undefined,
+    });
+
+    assert.isString(html);
+    assert.include(html, '<!doctype html>');
+    // MUTAÇÃO: `lang` fixo em `pt-br`, igual às demais views built-in — nunca
+    // `en` por falta de um `locale` que o renderer jamais compartilha.
+    assert.include(html, '<html lang="pt-br">');
+    assert.include(html, translate({ ...DEFAULT_MESSAGES }, 'session_expired.title'));
+    assert.include(html, translate({ ...DEFAULT_MESSAGES }, 'session_expired.body'));
+    assert.include(html, translate({ ...DEFAULT_MESSAGES }, 'session_expired.login_link'));
+    assert.include(html, 'href="/account/login"');
+  });
+
+  test('cai no fallback `/account/login` quando `loginUrl` não é passado', async ({ assert }) => {
+    const edge = makeEdge();
+
+    const html = await edge.render('authkit::session-expired', {});
+
+    assert.include(html, 'href="/account/login"');
   });
 });

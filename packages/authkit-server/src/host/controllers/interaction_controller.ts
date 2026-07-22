@@ -875,7 +875,7 @@ export default class AuthInteractionController {
 
     // Guardas: OTP desligado, store sem suporte ou sem e-mail na sessão → volta ao login.
     const otpEnabled = cfg.login.otp.enabled && supportsOtpLogin(cfg.accountStore);
-    if (!otpEnabled || !email || !supportsOtpLogin(cfg.accountStore)) {
+    if (!otpEnabled || !email) {
       return ctx.response.redirect(`/auth/interaction/${uid}`);
     }
 

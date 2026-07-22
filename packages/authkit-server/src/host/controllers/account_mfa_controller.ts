@@ -3,6 +3,7 @@ import type { HttpContext } from '@adonisjs/core/http';
 import QRCode from 'qrcode';
 import { supportsPasskeys } from '../../accounts/account_store.js';
 import { accountPath } from '../account_paths.js';
+import type { AccountMfaProps } from '../account_screen_props.js';
 import { translate } from '../i18n.js';
 import { ACCOUNT_SESSION_KEY } from '../middleware/account_auth.js';
 import { resolveRuntimeSettings } from '../runtime_settings.js';
@@ -47,13 +48,15 @@ export default class AccountMfaController {
     const passkeysSupported = supportsPasskeys(cfg.accountStore);
     const passkeys = passkeysSupported ? await cfg.accountStore.listPasskeys(userId) : [];
 
-    return render(ctx, 'account/mfa', {
+    const props = {
       csrfToken: ctx.request.csrfToken,
       enabled: state.enabled,
       recoveryCodes: recoveryCodes ?? null,
       passkeysSupported,
       passkeys,
-    });
+    } satisfies Omit<AccountMfaProps, 'messages'>;
+
+    return render(ctx, 'account/mfa', props);
   }
 
   /**
@@ -211,14 +214,16 @@ export default class AccountMfaController {
     // QR renderizado server-side como data-URL e passado como prop.
     const qrDataUrl = await QRCode.toDataURL(started.otpauthUri);
 
-    return render(ctx, 'account/mfa', {
+    const props = {
       csrfToken: ctx.request.csrfToken,
       enabled: false,
       enrolling: true,
       secret: started.secret,
       qrDataUrl,
       recoveryCodes: null,
-    });
+    } satisfies Omit<AccountMfaProps, 'messages'>;
+
+    return render(ctx, 'account/mfa', props);
   }
 
   /** POST /account/mfa/confirm — confirma o código; sucesso = ativa e mostra recovery codes. */
@@ -235,7 +240,7 @@ export default class AccountMfaController {
       // Reenvia o passo de confirmação com erro SEM regenerar o segredo pendente
       // (o usuário já escaneou o QR; um novo segredo invalidaria o app autenticador).
       // Mostra só o campo de código para nova tentativa.
-      return render(ctx, 'account/mfa', {
+      const props = {
         csrfToken: ctx.request.csrfToken,
         enabled: false,
         enrolling: true,
@@ -243,7 +248,9 @@ export default class AccountMfaController {
         qrDataUrl: null,
         error: translate(cfg.messages, 'errors.invalid_code'),
         recoveryCodes: null,
-      });
+      } satisfies Omit<AccountMfaProps, 'messages'>;
+
+      return render(ctx, 'account/mfa', props);
     }
 
     await cfg.audit?.record({

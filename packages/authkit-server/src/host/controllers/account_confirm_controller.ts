@@ -10,6 +10,7 @@
 
 import '../augmentations.js';
 import type { HttpContext } from '@adonisjs/core/http';
+import type { AccountConfirmProps } from '../account_screen_props.js';
 import {
   LAST_METHOD_SESSION_KEY,
   configuredSudoMethods,
@@ -58,7 +59,7 @@ export default class AccountConfirmController {
       }
     }
 
-    return c.cfg.render!(ctx, 'account/confirm', {
+    const props = {
       csrfToken: ctx.request.csrfToken,
       returnTo: c.returnTo,
       error: ctx.session.flashMessages.get('confirmError') ?? null,
@@ -68,6 +69,8 @@ export default class AccountConfirmController {
       notice: ctx.session.flashMessages.get('confirmNotice') ?? null,
       methods,
       preferredId: ctx.session.get(LAST_METHOD_SESSION_KEY) ?? null,
-    });
+    } satisfies Omit<AccountConfirmProps, 'messages'>;
+
+    return c.cfg.render!(ctx, 'account/confirm', props);
   }
 }

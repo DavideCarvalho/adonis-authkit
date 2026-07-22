@@ -11,6 +11,7 @@ import { AccountDeletionService } from '../account_deletion_service.js';
 import { AccountExportService } from '../account_export_service.js';
 import { getAccountLoginUrl } from '../account_login_url.js';
 import { accountPath } from '../account_paths.js';
+import type { AccountEmailConfirmedProps, AccountSecurityProps } from '../account_screen_props.js';
 import { AdminSessionsService } from '../admin_sessions_service.js';
 import { syncAdonisAuthLogout } from '../adonis_auth_sync.js';
 import { AvatarUploadError, isAvatarUploadSupported, storeAvatar } from '../avatar_storage.js';
@@ -87,7 +88,7 @@ export default class AccountSecurityController {
       ? await enrichSessionsWithContext(cfg, userId, await adminSessions.listSessions(userId))
       : [];
 
-    return render(ctx, 'account/security', {
+    const props = {
       csrfToken: ctx.request.csrfToken,
       supported: supportsAccountSecurity(cfg.accountStore),
       profileSupported: supportsProfile(cfg.accountStore),
@@ -116,7 +117,9 @@ export default class AccountSecurityController {
       // Deleção de conta (LGPD): só quando o store suporta hard delete.
       deletionSupported: supportsAccountDeletion(cfg.accountStore),
       deleteError: ctx.session.flashMessages.get('deleteError') ?? null,
-    });
+    } satisfies Omit<AccountSecurityProps, 'messages'>;
+
+    return render(ctx, 'account/security', props);
   }
 
   /**
@@ -594,7 +597,10 @@ export default class AccountSecurityController {
     const render = cfg.render!;
 
     if (!supportsAccountSecurity(store)) {
-      return render(ctx, 'account/email-confirmed', { ok: false });
+      return render(ctx, 'account/email-confirmed', { ok: false } satisfies Omit<
+        AccountEmailConfirmedProps,
+        'messages'
+      >);
     }
 
     const token = ctx.request.qs().token ?? '';
@@ -639,6 +645,9 @@ export default class AccountSecurityController {
         cfg.audit,
       );
     }
-    return render(ctx, 'account/email-confirmed', { ok: result.ok });
+    return render(ctx, 'account/email-confirmed', { ok: result.ok } satisfies Omit<
+      AccountEmailConfirmedProps,
+      'messages'
+    >);
   }
 }

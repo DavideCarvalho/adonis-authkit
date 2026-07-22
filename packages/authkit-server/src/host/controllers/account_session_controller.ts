@@ -2,6 +2,7 @@ import '../augmentations.js';
 import type { HttpContext } from '@adonisjs/core/http';
 import { accountHome } from '../account_home.js';
 import { getAccountLoginUrl } from '../account_login_url.js';
+import type { AccountLoginProps } from '../account_screen_props.js';
 import { syncAdonisAuthLogin, syncAdonisAuthLogout } from '../adonis_auth_sync.js';
 import { translate } from '../i18n.js';
 import { attemptPasswordLogin } from '../login_attempt.js';
@@ -49,7 +50,12 @@ export default class AccountSessionController {
     const rawReturnTo = (ctx.request as any).qs?.()?.return_to ?? ctx.request.input?.('return_to');
     const returnTo = validateReturnTo(rawReturnTo);
 
-    return render(ctx, 'account/login', { csrfToken: ctx.request.csrfToken, returnTo });
+    const props = {
+      csrfToken: ctx.request.csrfToken,
+      returnTo,
+    } satisfies Omit<AccountLoginProps, 'messages'>;
+
+    return render(ctx, 'account/login', props);
   }
 
   async login(ctx: HttpContext) {
@@ -79,7 +85,7 @@ export default class AccountSessionController {
       settings: settings ?? undefined,
     });
     if (!result.ok) {
-      return render(ctx, 'account/login', {
+      const props = {
         csrfToken: ctx.request.csrfToken,
         returnTo,
         error: result.locked
@@ -89,7 +95,9 @@ export default class AccountSessionController {
           : result.disabled
             ? translate(cfg.messages, 'errors.account_disabled')
             : translate(cfg.messages, 'errors.invalid_credentials'),
-      });
+      } satisfies Omit<AccountLoginProps, 'messages'>;
+
+      return render(ctx, 'account/login', props);
     }
 
     const acc = result.account;

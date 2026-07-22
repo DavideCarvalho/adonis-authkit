@@ -177,6 +177,17 @@ export type { EventsConfigInput, ResolvedEventsConfig } from './src/events/dispa
 export { inertiaRenderer } from './src/host/renderers/inertia_renderer.js';
 export type { AuthkitScreen } from './src/host/renderers/inertia_renderer.js';
 export type { InertiaRendererOptions } from './src/host/renderers/inertia_renderer.js';
+// Tipos de props das telas de conta — a fonte única para hosts que escrevem as
+// telas do console em React próprio (via `inertiaRenderer`). Os controllers
+// satisfazem estes mesmos tipos ao renderizar, então divergir quebra o build.
+export type {
+  AccountLoginProps,
+  AccountSecurityProps,
+  AccountMfaProps,
+  AccountConfirmProps,
+  AccountConfirmMethod,
+  AccountEmailConfirmedProps,
+} from './src/host/account_screen_props.js';
 export { edgeRenderer } from './src/host/renderers/edge_renderer.js';
 export { brandFor, isFirstParty } from './src/host/branding.js';
 export type { BrandingConfig, ClientBrand } from './src/host/branding.js';
@@ -200,6 +211,24 @@ export {
   setAdminApiPrefix,
   normalizeAdminApiPrefix,
 } from './src/host/admin_prefix.js';
+/**
+ * Helpers de path do console de conta (`/account/*`). Um host que precisa casar
+ * um middleware ou link com uma rota do console (ex.: `GET
+ * {accountPath('security')}/export`) deriva o path daqui em vez de hardcodar,
+ * respeitando os overrides de `accountRoutes`.
+ *
+ * ⚠️ Estes helpers leem um singleton de processo que só reflete os overrides
+ * DEPOIS que `registerAuthHost` roda (é ele quem chama `setAccountPaths` com a
+ * opção `accountRoutes`, no boot). Chamados antes disso, devolvem os defaults
+ * (`/account/*`). Componha URLs em runtime (dentro de handlers/factories de
+ * middleware), não em tempo de import de módulo.
+ */
+export {
+  accountPath,
+  joinAccountPath,
+  accountPrefix,
+} from './src/host/account_paths.js';
+export type { AccountPathsOptions, AccountPathKey } from './src/host/account_paths.js';
 export { resolveRateLimit, resolveNotifications } from './src/define_config.js';
 export type { ResolvedNotificationsConfig } from './src/define_config.js';
 export type {

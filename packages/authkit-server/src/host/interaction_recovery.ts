@@ -96,5 +96,23 @@ export async function recoverLostInteraction(ctx: HttpContext): Promise<unknown>
     return ctx.response.redirect(loginUrl);
   }
   ctx.response.status(400);
-  return render(ctx, 'session-expired', { loginUrl, brand });
+  const body = await render(ctx, 'session-expired', { loginUrl, brand });
+  // ESCREVE o body na resposta. Diferente do dispatch normal de rota — onde o
+  // `useReturnValue`/`canWriteResponseBody` do http-server envia o valor
+  // retornado — o caminho de exception handler DESCARTA o retorno de
+  // `InteractionSessionLostException.handle()`. Por isso o modo `screen`
+  // precisa fazer o `send` ele mesmo, senão o corpo nunca sai (400 vazio).
+  //
+  // Replica fielmente o contrato `canWriteResponseBody` do http-server
+  // (`value !== undefined && !hasLazyBody && value !== ctx.response`): o guard
+  // `hasLazyBody` evita double-write se algum renderer já tiver escrito, e
+  // cobre os DOIS renderers built-in (Edge via `view.render` e Inertia via
+  // `inertia.render`) — ambos RETORNAM o payload em vez de escrever.
+  const res = ctx.response as any;
+  if (body !== undefined && !res.hasLazyBody && body !== ctx.response) {
+    res.send(body);
+  }
+  // Mantém o `return body` para o caminho de dispatch normal (caso a recuperação
+  // seja chamada fora do exception handler); no exception path ele é ignorado.
+  return body;
 }

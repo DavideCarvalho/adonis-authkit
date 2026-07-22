@@ -29,6 +29,11 @@ export type AuditEventType =
   | 'email.changed'
   | 'login.new_ip_notified'
   | 'login.new_device'
+  // Login por OTP (código digitável)
+  | 'login.otp_sent'
+  | 'login.otp_verified'
+  | 'login.otp_failed'
+  | 'login.otp_invalidated'
   | 'bot_protection.rejected'
   | 'grant.revoked_by_user'
   | 'user.created'

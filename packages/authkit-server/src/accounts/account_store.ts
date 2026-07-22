@@ -441,6 +441,54 @@ export interface MagicLinkCapability {
   consumeMagicLinkToken(token: string): Promise<AuthAccount | null>;
 }
 
+/** Resultado tipado da verificação de um código OTP de login. */
+export type OtpLoginVerifyResult =
+  | { status: 'ok'; account: AuthAccount }
+  /** Código errado, tentativa contabilizada (ainda NÃO travado). */
+  | { status: 'invalid' }
+  /** Tentativas esgotadas → código invalidado (o link continua válido). */
+  | { status: 'locked' }
+  /** TTL do código expirou. */
+  | { status: 'expired' }
+  /** Nenhum código pendente para esta interaction/conta. */
+  | { status: 'no_code' };
+
+/**
+ * Login por OTP (código digitável) — extensão do magic link. CAPACIDADE
+ * opcional: quando ausente (ou `login.otp.enabled` desligado) o comportamento é
+ * exatamente o de antes (só magic link).
+ *
+ * O store default (Lucid) CO-LOCALIZA o código com o magic link no MESMO slot
+ * (`passwordResetToken`, prefixo `ml2:`), de modo que consumir um mata o outro
+ * (single-use conjunto) e o contador de tentativas fica PERSISTIDO junto do
+ * código (lockout fail-closed, sem depender de limiter). Ver `host/otp_login.ts`
+ * para a decisão de armazenamento completa.
+ */
+export interface OtpLoginCapability {
+  /**
+   * Emite o magic link E um código OTP de uma vez (mesmo disparo/e-mail). O
+   * `token` retornado vai na URL do link; o `code` (dígitos) vai no corpo do
+   * e-mail. Retorna null se a conta não existe (o controller sempre responde
+   * "enviado", anti-enumeração). O código fica atrelado ao `uid` da interaction.
+   */
+  issueMagicLinkWithCode(
+    email: string,
+    uid: string,
+    opts: { digits: number; ttlMinutes: number },
+  ): Promise<{ token: string; code: string; account: AuthAccount } | null>;
+  /**
+   * Verifica um código para a interaction `uid`. Em sucesso consome o código E o
+   * magic link (single-use conjunto). Falha incrementa o contador persistido; ao
+   * esgotar `maxAttempts` invalida o código mantendo o link válido.
+   */
+  verifyLoginCode(
+    email: string,
+    uid: string,
+    code: string,
+    opts: { maxAttempts: number },
+  ): Promise<OtpLoginVerifyResult>;
+}
+
 /** DTO público de uma organização. */
 export interface OrgSummary {
   id: string;
@@ -583,6 +631,7 @@ export type AccountStore = CoreAccountStore & {
       AccountStatusCapability &
       ProfileCapability &
       MagicLinkCapability &
+      OtpLoginCapability &
       EmailVerificationStatusCapability &
       AccountDeletionCapability &
       AccountImportCapability &
@@ -643,6 +692,14 @@ export function supportsMagicLink(
   store: AccountStore,
 ): store is AccountStore & MagicLinkCapability {
   return typeof store.issueMagicLinkToken === 'function';
+}
+
+/** Type guard: o store implementa o login por OTP (código digitável). */
+export function supportsOtpLogin(store: AccountStore): store is AccountStore & OtpLoginCapability {
+  return (
+    typeof store.issueMagicLinkWithCode === 'function' &&
+    typeof store.verifyLoginCode === 'function'
+  );
 }
 
 /** Type guard: o store consegue dizer se o e-mail de uma conta está verificado. */

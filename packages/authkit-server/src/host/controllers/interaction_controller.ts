@@ -1,6 +1,10 @@
 import '../augmentations.js';
 import type { HttpContext } from '@adonisjs/core/http';
-import { supportsMagicLink, supportsPasskeys } from '../../accounts/account_store.js';
+import {
+  supportsMagicLink,
+  supportsOtpLogin,
+  supportsPasskeys,
+} from '../../accounts/account_store.js';
 import type { ResolvedServerConfig } from '../../define_config.js';
 import { AdminSessionsService } from '../admin_sessions_service.js';
 import { guardBotProtection, resolveEffectiveBotProtection } from '../bot_protection.js';
@@ -728,23 +732,46 @@ export default class AuthInteractionController {
     );
     const email = ctx.session.get(SESSION_KEY) as string | undefined;
     const uid = ctx.request.param('uid');
+    // Login por OTP: liga o campo de código na tela "link enviado" quando a config
+    // está ligada E o store suporta a capacidade.
+    const otpEnabled = cfg.login.otp.enabled && supportsOtpLogin(cfg.accountStore);
 
     if (cfg.passwordless.magicLink && supportsMagicLink(cfg.accountStore) && email) {
-      const issued = await cfg.accountStore.issueMagicLinkToken(email);
+      const ip = ctx.request.ip?.() ?? null;
+      const clientId = (details.params.client_id as string | undefined) ?? null;
+      // Com OTP ligado, emite link E código no MESMO disparo (issueMagicLinkWithCode);
+      // senão, o magic link puro de sempre.
+      const issued =
+        otpEnabled && supportsOtpLogin(cfg.accountStore)
+          ? await cfg.accountStore.issueMagicLinkWithCode(email, uid, {
+              digits: cfg.login.otp.digits,
+              ttlMinutes: cfg.login.otp.ttlMinutes,
+            })
+          : await cfg.accountStore.issueMagicLinkToken(email);
       if (issued) {
+        const code = 'code' in issued ? issued.code : undefined;
         await cfg.audit?.record({
           type: 'login.magic_link_sent',
           accountId: issued.account.id,
           email,
-          ip: ctx.request.ip?.() ?? null,
-          clientId: (details.params.client_id as string | undefined) ?? null,
+          ip,
+          clientId,
         });
+        if (code) {
+          await cfg.audit?.record({
+            type: 'login.otp_sent',
+            accountId: issued.account.id,
+            email,
+            ip,
+            clientId,
+          });
+        }
         const origin = `${ctx.request.protocol()}://${ctx.request.host()}`;
         const magicUrl = `${origin}/auth/interaction/${uid}/magic?token=${encodeURIComponent(issued.token)}`;
         if (cfg.mail?.onMagicLink) {
-          await cfg.mail.onMagicLink({ email, magicUrl, token: issued.token });
+          await cfg.mail.onMagicLink({ email, magicUrl, token: issued.token, code });
         } else {
-          await sendMagicLinkEmail(ctx, { email, magicUrl });
+          await sendMagicLinkEmail(ctx, { email, magicUrl, code });
         }
       }
     }
@@ -759,6 +786,7 @@ export default class AuthInteractionController {
       account: null,
       brand,
       magicLinkSent: true,
+      otpEnabled,
     });
   }
 
@@ -823,6 +851,123 @@ export default class AuthInteractionController {
     });
     ctx.session.forget(SESSION_KEY);
     await service.interactions.completeLogin(ctx, acc.id, { amr: ['email'] });
+  }
+
+  /**
+   * POST /auth/interaction/:uid/otp-verify
+   *
+   * Verifica o CÓDIGO OTP de login (o mesmo e-mail carrega link E código). Roda
+   * atrás do throttle dedicado `authkit_otp_login` (por IP, mais apertado que o
+   * login). A ordem das checagens de segurança — lockout (contador persistido no
+   * slot) → TTL → comparação constant-time — vive no store (`verifyLoginCode` →
+   * `evaluateLoginOtp`). Em sucesso, completa a MESMA interaction que o link
+   * completaria (amr `['email']`), consumindo código E link (single-use conjunto).
+   */
+  async otpVerify(ctx: HttpContext) {
+    const service = await ctx.containerResolver.make('authkit.server');
+    const cfg = service.config;
+    const render = cfg.render!;
+    const uid = ctx.request.param('uid');
+    const ip = ctx.request.ip?.() ?? null;
+    const clientId = (await service.interactions.details(ctx)).params.client_id as
+      | string
+      | undefined;
+    const email = ctx.session.get(SESSION_KEY) as string | undefined;
+
+    // Guardas: OTP desligado, store sem suporte ou sem e-mail na sessão → volta ao login.
+    const otpEnabled = cfg.login.otp.enabled && supportsOtpLogin(cfg.accountStore);
+    if (!otpEnabled || !email || !supportsOtpLogin(cfg.accountStore)) {
+      return ctx.response.redirect(`/auth/interaction/${uid}`);
+    }
+
+    const code = String(ctx.request.input('code', '') ?? '').trim();
+    const brand = brandFor(cfg.branding!, clientId ?? undefined, undefined);
+
+    const result = await cfg.accountStore.verifyLoginCode(email, uid, code, {
+      maxAttempts: cfg.login.otp.maxAttempts,
+    });
+
+    // Re-render da tela "link enviado" com o campo de código + erro localizado.
+    const renderOtpError = async (messageKey: string) =>
+      render(ctx, 'login', {
+        ...(await this.#loginMethods(ctx, cfg)),
+        uid,
+        csrfToken: ctx.request.csrfToken,
+        step: 'password',
+        email,
+        account: null,
+        brand,
+        magicLinkSent: true,
+        otpEnabled: true,
+        otpError: translate(cfg.messages, messageKey),
+      });
+
+    if (result.status === 'ok') {
+      // E-mail não verificado (LGPD): mesmo com código válido, não materializa a
+      // sessão se a política exige verificação. Espelha o magicLinkConsume.
+      const runtimeSettings = await getRuntimeSettings(ctx);
+      if (await isEmailUnverifiedBlock(cfg, result.account.id, runtimeSettings)) {
+        await cfg.audit?.record({
+          type: 'login.failure',
+          accountId: result.account.id,
+          email: result.account.email,
+          ip,
+          clientId,
+          metadata: { stage: 'otp', reason: 'unverified' },
+        });
+        return render(ctx, 'login', {
+          ...(await this.#loginMethods(ctx, cfg)),
+          uid,
+          csrfToken: ctx.request.csrfToken,
+          step: 'password',
+          email: result.account.email,
+          account: null,
+          brand,
+          error: translate(cfg.messages, 'errors.email_unverified'),
+        });
+      }
+      await cfg.audit?.record({
+        type: 'login.otp_verified',
+        accountId: result.account.id,
+        email: result.account.email,
+        ip,
+        clientId,
+      });
+      await notifyLoginSuccess(ctx, cfg, {
+        accountId: result.account.id,
+        email: result.account.email,
+        ip,
+        clientId: clientId ?? null,
+        metadata: { method: 'otp' },
+      });
+      ctx.session.forget(SESSION_KEY);
+      return service.interactions.completeLogin(ctx, result.account.id, { amr: ['email'] });
+    }
+
+    if (result.status === 'locked') {
+      // 5ª falha (ou já travado): código invalidado, o LINK continua válido.
+      await cfg.audit?.record({ type: 'login.otp_invalidated', email, ip, clientId });
+      return renderOtpError('login.otp_locked');
+    }
+    if (result.status === 'expired') {
+      await cfg.audit?.record({
+        type: 'login.otp_failed',
+        email,
+        ip,
+        clientId,
+        metadata: { reason: 'expired' },
+      });
+      return renderOtpError('login.otp_expired');
+    }
+    // 'invalid' (tentativa contabilizada) ou 'no_code'.
+    await cfg.audit?.record({
+      type: 'login.otp_failed',
+      email,
+      ip,
+      clientId,
+      metadata: { reason: result.status },
+    });
+    return renderOtpError('login.otp_invalid');
   }
 
   /**

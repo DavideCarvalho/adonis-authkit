@@ -32,6 +32,12 @@ export interface AuthThrottles {
    * orçamentos não poderem se consumir.
    */
   sudo: ThrottleMiddleware;
+  /**
+   * Throttle da verificação de código OTP de login, keyed por IP em bucket
+   * PRÓPRIO (`authkit_otp_login`) e mais apertado que o `login`. Primeira barreira
+   * anti-brute-force do código adivinhável, ANTES do lockout por interaction.
+   */
+  otpLogin: ThrottleMiddleware;
 }
 
 /**
@@ -143,5 +149,8 @@ export function createAuthThrottles(config: ResolvedRateLimitConfig): AuthThrott
     // mesmo vindo do mesmo IP. Sem `usingKey` próprio de propósito: inventar uma
     // key aqui seria mudar o EIXO da contagem, e o eixo certo continua sendo o IP.
     sudo: buildThrottle('authkit_sudo', config.sudo, config.store),
+    // Verificação de código OTP: keyed por IP (default), bucket próprio e mais
+    // apertado que o login. O namespace do nome mantém a contagem separada.
+    otpLogin: buildThrottle('authkit_otp_login', config.otpLogin, config.store),
   };
 }

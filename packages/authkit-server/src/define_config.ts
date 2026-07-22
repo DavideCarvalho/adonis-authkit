@@ -83,6 +83,13 @@ export interface MailHooks {
      * fluxo só-magic-link (back-compat).
      */
     code?: string;
+    /**
+     * Canal escolhido no seletor "choose-first": `'code'` = o host deveria
+     * renderizar SÓ o código, `'link'` = SÓ o link. Ausente = ambos (histórico).
+     * Puramente de superfície — os dois tokens continuam emitidos co-locados;
+     * hosts existentes simplesmente ignoram este campo (back-compat).
+     */
+    channel?: 'code' | 'link';
   }) => Promise<void>;
   /**
    * Envia o link de CONFIRMAÇÃO DE IDENTIDADE (sudo). Distinto de

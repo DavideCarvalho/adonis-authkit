@@ -680,6 +680,11 @@ export const DEFAULT_MESSAGES = {
   'mail.magic_link.cta': 'Sign in',
   'mail.magic_link.fallback': 'If you did not request this, you can ignore this email.',
   'mail.magic_link.code_label': 'Or enter this code to sign in:',
+  // E-mail "só código" (login choose-first com channel: 'code'): sem botão/link.
+  'mail.magic_link.code_subject': 'Your login code',
+  'mail.magic_link.code_intro':
+    'Use the code below to sign in. It expires shortly and can be used once.',
+  'mail.magic_link.code_only_label': 'Enter this code to sign in:',
 
   'mail.new_login.subject': 'New login to your account',
   'mail.new_login.heading': 'New login detected',
@@ -1639,6 +1644,11 @@ export const PT_BR_MESSAGES = {
   'mail.magic_link.cta': 'Entrar',
   'mail.magic_link.fallback': 'Se você não solicitou isso, pode ignorar este e-mail.',
   'mail.magic_link.code_label': 'Ou digite este código para entrar:',
+  // E-mail "só código" (login choose-first com channel: 'code'): sem botão/link.
+  'mail.magic_link.code_subject': 'Seu código de login',
+  'mail.magic_link.code_intro':
+    'Use o código abaixo para entrar. Ele expira em instantes e serve para um único acesso.',
+  'mail.magic_link.code_only_label': 'Digite este código para entrar:',
 
   'mail.new_login.subject': 'Novo login na sua conta',
   'mail.new_login.heading': 'Novo login detectado',

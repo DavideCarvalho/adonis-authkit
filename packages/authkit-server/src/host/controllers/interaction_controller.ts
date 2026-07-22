@@ -13,6 +13,7 @@ import { sendMagicLinkEmail } from '../default_mailer.js';
 import { sendOtpUnlockEmail } from '../default_mailer.js';
 import { translate } from '../i18n.js';
 import { attemptPasswordLogin, isEmailUnverifiedBlock } from '../login_attempt.js';
+import { magicChannelProp, normalizeLoginChannel } from '../login_channel.js';
 import { notifyLoginSuccess } from '../login_notify.js';
 import {
   createOtpLockout,
@@ -735,6 +736,10 @@ export default class AuthInteractionController {
     // Login por OTP: liga o campo de código na tela "link enviado" quando a config
     // está ligada E o store suporta a capacidade.
     const otpEnabled = cfg.login.otp.enabled && supportsOtpLogin(cfg.accountStore);
+    // Seletor "choose-first": o host pode POSTar `channel=code|link` para pedir que
+    // o e-mail e a tela mostrem SÓ aquele método. Ausente/ inválido = both (histórico).
+    // NÃO condiciona a emissão de token — os dois continuam saindo co-locados.
+    const channel = normalizeLoginChannel(ctx.request.input('channel'));
 
     if (cfg.passwordless.magicLink && supportsMagicLink(cfg.accountStore) && email) {
       const ip = ctx.request.ip?.() ?? null;
@@ -768,9 +773,9 @@ export default class AuthInteractionController {
         const origin = `${ctx.request.protocol()}://${ctx.request.host()}`;
         const magicUrl = `${origin}/auth/interaction/${uid}/magic?token=${encodeURIComponent(issued.token)}`;
         if (cfg.mail?.onMagicLink) {
-          await cfg.mail.onMagicLink({ email, magicUrl, token: issued.token, code });
+          await cfg.mail.onMagicLink({ email, magicUrl, token: issued.token, code, channel });
         } else {
-          await sendMagicLinkEmail(ctx, { email, magicUrl, code });
+          await sendMagicLinkEmail(ctx, { email, magicUrl, code, channel });
         }
       }
     }
@@ -786,6 +791,10 @@ export default class AuthInteractionController {
       brand,
       magicLinkSent: true,
       otpEnabled,
+      // Prop da tela: qual sub-view do estado `magicLinkSent` mostrar —
+      // 'code' (só o campo de código), 'link' (só o aviso de link) ou 'both'
+      // (ambos, quando o host não escolheu canal). Back-compat: ausente = 'both'.
+      magicChannel: magicChannelProp(channel),
     });
   }
 
@@ -881,6 +890,9 @@ export default class AuthInteractionController {
 
     const code = String(ctx.request.input('code', '') ?? '').trim();
     const brand = brandFor(cfg.branding!, clientId ?? undefined, undefined);
+    // Mantém a sub-view do seletor no re-render de erro (o form de código pode
+    // POSTar `channel=code`). Ausente = both (histórico).
+    const channel = normalizeLoginChannel(ctx.request.input('channel'));
 
     const result = await cfg.accountStore.verifyLoginCode(email, uid, code, {
       maxAttempts: cfg.login.otp.maxAttempts,
@@ -898,6 +910,7 @@ export default class AuthInteractionController {
         brand,
         magicLinkSent: true,
         otpEnabled: true,
+        magicChannel: magicChannelProp(channel),
         otpError: translate(cfg.messages, messageKey),
       });
 

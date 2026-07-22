@@ -190,14 +190,19 @@
         @end
       @end
 
-      {{-- Passwordless: confirmação de magic link enviado (anti-enumeração). --}}
+      {{-- Passwordless: confirmação de magic link enviado (anti-enumeração).
+           `magicChannel` (choose-first) escolhe a sub-view: 'code' = só o campo de
+           código, 'link' = só o aviso de link, 'both'/ausente = ambos (histórico). --}}
       @if(magicLinkSent)
-        <p class="mt-4 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">{{ t('login.magic_link_sent') }}</p>
+        @if(magicChannel !== 'code')
+          <p class="mt-4 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">{{ t('login.magic_link_sent') }}</p>
+        @end
 
         {{-- Login por OTP: campo de código digitável (mesmo e-mail carrega link E código). --}}
-        @if(otpEnabled)
+        @if(otpEnabled && magicChannel !== 'link')
           <form method="POST" action="/auth/interaction/{{ uid }}/otp-verify" class="mt-4">
             <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+            <input type="hidden" name="channel" value="code">
             <label for="otp-code" class="block text-sm font-medium text-gray-700">{{ t('login.otp_label') }}</label>
             <input id="otp-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code"
               pattern="[0-9]*" placeholder="{{ t('login.otp_placeholder') }}"

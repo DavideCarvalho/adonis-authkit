@@ -309,25 +309,46 @@ export async function sendNewDeviceLoginEmail(
  */
 export async function sendMagicLinkEmail(
   ctx: HttpContext,
-  data: { email: string; magicUrl: string; code?: string },
+  data: { email: string; magicUrl: string; code?: string; channel?: 'code' | 'link' },
 ): Promise<void> {
   try {
     const brand = resolveBrand(ctx);
     const { messages: t, locale } = resolveMailMessages(ctx);
-    const content = renderTransactionalEmail({
-      brand,
-      locale,
-      linkFallback: translate(t, 'mail.common.link_fallback'),
-      subject: translate(t, 'mail.magic_link.subject'),
-      heading: translate(t, 'mail.magic_link.heading'),
-      intro: translate(t, 'mail.magic_link.intro'),
-      ctaLabel: translate(t, 'mail.magic_link.cta'),
-      ctaUrl: data.magicUrl,
-      footnote: translate(t, 'mail.magic_link.fallback'),
-      // Login por OTP: quando o código é fornecido, renderiza-o em destaque.
-      code: data.code,
-      codeLabel: translate(t, 'mail.magic_link.code_label'),
-    });
+    // Login choose-first: o `channel` decide o que o e-mail SURFA (os dois tokens
+    // continuam emitidos co-locados a montante — isto é só renderização).
+    //  - 'code'  → e-mail SÓ com o código (sem botão/link), quando há código;
+    //  - 'link'  → e-mail SÓ com o link (código suprimido);
+    //  - ausente → ambos (comportamento histórico — back-compat).
+    // Degradação limpa: `channel: 'code'` sem código emitido (OTP desligado) cai
+    // no e-mail de link — não dá pra mostrar um código inexistente.
+    const codeOnly = data.channel === 'code' && !!data.code;
+    const linkOnly = data.channel === 'link';
+    const content = codeOnly
+      ? renderTransactionalEmail({
+          brand,
+          locale,
+          subject: translate(t, 'mail.magic_link.code_subject'),
+          heading: translate(t, 'mail.magic_link.heading'),
+          intro: translate(t, 'mail.magic_link.code_intro'),
+          footnote: translate(t, 'mail.magic_link.fallback'),
+          // Sem `ctaUrl`: e-mail sem botão nem fallback de link — só o código.
+          code: data.code,
+          codeLabel: translate(t, 'mail.magic_link.code_only_label'),
+        })
+      : renderTransactionalEmail({
+          brand,
+          locale,
+          linkFallback: translate(t, 'mail.common.link_fallback'),
+          subject: translate(t, 'mail.magic_link.subject'),
+          heading: translate(t, 'mail.magic_link.heading'),
+          intro: translate(t, 'mail.magic_link.intro'),
+          ctaLabel: translate(t, 'mail.magic_link.cta'),
+          ctaUrl: data.magicUrl,
+          footnote: translate(t, 'mail.magic_link.fallback'),
+          // Código em destaque quando presente — suprimido no canal 'link'.
+          code: linkOnly ? undefined : data.code,
+          codeLabel: translate(t, 'mail.magic_link.code_label'),
+        });
     const sent = await sendEmail(ctx, data.email, content);
     if (!sent) {
       ctx.logger.info(

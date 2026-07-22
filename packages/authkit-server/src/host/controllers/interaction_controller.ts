@@ -741,13 +741,12 @@ export default class AuthInteractionController {
       const clientId = (details.params.client_id as string | undefined) ?? null;
       // Com OTP ligado, emite link E código no MESMO disparo (issueMagicLinkWithCode);
       // senão, o magic link puro de sempre.
-      const issued =
-        otpEnabled && supportsOtpLogin(cfg.accountStore)
-          ? await cfg.accountStore.issueMagicLinkWithCode(email, uid, {
-              digits: cfg.login.otp.digits,
-              ttlMinutes: cfg.login.otp.ttlMinutes,
-            })
-          : await cfg.accountStore.issueMagicLinkToken(email);
+      const issued = otpEnabled
+        ? await cfg.accountStore.issueMagicLinkWithCode(email, uid, {
+            digits: cfg.login.otp.digits,
+            ttlMinutes: cfg.login.otp.ttlMinutes,
+          })
+        : await cfg.accountStore.issueMagicLinkToken(email);
       if (issued) {
         const code = 'code' in issued ? issued.code : undefined;
         await cfg.audit?.record({

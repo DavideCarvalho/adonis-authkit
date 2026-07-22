@@ -66,9 +66,13 @@ export function renderTransactionalEmail(input: EmailTemplateInput): EmailConten
   const codeLabel = input.codeLabel || 'Or enter this code:';
 
   // Bloco do código OTP (grande/monoespaçado), renderizado só quando há código.
+  // Termina em '\n' quando presente para manter o <table> seguinte em linha própria;
+  // vazio quando ausente (sem linha em branco extra — byte-parity com o e-mail
+  // pré-OTP).
   const codeBlock = input.code
     ? `<p style="margin:0 0 8px;font-size:13px;line-height:1.5;color:#6b7280;">${esc(codeLabel)}</p>
-<p style="margin:0 0 24px;font-size:32px;font-weight:700;letter-spacing:6px;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;color:#111827;">${esc(input.code)}</p>`
+<p style="margin:0 0 24px;font-size:32px;font-weight:700;letter-spacing:6px;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;color:#111827;">${esc(input.code)}</p>
+`
     : '';
 
   const html = `<!doctype html>
@@ -88,8 +92,7 @@ export function renderTransactionalEmail(input: EmailTemplateInput): EmailConten
 <tr><td style="padding:32px 28px 8px;">
 <h1 style="margin:0 0 12px;font-size:20px;line-height:1.3;color:#111827;">${esc(input.heading)}</h1>
 <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#374151;">${esc(input.intro)}</p>
-${codeBlock}
-<table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="border-radius:8px;background:${esc(accent)};">
+${codeBlock}<table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="border-radius:8px;background:${esc(accent)};">
 <a href="${esc(input.ctaUrl)}" style="display:inline-block;padding:12px 24px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">${esc(input.ctaLabel)}</a>
 </td></tr></table>
 ${input.footnote ? `<p style="margin:24px 0 0;font-size:13px;line-height:1.5;color:#6b7280;">${esc(input.footnote)}</p>` : ''}

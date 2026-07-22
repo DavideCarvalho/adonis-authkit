@@ -278,6 +278,9 @@ test.group('otp login — e-mail carrega o código', () => {
     const out = renderTransactionalEmail(base);
     assert.notInclude(out.html, 'letter-spacing:6px');
     assert.notInclude(out.text, 'código');
+    // Byte-parity com o e-mail pré-OTP: o slot do codeBlock não pode deixar
+    // linha em branco entre o parágrafo de intro e a tabela do CTA.
+    assert.match(out.html, /<\/p>\n<table role="presentation" cellpadding="0" cellspacing="0">/);
   });
 
   test('com code: renderiza o código em destaque (HTML monoespaçado + texto)', ({ assert }) => {

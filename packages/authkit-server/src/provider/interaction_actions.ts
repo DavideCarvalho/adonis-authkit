@@ -1,4 +1,8 @@
 import type { HttpContext } from '@adonisjs/core/http';
+import {
+  InteractionSessionLostException,
+  isInteractionSessionLost,
+} from '../host/interaction_recovery.js';
 
 export interface InteractionDeps {
   verifyCredentials?: (email: string, password: string) => Promise<{ id: string } | null>;
@@ -31,11 +35,28 @@ export interface InteractionActions {
   consent(ctx: HttpContext): Promise<unknown>;
 }
 
+/**
+ * Choke point ÚNICO de `interactionDetails`: converte o `SessionNotFound` do
+ * `oidc-provider` (sessão de interaction perdida — caso NORMAL) na exceção
+ * self-handling `InteractionSessionLostException`, que recupera graciosamente
+ * (tela `session-expired` ou redirect) em vez de vazar um erro cru. Todo outro
+ * erro propaga inalterado. Usado por `details` e por `consent`, então nenhum
+ * handler de interaction precisa de try/catch próprio.
+ */
+async function interactionDetailsOrRecover(provider: any, ctx: HttpContext): Promise<any> {
+  try {
+    return await provider.interactionDetails(ctx.request.request, ctx.response.response);
+  } catch (err) {
+    if (isInteractionSessionLost(err)) throw new InteractionSessionLostException();
+    throw err;
+  }
+}
+
 /** Lógica de interaction (login/consent) sobre o provider. Testável com um provider fake. */
 export function createInteractionActions(provider: any, deps: InteractionDeps): InteractionActions {
   return {
     async details(ctx) {
-      return provider.interactionDetails(ctx.request.request, ctx.response.response);
+      return interactionDetailsOrRecover(provider, ctx);
     },
 
     async login(ctx, { email, password }) {
@@ -75,7 +96,7 @@ export function createInteractionActions(provider: any, deps: InteractionDeps): 
     },
 
     async consent(ctx) {
-      const details = await provider.interactionDetails(ctx.request.request, ctx.response.response);
+      const details = await interactionDetailsOrRecover(provider, ctx);
       const grant = new provider.Grant({
         accountId: details.session.accountId,
         clientId: details.params.client_id,

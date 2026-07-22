@@ -467,6 +467,10 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
   const withSudo = (route: any): void => {
     if (throttles) route.use([throttles.sudo]);
   };
+  // Bucket PRÓPRIO da verificação de código OTP: mais apertado que o login, por IP.
+  const withOtpLogin = (route: any): void => {
+    if (throttles) route.use([throttles.otpLogin]);
+  };
 
   // ─── Assets estáticos do host-kit (públicos, sem autenticação) ─────────────
   // Bundle do @simplewebauthn/browser servido pelo próprio app, no lugar do
@@ -502,6 +506,9 @@ export function registerAuthHost(router: Router, opts: AuthHostOptions = {}): vo
   // Magic link (passwordless): POST emite (throttled), GET consome o token do link.
   withLogin(router.post('/auth/interaction/:uid/magic', [C.interaction, 'magicLinkRequest']));
   router.get('/auth/interaction/:uid/magic', [C.interaction, 'magicLinkConsume']);
+  // Login por OTP (código digitável): verifica o código no bucket dedicado
+  // `authkit_otp_login` (por IP, mais apertado que o login).
+  withOtpLogin(router.post('/auth/interaction/:uid/otp-verify', [C.interaction, 'otpVerify']));
   router.post('/auth/interaction/:uid/consent', [C.interaction, 'consent']);
   router.get('/auth/interaction/:uid/switch', [C.interaction, 'switchIdentifier']);
   // OTP unlock: link enviado por e-mail quando o fator TOTP/recovery é travado.

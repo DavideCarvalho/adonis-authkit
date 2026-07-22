@@ -96,6 +96,8 @@ export type {
   AccountStatusCapability,
   ProfileCapability,
   MagicLinkCapability,
+  OtpLoginCapability,
+  OtpLoginVerifyResult,
   EmailVerificationStatusCapability,
   AccountDeletionCapability,
   AccountImportCapability,
@@ -115,10 +117,21 @@ export {
   supportsAccountStatus,
   supportsProfile,
   supportsMagicLink,
+  supportsOtpLogin,
   supportsEmailVerificationStatus,
   supportsAccountDeletion,
   supportsAccountImport,
 } from './src/accounts/account_store.js';
+// Login por OTP (código digitável): config + helpers puros.
+export {
+  type OtpLoginConfigInput,
+  type ResolvedOtpLoginConfig,
+  type OtpVerifyOutcome,
+  resolveOtpLoginConfig,
+  generateOtpCode,
+  evaluateLoginOtp,
+  OTP_LOGIN_DEFAULTS,
+} from './src/host/otp_login.js';
 // Gerência de senha: lazy rehash + legacy verifier, política e checagem de vazamento.
 export {
   PasswordManager,

@@ -193,6 +193,24 @@
       {{-- Passwordless: confirmação de magic link enviado (anti-enumeração). --}}
       @if(magicLinkSent)
         <p class="mt-4 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">{{ t('login.magic_link_sent') }}</p>
+
+        {{-- Login por OTP: campo de código digitável (mesmo e-mail carrega link E código). --}}
+        @if(otpEnabled)
+          <form method="POST" action="/auth/interaction/{{ uid }}/otp-verify" class="mt-4">
+            <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+            <label for="otp-code" class="block text-sm font-medium text-gray-700">{{ t('login.otp_label') }}</label>
+            <input id="otp-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code"
+              pattern="[0-9]*" placeholder="{{ t('login.otp_placeholder') }}"
+              class="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-center text-lg tracking-[0.4em] font-mono focus:border-gray-900 focus:ring-gray-900" />
+            @if(otpError)
+              <p class="mt-2 text-sm text-red-600">{{ otpError }}</p>
+            @end
+            <button type="submit"
+              class="mt-4 w-full rounded-lg bg-gray-900 py-2.5 text-sm font-semibold text-white transition hover:opacity-90">
+              {{ t('login.otp_submit') }}
+            </button>
+          </form>
+        @end
       @end
 
       {{-- Passwordless: "me envie um link de login" (mesma sessão/e-mail; não pede senha). --}}

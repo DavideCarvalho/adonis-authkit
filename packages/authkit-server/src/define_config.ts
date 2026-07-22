@@ -23,6 +23,11 @@ import type { BrandingConfig } from './host/branding.js';
 import { deriveLockedSettingKeys } from './host/config_locks.js';
 import type { ResolveGeo } from './host/geo.js';
 import { type AuthMessages, type I18nConfig, resolveMessages } from './host/i18n.js';
+import {
+  type OtpLoginConfigInput,
+  type ResolvedOtpLoginConfig,
+  resolveOtpLoginConfig,
+} from './host/otp_login.js';
 import { edgeRenderer } from './host/renderers/edge_renderer.js';
 import type { SudoMethod } from './host/sudo/types.js';
 import {
@@ -72,6 +77,12 @@ export interface MailHooks {
     email: string;
     magicUrl: string;
     token: string;
+    /**
+     * Código OTP de login, presente APENAS quando `login.otp.enabled` está
+     * ligado. O host pode montar o próprio e-mail com link E código. Ausente no
+     * fluxo só-magic-link (back-compat).
+     */
+    code?: string;
   }) => Promise<void>;
   /**
    * Envia o link de CONFIRMAÇÃO DE IDENTIDADE (sudo). Distinto de
@@ -220,6 +231,13 @@ export interface ResolvedRateLimitConfig {
    * afrouxar — o ponto é separar a CONTAGEM, não o teto.
    */
   sudo: RateLimitBucket;
+  /**
+   * Bucket da verificação de código OTP de login (`/auth/interaction/:uid/otp-verify`),
+   * keyed por IP. MAIS APERTADO que o login (5/min vs 10/min): um código de 6
+   * dígitos é adivinhável, então o teto por IP é a primeira barreira anti-brute
+   * force ANTES do lockout por interaction (contador persistido no slot do código).
+   */
+  otpLogin: RateLimitBucket;
   store?: string;
 }
 
@@ -228,12 +246,15 @@ const RATE_LIMIT_DEFAULTS: {
   introspection: RateLimitBucket;
   adminIp: RateLimitBucket;
   sudo: RateLimitBucket;
+  otpLogin: RateLimitBucket;
 } = {
   login: { points: 10, duration: '1 min' },
   introspection: { points: 60, duration: '1 min' },
   adminIp: { points: 30, duration: '1 min' },
   // Mesmos limites do login, bucket separado — ver `ResolvedRateLimitConfig.sudo`.
   sudo: { points: 10, duration: '1 min' },
+  // Mais apertado que o login — verificação de código adivinhável.
+  otpLogin: { points: 5, duration: '1 min' },
 };
 
 export function resolveRateLimit(input?: RateLimitConfigInput): ResolvedRateLimitConfig {
@@ -244,6 +265,7 @@ export function resolveRateLimit(input?: RateLimitConfigInput): ResolvedRateLimi
     introspection: RATE_LIMIT_DEFAULTS.introspection,
     adminIp: RATE_LIMIT_DEFAULTS.adminIp,
     sudo: RATE_LIMIT_DEFAULTS.sudo,
+    otpLogin: RATE_LIMIT_DEFAULTS.otpLogin,
     store: input?.store,
   };
 }
@@ -595,15 +617,24 @@ export function resolveAuthMethodsConfig(
 export interface LoginConfigInput {
   /** Exige e-mail verificado para autenticar (senha/magic link/passkey-first). Default: false. */
   requireVerifiedEmail?: boolean;
+  /**
+   * Login por OTP (código digitável) — extensão do magic link. Quando ligado, o
+   * MESMO e-mail passa a carregar link E código, os dois completando a mesma
+   * interaction. Default: **desligado** (opt-in; sem a config o comportamento é
+   * idêntico ao de antes, e-mail idêntico). Ver `host/otp_login.ts`.
+   */
+  otp?: OtpLoginConfigInput;
 }
 
 export interface ResolvedLoginConfig {
   requireVerifiedEmail: boolean;
+  otp: ResolvedOtpLoginConfig;
 }
 
 export function resolveLogin(input?: LoginConfigInput): ResolvedLoginConfig {
   return {
     requireVerifiedEmail: input?.requireVerifiedEmail ?? false,
+    otp: resolveOtpLoginConfig(input?.otp),
   };
 }
 

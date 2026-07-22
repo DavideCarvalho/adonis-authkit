@@ -1,12 +1,22 @@
 import { randomBytes } from 'node:crypto';
 import { Scrypt } from '@adonisjs/core/hash/drivers/scrypt';
 import { DateTime } from 'luxon';
+import {
+  OTP_LOGIN_PREFIX,
+  decodeOtpToken,
+  encodeOtpToken,
+  evaluateLoginOtp,
+  generateOtpCode,
+  hashLoginOtp,
+  linkTokenFromOtpUrl,
+} from '../../host/otp_login.js';
 import type {
   AccountImportCapability,
   AccountSecurityCapability,
   CoreAccountStore,
   CreateAccountInput,
   MagicLinkCapability,
+  OtpLoginCapability,
 } from '../account_store.js';
 import type { LucidStoreContext } from './shared.js';
 import { hasColumn } from './status_profile.js';
@@ -42,7 +52,11 @@ const dummyHashPromise: Promise<string> = dummyHasher.make(randomBytes(32).toStr
  */
 export function buildCore(
   ctx: LucidStoreContext,
-): CoreAccountStore & AccountSecurityCapability & MagicLinkCapability & AccountImportCapability {
+): CoreAccountStore &
+  AccountSecurityCapability &
+  MagicLinkCapability &
+  OtpLoginCapability &
+  AccountImportCapability {
   const { Model, toAccount } = ctx;
 
   return {
@@ -148,9 +162,9 @@ export function buildCore(
     },
 
     async consumePasswordResetToken(token, newPassword) {
-      // Magic links (`ml:`) NÃO são tokens de reset de senha — só o fluxo de
-      // consumeMagicLinkToken pode consumi-los (não trocam senha).
-      if (token.startsWith(MAGIC_LINK_PREFIX)) return false;
+      // Magic links (`ml:` e `ml2:` com OTP) NÃO são tokens de reset de senha —
+      // só o fluxo de consumeMagicLinkToken pode consumi-los (não trocam senha).
+      if (token.startsWith(MAGIC_LINK_PREFIX) || token.startsWith(OTP_LOGIN_PREFIX)) return false;
       const row = await Model.query().where('passwordResetToken', token).first();
       if (!row) return false;
       if (!row.passwordResetExpiresAt || row.passwordResetExpiresAt < DateTime.now()) return false;
@@ -183,7 +197,27 @@ export function buildCore(
     },
 
     async consumeMagicLinkToken(token) {
-      if (!token || !token.startsWith(MAGIC_LINK_PREFIX)) return null;
+      if (!token) return null;
+
+      // Magic link com OTP ativo: o slot guarda `ml2:<linkToken>:<...>` mas a URL
+      // carrega só `ml2:<linkToken>`. Busca pelo prefixo do link (linkToken é hex
+      // validado — sem metacaractere de LIKE) e consome o slot inteiro (mata o
+      // código junto — single-use conjunto).
+      if (token.startsWith(OTP_LOGIN_PREFIX)) {
+        const linkToken = linkTokenFromOtpUrl(token);
+        if (!linkToken) return null;
+        const row = await Model.query()
+          .where('passwordResetToken', 'like', `${OTP_LOGIN_PREFIX}${linkToken}:%`)
+          .first();
+        if (!row) return null;
+        if (!row.passwordResetExpiresAt || row.passwordResetExpiresAt < DateTime.now()) return null;
+        row.passwordResetToken = null;
+        row.passwordResetExpiresAt = null;
+        await row.save();
+        return toAccount(row);
+      }
+
+      if (!token.startsWith(MAGIC_LINK_PREFIX)) return null;
       const row = await Model.query().where('passwordResetToken', token).first();
       if (!row) return null;
       if (!row.passwordResetExpiresAt || row.passwordResetExpiresAt < DateTime.now()) return null;
@@ -192,6 +226,83 @@ export function buildCore(
       row.passwordResetExpiresAt = null;
       await row.save();
       return toAccount(row);
+    },
+
+    // ----- Login por OTP (código digitável — extensão do magic link) -----
+
+    async issueMagicLinkWithCode(email, uid, opts) {
+      const row = await Model.query().where('email', email).first();
+      if (!row) return null;
+      const linkToken = randomBytes(32).toString('hex');
+      const code = generateOtpCode(opts.digits);
+      const codeHash = hashLoginOtp(uid, code);
+      const codeExpMs = DateTime.now().plus({ minutes: opts.ttlMinutes }).toMillis();
+      // Slot `ml2:` — código + link juntos, contador em 0. Ver host/otp_login.ts.
+      row.passwordResetToken = encodeOtpToken({ linkToken, codeHash, codeExpMs, attempts: 0 });
+      // O LINK herda a validade padrão do magic link (15 min); o CÓDIGO carrega o
+      // próprio `codeExpMs` (mais curto) embutido no slot.
+      row.passwordResetExpiresAt = DateTime.now().plus({ minutes: 15 });
+      await row.save();
+      return { token: `${OTP_LOGIN_PREFIX}${linkToken}`, code, account: toAccount(row) };
+    },
+
+    async verifyLoginCode(email, uid, code, opts) {
+      // ── Atomicidade do contador de lockout (barreira PRIMÁRIA, fail-closed) ──
+      // O contador de tentativas vive DENTRO do slot `ml2:` e é a única barreira
+      // contra brute-force do código curto (o throttle de rota é camada EXTRA e
+      // pode estar ausente). Um read-modify-write ingênuo (first→avaliar→save) é
+      // derrotável por concorrência: N requests leem o MESMO contador, todos
+      // gravam `attempts+1` (last-write-wins) e o lockout nunca dispara — pior,
+      // como a COMPARAÇÃO do código acontece após a leitura, N requests
+      // concorrentes conseguem N comparações contra o MESMO valor do contador,
+      // varrendo o espaço de 10^6 dentro do TTL.
+      //
+      // Correção: serializa o read-compare-write numa TRANSAÇÃO com row-lock
+      // (`forUpdate`). Cada tentativa lê o estado JÁ commitado pela anterior, o
+      // contador avança 1-a-1 e — porque a comparação vive DENTRO da seção
+      // crítica — o total de comparações contra um mesmo código fica limitado a
+      // `maxAttempts` (garantia DURA, não probabilística). No Postgres o lock é
+      // por linha; no sqlite a própria transação serializa. Os demais caminhos
+      // que tocam o slot (`consumeMagicLinkToken`, sucesso do OTP) só gravam
+      // `null` (terminal) — não regridem contador — e ainda serializam atrás
+      // deste lock (todo UPDATE trava a linha), então não podem ressuscitar um
+      // slot já consumido nem apagar um incremento.
+      const trx = await Model.query().client.transaction();
+      try {
+        const row = await Model.query({ client: trx }).where('email', email).forUpdate().first();
+        if (!row) {
+          await trx.commit();
+          return { status: 'no_code' };
+        }
+        const parsed = decodeOtpToken(row.passwordResetToken);
+        const evaluation = evaluateLoginOtp({
+          parsed,
+          uid,
+          code,
+          nowMs: DateTime.now().toMillis(),
+          maxAttempts: opts.maxAttempts,
+        });
+        // Efeito de persistência: `undefined` = não escreve; `null` = limpa o slot
+        // (sucesso, mata o link junto); string = novo slot (contador++/invalidação).
+        // A escrita ocorre DENTRO da mesma transação/lock da leitura.
+        if (evaluation.nextToken === null) {
+          row.useTransaction(trx);
+          row.passwordResetToken = null;
+          row.passwordResetExpiresAt = null;
+          await row.save();
+        } else if (typeof evaluation.nextToken === 'string') {
+          // Contador/invalidação: preserva a validade do LINK (só o código muda).
+          row.useTransaction(trx);
+          row.passwordResetToken = evaluation.nextToken;
+          await row.save();
+        }
+        await trx.commit();
+        if (evaluation.result === 'ok') return { status: 'ok', account: toAccount(row) };
+        return { status: evaluation.result };
+      } catch (error) {
+        await trx.rollback();
+        throw error;
+      }
     },
 
     async issueEmailVerificationToken(email) {

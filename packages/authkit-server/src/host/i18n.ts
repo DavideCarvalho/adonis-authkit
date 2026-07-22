@@ -61,6 +61,13 @@ export const DEFAULT_MESSAGES = {
   'signup.magic_link_sent':
     'Check your email — we sent you a link to finish creating your account.',
   'login.passkey_button': 'Sign in with a passkey',
+  // Login por OTP (código digitável).
+  'login.otp_label': 'Enter the login code from the email',
+  'login.otp_placeholder': '000000',
+  'login.otp_submit': 'Sign in with the code',
+  'login.otp_invalid': 'Invalid code. Please try again.',
+  'login.otp_expired': 'This code has expired. Use the login link or request a new one.',
+  'login.otp_locked': 'Too many attempts. The code was disabled — use the login link instead.',
 
   // Tela de cadastro (signup).
   'signup.page_title': 'Create account',
@@ -672,6 +679,7 @@ export const DEFAULT_MESSAGES = {
     'Click the button below to sign in. The link expires shortly and can be used once.',
   'mail.magic_link.cta': 'Sign in',
   'mail.magic_link.fallback': 'If you did not request this, you can ignore this email.',
+  'mail.magic_link.code_label': 'Or enter this code to sign in:',
 
   'mail.new_login.subject': 'New login to your account',
   'mail.new_login.heading': 'New login detected',
@@ -1017,6 +1025,13 @@ export const PT_BR_MESSAGES = {
   'login.magic_link_sent': 'Se a conta existir, enviamos um link de login.',
   'signup.magic_link_sent': 'Enviamos um link para o seu e-mail. Abra-o para concluir o cadastro.',
   'login.passkey_button': 'Entrar com passkey',
+  // Login por OTP (código digitável).
+  'login.otp_label': 'Digite o código de login do e-mail',
+  'login.otp_placeholder': '000000',
+  'login.otp_submit': 'Entrar com o código',
+  'login.otp_invalid': 'Código inválido. Tente novamente.',
+  'login.otp_expired': 'Este código expirou. Use o link de login ou peça um novo.',
+  'login.otp_locked': 'Tentativas demais. O código foi desativado — use o link de login.',
 
   // Tela de cadastro (signup).
   'signup.page_title': 'Criar conta',
@@ -1623,6 +1638,7 @@ export const PT_BR_MESSAGES = {
     'Clique no botão abaixo para entrar. O link expira em breve e pode ser usado uma vez.',
   'mail.magic_link.cta': 'Entrar',
   'mail.magic_link.fallback': 'Se você não solicitou isso, pode ignorar este e-mail.',
+  'mail.magic_link.code_label': 'Ou digite este código para entrar:',
 
   'mail.new_login.subject': 'Novo login na sua conta',
   'mail.new_login.heading': 'Novo login detectado',

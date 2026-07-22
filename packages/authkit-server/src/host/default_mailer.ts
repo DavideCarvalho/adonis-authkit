@@ -309,7 +309,7 @@ export async function sendNewDeviceLoginEmail(
  */
 export async function sendMagicLinkEmail(
   ctx: HttpContext,
-  data: { email: string; magicUrl: string },
+  data: { email: string; magicUrl: string; code?: string },
 ): Promise<void> {
   try {
     const brand = resolveBrand(ctx);
@@ -324,6 +324,9 @@ export async function sendMagicLinkEmail(
       ctaLabel: translate(t, 'mail.magic_link.cta'),
       ctaUrl: data.magicUrl,
       footnote: translate(t, 'mail.magic_link.fallback'),
+      // Login por OTP: quando o código é fornecido, renderiza-o em destaque.
+      code: data.code,
+      codeLabel: translate(t, 'mail.magic_link.code_label'),
     });
     const sent = await sendEmail(ctx, data.email, content);
     if (!sent) {

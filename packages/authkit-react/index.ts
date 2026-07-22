@@ -70,15 +70,43 @@ export type {
 } from './src/hooks/use_passkey_login.js';
 export {
   authenticatePasskey,
+  registerPasskey,
   submitPasskeyVerification,
   loadStartAuthentication,
+  loadStartRegistration,
 } from './src/passkey/authenticate.js';
 export type {
   AuthenticatePasskeyOptions,
+  RegisterPasskeyOptions,
   SubmitPasskeyVerificationOptions,
   PasskeyCeremonyDeps,
+  PasskeyRegistrationDeps,
   StartAuthenticationFn,
+  StartRegistrationFn,
 } from './src/passkey/authenticate.js';
+
+// Headless: form clássico + "dance" de sudo/passkey para telas React próprias.
+export { submitClassicForm } from './src/passkey/classic_form.js';
+export type {
+  SubmitClassicFormOptions,
+  SubmitClassicFormDeps,
+} from './src/passkey/classic_form.js';
+export { runPasskeyAssertion, runPasskeyRegistration } from './src/passkey/sudo.js';
+export type {
+  RunPasskeyFlowOptions,
+  RunPasskeyAssertionDeps,
+  RunPasskeyRegistrationDeps,
+} from './src/passkey/sudo.js';
+export { usePasskeyAssertion } from './src/hooks/use_passkey_assertion.js';
+export type {
+  UsePasskeyAssertionOptions,
+  UsePasskeyAssertionResult,
+} from './src/hooks/use_passkey_assertion.js';
+export { usePasskeyRegistration } from './src/hooks/use_passkey_registration.js';
+export type {
+  UsePasskeyRegistrationOptions,
+  UsePasskeyRegistrationResult,
+} from './src/hooks/use_passkey_registration.js';
 export {
   usePasswordStrength,
   heuristicScorer,
